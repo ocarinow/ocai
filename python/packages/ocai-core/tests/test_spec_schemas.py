@@ -261,7 +261,6 @@ def test_unknown_role_and_open_codes_validate() -> None:
     message = {"role": "narrator", "parts": [{"type": "text", "text": "hi"}]}
     assert not _errors_for_shape_raw("message", message)
     request = {
-        "model": "m",
         "messages": [],
         "tool_choice": {"mode": "provider_specific_mode"},
         "config": {"reasoning": {"effort": "xtreme"}, "output": {"mode": "yaml"}},
@@ -277,11 +276,17 @@ def test_message_requires_role_and_parts() -> None:
     assert not _errors_for_shape_raw("message", {"role": "user", "parts": []})
 
 
-def test_chat_request_requires_model_and_messages() -> None:
-    """`model` and `messages` are always emitted, so the schema may require them."""
-    assert _errors_for_shape_raw("chat_request", {"messages": []})
-    assert _errors_for_shape_raw("chat_request", {"model": "m"})
-    assert not _errors_for_shape_raw("chat_request", {"model": "m", "messages": []})
+def test_chat_request_requires_messages_only() -> None:
+    """`messages` is required; there is no `model` member at all (WU-05a).
+
+    The model name is routing data bound to the model object (§3.4), never
+    part of the portable request document.
+    """
+    assert _errors_for_shape_raw("chat_request", {})
+    assert not _errors_for_shape_raw("chat_request", {"messages": []})
+    assert "model" not in SCHEMAS_BY_ID[f"{SCHEMA_ID_BASE}chat_request.schema.json"].get(
+        "properties", {}
+    )
 
 
 def test_unknown_finish_reason_and_detail_tag_validate() -> None:
@@ -354,7 +359,7 @@ def test_edge_fixture_convention_maps_canonical_sides_only() -> None:
         "src": {"provider": "openai", "interface": "chat_completions", "shape": "chat.request"},
         "dst": {"provider": "ocai", "interface": "ocai", "shape": "chat.request"},
         "input": {"not": "validated"},
-        "expect": {"model": "m", "messages": []},
+        "expect": {"messages": []},
         "expect_losses": [],
     }
     triples = _validatable_payloads(fixture, Path("synthetic.json"))

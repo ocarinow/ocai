@@ -148,6 +148,57 @@ milestone files to `archive/`; this roadmap replaces them.
   mirroring `parts.schema.json`) was added; the M2 chunk schema can `$ref`
   it. The finish vectors validate against WU-03's `finish.schema.json`.
 
+## WU-05a — API shape correction: `model` off `ChatRequest`; two front doors
+
+Maintainer course-correction (2026-07-13, architecture §3.4): pydantic-ai-shaped
+UX. The model name is routing data bound to the model object, never carried in
+the request; provider helpers are sanctioned sugar alongside the core string
+door.
+
+- **Scope:** (1) `ocai/chat/types/request.py` — drop the `model` field;
+  `ChatRequest(messages, tools, tool_choice, config)` is pure conversation.
+  (2) `spec/schema/chat_request.schema.json` + canonical fixtures — drop
+  `model`; rule-11 test stays green. (3) Both plugin codecs — `encode_request`
+  no longer reads `request.model`; the wire `model` field is injected from the
+  bound resource (thread it through the edge/codec signature the way
+  `EndpointSpec.resource` already flows; decide the exact seam in-WU and
+  record it). Censuses updated (no `model` row). (4) `ocai/chat/model.py` —
+  `WireChatModel` gains the bound `model_name`; document that the §3.4 front
+  doors pass it at construction. (5) Reinstate the plugin helper stubs
+  (`ocai.openai.chat_model`, `ocai.anthropic.chat_model`) as thin sanctioned
+  sugar (may stay NotImplementedError until WU-16 wires the doors; the
+  DOCSTRING must define them as wrappers over the same fragment+facade path).
+- **Done:** grep shows no `request.model` anywhere; schemas/fixtures/tests
+  updated; full suite + lint-imports green; censuses re-certified.
+- **Deps:** WU-02/03 (schemas exist). MUST precede WU-06.
+- **Decision:** the injection seam. `ConversionGraph.convert` has no
+  call-time context parameter and fragment edges are frozen before any model
+  name exists, so the bound resource cannot ride the edge/codec signature
+  through the graph. Instead, `encode_request` emits the wire body with **no
+  `model` member** and each codec exposes a pure
+  `bind_resource(payload, resource)`; the facade (`WireChatModel`) injects
+  its bound `model_name` post-conversion, before the driver send — the same
+  value that becomes `EndpointSpec.resource`. Edges stay pure functions of
+  their payload, fragments stay model-agnostic, and the dialect knowledge of
+  *where* the wire carries the name stays in the codec (hosting envelopes
+  may still relocate/strip it — Vertex lifts it into the URL).
+- **Decision:** the model-less edge output carries no `FieldLoss`: the
+  canonical request has no model field, so emitting no `model` member drops
+  nothing — rule-5 reporting covers canonical material only. The `model`
+  rows were removed from both encode censuses; the response-side `model`
+  echo rows stay (wire material, decoded to `info.model`).
+- **Decision:** the additive-only property snapshot in
+  `test_schema_conformance.py` was amended (`model` removed from the
+  `chat_request.schema.json` entry) — sanctioned because WU-05a is a
+  pre-freeze maintainer course-correction (stability domains freeze at v0.2,
+  rule 2); the additive-only regime governs from the corrected shape onward.
+- **Decision:** the sugar doors are exported at distribution level
+  (`ocai.openai.chat_model`, `ocai.anthropic.chat_model`, per the §3.4
+  example) as re-exports of the interface helpers; they stay
+  `NotImplementedError` stubs with **no module-level wire/runtime imports**
+  (plugin import contract stays green) — WU-16 wires them through the same
+  fragment + facade machinery via documented deferred imports.
+
 ## WU-06 — OpenAI chat_completions unary certification
 
 - **Scope:** `spec/fixtures/openai/chat_completions/` — ≥5 edge fixtures with

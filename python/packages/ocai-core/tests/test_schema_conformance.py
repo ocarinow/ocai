@@ -310,7 +310,7 @@ def _minimal_objects() -> list[tuple[Any, frozenset[str]]]:
     """Minimal instances paired with the schema property set that bounds them."""
     return [
         (Message(role="user", parts=[]), _schema_props("message.schema.json")),
-        (ChatRequest(model="m", messages=[]), _schema_props("chat_request.schema.json")),
+        (ChatRequest(messages=[]), _schema_props("chat_request.schema.json")),
         (
             ChatResponse(message=Message(role="model", parts=[])),
             _schema_props("chat_response.schema.json"),
@@ -431,7 +431,10 @@ PROPERTY_SNAPSHOT: dict[str, frozenset[str]] = {
     | {"span", "url", "document_index", "file", "title", "cited_text", "opaque"},
     "parts.schema.json#/$defs/source": ENVELOPE
     | {"type", "data", "mime_type", "url", "ref", "media_type"},
-    "chat_request.schema.json": ENVELOPE | {"model", "messages", "tools", "tool_choice", "config"},
+    # WU-05a (pre-freeze course-correction, 2026-07): `model` left the request
+    # — routing data binds to the model object (§3.4), never the IR. The
+    # additive-only regime governs from the corrected shape onward.
+    "chat_request.schema.json": ENVELOPE | {"messages", "tools", "tool_choice", "config"},
     "chat_request.schema.json#/$defs/tool": ENVELOPE
     | {"name", "parameters", "description", "output"},
     "chat_request.schema.json#/$defs/toolChoice": ENVELOPE | {"mode", "name"},

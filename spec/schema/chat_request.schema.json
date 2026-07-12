@@ -2,15 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ocai.dev/spec/schema/chat_request.schema.json",
   "title": "ChatRequest",
-  "$comment": "Role: the canonical chat generation request (docs/architecture.md §3.1; ocai/chat/types/request.py) in omit-absent wire form — the shape `chat.request` payload the conversion graph encodes from the canonical node to a provider node. Knobs obey the three-lane law (§3.4): first-class typed fields live in `config` here; provider-unique data rides censused `extensions`; destination passthrough rides `provider_options` namespaced by destination interface (both on the shared envelope). Single-response forever: there is no `n`.",
-  "description": "A provider-neutral chat request: the target model, the conversation, the tools the model may call, the whether/which tool policy, and the typed generation config.",
+  "$comment": "Role: the canonical chat generation request (docs/architecture.md §3.1; ocai/chat/types/request.py) in omit-absent wire form — the shape `chat.request` payload the conversion graph encodes from the canonical node to a provider node. There is deliberately NO `model` member: the model name is provider routing data bound to the model object at construction (§3.4) and injected into the wire payload from the bound resource at send time — never part of the portable conversation. Knobs obey the three-lane law (§3.4): first-class typed fields live in `config` here; provider-unique data rides censused `extensions`; destination passthrough rides `provider_options` namespaced by destination interface (both on the shared envelope). Single-response forever: there is no `n`.",
+  "description": "A provider-neutral chat request: the conversation, the tools the model may call, the whether/which tool policy, and the typed generation config.",
   "type": "object",
   "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
   "properties": {
-    "model": {
-      "type": "string",
-      "description": "The identifier of the model to invoke, passed to the provider verbatim."
-    },
     "messages": {
       "type": "array",
       "description": "The conversation so far, in order.",
@@ -30,7 +26,7 @@
       "description": "The typed generation configuration; omitted when every knob is the provider default."
     }
   },
-  "required": ["model", "messages"],
+  "required": ["messages"],
   "$defs": {
     "jsonSchemaDocument": {
       "$comment": "A JSON Schema (Draft 2020-12) document carried as data, not applied by this spec: an object-form schema or a boolean schema (true = anything, false = nothing). Unknown keywords are preserved losslessly (ocai/core/jsonschema.py).",

@@ -284,6 +284,28 @@ class MessagesCodec:
         """
         return MESSAGES_PATH
 
+    def bind_resource(self, payload: dict[str, Any], resource: str) -> dict[str, Any]:
+        """Inject the bound model name as this wire's `model` member.
+
+        The facade half of the WU-05a seam: the canonical `ChatRequest`
+        carries no model (routing data binds to the model object, §3.4) and
+        the graph edges stay model-agnostic, so `encode_request` emits no
+        `model` key. `WireChatModel` calls this after graph conversion —
+        with `EndpointSpec.resource`, before the driver send — and only the
+        codec knows where its dialect carries the name (here: the `model`
+        body member; a hosting envelope may still relocate or strip it, e.g.
+        Vertex lifts it into the URL).
+
+        Args:
+            payload: The encoded wire request body, without a model member.
+            resource: The bound model name from `EndpointSpec.resource`.
+
+        Returns:
+            A new payload dict with the `model` member set; the input is
+            not mutated.
+        """
+        return {**payload, "model": resource}
+
     def encode_request(self, request: ChatRequest) -> EdgeOutput:
         """Encode a canonical `ChatRequest` into a Messages body.
 
@@ -294,6 +316,11 @@ class MessagesCodec:
         extension lane with reported loss. `max_tokens` is required by the
         wire: an omitted `config.max_output_tokens` gets `DEFAULT_MAX_TOKENS`
         with a reported shift, never silently.
+
+        The emitted body has **no `model` member**: the canonical request
+        carries none (§3.4 — routing data binds to the model object), so
+        there is nothing to lose or report here; the facade injects the
+        bound resource via `bind_resource` before send.
 
         Args:
             request: The canonical request to encode.
@@ -329,7 +356,7 @@ class MessagesCodec:
                     )
                 continue
             messages.append(self._encode_message(index, message, losses, shifts))
-        payload: dict[str, Any] = {"model": request.model, "messages": messages}
+        payload: dict[str, Any] = {"messages": messages}
         if system_texts:
             payload["system"] = "".join(system_texts)
         if request.tools:

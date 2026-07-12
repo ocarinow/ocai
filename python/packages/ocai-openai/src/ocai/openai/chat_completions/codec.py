@@ -210,6 +210,28 @@ class ChatCompletionsCodec:
         """
         return CHAT_COMPLETIONS_PATH
 
+    def bind_resource(self, payload: dict[str, Any], resource: str) -> dict[str, Any]:
+        """Inject the bound model name as this wire's `model` member.
+
+        The facade half of the WU-05a seam: the canonical `ChatRequest`
+        carries no model (routing data binds to the model object, §3.4) and
+        the graph edges stay model-agnostic, so `encode_request` emits no
+        `model` key. `WireChatModel` calls this after graph conversion —
+        with `EndpointSpec.resource`, before the driver send — and only the
+        codec knows where its dialect carries the name (here: the `model`
+        body member; a hosting envelope may still relocate or strip it, e.g.
+        Vertex lifts it into the URL).
+
+        Args:
+            payload: The encoded wire request body, without a model member.
+            resource: The bound model name from `EndpointSpec.resource`.
+
+        Returns:
+            A new payload dict with the `model` member set; the input is
+            not mutated.
+        """
+        return {**payload, "model": resource}
+
     def encode_request(self, request: ChatRequest) -> EdgeOutput:
         """Encode a canonical `ChatRequest` into a chat-completions body.
 
@@ -220,6 +242,11 @@ class ChatCompletionsCodec:
         only this interface's own `provider_options` namespace
         (`"openai.chat_completions"`) is expanded onto the payload — foreign
         namespaces are never forwarded (three-lane law, §3.4).
+
+        The emitted body has **no `model` member**: the canonical request
+        carries none (§3.4 — routing data binds to the model object), so
+        there is nothing to lose or report here; the facade injects the
+        bound resource via `bind_resource` before send.
 
         Args:
             request: The canonical request to encode.
@@ -232,7 +259,7 @@ class ChatCompletionsCodec:
         messages: list[dict[str, Any]] = []
         for index, message in enumerate(request.messages):
             messages.extend(self._encode_message(index, message, losses, shifts))
-        payload: dict[str, Any] = {"model": request.model, "messages": messages}
+        payload: dict[str, Any] = {"messages": messages}
         if request.tools:
             payload["tools"] = [self._encode_tool(tool) for tool in request.tools]
         self._encode_tool_choice(request, payload, losses)

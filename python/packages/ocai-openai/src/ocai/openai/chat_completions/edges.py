@@ -54,8 +54,10 @@ _CODEC = ChatCompletionsCodec()
 # --- Contracts (the per-field disposition census, §4.2) ----------------------
 
 ENCODE_REQUEST_CONTRACT = EdgeContract(
+    # No `model` row: the canonical request carries no model (WU-05a, §3.4) —
+    # the wire member is injected by the facade from the bound resource via
+    # `ChatCompletionsCodec.bind_resource`, below this edge.
     census={
-        "model": DeclaredDisposition(Disposition.EXACT),
         "messages[].role": DeclaredDisposition(Disposition.EXACT),
         "messages[].parts[text]": DeclaredDisposition(Disposition.EXACT),
         "messages[].parts[tool_call]": DeclaredDisposition(Disposition.EXACT),

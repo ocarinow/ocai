@@ -58,21 +58,25 @@ FRAGMENT = CatalogFragment(
 
 
 def chat_model(
-    model: str = "gpt-4o",
+    model_name: str,
     *,
     credentials: Credential | None = None,
 ) -> ChatModel:
-    """Prefill factory: a first-party OpenAI chat model behind the port.
+    """Sanctioned sugar (§3.4 door 2): a first-party OpenAI chat model.
 
-    The one-liner convenience for the common case — composes
-    `WireChatModel(ChatCompletionsCodec(), binding, catalog)` with a `Direct`
-    host at the OpenAI origin and a minimal catalog built from this
-    interface's `FRAGMENT`. Power users compose the pieces themselves (any
-    host, any transport, richer catalogs); this factory adds nothing they
-    cannot reach.
+    A THIN wrapper over the exact same fragment + facade machinery as the
+    core string door (`ocai.chat.model("openai", model_name, ...)`) — never
+    a separate code path: it composes `WireChatModel(ChatCompletionsCodec(),
+    binding, catalog, model_name=model_name)` with a `Direct` host at the
+    OpenAI origin and a minimal catalog built from this interface's
+    `FRAGMENT`. The model name binds to the returned model object here, at
+    construction; `ChatRequest`s stay pure conversation and never carry it.
+    Power users compose the pieces themselves (any host, any transport,
+    richer catalogs); this factory adds nothing they cannot reach.
 
     Args:
-        model: The default OpenAI model name requests target.
+        model_name: The OpenAI model name bound to the returned model
+            object (the facade's `EndpointSpec.resource`).
         credentials: The credential applied per request at the driver leaf.
             Required — there is no ambient discovery (rule 13).
 
@@ -80,9 +84,11 @@ def chat_model(
         A `ChatModel` implementation backed by this interface.
 
     Raises:
-        NotImplementedError: Always, until the runtime/wire layers land.
+        NotImplementedError: Always, until WU-16 wires the front doors.
     """
-    # TODO: build Catalog.of(FRAGMENT), Binding(Direct(OPENAI_BASE_URL),
-    # credentials, HttpxTransport()), and return WireChatModel(...) — blocked
-    # on ocai.runtime.binding and ocai.wire landing.
+    # TODO: WU-16 — build Catalog.of(FRAGMENT), Binding(Direct(OPENAI_BASE_URL),
+    # credentials, HttpxTransport()), and return WireChatModel(...,
+    # model_name=model_name) via DEFERRED imports of ocai.chat.model /
+    # ocai.runtime / ocai.wire (module level would break the plugin import
+    # contract; the facade is the sanctioned composition seam).
     raise NotImplementedError

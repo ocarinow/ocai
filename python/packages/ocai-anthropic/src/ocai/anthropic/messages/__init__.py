@@ -57,21 +57,26 @@ FRAGMENT = CatalogFragment(
 
 
 def chat_model(
-    model: str = "claude-opus-4-6",
+    model_name: str,
     *,
     credentials: Credential | None = None,
 ) -> ChatModel:
-    """Prefill factory: a first-party Anthropic chat model behind the port.
+    """Sanctioned sugar (§3.4 door 2): a first-party Anthropic chat model.
 
-    The one-liner convenience for the common case — composes
-    `WireChatModel(MessagesCodec(), binding, catalog)` with a `Direct` host
-    at the Anthropic origin (whose traits inject the `anthropic-version`
-    header) and a minimal catalog from this interface's `FRAGMENT`. For
+    A THIN wrapper over the exact same fragment + facade machinery as the
+    core string door (`ocai.chat.model("anthropic", model_name, ...)`) —
+    never a separate code path: it composes `WireChatModel(MessagesCodec(),
+    binding, catalog, model_name=model_name)` with a `Direct` host at the
+    Anthropic origin (whose traits inject the `anthropic-version` header)
+    and a minimal catalog from this interface's `FRAGMENT`. The model name
+    binds to the returned model object here, at construction;
+    `ChatRequest`s stay pure conversation and never carry it. For
     Vertex/Bedrock, compose the pieces directly with the appropriate host
     and credential.
 
     Args:
-        model: The default Anthropic model name requests target.
+        model_name: The Anthropic model name bound to the returned model
+            object (the facade's `EndpointSpec.resource`).
         credentials: The credential applied per request at the driver leaf —
             `x-api-key` first-party, so supply
             `ApiKey(key, header="x-api-key", scheme="")`. Required; there is
@@ -81,9 +86,11 @@ def chat_model(
         A `ChatModel` implementation backed by this interface.
 
     Raises:
-        NotImplementedError: Always, until the runtime/wire layers land.
+        NotImplementedError: Always, until WU-16 wires the front doors.
     """
-    # TODO: build Catalog.of(FRAGMENT), Binding(Direct(ANTHROPIC_BASE_URL),
-    # credentials, HttpxTransport()), and return WireChatModel(...) — blocked
-    # on ocai.runtime.binding and ocai.wire landing.
+    # TODO: WU-16 — build Catalog.of(FRAGMENT), Binding(Direct(ANTHROPIC_BASE_URL),
+    # credentials, HttpxTransport()), and return WireChatModel(...,
+    # model_name=model_name) via DEFERRED imports of ocai.chat.model /
+    # ocai.runtime / ocai.wire (module level would break the plugin import
+    # contract; the facade is the sanctioned composition seam).
     raise NotImplementedError

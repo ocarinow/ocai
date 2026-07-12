@@ -17,6 +17,11 @@ import-time registration** anywhere (rule 14; the old process-global
 plugin depends on `ocai.core` + `ocai.convert` + `ocai.chat` only — never on
 `ocai.wire` or httpx — so archived traffic can be re-converted by tooling
 with no ability to make network calls.
+
+It also re-exports `chat_model`, the sanctioned §3.4 sugar door
+(`from ocai.openai import chat_model; chat_model("gpt-5", credentials=key)`)
+— a thin wrapper over the same fragment + facade machinery as the core
+string door, targeting the `chat_completions` interface today.
 """
 
 from __future__ import annotations
@@ -24,11 +29,13 @@ from __future__ import annotations
 from ocai.convert.catalog import CatalogFragment
 from ocai.openai import chat_completions
 from ocai.openai import responses
+from ocai.openai.chat_completions import chat_model
 from ocai.openai.chat_completions.edges import ORIGIN
 
 __all__ = [
     "FRAGMENT",
     "chat_completions",
+    "chat_model",
     "responses",
 ]
 

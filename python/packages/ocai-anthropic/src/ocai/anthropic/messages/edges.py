@@ -49,8 +49,10 @@ _CODEC = MessagesCodec()
 # --- Contracts (the per-field disposition census, §4.2) ----------------------
 
 ENCODE_REQUEST_CONTRACT = EdgeContract(
+    # No `model` row: the canonical request carries no model (WU-05a, §3.4) —
+    # the wire member is injected by the facade from the bound resource via
+    # `MessagesCodec.bind_resource`, below this edge.
     census={
-        "model": DeclaredDisposition(Disposition.EXACT),
         "messages[].role": DeclaredDisposition(Disposition.EXACT),
         # Leading system turns relocate to the top-level `system` field — a
         # declared SemanticShift, data-exact.

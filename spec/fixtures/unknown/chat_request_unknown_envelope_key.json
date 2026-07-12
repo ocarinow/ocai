@@ -3,7 +3,6 @@
   "shape": "chat.request",
   "document": {
     "version": "2026-07",
-    "model": "gpt-4o",
     "messages": [
       {
         "version": "2026-07",

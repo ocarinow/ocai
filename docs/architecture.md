@@ -268,10 +268,14 @@ implement it directly and return the same `CallResult` (with
 
 ### 3.3 `model.py` — the wire-backed facade
 
-`WireChatModel(codec, binding, catalog)` — the composition of a dialect codec,
-a `Binding` (§5), and a `Catalog` (§4) behind the port. The one chat module
-that imports convert/runtime/wire. Encode via graph → driver executes → decode
-via graph → assemble `CallResult`.
+`WireChatModel(codec, binding, catalog, model_name=...)` — the composition of
+a dialect codec, a `Binding` (§5), and a `Catalog` (§4) behind the port, plus
+the bound model name (§3.4 — the front doors pass it at construction; it
+becomes `EndpointSpec.resource`, never a request field). The one chat module
+that imports convert/runtime/wire. Encode via graph → inject the bound model
+via the codec's `bind_resource` (edges stay model-agnostic; only the codec
+knows where its wire carries the name) → driver executes → decode via graph →
+assemble `CallResult`.
 
 ### 3.4 The front doors — simple facade, switchable by data
 

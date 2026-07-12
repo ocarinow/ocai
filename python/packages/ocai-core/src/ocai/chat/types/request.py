@@ -1,8 +1,15 @@
 """The canonical chat request (architecture §3.1).
 
 `ChatRequest` is what user code builds and what the conversion graph encodes
-into a provider wire payload: the target model, the conversation, the tools
-the model may call, the tool-choice policy, and the typed `ChatConfig`.
+into a provider wire payload: the conversation, the tools the model may call,
+the tool-choice policy, and the typed `ChatConfig`.
+
+There is deliberately **no `model` field**: the model name is
+provider-specific routing data, bound to the model object at construction
+(§3.4 — both front doors take it there) and injected into the wire payload by
+the codec from the bound resource (`EndpointSpec.resource`) at send time. A
+`ChatRequest` is pure, portable conversation content — the same request
+object replays against any bound model with zero edits.
 
 Its `from_dict` is a **true inverse** of `to_dict`: every nested payload
 (messages, tools, tool choice, config) decodes back into its typed form, so
@@ -34,11 +41,11 @@ class ChatRequest(IRObject):
     interceptor chain unchanged, and is encoded by the conversion graph from
     `CANONICAL_CHAT_REQUEST` to the resolved provider node. Single-response
     forever: there is no `n` — a request for multiple candidates fails
-    admission at the codec.
+    admission at the codec. And no `model`: the model name is routing data
+    bound to the model object at construction (§3.4), injected on the wire by
+    the codec from the bound resource — never carried in the request.
 
     Attributes:
-        model: The identifier of the model to invoke, passed to the
-            provider verbatim.
         messages: The conversation so far, in order.
         tools: The tools the model may call, if any.
         tool_choice: The whether/which tool policy, if constrained.
@@ -48,7 +55,6 @@ class ChatRequest(IRObject):
     object: ClassVar[str] = "chat.request"
     __node__: ClassVar[NodeId] = CANONICAL_CHAT_REQUEST
 
-    model: str
     messages: list[Message]
     tools: list[Tool] | None = None
     tool_choice: ToolChoice | None = None
@@ -73,7 +79,6 @@ class ChatRequest(IRObject):
         choice = data.get("tool_choice")
         config = data.get("config")
         return cls(
-            model=data.get("model", ""),
             messages=[
                 Message.from_dict(item)
                 for item in data.get("messages") or []

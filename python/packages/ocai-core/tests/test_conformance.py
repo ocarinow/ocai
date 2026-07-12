@@ -34,7 +34,7 @@ from ocai.core import Origin
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
 
-_REQUEST = ChatRequest(model="gpt-4o", messages=[Message(role="user", parts="hi")])
+_REQUEST = ChatRequest(messages=[Message(role="user", parts="hi")])
 
 
 def _catalog() -> Catalog:
@@ -97,7 +97,9 @@ def test_request_encodes_through_the_catalog() -> None:
     converted = _catalog().convert(_REQUEST, CANONICAL_CHAT_REQUEST, CHAT_COMPLETIONS_REQUEST)
     assert isinstance(converted, Converted)  # value + report, never a bare tuple
     wire = converted.value
-    assert wire["model"] == "gpt-4o"
+    # WU-05a: edges are model-agnostic — the wire `model` member is injected
+    # by the facade from the bound resource, below the graph, never here.
+    assert "model" not in wire
     assert wire["messages"][0]["role"] == "user"
     assert converted.report.path == [CANONICAL_CHAT_REQUEST, CHAT_COMPLETIONS_REQUEST]
 
