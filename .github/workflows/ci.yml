@@ -43,6 +43,12 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         run: uv run ruff check
 
+      # Architecture §1 made executable: the layered + forbidden import
+      # contracts in the root pyproject [tool.importlinter].
+      - name: Import contracts
+        if: steps.changes.outputs.run == 'true'
+        run: uv run lint-imports
+
       - name: Pytest
         if: steps.changes.outputs.run == 'true'
         run: uv run pytest

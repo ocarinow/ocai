@@ -26,6 +26,7 @@ dev = [
     "respx>=0.21",
     "httpx>=0.27",
     "jsonschema>=4.23",
+    "import-linter>=2.1",
 ]
 docs = [
     "zensical>=0.0.45",
@@ -70,3 +71,95 @@ docstring-code-format = true
 testpaths = ["python/packages/ocai-core/tests"]
 addopts = "-q"
 asyncio_mode = "auto"
+
+# ---------------------------------------------------------------------------
+# Import contracts (architecture §1) — run with `uv run lint-imports`.
+# ---------------------------------------------------------------------------
+# ocai is a PEP 420 namespace package spread across THREE distributions in one
+# venv, so the root packages are the namespace *portions* (the importable
+# subpackages), never `ocai` itself (which has no __init__.py by rule 1).
+# `include_external_packages` puts httpx in the graph so the forbidden
+# contracts can quarantine it; `exclude_type_checking_imports` drops
+# `if TYPE_CHECKING:` imports — annotation-only references are erased at
+# runtime and carry no layer coupling (WU-01 decision).
+[tool.importlinter]
+root_packages = [
+    "ocai.core",
+    "ocai.chat",
+    "ocai.embedding",
+    "ocai.vectorstore",
+    "ocai.convert",
+    "ocai.runtime",
+    "ocai.wire",
+    "ocai.openai",
+    "ocai.anthropic",
+]
+include_external_packages = true
+exclude_type_checking_imports = true
+
+# §1 layer map: an import against the arrows is a build failure. Higher layers
+# may import lower ones; the capability contracts are independent siblings
+# (`|`) — chat/embedding/vectorstore never import each other.
+#
+# ignore_imports carries the TWO sanctioned seams:
+# 1. `ocai.chat.model` — the ONE chat module allowed to import
+#    convert/runtime/wire (the wire-backed facade; §3.3). Entries may be
+#    unmatched until WU-07 lands the real imports, hence alerting = warn.
+# 2. The runtime drivers'/binding's documented *deferred* (function-level)
+#    imports of `ocai.wire` VALUE modules (http/sse/transport): the package
+#    arrow points wire -> runtime, and runtime touches wire value classes
+#    only inside the pipeline, never at module import time (WU-01 decision).
+[[tool.importlinter.contracts]]
+name = "Layered architecture: core <- capabilities <- convert <- runtime <- wire"
+type = "layers"
+layers = [
+    "ocai.wire",
+    "ocai.runtime",
+    "ocai.convert",
+    "ocai.chat | ocai.embedding | ocai.vectorstore",
+    "ocai.core",
+]
+ignore_imports = [
+    "ocai.chat.model -> ocai.convert",
+    "ocai.chat.model -> ocai.convert.**",
+    "ocai.chat.model -> ocai.runtime",
+    "ocai.chat.model -> ocai.runtime.**",
+    "ocai.chat.model -> ocai.wire",
+    "ocai.chat.model -> ocai.wire.**",
+    "ocai.runtime.drivers -> ocai.wire.http",
+    "ocai.runtime.drivers -> ocai.wire.sse",
+    "ocai.runtime.drivers -> ocai.wire.transport",
+    "ocai.runtime.binding -> ocai.wire.transport",
+]
+unmatched_ignore_imports_alerting = "warn"
+
+# §1 plugin rule: plugin distributions depend on core + capability contracts +
+# convert ONLY — never on wire/runtime/httpx — so an offline audit tool can
+# re-convert archived traffic without the ability to make network calls.
+[[tool.importlinter.contracts]]
+name = "Plugins never import ocai.wire, ocai.runtime, or httpx"
+type = "forbidden"
+source_modules = ["ocai.openai", "ocai.anthropic"]
+forbidden_modules = ["ocai.wire", "ocai.runtime", "httpx"]
+
+# §1 core purity: httpx stays behind the `ocai.wire` extra; every other layer
+# is stdlib-only at runtime (rule 11). The ignored imports are the same
+# sanctioned deferred value-class seam as on the layered contract — runtime
+# reaches httpx only through `ocai.wire.transport`, lazily, inside the
+# pipeline; any OTHER chain to httpx (direct or indirect) still breaks it.
+[[tool.importlinter.contracts]]
+name = "Only ocai.wire may import httpx"
+type = "forbidden"
+source_modules = [
+    "ocai.core",
+    "ocai.chat",
+    "ocai.embedding",
+    "ocai.vectorstore",
+    "ocai.convert",
+    "ocai.runtime",
+]
+forbidden_modules = ["httpx"]
+ignore_imports = [
+    "ocai.runtime.binding -> ocai.wire.transport",
+    "ocai.runtime.drivers -> ocai.wire.transport",
+]

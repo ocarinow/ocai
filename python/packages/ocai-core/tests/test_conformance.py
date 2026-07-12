@@ -9,6 +9,8 @@ content-hashed lockfile.
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 import ocai.anthropic
@@ -26,6 +28,8 @@ from ocai.convert import Edge
 from ocai.convert import EdgeContract
 from ocai.convert import EdgeOutput
 from ocai.core import CHAT
+from ocai.core import CHAT_REQUEST
+from ocai.core import NodeId
 from ocai.core import Origin
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
@@ -113,3 +117,79 @@ def test_response_decodes_through_the_catalog(load_http) -> None:
     assert response.finish is not None and response.finish.native == "stop"
     assert response.raw == rec["response"]["json"]  # untouched provider body
     assert converted.report.path == [CHAT_COMPLETIONS_RESPONSE, CANONICAL_CHAT_RESPONSE]
+
+
+# --- Admission: canonical-backbone connectivity ---------------------------------
+#
+# The `_admit` rule (WU-01): a published non-canonical interface that registers
+# any edge/transducer must connect to the canonical backbone with at least one
+# of them; a nodes-only interface is a sanctioned conversionless stub.
+
+
+def _acme_pair() -> tuple[NodeId, NodeId]:
+    """Two dated `chat.request` nodes of one synthetic acme interface."""
+    v1 = NodeId("acme", "chat", "v1", CHAT_REQUEST, date(2024, 1, 1))
+    v2 = NodeId("acme", "chat", "v2", CHAT_REQUEST, date(2024, 6, 1))
+    return v1, v2
+
+
+_ACME = Origin(distribution="ocai-acme", version="0.0.1")
+
+
+def test_canonical_touching_edge_connects_the_interface() -> None:
+    # One canonical-touching edge satisfies connectivity for the whole
+    # interface; the intra-interface delta edge then rides along.
+    v1, v2 = _acme_pair()
+    canon = CANONICAL_CHAT_REQUEST
+    fragment = CatalogFragment(
+        origin=_ACME,
+        nodes=(v1, v2),
+        edges=(
+            Edge(v1, canon, lambda p: EdgeOutput(p), EdgeContract(), _ACME, "v1 -> canon"),
+            Edge(v1, v2, lambda p: EdgeOutput(p), EdgeContract(), _ACME, "delta"),
+        ),
+    )
+    catalog = Catalog.of(fragment)
+    assert v1 in catalog.nodes and v2 in catalog.nodes
+
+
+def test_interface_with_edges_but_no_canonical_touch_is_refused() -> None:
+    # An island: the interface converts (v1 <-> v2 deltas) but nothing ever
+    # reaches the canonical backbone — inadmissible, not silently stranded.
+    v1, v2 = _acme_pair()
+    fragment = CatalogFragment(
+        origin=_ACME,
+        nodes=(v1, v2),
+        edges=(
+            Edge(v1, v2, lambda p: EdgeOutput(p), EdgeContract(), _ACME, "delta up"),
+            Edge(v2, v1, lambda p: EdgeOutput(p), EdgeContract(), _ACME, "delta down"),
+        ),
+    )
+    with pytest.raises(AdmissionError, match="canonical backbone"):
+        Catalog.of(fragment)
+    # Direct construction cannot bypass the gate either.
+    with pytest.raises(AdmissionError, match="canonical backbone"):
+        Catalog((fragment,))
+
+
+def test_owned_sibling_shortcut_alone_does_not_connect() -> None:
+    # Both endpoints are owned (ownership passes), but a shortcut between two
+    # sibling interfaces connects neither of them to the backbone.
+    alpha = NodeId("acme", "alpha", "v1", CHAT_REQUEST, date(2024, 1, 1))
+    beta = NodeId("acme", "beta", "v1", CHAT_REQUEST, date(2024, 1, 1))
+    fragment = CatalogFragment(
+        origin=_ACME,
+        nodes=(alpha, beta),
+        edges=(Edge(alpha, beta, lambda p: EdgeOutput(p), EdgeContract(), _ACME, "shortcut"),),
+    )
+    with pytest.raises(AdmissionError, match="canonical backbone"):
+        Catalog.of(fragment)
+
+
+def test_nodes_only_stub_interface_is_admitted() -> None:
+    # The sanctioned stub (the shape of ocai.openai.responses today): nodes
+    # make the interface resolvable/pinnable while it honestly performs no
+    # conversions, because its codec has not yet earned a census.
+    stub = NodeId("acme", "future", "v1", CHAT_REQUEST, date(2024, 1, 1))
+    catalog = Catalog.of(CatalogFragment(origin=_ACME, nodes=(stub,)))
+    assert stub in catalog.nodes

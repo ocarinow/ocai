@@ -195,10 +195,26 @@ def _admit(fragment: CatalogFragment, trust: TrustPolicy, allow: frozenset[str])
 
     The single admission gate shared by `CatalogBuilder.add` (fail fast at
     composition) and `Catalog.__init__` (so a directly-constructed catalog
-    cannot bypass governance). Under `OWNED_ENDPOINTS`, every edge endpoint
-    must be canonical or on a `(provider, interface)` the fragment's own
-    `nodes` publish; under `ALLOW_LISTED`, fragments named in `allow` are
-    exempt.
+    cannot bypass governance). Two checks run, in order:
+
+    1. **Endpoint ownership** (the trust check). Under `OWNED_ENDPOINTS`,
+       every edge endpoint must be canonical or on a
+       `(provider, interface)` the fragment's own `nodes` publish; under
+       `ALLOW_LISTED`, fragments named in `allow` are exempt from this
+       check only.
+    2. **Canonical-backbone connectivity** (applies under every trust
+       policy — allow-listing buys foreign bridging, never a disconnected
+       backbone). The exact rule, per non-canonical
+       `(provider, interface)` the fragment publishes nodes for: if the
+       fragment registers at least one edge or transducer touching that
+       interface, then at least one of them must have its *other* endpoint
+       on the canonical `ocai` interface. Interfaces published with zero
+       touching edges are admitted as declared stubs — resolvable and
+       pinnable, but performing no conversions (e.g. an interface whose
+       codec has not yet earned its census). This is the pragmatic
+       per-interface-overall check; the per-shape refinement (one
+       canonical-touching edge for *each* shape the interface publishes)
+       is deliberately deferred until a real fragment needs it.
 
     Args:
         fragment: The fragment seeking admission.
@@ -207,23 +223,46 @@ def _admit(fragment: CatalogFragment, trust: TrustPolicy, allow: frozenset[str])
 
     Raises:
         AdmissionError: If any edge touches an interface the fragment
-            neither owns nor is allowed to bridge.
+            neither owns nor is allowed to bridge, or if a published
+            interface registers conversions without a single edge
+            connecting it to the canonical backbone.
     """
-    if trust is TrustPolicy.ALLOW_LISTED and fragment.origin.distribution in allow:
-        return
     owned = {(node.provider, node.interface) for node in fragment.nodes}
     every_edge: tuple[Edge | StreamEdge, ...] = (*fragment.edges, *fragment.transducers)
+    exempt = trust is TrustPolicy.ALLOW_LISTED and fragment.origin.distribution in allow
+    if not exempt:
+        for edge in every_edge:
+            for endpoint in (edge.src, edge.dst):
+                if endpoint.provider == CANONICAL_PROVIDER:
+                    continue
+                if (endpoint.provider, endpoint.interface) not in owned:
+                    raise AdmissionError(
+                        f"fragment {fragment.origin} registers an edge touching "
+                        f"{endpoint.provider}/{endpoint.interface}, which it does not publish; "
+                        f"foreign bridging requires TrustPolicy.ALLOW_LISTED with "
+                        f"{fragment.origin.distribution!r} in the allow set"
+                    )
+    # Canonical-backbone connectivity: for each published non-canonical
+    # interface, track whether any edge touches it (participates) and whether
+    # any of those edges reaches canonical on the other side (connected).
+    published = {key for key in owned if key[0] != CANONICAL_PROVIDER}
+    connected: dict[tuple[str, str], bool] = {}
     for edge in every_edge:
-        for endpoint in (edge.src, edge.dst):
-            if endpoint.provider == CANONICAL_PROVIDER:
-                continue
-            if (endpoint.provider, endpoint.interface) not in owned:
-                raise AdmissionError(
-                    f"fragment {fragment.origin} registers an edge touching "
-                    f"{endpoint.provider}/{endpoint.interface}, which it does not publish; "
-                    f"foreign bridging requires TrustPolicy.ALLOW_LISTED with "
-                    f"{fragment.origin.distribution!r} in the allow set"
-                )
+        for endpoint, other in ((edge.src, edge.dst), (edge.dst, edge.src)):
+            key = (endpoint.provider, endpoint.interface)
+            if key in published:
+                touches_canonical = other.provider == CANONICAL_PROVIDER
+                connected[key] = connected.get(key, False) or touches_canonical
+    for key in sorted(connected):
+        if not connected[key]:
+            provider, interface = key
+            raise AdmissionError(
+                f"fragment {fragment.origin} publishes {provider}/{interface} and "
+                f"registers edges touching it, but none of them connects it to the "
+                f"canonical backbone; every converting interface needs at least one "
+                f"edge or transducer whose other endpoint is canonical (publish the "
+                f"interface nodes-only to ship it as a conversionless stub)"
+            )
 
 
 def _channel_allows(channel: Status, status: Status) -> bool:
