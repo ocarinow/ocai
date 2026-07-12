@@ -28,10 +28,12 @@ from dataclasses import field
 from enum import Enum
 from typing import Any
 from typing import ClassVar
+from typing import Final
 from typing import Literal
 from typing import Self
 
 from ocai.chat.canonical import CANONICAL_CHAT_CHUNK
+from ocai.chat.canonical import CANONICAL_CHAT_RESPONSE
 from ocai.chat.types.annotations import Annotation
 from ocai.chat.types.finish import FinishInfo
 from ocai.chat.types.message import Message
@@ -45,10 +47,26 @@ from ocai.chat.types.parts import cast_part
 from ocai.chat.types.response import ChatResponse
 from ocai.chat.types.role import Role
 from ocai.chat.types.usage import Usage
+from ocai.core.fidelity import Disposition
+from ocai.core.fidelity import EdgeReport
 from ocai.core.fidelity import FidelityReport
+from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
+
+# The censused extension key sealed onto every part an aborted stream left
+# open (no terminal STREAM_STOP arrived): the part's content is whatever had
+# accumulated when the stream died, explicitly marked rather than silently
+# passed off as complete. Registered in spec/extensions/.
+INCOMPLETE_EXTENSION: Final = "ocai.incomplete"
+
+# The censused extension key preserving accumulated reasoning-signature
+# fragments on a sealed part when no codec-minted `ProviderRef` arrived: the
+# accumulator has no (provider, interface) context to mint one, so the
+# verbatim concatenation rides the bag — recoverable, never dropped.
+# Registered in spec/extensions/.
+SIGNATURE_BUFFER_EXTENSION: Final = "ocai.signature_buffer"
 
 
 class ChunkType(str, Enum):
@@ -492,12 +510,11 @@ class StreamEnd(IRObject):
         """
         usage = data.get("usage")
         finish = data.get("finish")
-        # TODO: FidelityReport needs a from_dict for recorded-stream replay;
-        # until then a serialized report decodes to None.
+        report = data.get("report")
         return cls(
             usage=Usage.from_dict(usage) if isinstance(usage, dict) else None,
             finish=FinishInfo.from_dict(finish) if isinstance(finish, dict) else None,
-            report=None,
+            report=FidelityReport.from_dict(report) if isinstance(report, dict) else None,
             **cls._from_dict_common(data),
         )
 
@@ -602,6 +619,12 @@ class StreamAccumulator:
     `USAGE`/`FINISH` track the latest mid-stream records; `STREAM_STOP`
     records the authoritative `StreamEnd`, which overrides them.
 
+    The fold has its own honesty channel: a delta it cannot apply (a
+    mismatched delta/part pair, a `DeltaUnknown`, an unaccumulated blob) is
+    never silently swallowed — each records a `FieldLoss`, surfaced as one
+    `EdgeReport` via `report` and merged into the terminal
+    `StreamEnd.report` at `finalize`.
+
     Use it incrementally (`feed` per chunk, then `finalize`) or in one shot
     via the `fold` classmethod.
     """
@@ -610,10 +633,14 @@ class StreamAccumulator:
         """Create an empty accumulator ready to receive a stream."""
         self._slots: dict[int, Part] = {}
         self._order: list[int] = []
+        self._sealed: set[int] = set()
+        self._signatures: dict[int, str] = {}
+        self._losses: list[FieldLoss] = []
         self._usage: Usage | None = None
         self._finish: FinishInfo | None = None
         self._error: ErrorInfo | None = None
         self._end: StreamEnd | None = None
+        self._reported = False
 
     def feed(self, chunk: ChatChunk) -> None:
         """Apply one chunk to the accumulation state.
@@ -686,18 +713,78 @@ class StreamAccumulator:
         elif isinstance(delta, DeltaRefusal) and isinstance(part, PartRefusal):
             part.text += delta.text
         elif isinstance(delta, DeltaSignature) and isinstance(part, PartReasoning):
-            # TODO: signature fragments accumulate as opaque strings; the
-            # codec's transducer mints the final ProviderRef on PART_STOP —
-            # buffer-and-mint here needs the (provider, interface) context.
-            pass
+            # Signature fragments buffer as an opaque string per slot; the
+            # codec's transducer is the only party with the (provider,
+            # interface) context to mint a ProviderRef, so `_seal` prefers a
+            # codec-minted `signature` on the final part and otherwise
+            # preserves the buffer verbatim in the extensions bag.
+            self._signatures[index] = self._signatures.get(index, "") + delta.signature
         elif isinstance(delta, DeltaBlob):
             # TODO: accumulate base64 fragments into the media part's
             # SourceBase64 once an audio-output edge exercises this path.
-            pass
+            # Until then the drop is reported, never silent.
+            self._lose(
+                index,
+                f"blob delta not accumulated into {self._part_tag(part)!r} "
+                "(no audio-output edge exercises this path yet); fragment dropped",
+            )
         else:
-            # TODO: mismatched delta/part pairs and DeltaUnknown need a
-            # reporting channel (an EdgeReport on StreamEnd.report).
-            pass
+            self._lose(
+                index,
+                f"delta {self._delta_tag(delta)!r} does not apply to open part "
+                f"{self._part_tag(part)!r}; delta dropped",
+            )
+
+    @staticmethod
+    def _delta_tag(delta: Delta) -> str:
+        """Return the delta's discriminator tag as a plain string.
+
+        Args:
+            delta: The delta whose tag is wanted.
+
+        Returns:
+            The verbatim tag (`"text"`, an unknown tag, …).
+        """
+        tag = delta.type
+        return tag.value if isinstance(tag, Enum) else tag
+
+    @staticmethod
+    def _part_tag(part: Part) -> str:
+        """Return the part's discriminator tag as a plain string.
+
+        Args:
+            part: The part whose tag is wanted.
+
+        Returns:
+            The verbatim tag (`"text"`, an unknown tag, …).
+        """
+        tag = part.type
+        return tag.value if isinstance(tag, Enum) else tag
+
+    def _lose(
+        self,
+        index: int,
+        note: str,
+        *,
+        disposition: Disposition = Disposition.DROPPED,
+        severity: float = 1.0,
+    ) -> None:
+        """Record one fold loss on the accumulator's honesty channel.
+
+        Args:
+            index: The content-part slot the loss concerns.
+            note: The human-readable explanation.
+            disposition: What happened to the data.
+            severity: The diagnostic information-cost weight.
+        """
+        self._losses.append(
+            FieldLoss(
+                path=f"message.parts[{index}]",
+                disposition=disposition,
+                severity=severity,
+                note=note,
+            )
+        )
 
     def _seal(self, chunk: ChatChunk) -> None:
         """Seal the slot at `chunk.index`.
@@ -705,7 +792,8 @@ class StreamAccumulator:
         The authoritative final part on the chunk wins when present (the
         fold law requires it to equal the accumulation — asserting that is
         the conformance harness's job, not the fold's). A sealed tool call
-        advances to `INPUT_COMPLETE`.
+        advances to `INPUT_COMPLETE`, and any buffered signature fragments
+        settle per `_settle_signature`.
 
         Args:
             chunk: The `PART_STOP` chunk, optionally carrying the final
@@ -719,19 +807,90 @@ class StreamAccumulator:
         part = self._slots.get(index)
         if isinstance(part, PartToolCall) and part.status == ToolCallStatus.INPUT_STREAMING:
             part.status = ToolCallStatus.INPUT_COMPLETE
+        self._sealed.add(index)
+        self._settle_signature(index)
+
+    def _settle_signature(self, index: int) -> None:
+        """Settle the buffered signature fragments for one sealing slot.
+
+        A codec-minted `signature` ref on the sealed part subsumes the
+        buffer (the codec is the authority; the fragments were its raw
+        material). Otherwise the verbatim concatenation is preserved under
+        `extensions[SIGNATURE_BUFFER_EXTENSION]` with an `EXTENSIONS`
+        record — recoverable, reported, never dropped.
+
+        Args:
+            index: The slot being sealed.
+        """
+        buffered = self._signatures.pop(index, "")
+        part = self._slots.get(index)
+        if not buffered or part is None:
+            return
+        if isinstance(part, PartReasoning) and part.signature is not None:
+            return
+        part.extensions[SIGNATURE_BUFFER_EXTENSION] = buffered
+        self._lose(
+            index,
+            "signature fragments preserved verbatim under "
+            f"extensions[{SIGNATURE_BUFFER_EXTENSION!r}]; only the dialect codec's "
+            "transducer has the (provider, interface) context to mint the ProviderRef",
+            disposition=Disposition.EXTENSIONS,
+            severity=0.0,
+        )
+
+    @property
+    def report(self) -> FidelityReport:
+        """The fold's own fidelity account, freshly assembled.
+
+        Empty when every delta applied cleanly; otherwise one `EdgeReport`
+        (canonical chunk node → canonical response node) carrying the
+        recorded `FieldLoss`es in arrival order. `finalize` merges the same
+        edge into the terminal `StreamEnd.report`; this property is the
+        report's home when a stream aborted before its `STREAM_STOP`.
+        """
+        if not self._losses:
+            return FidelityReport()
+        return FidelityReport(edges=[self._fold_edge()])
+
+    def _fold_edge(self) -> EdgeReport:
+        """Assemble the fold's `EdgeReport` from the recorded losses.
+
+        Returns:
+            The edge report spanning the canonical chunk and response
+            nodes.
+        """
+        return EdgeReport(
+            src=CANONICAL_CHAT_CHUNK,
+            dst=CANONICAL_CHAT_RESPONSE,
+            losses=tuple(self._losses),
+            note="stream fold (StreamAccumulator)",
+        )
 
     def finalize(self) -> ChatResponse:
         """Assemble the folded `ChatResponse` from the accumulated state.
 
         The terminal `StreamEnd`'s usage/finish are authoritative over
-        mid-stream updates. An aborted stream (no `STREAM_STOP`) still
-        folds — its parts seal as-is.
+        mid-stream updates. An aborted stream (no `STREAM_STOP` arrived)
+        still folds, but every slot it left open is sealed with an explicit
+        `extensions[INCOMPLETE_EXTENSION]` marker — accumulated content is
+        never passed off as complete. Any fold losses merge into the
+        terminal `StreamEnd.report` (once, however many times `finalize`
+        runs); an aborted stream's losses stay reachable via `report`.
 
         Returns:
             The response the equivalent blocking call would have returned.
         """
-        # TODO: aborted streams must seal open parts with an explicit
-        # incomplete marker (extensions["ocai.incomplete"]) per the blueprint.
+        if self._end is None:
+            for index, part in self._slots.items():
+                if index in self._sealed:
+                    continue
+                self._settle_signature(index)
+                part.extensions[INCOMPLETE_EXTENSION] = True
+        if self._losses and self._end is not None and not self._reported:
+            if self._end.report is None:
+                self._end.report = FidelityReport()
+            self._end.report.merge(FidelityReport(edges=[self._fold_edge()]))
+            self._reported = True
         usage = self._end.usage if self._end and self._end.usage else self._usage
         finish = self._end.finish if self._end and self._end.finish else self._finish
         parts = [self._slots[index] for index in sorted(self._slots)]

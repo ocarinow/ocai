@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.incomplete",
+  "description": "Marker sealed by StreamAccumulator onto every part an aborted stream left open: the stream died (no terminal streamStop arrived) before the part's partStop, so the part's content is whatever had accumulated at that point — explicitly flagged rather than silently passed off as complete. Emitted by the fold itself (ocai/chat/types/stream.py), never by a provider codec.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected — abortion is a transport accident, not a portable content attribute",
+  "const": true
+}

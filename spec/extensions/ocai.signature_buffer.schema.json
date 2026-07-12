@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.signature_buffer",
+  "description": "The verbatim concatenation of a reasoning part's streamed signature fragments (Anthropic signature_delta, Gemini thoughtSignature), preserved by StreamAccumulator when a part seals without a codec-minted `signature` ProviderRef. Only the dialect codec's transducer has the (provider, interface) context to mint the ref; the fold's job is to keep the fragments recoverable — reported EXTENSIONS, never dropped. Subsumed (not emitted) when the authoritative final part carries `signature`. Emitted by the fold itself (ocai/chat/types/stream.py), never by a provider codec.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected — the durable home is PartReasoning.signature, which the codec transducer mints",
+  "type": "string"
+}

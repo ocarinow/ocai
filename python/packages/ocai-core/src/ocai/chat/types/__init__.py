@@ -71,6 +71,8 @@ from ocai.chat.types.role import Role
 from ocai.chat.types.role import decode_role
 from ocai.chat.types.role import encode_role
 from ocai.chat.types.stream import DELTA_REGISTRY
+from ocai.chat.types.stream import INCOMPLETE_EXTENSION
+from ocai.chat.types.stream import SIGNATURE_BUFFER_EXTENSION
 from ocai.chat.types.stream import AsyncChatStream
 from ocai.chat.types.stream import ChatChunk
 from ocai.chat.types.stream import ChatStream
@@ -101,7 +103,9 @@ from ocai.chat.types.usage import UsageUnit
 __all__ = [
     "DELTA_REGISTRY",
     "DETAIL_REGISTRY",
+    "INCOMPLETE_EXTENSION",
     "PART_REGISTRY",
+    "SIGNATURE_BUFFER_EXTENSION",
     "Annotation",
     "AsyncChatStream",
     "AudioOutputConfig",

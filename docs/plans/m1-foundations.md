@@ -32,6 +32,23 @@ milestone files to `archive/`; this roadmap replaces them.
   proves it bites; ≥3 new admission tests in `tests/test_conformance.py`;
   pytest green.
 - **Deps:** WU-00. Parallel-safe with everything.
+- **Decision:** canonical-backbone admission is the pragmatic
+  per-interface-overall rule: for each non-canonical `(provider, interface)` a
+  fragment publishes nodes for, if the fragment registers ≥1 edge/transducer
+  touching that interface then ≥1 of them must have its other endpoint on the
+  canonical interface; interfaces published with zero touching edges admit as
+  declared conversionless stubs (the `openai/responses` shape today). The
+  connectivity check runs under every trust policy — `ALLOW_LISTED` exempts
+  only the endpoint-ownership check. The per-shape refinement is deferred
+  until a real fragment needs it.
+- **Decision:** import-linter runs with `exclude_type_checking_imports = true`
+  (annotation-only imports are erased at runtime and carry no layer
+  coupling). Besides the sanctioned `ocai.chat.model` exception, the layered
+  contract `ignore_imports` the runtime drivers'/binding's documented
+  *deferred* function-level imports of `ocai.wire` value modules
+  (http/sse/transport) — the package arrow stays wire → runtime. A third
+  forbidden contract quarantines direct httpx imports to `ocai.wire`, with
+  the same two deferred seams ignored.
 
 ## WU-02 — spec/schema regeneration I: message, parts, chat.request
 
@@ -68,6 +85,26 @@ milestone files to `archive/`; this roadmap replaces them.
 - **Done:** pytest green; demonstrably fails when a dataclass field lacks a
   schema property.
 - **Deps:** WU-02 (shares the validator harness).
+- **Decision:** the rule-11 comparison is a strict field-set == property-set
+  equality extended to *every* schema'd IR dataclass (incl. the WU-02
+  building blocks: Tool/ToolChoice/ChatConfig family, ProviderRef,
+  Annotation/Span/CacheHint, Source variants); the verbatim fallbacks
+  (`PartUnknown`/`SourceUnknown`/`DetailOpaque`) are exempt and instead
+  asserted byte-faithful (their `data`/`type` are internal carriers, never
+  wire members). `chat_response.schema.json` documents `raw` as a
+  deliberately unconstrained verbatim provider lane (excluded from semantic
+  equality per `canonical-json.md` §8); `FinishDetail` branches live in
+  `finish.schema.json#/$defs/finishDetail` mirroring the parts if/then
+  pattern, with `Consumption`/`SafetyRating` as plain value objects (no IR
+  envelope, like `span`). The canonical fixture
+  (`spec/fixtures/canonical/chat_response.json`, synthetic) is an
+  OpenAI-/responses-flavored truncation — reason `max_tokens`, native
+  `length`, incomplete detail — covering all four disjoint usage buckets,
+  and its wire accuracy is pinned by a byte-identical
+  `from_dict → to_dict` round-trip test. The additive-only snapshot stores
+  each node's full conditional property union; its file-coverage check is
+  scoped to the six chat-unary schemas so schema files newer WUs add (e.g.
+  streaming deltas) join the snapshot in the WU that authors them.
 
 ## WU-04 — `EdgeContract.certify`: the certification gate
 
@@ -96,6 +133,20 @@ milestone files to `archive/`; this roadmap replaces them.
 - **Done:** implemented + `tests/test_unknown_inputs.py` runs it against the
   chat IR decoders; fixtures validate against WU-02/03 schemas; pytest green.
 - **Deps:** WU-02 (soft — parallel development fine, lands after the harness).
+- **Decision:** unknown vectors are canonical document fixtures (`shape` +
+  `document`) extended with a required `expect` block — three optional lists
+  (`fallbacks` / `extensions` / `preserved`) plus the sweep-adjusted
+  round-trip law, documented normatively in `spec/README.md`. They validate
+  through the existing WU-02 mapping unchanged (the `expect` key is additive).
+- **Decision:** `expect.fallbacks` names canonical fallback *type names*
+  (`PartUnknown`, `DeltaUnknown`, `DetailOpaque`, `SourceUnknown`); the
+  harness compares by type name so `ocai.convert.conformance` stays
+  capability-neutral and the vocabulary language-neutral.
+- **Decision:** the mandated unknown-delta vector needs a schema'd home and
+  no WU owns one (WU-08's `chat_chunk.schema.json` is M2), so a minimal open
+  `spec/schema/deltas.schema.json` (the `Delta` union, shape token `deltas`,
+  mirroring `parts.schema.json`) was added; the M2 chunk schema can `$ref`
+  it. The finish vectors validate against WU-03's `finish.schema.json`.
 
 ## WU-06 — OpenAI chat_completions unary certification
 

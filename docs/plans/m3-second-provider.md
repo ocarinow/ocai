@@ -59,15 +59,28 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
   test; pytest green.
 - **Deps:** WU-06 + WU-13 only.
 
-## WU-16 — Composition ergonomics
+## WU-16 — The front door: `ocai.chat.model()` + plugins become pure data
 
-- **Scope:** `ocai/runtime/binding.py` — `Workspace.chat` (resolve + facade
-  construction + `CallInterceptor` chain application);
-  `ocai/runtime/dual.py` — `from_sync`/`from_async`; plugin pyprojects declare
-  the `ocai.fragments` entry points (already configured — verify) and add a
-  `Catalog.discover()` integration test; `Binding.validate` mismatch coverage.
-- **Done:** `Workspace.chat` returns a `CallResult` through a bound provider
-  with a test interceptor observing the call; dual adapters pass sync↔async
-  port round-trips; `Catalog.discover()` composes installed fragments in a
-  test; pytest green.
-- **Deps:** WU-07 (facade); the dual/discover halves float freely.
+Maintainer course-correction (2026-07-13): users must NEVER import from a
+provider package; installing `ocai-openai` only augments the graph. No
+framework containers.
+
+- **Scope:** (1) NEW `ocai.chat.model(provider, *, credentials, host=None,
+  catalog=None, transport=None, interceptors=())` per architecture §3.4 —
+  resolves against the discovered default catalog (or an explicit one), builds
+  the codec via the fragment's component factory, composes the `Binding`
+  internally (`Direct` from the fragment's first-party endpoint data), returns
+  a `ChatModel`. (2) Move first-party endpoint data (base URL) into the
+  fragment (extend `DialectTraits` or the `Component` descriptor — decide
+  in-WU) so the front door never imports a plugin. (3) DELETE the
+  `chat_model()` prefills from both plugins and the `Workspace` class from
+  `ocai/runtime/binding.py` (keep `Binding` + `validate()`; scrub Workspace
+  from runtime docstrings and the catalog.py docstring). (4)
+  `ocai/runtime/dual.py` — `from_sync`/`from_async`. (5) `Catalog.discover()`
+  integration test (entry points already declared).
+- **Done:** the §3.4 five-liner works end-to-end on a recorded pair with ZERO
+  provider imports; grep proves no `Workspace` and no plugin prefill remains;
+  dual adapters pass sync↔async round-trips; the discovery test composes both
+  installed fragments; pytest green.
+- **Deps:** WU-07 (facade); pull EARLY — right after WU-07 — so no example or
+  test ever teaches the plugin-import path.

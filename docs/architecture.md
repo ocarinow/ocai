@@ -43,7 +43,7 @@ failure.
 │                  conformance harness                    (→ core)           │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ ocai.runtime     MOVEMENT — SyncDriver/AsyncDriver, Decision hooks,        │
-│                  CallInterceptor, Binding/Workspace     (→ core, convert)  │
+│                  CallInterceptor, Binding               (→ core, convert)  │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ ocai.wire        REMOTE TRANSPORT — HttpRequest/Response, SSE, transports, │
 │                  hosts, wire policies    (→ runtime; httpx via extra)      │
@@ -227,9 +227,13 @@ documented disjoint-bucket normalization rule per provider, and ergonomic
 accessors (`usage.input_tokens`, …).
 
 **`types/request.py` / `types/response.py`** —
-`ChatRequest(model, messages, tools, tool_choice, config)` and
-`ChatResponse(message, finish, usage, info, raw)`. Response is a *pure graph
-payload* — no report field (that's `CallResult`'s). Single message forever:
+`ChatRequest(messages, tools, tool_choice, config)` and
+`ChatResponse(message, finish, usage, info, raw)`. **No `model` field on the
+request**: the model name is provider-specific routing data, bound to the
+model object at construction (§3.4) and injected into the wire payload by the
+codec from `EndpointSpec.resource` at encode time (Vertex even carries it in
+the URL). A `ChatRequest` is pure, portable conversation content. Response is
+a *pure graph payload* — no report field (that's `CallResult`'s). Single message forever:
 `n` fails admission; decoded `choices[1:]` land in a censused extension with
 reported loss. `ResponseInfo` carries id/model echo as `ProviderRef` anchors
 (reusable as `previous_response_id`).
@@ -269,7 +273,44 @@ a `Binding` (§5), and a `Catalog` (§4) behind the port. The one chat module
 that imports convert/runtime/wire. Encode via graph → driver executes → decode
 via graph → assemble `CallResult`.
 
-### 3.4 The three-lane knob law (normative)
+### 3.4 The front doors — simple facade, switchable by data
+
+The user-facing API is simple, pydantic-ai-shaped: build a model object once
+(the provider-specific **model name is bound HERE, never carried in the
+request**), then call it with pure conversation payloads.
+
+```python
+import ocai.chat
+from ocai.core import ApiKey
+from ocai.chat.types import ChatRequest, Message
+
+chat = ocai.chat.model("openai", "gpt-5",
+                       credentials=ApiKey.from_env("OPENAI_API_KEY"))
+res = chat.chat(ChatRequest(messages=[Message.user("hello")]))
+```
+
+Two equivalent doors, neither forced:
+
+1. **The core string door** — `ocai.chat.model(provider, model_name, *,
+   credentials, host=None, catalog=None, transport=None, interceptors=())`:
+   resolves the provider against the discovered default catalog (or an
+   explicit one), builds the codec from the fragment's registered component
+   factory, composes the `Binding` internally (`Direct` host from the
+   fragment's first-party endpoint data unless a host is passed). Switching
+   provider — or riding an interface migration — is changing a string or a
+   pin.
+2. **The plugin helper** — a provider package MAY ship convenience sugar
+   (`from ocai.openai import chat_model; chat_model("gpt-5",
+   credentials=key)`). It must be a thin wrapper over the exact same
+   fragment + facade machinery — sugar, never a separate code path.
+
+Either way, installing a provider distribution has exactly one structural
+effect: its `CatalogFragment` becomes discoverable and **augments the
+conversion graph**. There is no framework container above the doors:
+multi-tenant setups are plain Python (several models built with different
+credentials/catalogs).
+
+### 3.5 The three-lane knob law (normative)
 
 1. **First-class typed field** — admitted by mechanical checklist: ≥2–3
    interfaces, congruent semantics after declared SemanticShifts, durable, an
@@ -329,7 +370,7 @@ normative unknown-X fixtures every language port must pass.
 | `decisions.py` | The sans-io policy vocabulary: hooks are objects returning `Proceed | Retry(after) | Fail(error) | Return(response)` — pure, debuggable, one implementation serving both drivers. Effectful backends (redis cache, distributed limiter) declare sync and/or async faces. |
 | `drivers.py` | `SyncDriver` / `AsyncDriver` — the two thin executors of the one pipeline: encode (done by facade) → policy hooks → host envelope/endpoint → **credential.apply at the leaf, per attempt, after every hook has seen the request** (no hook, cache, or log can ever see a secret) → send → SSE/transducer pump → decode. All logic that is not the physical I/O call is synchronous and shared. |
 | `interceptors.py` | `CallInterceptor` — port-tier middleware operating on canonical IR calls: fallback, semantic cache, policy/governance, cost metering, tracing. Meaningful for local AND remote (that is the admission test for this tier). Wire-tier concerns live in `ocai.wire.policies`. |
-| `binding.py` | `Binding(host, credentials, transport, headers)` — the reusable remote nucleus; `Workspace(catalog, bindings, interceptors, observers)` — the tenancy unit. `Binding.validate()` checks the whole stack against the chosen sync/async mode at **composition time** (`CompositionError` naming the offender — the mid-request TypeError class dies). |
+| `binding.py` | `Binding(host, credentials, transport, headers)` — the reusable remote nucleus, normally composed *internally* by the `ocai.chat.model()` front door (§3.4); power users build it by hand. `Binding.validate()` checks the whole stack against the chosen sync/async mode at **composition time** (`CompositionError` naming the offender — the mid-request TypeError class dies). There is deliberately no `Workspace`/container object: per-tenant isolation is several models built from different credentials/catalogs — plain Python, not a framework concept. |
 | `dual.py` | `from_sync(port)` / `from_async(port)` adapters (thread offload / portal) — visible composition decisions, never silent bridging. |
 | `observe.py` | `Observer` protocol + provisional event shapes [provisional — freezes at v1.0 after real exercise]. |
 
@@ -361,7 +402,14 @@ ocai-anthropic/src/ocai/anthropic/
 Rules: depend on core+convert only (no httpx); msgspec only at the wire-decode
 boundary; every extension key census-registered; every edge ships fixtures;
 no import-time global mutation; `py.typed` shipped; pyproject pins
-`ocai>=0.x,<0.y`.
+`ocai>=0.x,<0.y`. **A plugin's only structural effect is data**: installing it
+makes its fragment discoverable, adding interfaces and edges to the graph
+(§3.4). First-party endpoint data (base URL, native paths) rides the fragment
+so the core front door composes a `Direct` binding without importing the
+plugin. A plugin MAY additionally ship a convenience helper
+(`ocai.openai.chat_model(...)`) — a thin wrapper over the same fragment +
+facade machinery, never a separate code path, and never required: the core
+string door must always work without it.
 
 ## 8. Request lifecycle (how it all interacts)
 

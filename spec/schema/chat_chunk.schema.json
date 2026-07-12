@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/chat_chunk.schema.json",
+  "title": "ChatChunk",
+  "$comment": "Role: the one canonical streaming event (docs/architecture.md §3.1; ocai/chat/types/stream.py ChatChunk) in omit-absent wire form — the shape `chat.chunk` payload every provider frame becomes and the unit StreamAccumulator.fold consumes. `type` says which optional lanes are populated; everything else is absent. The `type` code is an OPEN string vocabulary: an unknown wire kind is LEGAL and preserved verbatim (total decode, never a raise). The typed delta union lives in deltas.schema.json; the terminal record lives in stream_end.schema.json.",
+  "description": "One canonical streaming event: the open event kind, the stream/part coordinates, and exactly the lanes that kind populates (part skeleton or final, typed delta, usage update, finish record, wire-shaped error, or the authoritative terminal StreamEnd).",
+  "type": "object",
+  "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "The open event kind. Known canonical values: streamStart, streamStop (terminal; carries `end`), partStart (carries the `part` skeleton), partDelta (carries `delta`), partStop (may carry the authoritative final `part`, which MUST equal the delta accumulation — the fold law), usage, finish, metadata, error, raw, ping. Unknown wire kinds are LEGAL and preserved verbatim."
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The chunk's zero-based position in the canonical stream, stamped by the emitting codec — the replay/fold ordering key."
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The content-part slot this event concerns, for the partStart/partDelta/partStop kinds. Streams may omit it; the accumulator then targets the most recently started slot."
+    },
+    "part": {
+      "$ref": "parts.schema.json",
+      "description": "The part skeleton (partStart) or the authoritative final part (partStop)."
+    },
+    "delta": {
+      "$ref": "deltas.schema.json",
+      "description": "The incremental update (partDelta), applied to the open slot with append semantics per delta type."
+    },
+    "usage": {
+      "$ref": "usage.schema.json",
+      "description": "A consumption update (usage). Mid-stream updates are provisional; the terminal StreamEnd's usage overrides them in the fold."
+    },
+    "usage_cumulative": {
+      "type": "boolean",
+      "description": "Whether `usage` replaces (true) or extends (false) previous updates; absent when the wire does not say."
+    },
+    "finish": {
+      "$ref": "finish.schema.json",
+      "description": "The stop record (finish). Mid-stream records are provisional; the terminal StreamEnd's finish overrides them in the fold."
+    },
+    "error": {
+      "$ref": "#/$defs/errorInfo",
+      "description": "The wire-shaped mid-stream error (error) — data, not just an exception, so a recorded stream replays identically to a live one."
+    },
+    "end": {
+      "$ref": "stream_end.schema.json",
+      "description": "The authoritative terminal record (streamStop): final usage/finish and the stream's FidelityReport. A stream that ends without one was aborted, and the accumulator seals its open parts with extensions[\"ocai.incomplete\"]."
+    },
+    "raw_event": {
+      "description": "The untouched provider frame this chunk was decoded from, for power users and the wiretap archive. Verbatim, deliberately unconstrained, and excluded from semantic equality (spec/canonical-json.md §8)."
+    }
+  },
+  "required": ["type"],
+  "$defs": {
+    "errorInfo": {
+      "$comment": "ocai/chat/types/stream.py ErrorInfo — a mid-stream error in wire shape. A plain value object (no IR envelope), like span.",
+      "type": "object",
+      "description": "A mid-stream error as data: the canonical taxonomy code, the provider's verbatim payload, and retryability when known.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "The open canonical error-taxonomy code. Known canonical values: rate_limit, auth, context_length, content_filter, transient, unknown. Unknown values are legal and preserved verbatim."
+        },
+        "native": {
+          "description": "The provider's verbatim error payload, unconstrained."
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "Whether retrying the call could succeed, when the taxonomy mapping knows."
+        }
+      },
+      "required": ["code"]
+    }
+  }
+}

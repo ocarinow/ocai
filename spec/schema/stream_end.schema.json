@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/stream_end.schema.json",
+  "title": "StreamEnd",
+  "$comment": "Role: the authoritative terminal record of a stream (docs/architecture.md §3.1; ocai/chat/types/stream.py StreamEnd) in omit-absent wire form, carried by the streamStop chunk (chat_chunk.schema.json `end` lane). Its usage/finish override any mid-stream updates in the fold, and `report` is the stream's FidelityReport — the streaming path's ONE report home, mirroring CallResult.report on the blocking path. This file also hosts the serialized-report $defs (fidelityReport, edgeReport, fieldLoss, semanticShift) mirroring ocai/core/fidelity.py; the report's `path`, `lossless`, `cost`, and `total_cost` members are DERIVED views recomputed on replay, never trusted from data.",
+  "description": "The stream's terminal record: the final consumption and stop records, and the fidelity account of the stream's conversion legs.",
+  "type": "object",
+  "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+  "properties": {
+    "usage": {
+      "$ref": "usage.schema.json",
+      "description": "The final consumption record, when reported; authoritative over mid-stream usage chunks."
+    },
+    "finish": {
+      "$ref": "finish.schema.json",
+      "description": "The final stop record, when reported; authoritative over mid-stream finish chunks."
+    },
+    "report": {
+      "$ref": "#/$defs/fidelityReport",
+      "description": "The fidelity account of the stream's conversion legs (request leg + transducer flush reports + fold losses)."
+    }
+  },
+  "$defs": {
+    "fidelityReport": {
+      "$comment": "ocai/core/fidelity.py FidelityReport.to_dict — path/lossless/total_cost are derived from `edges` and recomputed on replay (FidelityReport.from_dict reads only `edges`).",
+      "type": "object",
+      "description": "The accumulated per-edge account of a whole conversion path.",
+      "properties": {
+        "path": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The ordered node labels visited (`provider/interface@tag#shape`), derived from the edge records."
+        },
+        "lossless": {
+          "type": "boolean",
+          "description": "Whether the whole conversion preserved all information — derived, never asserted."
+        },
+        "total_cost": {
+          "type": "number",
+          "description": "The summed diagnostic cost across every traversed edge; derived."
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/edgeReport" },
+          "description": "One edge report per traversed edge, in traversal order."
+        }
+      }
+    },
+    "edgeReport": {
+      "$comment": "ocai/core/fidelity.py EdgeReport.to_dict — `cost` is derived from the loss records and recomputed on replay.",
+      "type": "object",
+      "description": "The losses and shifts incurred by traversing one conversion edge.",
+      "properties": {
+        "src": {
+          "type": "string",
+          "description": "The edge's source node label (`provider/interface@tag#shape`)."
+        },
+        "dst": {
+          "type": "string",
+          "description": "The edge's destination node label (`provider/interface@tag#shape`)."
+        },
+        "note": {
+          "type": "string",
+          "description": "A human-readable description of the edge's conversion."
+        },
+        "cost": {
+          "type": "number",
+          "description": "The summed diagnostic severity across this edge's losses; derived."
+        },
+        "losses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fieldLoss" },
+          "description": "The per-field records this edge emitted, in order."
+        },
+        "shifts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/semanticShift" },
+          "description": "The semantics-level records this edge emitted, in order."
+        }
+      }
+    },
+    "fieldLoss": {
+      "$comment": "ocai/core/fidelity.py FieldLoss.to_dict — a plain value object (no IR envelope).",
+      "type": "object",
+      "description": "One field-level record of what a conversion edge did to a field.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "A dotted/bracketed path to the field (e.g. \"messages[0].parts[2].args_json\")."
+        },
+        "disposition": {
+          "type": "string",
+          "description": "The open code for what happened to the field. Known canonical values: exact, renamed, approximated, emulated, extensions, dropped, unsupported. An unrecognized code decodes conservatively (a replayed report may overstate loss, never understate it)."
+        },
+        "severity": {
+          "type": "number",
+          "description": "A diagnostic information-cost weight (0.0 == lossless); a report view, never the planner weight."
+        },
+        "note": {
+          "type": "string",
+          "description": "A human-readable explanation of the mapping or the loss."
+        }
+      },
+      "required": ["path", "disposition"]
+    },
+    "semanticShift": {
+      "$comment": "ocai/core/fidelity.py SemanticShift.to_dict — a plain value object (no IR envelope).",
+      "type": "object",
+      "description": "A semantics-level divergence record, distinct from field mapping.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "The open shift-kind code. Known canonical values: relocation, emulation, id_regenerated, range_passthrough; plugin-minted kinds are namespaced. Unknown values are legal and preserved verbatim."
+        },
+        "path": {
+          "type": "string",
+          "description": "A dotted/bracketed path to the affected location, when one is identifiable."
+        },
+        "note": {
+          "type": "string",
+          "description": "A human-readable explanation of the divergence."
+        }
+      },
+      "required": ["kind"]
+    }
+  }
+}

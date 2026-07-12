@@ -29,6 +29,43 @@ in parallel sessions/branches; WU-11 joins the tracks.
   PART_STOP-vs-accumulation mismatch detection); chunk fixtures validate
   against the new schemas; pytest green.
 - **Deps:** WU-02 (validator harness). Fully parallel with WU-06/07.
+- **Decision:** the fold's reporting channel is ONE `EdgeReport`
+  (`CANONICAL_CHAT_CHUNK → CANONICAL_CHAT_RESPONSE`, note "stream fold")
+  collecting `FieldLoss` records for every delta the accumulator could not
+  apply — mismatched delta/part pairs, `DeltaUnknown`, and the
+  not-yet-accumulated `DeltaBlob` all record `DROPPED` (reported, never
+  silent). `finalize` merges it into the terminal `StreamEnd.report` exactly
+  once (idempotent across re-finalize); an aborted stream's losses stay
+  reachable on the new `StreamAccumulator.report` property.
+- **Decision:** `DeltaSignature` fragments buffer per slot as an opaque
+  string; at seal, a codec-minted final `signature` ref subsumes the buffer,
+  otherwise the verbatim concatenation is preserved under the censused
+  `extensions["ocai.signature_buffer"]` with an `EXTENSIONS` record — the
+  accumulator never mints a `ProviderRef` (it has no (provider, interface)
+  context; the codec transducer stays the sole minter). Aborted-stream
+  sealing marks only the slots no `PART_STOP` sealed, and only when no
+  `STREAM_STOP` arrived, with `extensions["ocai.incomplete"] = true`; both
+  keys are registered in `spec/extensions/`.
+- **Decision:** `FidelityReport.from_dict` (plus `EdgeReport`/`FieldLoss`/
+  `SemanticShift` twins, all additive) reads only `edges` — `path`,
+  `lossless`, `total_cost`, and per-edge `cost` are derived views recomputed
+  on replay, never trusted from data. Node labels parse back totally
+  (`released` re-derived from dated tags, `date.min` sentinel otherwise;
+  malformed labels land whole in `provider`); an unknown disposition code
+  decodes to `DROPPED` — a replayed report may overstate loss, never
+  understate it.
+- **Decision:** the fold-triple contract makes `wire_events` optional
+  (canonical-node triples carry already-canonical chunks; the decode leg is
+  skipped, the fold leg is mandatory) — `spec/README.md` and the validator
+  harness detection updated accordingly. The PART_STOP clause is enforced
+  structurally: strip the authoritative final from every *delta-fed*
+  `partStop` and assert the re-fold still reproduces the response (vacuous
+  for delta-less slots, where the final is the part's only carrier). The
+  harness speaks plain dicts (`decode_event`/`fold` wrap the codec and
+  `StreamAccumulator.fold`), staying capability-neutral. `chat_chunk.
+  schema.json` `$ref`s `deltas.schema.json`/`usage.schema.json`/
+  `finish.schema.json`/`parts.schema.json`; the serialized-report `$defs`
+  live in `stream_end.schema.json`.
 
 ## WU-09 — Stream conversion joins the graph
 

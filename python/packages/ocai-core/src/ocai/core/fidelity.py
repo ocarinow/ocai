@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import date
 from enum import Enum
 from typing import Any
 from typing import Final
@@ -29,6 +30,7 @@ from typing import Self
 
 from ocai.core.identity import Capability
 from ocai.core.identity import NodeId
+from ocai.core.identity import Shape
 
 
 class Disposition(str, Enum):
@@ -94,6 +96,87 @@ class ShiftKind:
     RANGE_PASSTHROUGH: Final = "range_passthrough"
 
 
+def _decode_disposition(code: Any) -> Disposition:
+    """Decode a serialized disposition code, totally.
+
+    An unrecognized (or non-string) code decodes to `Disposition.DROPPED` —
+    the conservative bucket: a replayed report may overstate loss, never
+    understate it (a newer ocai's disposition code names some kind of
+    change, and claiming `EXACT` for it would be the one dishonest answer).
+
+    Args:
+        code: The serialized disposition value.
+
+    Returns:
+        The decoded `Disposition`.
+    """
+    try:
+        return Disposition(code)
+    except ValueError:
+        return Disposition.DROPPED
+
+
+def _released_from_tag(tag: str) -> date:
+    """Derive a `released` sort key from a dated revision tag, totally.
+
+    Node labels (`provider/interface@tag#shape`) do not carry the release
+    date, so a replayed node re-derives it from the tag when the tag is a
+    full ISO date or a `YYYY-MM` month (canonical tags always are). A tag
+    that is neither gets `date.min` — a sentinel that keeps the replayed
+    record usable for rendering while never claiming a real ordering.
+
+    Args:
+        tag: The node's opaque revision tag.
+
+    Returns:
+        The derived release date, or `date.min` when underivable.
+    """
+    for candidate in (tag, f"{tag}-01", f"{tag}-01-01"):
+        try:
+            return date.fromisoformat(candidate)
+        except ValueError:
+            continue
+    return date.min
+
+
+def _node_from_label(label: str) -> NodeId:
+    """Decode a compact node label back into a `NodeId`, totally.
+
+    The inverse of `NodeId.__str__` (`provider/interface@tag#shape`), for
+    replaying recorded reports. The label does not carry `released` or
+    `status`, so the replayed node derives `released` from the tag (see
+    `_released_from_tag`) and keeps the default status. A malformed label
+    lands whole in `provider` with empty coordinates — preserved, never
+    raised on.
+
+    Args:
+        label: The serialized node label.
+
+    Returns:
+        The decoded `NodeId`.
+    """
+    try:
+        rest, shape_token = label.rsplit("#", 1)
+        provider_interface, tag = rest.rsplit("@", 1)
+        provider, interface = provider_interface.split("/", 1)
+    except ValueError:
+        return NodeId(
+            provider=label,
+            interface="",
+            tag="",
+            shape=Shape(Capability(""), ""),
+            released=date.min,
+        )
+    capability, _, role = shape_token.partition(".")
+    return NodeId(
+        provider=provider,
+        interface=interface,
+        tag=tag,
+        shape=Shape(Capability(capability), role),
+        released=_released_from_tag(tag),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class FieldLoss:
     """One field-level record of what a conversion edge did to a field.
@@ -132,6 +215,30 @@ class FieldLoss:
             "note": self.note,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Build a `FieldLoss` from a serialized dict, totally.
+
+        An unrecognized disposition code decodes to `Disposition.DROPPED`
+        (see `_decode_disposition`); a non-numeric severity decodes to 0.0.
+
+        Args:
+            data: A mapping with `path`, `disposition`, and the optional
+                `severity`/`note`.
+
+        Returns:
+            The decoded `FieldLoss`.
+        """
+        severity = data.get("severity", 0.0)
+        if isinstance(severity, bool) or not isinstance(severity, (int, float)):
+            severity = 0.0
+        return cls(
+            path=str(data.get("path", "")),
+            disposition=_decode_disposition(data.get("disposition")),
+            severity=float(severity),
+            note=str(data.get("note", "")),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class SemanticShift:
@@ -161,6 +268,24 @@ class SemanticShift:
             A dict with `kind`, `path`, and `note`.
         """
         return {"kind": self.kind, "path": self.path, "note": self.note}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Build a `SemanticShift` from a serialized dict, totally.
+
+        `kind` is an open code, so any string passes through verbatim.
+
+        Args:
+            data: A mapping with `kind` and the optional `path`/`note`.
+
+        Returns:
+            The decoded `SemanticShift`.
+        """
+        return cls(
+            kind=str(data.get("kind", "")),
+            path=str(data.get("path", "")),
+            note=str(data.get("note", "")),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +339,39 @@ class EdgeReport:
             "losses": [loss.to_dict() for loss in self.losses],
             "shifts": [shift.to_dict() for shift in self.shifts],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Build an `EdgeReport` from a serialized dict, totally.
+
+        The `src`/`dst` node labels decode via `_node_from_label`; the
+        serialized `cost` is ignored — it is derived from the loss records,
+        never trusted from data (`lossless` honesty applies to replay too).
+
+        Args:
+            data: A mapping with the `src`/`dst` labels and the optional
+                `losses`/`shifts`/`note`.
+
+        Returns:
+            The decoded `EdgeReport`.
+        """
+        raw_losses = data.get("losses")
+        raw_shifts = data.get("shifts")
+        return cls(
+            src=_node_from_label(str(data.get("src", ""))),
+            dst=_node_from_label(str(data.get("dst", ""))),
+            losses=tuple(
+                FieldLoss.from_dict(loss)
+                for loss in (raw_losses if isinstance(raw_losses, list) else [])
+                if isinstance(loss, dict)
+            ),
+            shifts=tuple(
+                SemanticShift.from_dict(shift)
+                for shift in (raw_shifts if isinstance(raw_shifts, list) else [])
+                if isinstance(shift, dict)
+            ),
+            note=str(data.get("note", "")),
+        )
 
 
 @dataclass(slots=True)
@@ -307,6 +465,31 @@ class FidelityReport:
             "total_cost": self.total_cost,
             "edges": [edge.to_dict() for edge in self.edges],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Build a `FidelityReport` from a serialized dict, totally.
+
+        Only `edges` is read: `path`, `lossless`, and `total_cost` are
+        derived views, recomputed from the decoded records every time — a
+        replayed report can no more assert fidelity its records contradict
+        than a live one can. This is what lets a recorded `StreamEnd`
+        replay with its report intact.
+
+        Args:
+            data: A mapping with the serialized `edges`.
+
+        Returns:
+            The decoded `FidelityReport`.
+        """
+        raw_edges = data.get("edges")
+        return cls(
+            edges=[
+                EdgeReport.from_dict(edge)
+                for edge in (raw_edges if isinstance(raw_edges, list) else [])
+                if isinstance(edge, dict)
+            ]
+        )
 
 
 @dataclass(frozen=True, slots=True)

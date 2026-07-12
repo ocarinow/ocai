@@ -1,0 +1,159 @@
+{
+  "description": "Minimal canonical fold triple — the conformance harness's self-test (WU-08). A canonical-node stream, so the chunks are already canonical and `wire_events` is absent (the decode leg is skipped; the fold clauses run). Exercises: partStart skeleton + two text deltas, a partStop whose authoritative final part equals the delta accumulation (the ratchet's second clause), a provisional mid-stream cumulative usage update, a mid-stream finish, and the terminal streamStop whose StreamEnd usage overrides the mid-stream update in the fold. Synthetic, wire-accurate, hand-authored: every document is exactly what the omit-absent canonical encoders (to_dict) emit — no recorded provider traffic, no nulls, no empty bags.",
+  "node": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.chunk"
+  },
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 1,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 2,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "Purr",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 3,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": " fect.",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 4,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "text": "Purr fect.",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 5,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 12,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 3,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 6,
+      "finish": {
+        "version": "2026-07",
+        "reason": "complete",
+        "native": "stop"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 7,
+      "end": {
+        "version": "2026-07",
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 12,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 7,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            }
+          ]
+        },
+        "finish": {
+          "version": "2026-07",
+          "reason": "complete",
+          "native": "stop"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Purr fect.",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "stop"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 12,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 7,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        }
+      ]
+    }
+  }
+}
