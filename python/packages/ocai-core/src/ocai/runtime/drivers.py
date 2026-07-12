@@ -21,8 +21,12 @@ synchronous, pure, and shared between them (the module-level helpers below):
    transport's coarse status-based taxonomy error, then the dialect's
    body-aware `map_error` (passed in by the facade as `refine_error`).
 6. **pump** — streaming bytes feed the sans-io `SSEParser`; parsed frames
-   flow through the `StreamEdge` transducer chain (conversion joins the
-   graph, it does not bypass it).
+   flow through the facade-built `StreamPipeline` (conversion joins the
+   graph, it does not bypass it). The seam (settled in WU-09): the driver
+   yields the converted events and flushes the pipeline exactly once at
+   end-of-stream (yielding the tail); the flush accounting then surfaces on
+   `StreamPipeline.reports`, which the facade folds into the terminal
+   `StreamEnd.report`.
 7. **outcome hooks** — every `WirePolicy.on_outcome` judges the attempt's
    `Outcome`; `Retry` decisions loop back to step 2 with a fresh request.
 8. **decode** — back in the facade, via the graph, assembling `CallResult`.
@@ -56,12 +60,11 @@ from ocai.runtime.decisions import Return
 from ocai.runtime.decisions import WirePolicy
 
 if TYPE_CHECKING:
-    from ocai.convert.graph import StreamEdge
+    from ocai.convert.graph import StreamPipeline
     from ocai.wire.hosting import EndpointSpec
     from ocai.wire.hosting import EnvelopeTransform
     from ocai.wire.http import HttpRequest
     from ocai.wire.http import HttpResponse
-    from ocai.wire.sse import SSEvent
     from ocai.wire.transport import SyncTransport
     from ocai.wire.transport import Transport
 
@@ -275,25 +278,37 @@ class SyncDriver:
         spec: EndpointSpec,
         payload: dict[str, Any],
         refine_error: ErrorRefiner | None = None,
-        transducers: Sequence[StreamEdge] = (),
-    ) -> Iterator[SSEvent]:
-        """Run one streaming operation, yielding raw `SSEvent` frames (blocking).
+        pipeline: StreamPipeline | None = None,
+    ) -> Iterator[Any]:
+        """Run one streaming operation, yielding stream events (blocking).
 
         Admission runs the same on-request phase as `execute` (a rate limiter
-        may defer a stream with `Retry`), the credential is applied at the
-        leaf, then bytes are pumped through the sans-io `SSEParser`. There is
-        **no outcome-phase retry**: a partially consumed stream cannot be
-        safely replayed, so wire errors are refined and raised directly.
+        may defer a stream with `Retry`; admission retries happen before any
+        byte flows, so the pipeline is never fed on a discarded attempt), the
+        credential is applied at the leaf, then bytes are pumped through the
+        sans-io `SSEParser`. When a `pipeline` is bound, each parsed frame is
+        fed through it and the converted events are yielded in its place; at
+        end-of-stream the driver flushes the pipeline exactly once and yields
+        the tail. The flush accounting then surfaces on `pipeline.reports` —
+        the facade's half of the seam is to read it after iteration and stamp
+        the terminal `StreamEnd.report`. There is **no outcome-phase retry**:
+        a partially consumed stream cannot be safely replayed, so wire errors
+        are refined and raised directly — after flushing the pipeline for
+        accounting (the tail cannot be delivered on a raising path; the
+        accumulator seals aborted parts as incomplete).
 
         Args:
             spec: The endpoint spec (its operation's `streaming` flag set).
             payload: The already-encoded dialect request body.
             refine_error: The dialect's layer-2 error refiner, if any.
-            transducers: The planned `StreamEdge` chain converting wire events
-                toward canonical chunks.
+            pipeline: The composite transducer the facade built for THIS
+                traversal via `Catalog.stream_converter` (fresh per stream,
+                never reused), or None to yield raw frames.
 
         Yields:
-            One raw `SSEvent` per server-sent event.
+            One raw `SSEvent` per server-sent event when `pipeline` is None;
+            the pipeline's converted events (canonical `ChatChunk`s when the
+            planned path ends at the canonical chunk node) otherwise.
 
         Raises:
             OcaiError: The refined taxonomy error on wire failure, or a
@@ -301,11 +316,6 @@ class SyncDriver:
         """
         from ocai.wire.sse import SSEParser
 
-        if transducers:
-            # TODO: pump events through the StreamEdge chain (feed/flush) and
-            # aggregate per-edge EdgeReports into the terminal StreamEnd —
-            # lands with ocai.convert.
-            raise NotImplementedError("StreamEdge transducer pump is not implemented yet")
         transport = self._sync_transport()
         attempt = 0
         while True:
@@ -326,9 +336,20 @@ class SyncDriver:
             parser = SSEParser()
             try:
                 for chunk in transport.stream_sync(request):
-                    yield from parser.feed(chunk)
+                    for event in parser.feed(chunk):
+                        if pipeline is None:
+                            yield event
+                        else:
+                            yield from pipeline.feed(event)
             except OcaiError as err:
+                if pipeline is not None and pipeline.reports is None:
+                    # Aborted stream: flush anyway (sealing in-flight state)
+                    # so the traversal's accounting survives the abort.
+                    pipeline.flush()
                 raise _refine(refine_error, err) from err
+            if pipeline is not None:
+                tail, _ = pipeline.flush()
+                yield from tail
             return
 
 
@@ -432,23 +453,31 @@ class AsyncDriver:
         spec: EndpointSpec,
         payload: dict[str, Any],
         refine_error: ErrorRefiner | None = None,
-        transducers: Sequence[StreamEdge] = (),
-    ) -> AsyncIterator[SSEvent]:
-        """Run one streaming operation, yielding raw `SSEvent` frames (async).
+        pipeline: StreamPipeline | None = None,
+    ) -> AsyncIterator[Any]:
+        """Run one streaming operation, yielding stream events (async).
 
         The async twin of `SyncDriver.stream`: same admission phase, same
         leaf credential application, same no-replay rule for outcome-phase
-        retries.
+        retries, and the same pipeline seam — converted events are yielded,
+        the pipeline is flushed exactly once at end-of-stream (tail yielded,
+        aborts flushed for accounting), and the flush reports surface on
+        `pipeline.reports` for the facade to stamp into the terminal
+        `StreamEnd.report`. Exposing the reports on the pipeline (rather
+        than returning them) is what keeps the twins identical: an async
+        generator cannot return a value.
 
         Args:
             spec: The endpoint spec (its operation's `streaming` flag set).
             payload: The already-encoded dialect request body.
             refine_error: The dialect's layer-2 error refiner, if any.
-            transducers: The planned `StreamEdge` chain converting wire events
-                toward canonical chunks.
+            pipeline: The composite transducer the facade built for THIS
+                traversal via `Catalog.stream_converter` (fresh per stream,
+                never reused), or None to yield raw frames.
 
         Yields:
-            One raw `SSEvent` per server-sent event.
+            One raw `SSEvent` per server-sent event when `pipeline` is None;
+            the pipeline's converted events otherwise.
 
         Raises:
             OcaiError: The refined taxonomy error on wire failure, or a
@@ -456,11 +485,6 @@ class AsyncDriver:
         """
         from ocai.wire.sse import SSEParser
 
-        if transducers:
-            # TODO: pump events through the StreamEdge chain (feed/flush) and
-            # aggregate per-edge EdgeReports into the terminal StreamEnd —
-            # lands with ocai.convert.
-            raise NotImplementedError("StreamEdge transducer pump is not implemented yet")
         transport = self._async_transport()
         attempt = 0
         while True:
@@ -482,7 +506,19 @@ class AsyncDriver:
             try:
                 async for chunk in transport.stream(request):
                     for event in parser.feed(chunk):
-                        yield event
+                        if pipeline is None:
+                            yield event
+                        else:
+                            for converted in pipeline.feed(event):
+                                yield converted
             except OcaiError as err:
+                if pipeline is not None and pipeline.reports is None:
+                    # Aborted stream: flush anyway (sealing in-flight state)
+                    # so the traversal's accounting survives the abort.
+                    pipeline.flush()
                 raise _refine(refine_error, err) from err
+            if pipeline is not None:
+                tail, _ = pipeline.flush()
+                for converted in tail:
+                    yield converted
             return

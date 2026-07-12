@@ -25,7 +25,9 @@ exceed the declared census.
 One graph holds exactly one `Shape` (graphs never mix shapes); the `Catalog`
 partitions its graphs per shape. Streaming conversion joins the same
 machinery via `StreamEdge` — a transducer factory planned like any edge —
-instead of bypassing the graph.
+instead of bypassing the graph: `stream_converter` plans a stream path with
+the same contract-graded Dijkstra (over its own adjacency and plan cache) and
+builds a fresh `StreamPipeline` per traversal.
 """
 
 from __future__ import annotations
@@ -33,6 +35,9 @@ from __future__ import annotations
 import heapq
 import itertools
 from collections.abc import Callable
+from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 from typing import Protocol
@@ -178,6 +183,111 @@ class StreamEdge:
         return self.factory()
 
 
+class StreamPipeline:
+    """The composite transducer executing one planned stream path.
+
+    Built by `ConversionGraph.stream_converter` — one per stream traversal,
+    never shared or reused. The planned path is cached; the transducer
+    instances never are: construction calls `StreamEdge.build()` once per
+    planned edge, so every traversal gets fresh, unshared state. `feed` pipes
+    each event through every stage in path order; `flush` drains the stages
+    front-to-back (a front stage's tail is fed through the stages behind it)
+    and concatenates one `EdgeReport` per stage, in path order.
+
+    The driver/facade seam (settled in WU-09): the driver pumps decoded
+    `SSEvent`s through `feed` and yields the converted events; when the wire
+    is exhausted (or aborts) it calls `flush` exactly once, yielding the tail
+    events. The per-edge flush reports are then exposed on `reports`, and the
+    facade — which built this pipeline and handed it to the driver — reads
+    them after iteration and folds them into the terminal `StreamEnd.report`
+    beside the request-leg report, so streaming conversion pays the same
+    visible toll as unary conversion.
+    """
+
+    def __init__(self, edges: tuple[StreamEdge, ...]) -> None:
+        """Build one fresh transducer per planned edge.
+
+        Args:
+            edges: The planned stream path, in traversal order. Empty for an
+                identity plan (`src == dst`), in which case `feed` passes
+                events through untouched.
+        """
+        self._edges = edges
+        self._stages: tuple[StreamConverter, ...] = tuple(edge.build() for edge in edges)
+        self._reports: tuple[EdgeReport, ...] | None = None
+
+    @property
+    def edges(self) -> tuple[StreamEdge, ...]:
+        """Return the planned stream edges this pipeline traverses, in order."""
+        return self._edges
+
+    @property
+    def reports(self) -> tuple[EdgeReport, ...] | None:
+        """Return the per-edge flush accounting, or None before `flush` ran.
+
+        The facade's half of the WU-09 seam: after the driver exhausts the
+        stream (which flushes this pipeline), read this and fold each report
+        into the terminal `StreamEnd.report`.
+        """
+        return self._reports
+
+    def feed(self, event: Any) -> list[Any]:
+        """Pipe one event through every stage, in path order.
+
+        Args:
+            event: The next event in the path's source representation.
+
+        Returns:
+            The converted events ready to emit, in the path's destination
+            representation, in order — empty while stages buffer. With no
+            stages (an identity plan) the event passes through unchanged.
+        """
+        events = [event]
+        for stage in self._stages:
+            emitted: list[Any] = []
+            for item in events:
+                emitted.extend(stage.feed(item))
+            events = emitted
+        return events
+
+    def flush(self) -> tuple[list[Any], tuple[EdgeReport, ...]]:
+        """Finish the stream: drain every stage and collect the accounting.
+
+        Drains front-to-back: each stage's flush tail is fed through the
+        stages behind it before the next stage flushes, so composition
+        preserves event order. Aborted streams are flushed too (the driver
+        flushes on its error path), sealing in-flight state and keeping the
+        accounting rather than dropping both.
+
+        Returns:
+            The remaining events to emit, and one `EdgeReport` per stage in
+            path order — the same tuple exposed on `reports` afterwards.
+
+        Raises:
+            RuntimeError: If called more than once — a pipeline serves a
+                single traversal by contract.
+        """
+        if self._reports is not None:
+            raise RuntimeError(
+                "StreamPipeline.flush() may only be called once; build a fresh "
+                "pipeline per stream traversal via stream_converter()."
+            )
+        tail: list[Any] = []
+        reports: list[EdgeReport] = []
+        for index, stage in enumerate(self._stages):
+            events, report = stage.flush()
+            reports.append(report)
+            drained = list(events)
+            for downstream in self._stages[index + 1 :]:
+                emitted: list[Any] = []
+                for item in drained:
+                    emitted.extend(downstream.feed(item))
+                drained = emitted
+            tail.extend(drained)
+        self._reports = tuple(reports)
+        return tail, self._reports
+
+
 @dataclass(frozen=True, slots=True)
 class Converted:
     """The result of a graph conversion: the output value plus its report.
@@ -205,6 +315,55 @@ def _grade_sum(a: LossGrade, b: LossGrade) -> LossGrade:
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3])
 
 
+def _dijkstra[E: (Edge, StreamEdge)](
+    adjacency: Mapping[NodeId, Sequence[E]],
+    src: NodeId,
+    dst: NodeId,
+    counter: Iterator[int],
+) -> list[E] | None:
+    """Find the cheapest (lowest summed grade) edge sequence `src -> dst`.
+
+    The one shortest-path search serving both the unary (`Edge`) and the
+    streaming (`StreamEdge`) adjacencies — same `LossGrade` cost, same
+    determinism, so the two planners can never drift. Path cost is the
+    elementwise sum of contract-derived edge grades: the comparison prefers
+    less breakage, then less approximation, then less emulation, then fewer
+    hops. Deterministic: outgoing edges are traversed in `(grade, str(dst))`
+    order and a monotonic counter breaks heap ties, so nodes and paths are
+    never compared directly.
+
+    Args:
+        adjacency: The per-node outgoing edges to search over.
+        src: The source node.
+        dst: The destination node; assumed different from `src` (callers
+            short-circuit the identity plan).
+        counter: The graph's monotonic heap tiebreaker.
+
+    Returns:
+        The ordered edges forming the cheapest path, or None when no path
+        exists (callers raise their own `ConversionError`).
+    """
+    heap: list[tuple[LossGrade, int, NodeId, list[E]]] = [(_ZERO_GRADE, next(counter), src, [])]
+    best: dict[NodeId, LossGrade] = {src: _ZERO_GRADE}
+    while heap:
+        grade, _, node, path = heapq.heappop(heap)
+        if node == dst:
+            return path
+        node_best = best.get(node)
+        if node_best is not None and grade > node_best:
+            continue
+        for edge in sorted(
+            adjacency.get(node, []),
+            key=lambda e: (e.contract.loss_grade(), str(e.dst)),
+        ):
+            nd = _grade_sum(grade, edge.contract.loss_grade())
+            dst_best = best.get(edge.dst)
+            if dst_best is None or nd < dst_best:
+                best[edge.dst] = nd
+                heapq.heappush(heap, (nd, next(counter), edge.dst, [*path, edge]))
+    return None
+
+
 class ConversionGraph:
     """Edges for one `Shape`, with cached contract-graded shortest-path plans.
 
@@ -218,11 +377,13 @@ class ConversionGraph:
     """
 
     def __init__(self) -> None:
-        """Construct an empty graph with no edges and an empty plan cache."""
+        """Construct an empty graph with no edges and empty plan caches."""
         self._edges: dict[NodeId, list[Edge]] = {}
         self._stream_edges: dict[NodeId, list[StreamEdge]] = {}
-        # Cache of planned paths keyed by (src, dst). Cleared on register().
+        # Caches of planned paths keyed by (src, dst) — one per adjacency,
+        # cleared by the matching register method.
         self._plan_cache: dict[tuple[NodeId, NodeId], list[Edge]] = {}
+        self._stream_plan_cache: dict[tuple[NodeId, NodeId], list[StreamEdge]] = {}
         # Monotonic tiebreaker so heap entries never compare NodeId/path.
         self._counter = itertools.count()
 
@@ -268,17 +429,15 @@ class ConversionGraph:
         if edge in edges:
             return  # idempotent: identical edge already registered
         edges.append(edge)
+        self._stream_plan_cache.clear()  # any new edge may create a cheaper path
 
     def _plan(self, src: NodeId, dst: NodeId) -> list[Edge]:
         """Return the cheapest (lowest summed grade) edge sequence `src -> dst`.
 
-        Dijkstra over the lexicographic `LossGrade` derived from each edge's
-        contract; path cost is the elementwise sum of edge grades, so the
-        comparison prefers less breakage, then less approximation, then less
-        emulation, then fewer hops (the grade's hops component is what the
-        old float `HOP_PENALTY` became). Deterministic: outgoing edges are
-        traversed in `(grade, str(dst))` order and a monotonic counter
-        breaks heap ties, so nodes and paths are never compared directly.
+        The `_dijkstra` search over the unary adjacency (see its docstring
+        for the cost and determinism rules — the grade's hops component is
+        what the old float `HOP_PENALTY` became), memoized in the unary plan
+        cache.
 
         Args:
             src: The source node.
@@ -296,30 +455,41 @@ class ConversionGraph:
         cached = self._plan_cache.get((src, dst))
         if cached is not None:
             return cached
+        path = _dijkstra(self._edges, src, dst, self._counter)
+        if path is None:
+            raise ConversionError(f"no conversion path from {src} to {dst}")
+        self._plan_cache[(src, dst)] = path
+        return path
 
-        heap: list[tuple[LossGrade, int, NodeId, list[Edge]]] = [
-            (_ZERO_GRADE, next(self._counter), src, [])
-        ]
-        best: dict[NodeId, LossGrade] = {src: _ZERO_GRADE}
-        while heap:
-            grade, _, node, path = heapq.heappop(heap)
-            if node == dst:
-                self._plan_cache[(src, dst)] = path
-                return path
-            node_best = best.get(node)
-            if node_best is not None and grade > node_best:
-                continue
-            for edge in sorted(
-                self._edges.get(node, []),
-                key=lambda e: (e.contract.loss_grade(), str(e.dst)),
-            ):
-                nd = _grade_sum(grade, edge.contract.loss_grade())
-                dst_best = best.get(edge.dst)
-                if dst_best is None or nd < dst_best:
-                    best[edge.dst] = nd
-                    heapq.heappush(heap, (nd, next(self._counter), edge.dst, [*path, edge]))
+    def _plan_stream(self, src: NodeId, dst: NodeId) -> list[StreamEdge]:
+        """Return the cheapest stream-edge sequence `src -> dst`.
 
-        raise ConversionError(f"no conversion path from {src} to {dst}")
+        The streaming twin of `_plan`: the same `_dijkstra` search with the
+        same contract-derived grades and determinism, over the stream
+        adjacency, memoized in the separate stream plan cache (cleared by
+        `register_stream`).
+
+        Args:
+            src: The source chunk-shape node.
+            dst: The destination chunk-shape node.
+
+        Returns:
+            The ordered stream edges forming the cheapest path (empty if
+            `src == dst`).
+
+        Raises:
+            ConversionError: If no stream-edge path exists.
+        """
+        if src == dst:
+            return []
+        cached = self._stream_plan_cache.get((src, dst))
+        if cached is not None:
+            return cached
+        path = _dijkstra(self._stream_edges, src, dst, self._counter)
+        if path is None:
+            raise ConversionError(f"no stream conversion path from {src} to {dst}")
+        self._stream_plan_cache[(src, dst)] = path
+        return path
 
     def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
         """Convert `payload` from node `src` to node `dst`.
@@ -351,31 +521,29 @@ class ConversionGraph:
             )
         return Converted(value, report)
 
-    def stream_converter(self, src: NodeId, dst: NodeId) -> StreamConverter:
+    def stream_converter(self, src: NodeId, dst: NodeId) -> StreamPipeline:
         """Plan and build the composite transducer converting chunks `src -> dst`.
 
         The streaming twin of `convert`: plans a `StreamEdge` path with the
-        same contract-graded Dijkstra, then chains one freshly-built
-        `StreamConverter` per planned edge into a single composite whose
-        `feed` pipes events through every stage in order and whose `flush`
-        drains the stages front-to-back and returns the merged accounting.
-        The driver pumps SSE-decoded events through the result.
+        same contract-graded Dijkstra (via `_plan_stream`, with its own plan
+        cache), then chains one freshly-built (`StreamEdge.build`) transducer
+        per planned edge into a `StreamPipeline` — the plan is cached, the
+        transducer instances never are. The driver pumps SSE-decoded events
+        through the result and the facade reads the flush accounting off
+        `StreamPipeline.reports` for the terminal `StreamEnd.report` (the
+        WU-09 seam).
 
         Args:
             src: The source chunk-shape node.
             dst: The destination chunk-shape node.
 
         Returns:
-            A fresh composite `StreamConverter` for one stream traversal.
+            A fresh `StreamPipeline` for one stream traversal.
 
         Raises:
             ConversionError: If no stream-edge path exists.
         """
-        # TODO: generalize `_plan`'s Dijkstra over the `_stream_edges`
-        # adjacency (same grades, same determinism, separate plan cache),
-        # then compose `edge.build()` per planned edge into one pipeline
-        # object that chains feeds and concatenates flush reports.
-        raise NotImplementedError
+        return StreamPipeline(tuple(self._plan_stream(src, dst)))
 
     def can_convert(self, src: NodeId, dst: NodeId) -> bool:
         """Return whether any conversion path exists from `src` to `dst`.

@@ -24,7 +24,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-06 | OpenAI chat_completions unary certification | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-07 | Facade unary lifecycle — **M1** | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-08 | Fold law hardening + streaming spec shapes | M2 | [m2](m2-streaming.md) | ⬜ |
-| WU-09 | Stream conversion joins the graph | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-09 | Stream conversion joins the graph | M2 | [m2](m2-streaming.md) | ✅ |
 | WU-10 | OpenAI streaming codec + fold triples | M2 | [m2](m2-streaming.md) | ⬜ |
 | WU-11 | Facade streaming — **M2** | M2 | [m2](m2-streaming.md) | ⬜ |
 | WU-12 | Profile gate | M2 | [m2](m2-streaming.md) | ⬜ |

@@ -148,10 +148,12 @@ class WireChatModel:
             The canonical chunk stream; its terminal chunk carries
             `StreamEnd(usage, finish, report)`.
         """
-        # TODO: §8 streaming — encode via graph; SyncDriver stream pump
-        # (SSEParser -> StreamEdge transducer chain from the catalog);
-        # wrap the decoded chunk iterator in ChatStream; the transducer
-        # chain's flush() supplies StreamEnd's report.
+        # TODO: §8 streaming — encode via graph; build the pipeline via
+        # catalog.stream_converter(wire chunk node -> canonical chunk node)
+        # (fresh per stream) and pass it to SyncDriver.stream, which yields
+        # the converted chunks and flushes at end-of-stream (WU-09 seam);
+        # wrap in ChatStream, then read pipeline.reports after iteration and
+        # stamp StreamEnd.report = request-leg report + those flush reports.
         raise NotImplementedError
 
     async def astream(
@@ -170,7 +172,8 @@ class WireChatModel:
             The async canonical chunk stream.
         """
         # TODO: same streaming pipeline over AsyncDriver, wrapped in
-        # AsyncChatStream.
+        # AsyncChatStream — the same WU-09 seam: the driver yields converted
+        # chunks; StreamEnd.report is stamped from pipeline.reports.
         raise NotImplementedError
 
     @property

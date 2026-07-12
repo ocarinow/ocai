@@ -40,8 +40,8 @@ from ocai.convert.graph import ConversionError
 from ocai.convert.graph import ConversionGraph
 from ocai.convert.graph import Converted
 from ocai.convert.graph import Edge
-from ocai.convert.graph import StreamConverter
 from ocai.convert.graph import StreamEdge
+from ocai.convert.graph import StreamPipeline
 from ocai.core.canonjson import canonical
 from ocai.core.errors import OcaiError
 from ocai.core.fidelity import Route
@@ -593,19 +593,21 @@ class Catalog:
             raise ConversionError(f"no conversion edges registered for shape {src.shape}")
         return graph.convert(payload, src, dst)
 
-    def stream_converter(self, src: NodeId, dst: NodeId) -> StreamConverter:
+    def stream_converter(self, src: NodeId, dst: NodeId) -> StreamPipeline:
         """Build the composite transducer converting chunk events `src -> dst`.
 
         The streaming twin of `convert`, delegating to the chunk shape's
-        graph. The driver pumps decoded wire events through the result and
-        folds its flush report into the terminal `StreamEnd`.
+        graph. The facade hands the result to a driver, which pumps decoded
+        wire events through it; after the driver flushes it, the per-edge
+        accounting on `StreamPipeline.reports` is folded into the terminal
+        `StreamEnd.report` (the WU-09 seam).
 
         Args:
             src: The source chunk-shape node.
             dst: The destination chunk-shape node; must share `src`'s shape.
 
         Returns:
-            A fresh composite `StreamConverter` for one stream traversal.
+            A fresh `StreamPipeline` for one stream traversal.
 
         Raises:
             ConversionError: If the shapes differ, no edges exist for the

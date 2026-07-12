@@ -47,6 +47,20 @@ in parallel sessions/branches; WU-11 joins the tracks.
   chunks; pytest green.
 - **Deps:** WU-00 (mechanics exist); WU-08 soft (the StreamEnd seam).
   Independent of WU-06/07 and of WU-08's accumulator work.
+- **Decision:** the composite is a concrete `StreamPipeline` (not a
+  `StreamConverter` — its `flush` returns one `EdgeReport` **per stage**, in
+  path order, preserving per-edge attribution for `FidelityReport.edges`).
+  Flush reports reach the facade by being **exposed on
+  `StreamPipeline.reports` after flush** rather than as a generator return
+  value: async generators cannot return values, and the exposure keeps the
+  sync/async driver twins identical. The driver takes
+  `pipeline: StreamPipeline | None` (replacing the never-called
+  `transducers: Sequence[StreamEdge]` seam sketch), flushes exactly once at
+  end-of-stream (tail yielded), and flushes on the mid-stream error path too
+  (tail undeliverable while raising; accounting preserved). Freshness lives
+  in `stream_converter`: the *plan* is cached per `(src, dst)`,
+  `StreamEdge.build()` runs per planned edge per call. Double-flush raises
+  `RuntimeError`.
 
 ## WU-10 — OpenAI streaming codec completion + fold-triple fixtures
 
