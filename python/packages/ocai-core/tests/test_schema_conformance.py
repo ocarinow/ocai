@@ -429,8 +429,12 @@ PROPERTY_SNAPSHOT: dict[str, frozenset[str]] = {
     "parts.schema.json#/$defs/span": frozenset({"start", "end"}),
     "parts.schema.json#/$defs/annotation": ENVELOPE
     | {"span", "url", "document_index", "file", "title", "cited_text", "opaque"},
-    "parts.schema.json#/$defs/source": ENVELOPE
-    | {"type", "data", "mime_type", "url", "ref", "media_type"},
+    # Pre-freeze course-correction (2026-07, capability stress-test): the
+    # sourceRef branch's `media_type` was renamed `mime_type` to match its
+    # base64/url siblings before v0.2 froze the surface; `from_dict` still
+    # accepts the old key. The additive-only regime governs from the
+    # corrected shape onward.
+    "parts.schema.json#/$defs/source": ENVELOPE | {"type", "data", "mime_type", "url", "ref"},
     # WU-05a (pre-freeze course-correction, 2026-07): `model` left the request
     # — routing data binds to the model object (§3.4), never the IR. The
     # additive-only regime governs from the corrected shape onward.

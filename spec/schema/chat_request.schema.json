@@ -209,7 +209,7 @@
         },
         "ref": {
           "$ref": "parts.schema.json#/$defs/providerRef",
-          "description": "An existing provider-side cache handle to generate against (Gemini cachedContent); crossing another (provider, interface) is reported UNSUPPORTED."
+          "description": "An existing provider-side cache handle to generate against (Gemini cachedContent — the model-scoped exemplar: crossing another (provider, interface) is reported UNSUPPORTED, and changing the bound model is breakage, per the ProviderRef scoped crossing rule)."
         }
       }
     }

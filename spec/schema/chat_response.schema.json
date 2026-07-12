@@ -36,7 +36,7 @@
       "properties": {
         "id": {
           "$ref": "parts.schema.json#/$defs/providerRef",
-          "description": "The response's provider-side identity (kind \"response_id\"), directly reusable as a follow-up anchor on interfaces with server-side threads; crossing another (provider, interface) is reported UNSUPPORTED."
+          "description": "The response's provider-side identity (kind \"response_id\"), directly reusable as a follow-up anchor on interfaces with server-side threads; an interface-scoped ref: crossing another (provider, interface) is reported UNSUPPORTED (the ProviderRef scoped crossing rule)."
         },
         "model": {
           "type": "string",

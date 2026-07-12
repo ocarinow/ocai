@@ -84,7 +84,7 @@
       }
     },
     "providerRef": {
-      "$comment": "ocai/core/refs.py ProviderRef — a name for state living on one provider interface's side. Crossing any other (provider, interface) is UNSUPPORTED: reported, never silently dropped.",
+      "$comment": "ocai/core/refs.py ProviderRef — a name for state living on a provider's side. The scoped honesty rule: interface-scoped refs (the default) are UNSUPPORTED crossing any other (provider, interface); provider-scoped refs survive same-provider sibling-interface crossings unreported (an OpenAI file id is valid across chat_completions/responses/batch) and are UNSUPPORTED across providers; model-scoped refs are additionally breakage when the bound resource (qualifier) changes (Gemini cachedContents). Crossing beyond the ref's validity scope is always reported, never silently dropped.",
       "type": "object",
       "properties": {
         "provider": {
@@ -106,6 +106,14 @@
         "replay": {
           "type": "string",
           "description": "Whether the provider requires the ref back on follow-ups. Open code; known values: optional (useful context), required (dropping it produces a 400 on replay — weighted as breakage, not mere loss)."
+        },
+        "scope": {
+          "type": "string",
+          "description": "The ref's validity boundary. Open code; known values: interface (valid only within the minting (provider, interface) — the default when omitted), provider (valid across the provider's sibling interfaces, e.g. OpenAI file ids), model (bound to one resource below the interface, e.g. Gemini cachedContents). Unknown values are legal, preserved verbatim, and read as interface-scoped — the narrowest, most honest boundary."
+        },
+        "qualifier": {
+          "type": "string",
+          "description": "The bound resource for model-scoped refs (e.g. the model a Gemini cachedContent was minted against); omitted for wider scopes."
         }
       }
     },
@@ -216,9 +224,9 @@
                 "$ref": "#/$defs/providerRef",
                 "description": "The provider-side file handle (OpenAI file_id, Gemini Files API name, Anthropic Files)."
               },
-              "media_type": {
+              "mime_type": {
                 "type": "string",
-                "description": "The media MIME type, when known."
+                "description": "The media MIME type, when known. Pre-freeze rename from `media_type` (aligning with the base64/url siblings); decoders still accept the old key."
               }
             }
           }
@@ -242,7 +250,7 @@
         },
         "anchor": {
           "$ref": "#/$defs/providerRef",
-          "description": "Provider-side state backing this part (an item id, a file handle); inherits ProviderRef's cross-interface UNSUPPORTED rule."
+          "description": "Provider-side state backing this part (an item id, a file handle); inherits ProviderRef's scoped crossing rule — UNSUPPORTED beyond the ref's validity scope."
         },
         "cache_hint": {
           "$ref": "#/$defs/cacheHint",

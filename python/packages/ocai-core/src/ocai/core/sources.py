@@ -13,8 +13,14 @@ source payloads verbatim instead of raising, so a newer peer's source kinds
 survive a round trip through an older ocai.
 
 Because `SourceRef` names provider-side state, it inherits `ProviderRef`'s
-structural honesty rule: crossing any other `(provider, interface)` boundary
-is `UNSUPPORTED` — reported, never silently dropped.
+scoped honesty rule (see `ocai.core.refs`): an interface-scoped ref is
+`UNSUPPORTED` crossing any other `(provider, interface)`; a provider-scoped
+ref (the natural scope for file handles — an OpenAI file id is valid across
+`chat_completions`/`responses`/`batch`) survives same-provider
+sibling-interface crossings unreported and is `UNSUPPORTED` across
+providers; a model-scoped ref is additionally breakage when the bound
+resource changes. Crossing beyond the ref's validity scope is always
+reported, never silently dropped.
 """
 
 from __future__ import annotations
@@ -129,36 +135,46 @@ class SourceRef(IRObject):
     """A media source held on a provider's side, named by a `ProviderRef`.
 
     Used for uploaded-file handles (OpenAI `file_id`, Gemini Files API
-    names, Anthropic Files). The `ref` scopes the handle to the
-    `(provider, interface)` that minted it — converting a request carrying
-    one to any other interface reports `UNSUPPORTED`.
+    names, Anthropic Files). The `ref`'s `scope` bounds where the handle is
+    valid — converting a request carrying one beyond that scope reports
+    `UNSUPPORTED` (the scoped honesty rule in `ocai.core.refs`).
 
     Attributes:
         ref: The provider-side handle.
-        media_type: The media MIME type, or None if unknown.
+        mime_type: The media MIME type, or None if unknown.
         type: The source discriminator, fixed to `SourceType.REF`.
     """
 
     object: ClassVar[str] = "source"
 
     ref: ProviderRef
-    media_type: str | MimeType | None = field(default=None)
+    mime_type: str | MimeType | None = field(default=None)
     type: Literal[SourceType.REF] = field(default=SourceType.REF)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Build a `SourceRef` from a serialized dict.
 
+        Tolerates the pre-freeze `media_type` key (the field's name before
+        the rename that aligned it with its `SourceBase64`/`SourceUrl`
+        siblings): the value is accepted into `mime_type` and kept out of
+        the `extensions` sweep, so old payloads decode losslessly while new
+        payloads encode only `mime_type`.
+
         Args:
-            data: A mapping with the nested `ref`, an optional `media_type`,
-                and the common IR envelope fields.
+            data: A mapping with the nested `ref`, an optional `mime_type`
+                (or legacy `media_type`), and the common IR envelope fields.
 
         Returns:
             A new `SourceRef` instance.
         """
+        if "media_type" in data:
+            data = dict(data)
+            data.setdefault("mime_type", data["media_type"])
+            del data["media_type"]
         return cls(
             ref=ProviderRef.from_dict(data.get("ref") or {}),
-            media_type=data.get("media_type", None),
+            mime_type=data.get("mime_type", None),
             **cls._from_dict_common(data),
         )
 

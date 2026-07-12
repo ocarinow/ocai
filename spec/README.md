@@ -68,6 +68,15 @@ every edge fixture:
 3. runtime loss never exceeds the edge's declared `EdgeContract` census — an
    edge claiming lossless that drops a field cannot ship.
 
+Census and loss paths follow the contract path grammar (normative statement:
+`EdgeContract.certify` in `ocai/convert/contract.py`): dotted member names,
+concrete `[0]` indexes, the empty wildcard `[]`, and non-numeric selector
+tokens (`[reasoning]`). The token `[**]` is **reserved** for recursive
+descent — "this entry covers any suffix below this point", needed for
+unbounded filter trees — and must not appear in a census today (the current
+grammar would read it as an ordinary one-level selector); its implementation
+lands with the vectorstore capability.
+
 ### Fold triple (one per streaming edge)
 
 The stream-first law `fold(stream(request)) == complete(request)` is asserted

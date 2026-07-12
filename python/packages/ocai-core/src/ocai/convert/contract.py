@@ -306,6 +306,14 @@ class EdgeContract:
         bracket token. There is no prefix matching — a census entry for a
         parent path never governs a child path.
 
+        **Reserved recursive-descent token.** The census token `[**]` is
+        RESERVED for "this entry covers any suffix below this point" —
+        recursive descent, needed for unbounded trees (a vectorstore filter
+        tree has no fixed depth). It MUST NOT be used today: the current
+        parser would treat `**` as an ordinary non-numeric selector (one
+        level, any bracket token), silently under-covering. The
+        implementation lands with the vectorstore capability.
+
         **Resolution per runtime loss.** (1) *Exact-path precedence*: when
         the census holds the runtime path verbatim, that entry alone
         governs. (2) Otherwise the record is within declaration when it is
