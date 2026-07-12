@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ocai.dev/spec/schema/finish.schema.json",
   "title": "FinishInfo",
-  "$comment": "Role: why generation stopped (docs/architecture.md §3.1; ocai/chat/types/finish.py FinishInfo) in omit-absent wire form. Two-lane honesty: `reason` is the canonical OPEN stop code and `native` preserves the provider's verbatim wire value — an unknown wire value decodes to reason \"unknown\" with the native lane intact, never a raise (total decode, rule 6). `detail` is a tagged union with its own open registry (DETAIL_REGISTRY): known tags dispatch to a variant subschema via if/then; a tag this revision does not know matches no branch and still validates (that payload decodes to DetailOpaque, byte-faithful). Boundary rule (normative): a mid-generation refusal or filter stop is a RESPONSE carrying this info; a pre-generation block is a ContentFilterError — no response existed to report on.",
+  "$comment": "Role: why generation stopped (docs/architecture.md §2; ocai/core/finish.py FinishInfo) in omit-absent wire form. Two-lane honesty: `reason` is the canonical OPEN stop code and `native` preserves the provider's verbatim wire value — an unknown wire value decodes to reason \"unknown\" with the native lane intact, never a raise (total decode, rule 6). `detail` is a tagged union with its own open registry (DETAIL_REGISTRY): known tags dispatch to a variant subschema via if/then; a tag this revision does not know matches no branch and still validates (that payload decodes to DetailOpaque, byte-faithful). Boundary rule (normative): a mid-generation refusal or filter stop is a RESPONSE carrying this info; a pre-generation block is a ContentFilterError — no response existed to report on.",
   "description": "Why generation stopped: the canonical open stop code, the provider's verbatim native value, and an optional typed elaboration.",
   "type": "object",
   "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
@@ -23,7 +23,7 @@
   "required": ["reason"],
   "$defs": {
     "finishDetail": {
-      "$comment": "The FinishDetail tagged union (ocai/chat/types/finish.py), kept open through DETAIL_REGISTRY: known canonical tags dispatch to a variant subschema via if/then; unknown tags are LEGAL and decode to DetailOpaque, which preserves the payload verbatim. DetailOpaque doubles as the deliberate opaque member — finish details are terminal metadata, never re-encoded into requests, so the opaque/unknown split parts use is collapsed here.",
+      "$comment": "The FinishDetail tagged union (ocai/core/finish.py), kept open through DETAIL_REGISTRY: known canonical tags dispatch to a variant subschema via if/then; unknown tags are LEGAL and decode to DetailOpaque, which preserves the payload verbatim. DetailOpaque doubles as the deliberate opaque member — finish details are terminal metadata, never re-encoded into requests, so the opaque/unknown split parts use is collapsed here.",
       "type": "object",
       "allOf": [
         { "$ref": "parts.schema.json#/$defs/envelope" },
@@ -52,7 +52,7 @@
       }
     },
     "safetyRating": {
-      "$comment": "ocai/chat/types/finish.py SafetyRating — one per-category safety assessment inside a safety detail. Not an IR envelope carrier: a plain value object like span.",
+      "$comment": "ocai/core/finish.py SafetyRating — one per-category safety assessment inside a safety detail. Not an IR envelope carrier: a plain value object like span.",
       "type": "object",
       "properties": {
         "category": {

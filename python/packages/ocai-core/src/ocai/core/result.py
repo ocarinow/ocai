@@ -21,6 +21,7 @@ from typing import Any
 
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import Route
+from ocai.core.usage import Usage
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,9 +41,8 @@ class CallResult[T]:
             for adapters that perform no resolution.
         report: THE fidelity account for this call. Payloads stay pure; the
             report has exactly this one home.
-        usage: The capability's consumption record. Typed loosely because
-            `Usage` is defined by each capability package and `ocai.core`
-            never imports upward.
+        usage: The capability's consumption record — the core-owned
+            dimensional `Usage` model, uniform across capabilities.
         raw: The untouched provider response body for power users — never
             contains credentials.
     """
@@ -50,7 +50,7 @@ class CallResult[T]:
     value: T
     route: Route | None = None
     report: FidelityReport | None = None
-    usage: Any | None = None
+    usage: Usage | None = None
     raw: Any | None = None
 
 

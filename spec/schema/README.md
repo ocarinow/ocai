@@ -20,6 +20,12 @@ Naming and identity conventions:
   union, `Span`/`Annotation`, `CacheHint`) live in the `$defs` of
   [`parts.schema.json`](parts.schema.json) and are referenced from the other
   schemas.
+- [`usage.schema.json`](usage.schema.json) and
+  [`finish.schema.json`](finish.schema.json) are **core contracts**
+  (capability-neutral), not chat-local: the vocabulary they serialize lives
+  in `ocai.core` (`ocai/core/usage.py`, `ocai/core/finish.py`) and is shared
+  by every capability — chat delivers them on responses and stream ends,
+  embedding on its response, future capabilities on theirs.
 
 Schema rules:
 

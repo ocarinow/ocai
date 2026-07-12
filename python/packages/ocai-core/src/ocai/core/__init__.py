@@ -14,6 +14,10 @@ The vocabulary, by module:
   `EdgeReport`, `FidelityReport`, and `Route` (what ocai decided).
 - `result` — what every port returns: `CallResult`, plus the per-request
   governance carrier `CallContext`.
+- `usage` — what a call consumed, in any capability: the dimensional
+  `Consumption`/`Usage` model (hoisted from chat pre-freeze).
+- `finish` — why a run stopped, in any capability: `FinishInfo`,
+  `FinishReason`, and the detail union (hoisted from chat pre-freeze).
 - `refs` — provider-anchored state: `ProviderRef` and its `Replay` rule.
 - `profile` — declared capability facts: `CapabilityProfile` / `Support`.
 - `ir` — the IR envelope (`IRObject`: omit-absent encode, tolerant decode)
@@ -54,6 +58,18 @@ from ocai.core.fidelity import FieldLoss
 from ocai.core.fidelity import Route
 from ocai.core.fidelity import SemanticShift
 from ocai.core.fidelity import ShiftKind
+from ocai.core.finish import DETAIL_REGISTRY
+from ocai.core.finish import DetailOpaque
+from ocai.core.finish import DetailType
+from ocai.core.finish import ErrorDetail
+from ocai.core.finish import FinishDetail
+from ocai.core.finish import FinishInfo
+from ocai.core.finish import FinishReason
+from ocai.core.finish import IncompleteDetail
+from ocai.core.finish import RefusalDetail
+from ocai.core.finish import SafetyDetail
+from ocai.core.finish import SafetyRating
+from ocai.core.finish import cast_detail
 from ocai.core.identity import CANONICAL_INTERFACE
 from ocai.core.identity import CANONICAL_PROVIDER
 from ocai.core.identity import CANONICAL_REVISION
@@ -95,6 +111,11 @@ from ocai.core.sources import SourceUnknown
 from ocai.core.sources import SourceUrl
 from ocai.core.sources import cast_source
 from ocai.core.traits import DialectTraits
+from ocai.core.usage import Consumption
+from ocai.core.usage import Usage
+from ocai.core.usage import UsageModality
+from ocai.core.usage import UsageSource
+from ocai.core.usage import UsageUnit
 
 # Library public API version (semver). Kept stable across IR/wire changes.
 __version__ = "0.1.0"
@@ -107,6 +128,7 @@ __all__ = [
     "CHAT_CHUNK",
     "CHAT_REQUEST",
     "CHAT_RESPONSE",
+    "DETAIL_REGISTRY",
     "EMBEDDING",
     "MISSING",
     "SOURCE_REGISTRY",
@@ -117,17 +139,25 @@ __all__ = [
     "CallResult",
     "Capability",
     "CapabilityProfile",
+    "Consumption",
     "ContentFilterError",
     "ContextLengthError",
     "Credential",
     "DialectTraits",
     "CredentialError",
     "DataClassProto",
+    "DetailOpaque",
+    "DetailType",
     "Disposition",
     "EdgeReport",
+    "ErrorDetail",
     "FidelityReport",
     "FieldLoss",
+    "FinishDetail",
+    "FinishInfo",
+    "FinishReason",
     "IRObject",
+    "IncompleteDetail",
     "JsonSchema",
     "NodeId",
     "OcaiError",
@@ -135,8 +165,11 @@ __all__ = [
     "Primitive",
     "ProviderRef",
     "RateLimitError",
+    "RefusalDetail",
     "Replay",
     "Route",
+    "SafetyDetail",
+    "SafetyRating",
     "Schema",
     "SemanticShift",
     "Shape",
@@ -151,11 +184,16 @@ __all__ = [
     "Support",
     "TagRegistry",
     "TransientError",
+    "Usage",
+    "UsageModality",
+    "UsageSource",
+    "UsageUnit",
     "Value",
     "ValueType",
     "__version__",
     "canonical",
     "canonical_node",
+    "cast_detail",
     "cast_source",
     "decode_schema",
     "encode_schema",

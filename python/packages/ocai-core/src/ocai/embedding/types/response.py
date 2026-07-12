@@ -17,6 +17,7 @@ from typing import ClassVar
 from typing import Self
 
 from ocai.core.ir import IRObject
+from ocai.core.usage import Usage
 from ocai.embedding.types.embedding import Embedding
 
 
@@ -30,18 +31,15 @@ class EmbeddingResponse(IRObject):
     Attributes:
         embeddings: One `Embedding` per request input; each carries its
             `index` because providers may reorder.
-        usage: What the call consumed, when reported. Typed loosely — the
-            dimensional `Consumption`/`Usage` model lives in `ocai.chat`
-            today and capabilities depend on core only.
+        usage: What the call consumed, when reported — the core-owned
+            dimensional `Usage` model.
         model: The provider's echo of the model that served the call.
     """
 
     object: ClassVar[str] = "embedding.response"
 
-    # TODO: hoist the dimensional Usage model to a core-adjacent shared home
-    # so this can be typed `Usage | None` without a cross-capability import.
     embeddings: list[Embedding] = field(default_factory=list)
-    usage: Any | None = None
+    usage: Usage | None = None
     model: str | None = None
 
     @classmethod
@@ -55,13 +53,14 @@ class EmbeddingResponse(IRObject):
         Returns:
             The decoded `EmbeddingResponse`.
         """
+        usage = data.get("usage")
         return cls(
             embeddings=[
                 Embedding.from_dict(item)
                 for item in data.get("embeddings") or []
                 if isinstance(item, dict)
             ],
-            usage=data.get("usage"),
+            usage=Usage.from_dict(usage) if isinstance(usage, dict) else None,
             model=data.get("model"),
             **cls._from_dict_common(data),
         )

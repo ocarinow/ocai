@@ -92,10 +92,20 @@ class ToolCallStatus:
     output_available | output_error`. Open: providers may surface states
     core has not named, preserved verbatim.
 
+    The approval constants are **agent-tier** states: they exist for agent
+    frameworks built on ocai (human-in-the-loop approval between
+    `input_complete` and `executing`) and never appear on any provider
+    wire. Agent-tier statuses are never wire-encoded: codecs encode the
+    nearest wire-legal ancestor or refuse — they never invent wire values.
+
     Attributes:
         INPUT_STREAMING: Argument fragments are still arriving.
         INPUT_COMPLETE: The arguments are complete; the call is ready to
             execute.
+        APPROVAL_REQUESTED: Agent-tier — the call awaits an approval
+            decision before executing.
+        APPROVAL_DENIED: Agent-tier — approval was refused; the call will
+            not execute.
         EXECUTING: The tool is running (meaningful for provider-executed
             tools; client executions live outside the transcript).
         OUTPUT_AVAILABLE: The result is present.
@@ -104,6 +114,8 @@ class ToolCallStatus:
 
     INPUT_STREAMING: Final = "input_streaming"
     INPUT_COMPLETE: Final = "input_complete"
+    APPROVAL_REQUESTED: Final = "approval_requested"
+    APPROVAL_DENIED: Final = "approval_denied"
     EXECUTING: Final = "executing"
     OUTPUT_AVAILABLE: Final = "output_available"
     OUTPUT_ERROR: Final = "output_error"
