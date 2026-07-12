@@ -282,8 +282,9 @@ def certify_edge(edge: Edge, payloads: Iterable[Any]) -> list[ContractViolation]
     """Certify an edge's runtime loss against its declared contract.
 
     The build-time honesty gate (§4.2): runs the edge function over every
-    fixture payload, collects the `FieldLoss` records it actually emitted,
-    and checks them against the declared census via `EdgeContract.certify`.
+    fixture payload, collects the `FieldLoss` and `SemanticShift` records it
+    actually emitted, and checks them against the declared census and
+    declared shifts via `EdgeContract.certify`.
     A plugin's test suite asserts the result is empty — an edge whose
     runtime loss exceeds its declaration cannot ship, which is what makes a
     "lossless" claim in a lockfile trustworthy.
@@ -296,11 +297,10 @@ def certify_edge(edge: Edge, payloads: Iterable[Any]) -> list[ContractViolation]
     Returns:
         Every violation found across all payloads; empty means certified.
     """
-    # NOTE: the hookup is real; EdgeContract.certify is still TODO.
     violations: list[ContractViolation] = []
     for payload in payloads:
         out = edge.fn(payload)
-        violations.extend(edge.contract.certify(out.losses))
+        violations.extend(edge.contract.certify(out.losses, out.shifts))
     return violations
 
 

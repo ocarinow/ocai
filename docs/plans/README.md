@@ -19,7 +19,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-01 | Enforcement becomes executable | — | [m1](m1-foundations.md) | ⬜ |
 | WU-02 | spec/schema regeneration I (message/parts/request) | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-03 | spec/schema regeneration II (response/finish/usage) | M1 | [m1](m1-foundations.md) | ⬜ |
-| WU-04 | `EdgeContract.certify` | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-04 | `EdgeContract.certify` | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-05 | Unknown-X fixture vocabulary | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-06 | OpenAI chat_completions unary certification | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-07 | Facade unary lifecycle — **M1** | M1 | [m1](m1-foundations.md) | ⬜ |

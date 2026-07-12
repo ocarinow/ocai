@@ -52,6 +52,7 @@ from ocai.convert.graph import EdgeOutput
 from ocai.convert.graph import StreamConverter
 from ocai.convert.graph import StreamConverterFactory
 from ocai.convert.graph import StreamEdge
+from ocai.convert.graph import StreamPipeline
 from ocai.convert.migrate import register_revision_migration
 
 __all__ = [
@@ -77,6 +78,7 @@ __all__ = [
     "StreamConverter",
     "StreamConverterFactory",
     "StreamEdge",
+    "StreamPipeline",
     "TrustPolicy",
     "default_catalog",
     "register_revision_migration",
