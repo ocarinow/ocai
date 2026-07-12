@@ -1,105 +1,76 @@
-# ocai roadmap — v0.1 → v1.0 → expansion
+# ocai roadmap
 
-> **⚠️ July 2026 re-architecture landed.**
-> [`docs/architecture.md`](../architecture.md) is now the **structural
-> contract** for every layer, object, and interaction — read it before any
-> milestone file in this directory. The WU numbering and module references
-> below **predate the re-architecture and are being remapped** onto the new
-> layout (`ocai.core` / `ocai.chat` / `ocai.convert` / `ocai.runtime` /
-> `ocai.wire`, one plugin subpackage per interface). Where a milestone file
-> contradicts `architecture.md`, the architecture wins. Do **not** rewrite
-> the milestone files ahead of the remapping — they are kept verbatim as the
-> planning record.
+The implementation roadmap for the July 2026 re-architecture. The structural
+contract every WU implements is [`docs/architecture.md`](../architecture.md);
+the rules are [`CLAUDE.md`](../../CLAUDE.md). **One WU = one session = one PR**
+(rule 17). Near-term WUs are fully specified; horizon milestones are one
+paragraph each and get detailed only when reached — no pretend-detail a year
+out.
 
-A milestone plan optimized for driving Claude Code. Each **work unit (WU)** is
-sized to be one focused session / one small PR, with explicit done-criteria and
-dependencies so instances can run in parallel where the graph allows.
+Priorities (set by the maintainer): core machinery first; then **one provider
+end-to-end**; providers after the first are pattern replays; the `/responses`
+interface and Gemini are horizon items, not the near-term goal.
 
-The shared rules every session inherits live in the root
-[`CLAUDE.md`](../CLAUDE.md). This directory holds the milestone breakdown.
+## Status
+
+| WU | Title | Milestone | File | Status |
+|---|---|---|---|---|
+| WU-00 | Baseline commit + roadmap replacement | — | [m1](m1-foundations.md) | ✅ done |
+| WU-01 | Enforcement becomes executable | — | [m1](m1-foundations.md) | ⬜ |
+| WU-02 | spec/schema regeneration I (message/parts/request) | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-03 | spec/schema regeneration II (response/finish/usage) | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-04 | `EdgeContract.certify` | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-05 | Unknown-X fixture vocabulary | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-06 | OpenAI chat_completions unary certification | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-07 | Facade unary lifecycle — **M1** | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-08 | Fold law hardening + streaming spec shapes | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-09 | Stream conversion joins the graph | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-10 | OpenAI streaming codec + fold triples | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-11 | Facade streaming — **M2** | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-12 | Profile gate | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-13 | Anthropic messages unary certification | M3 | [m3](m3-second-provider.md) | ⬜ |
+| WU-14a | Anthropic unary e2e (the pattern proof) | M3 | [m3](m3-second-provider.md) | ⬜ |
+| WU-14b | Anthropic streaming e2e — **M3** | M3 | [m3](m3-second-provider.md) | ⬜ |
+| WU-15 | Cross-conversion fidelity proof (flagship demo #1) | M3 | [m3](m3-second-provider.md) | ⬜ |
+| WU-16 | Composition ergonomics | M3 | [m3](m3-second-provider.md) | ⬜ |
+| H1–H5 | Horizon milestones | — | [horizon](horizon.md) | ⬜ |
 
 ## Milestones
 
-### Core track — prove the moat (v0.1 → v1.0)
+- **M1 — one provider end-to-end (unary):** `WireChatModel.chat/achat` returns a
+  `CallResult` with a real two-leg `FidelityReport` on a recorded OpenAI wire
+  pair. Critical path: WU-00 → 02 → 03 → 06 → 07 (WU-04 parallel, needed before
+  06). ~5–6 serial sessions; everything below the facade already exists.
+- **M2 — streaming with honesty parity:** the fold law demonstrated at the port
+  (`fold(model.stream(req)) == model.chat(req).value` on a paired recording).
+- **M3 — the second provider + the proofs:** Anthropic end-to-end with **zero
+  facade changes** (the pattern-replay claim, tested), and the cross-conversion
+  fidelity report demo.
 
-| Milestone | Theme | Provider added | File |
-|---|---|---|---|
-| **v0.1** | Walking skeleton (internal) | OpenAI | [v0.1-walking-skeleton.md](v0.1-walking-skeleton.md) |
-| **v0.2** | The wedge, made visible (first public release) | Anthropic | [v0.2-the-wedge.md](v0.2-the-wedge.md) |
-| **v0.3** | Credibility & version-resilience proof | Gemini | [v0.3-credibility.md](v0.3-credibility.md) |
-| **v0.4** | Polyglot parity (TypeScript, Go optional) | — | [v0.4-polyglot.md](v0.4-polyglot.md) |
-| **v1.0** | Promise-keeping & hardening | — | [v1.0-hardening.md](v1.0-hardening.md) |
+## Session tracks (what can run in parallel)
 
-### Expansion track — breadth across GenAI (post-v1.0, additive only)
+```
+Track A (spine):        00 → 02 → 03 → 06 → 07 → 11 → 12
+Track B (enforcement):  01                    (anytime after 00)
+Track C (harness):      04, 05                (after 00/02)
+Track D (streaming):    08 → 10 ┐             (08, 09 independent of each other)
+                        09 ─────┴→ 11
+Track E (anthropic):    13 → 14a → 14b        (13 needs 02/03/04)
+Track F (proof):        15 (needs 06+13), 16 (needs 07)
+```
 
-Only after the conversion/fidelity moat is proven on chat. Each milestone adds
-**new ports / middleware** to the v1.0-frozen `ocai.core` surface — never a
-rename or removal — so the track doubles as the proof that "extensible" is real.
-Every new modality is held to the same fidelity-`Report` and recorded-fixture bar
-as the original three providers.
+Strictly ordered: 02→03, 06→07, {07,09,10}→11, 13→14a→14b. Everything else
+floats. Fold law (Track D) deliberately lands *after* the unary spine: unary
+needs no fold machinery, the files are disjoint, and no new part types are
+introduced on the unary path, so the streaming-first ratchet is not violated.
 
-| Milestone | Theme | What it adds | File |
-|---|---|---|---|
-| **v1.1** | Honest economics | `TokenCounter`, cost-in-currency, batch + `Operation`, `ModelRegistry` | [v1.1-honest-economics.md](v1.1-honest-economics.md) |
-| **v1.2** | Retrieval, completed | `Reranker`, `Files` lifecycle, real `VectorStore`, scope ADR | [v1.2-retrieval-complete.md](v1.2-retrieval-complete.md) |
-| **v1.3** | Generative media | multimodal content parts, `ImageModel`, `SpeechModel`, `TranscriptionModel` | [v1.3-generative-media.md](v1.3-generative-media.md) |
-| **v1.4** | Realtime & duplex | `DuplexTransport` (WebSocket), `RealtimeSession`, canonical realtime events | [v1.4-realtime-duplex.md](v1.4-realtime-duplex.md) |
-| **v1.5** | Safety & evaluation | `Moderation`, guardrails middleware, `Evaluator`, feedback capture | [v1.5-safety-and-eval.md](v1.5-safety-and-eval.md) |
+## How to work a session
 
-**Why this order:** economics first (it's pure leverage on the existing
-differentiator — "report what it cost" in dollars, no new modality, lowest
-risk); retrieval next (completes a pillar that's already half-built); then the
-generative-media modalities; realtime last among additive work because it's the
-only one that stresses an architectural assumption (the one-way `Transport`);
-safety/eval closes the monitoring loop. Video gen, OCR-as-a-port, fine-tuning,
-and a fourth provider stay out until there's a concrete pull.
+1. Pick the first unchecked WU whose dependencies are ✅ (prefer Track A).
+2. Read its entry in the milestone file + the architecture.md sections it cites.
+3. Implement only that WU; add the tests/fixtures its done-criteria name.
+4. `uv run ruff check && uv run pytest` — report results.
+5. Check the WU off here and in the milestone file; update any architecture.md
+   section the change affected (blueprint law: they must not drift).
 
-## Assumptions (adjust freely)
-
-- First two providers: **OpenAI** then **Anthropic** (the canonical conversion
-  pair). Third: **Gemini** (different enough to stress-test the abstraction).
-- Polyglot order: **Python → TypeScript → Go**.
-
-## Sequencing principle
-
-Never build the wedge on top of shaky table stakes. Streaming, errors, and the
-conversion fidelity report must be solid on the providers they span *before*
-adding breadth. The conformance fixture set grows from day one — it is the moat,
-not an afterthought. Three providers is plenty until v1.
-
-## Flagship WUs (these *are* the product)
-
-- **WU 2.4** — the visible, honest fidelity report (`convert` / `retarget`).
-- **WU 3.5** — the version-bump-with-no-user-code-change proof.
-
-Everything else is in service of those two demos. Do them carefully.
-
-## Current scaffold state (what already exists)
-
-The architecture is wired; treat the items below as **starting points to finish
-and harden**, not greenfield. Don't redo them — extend them.
-
-- ✅ Canonical IR dataclasses + `Report.merge()` — [types.py](../python/packages/ocai-core/src/ocai/core/types.py) (WU 1.1 mostly done; `ToolCall` exists as a stub, no sampling/`stop_reason` fields yet).
-- ✅ Ports — [ports.py](../python/packages/ocai-core/src/ocai/core/ports.py) (`ChatModel`, `EmbeddingModel`, `VectorStore`, `Tracer`).
-- ✅ Conversion graph (Dijkstra, loss-weighted, path cache, canonical backbone) — [graph.py](../python/packages/ocai-core/src/ocai/core/graph.py) (WU 2.2 largely done).
-- ✅ Middleware base + `RetryMiddleware` — [middleware.py](../python/packages/ocai-core/src/ocai/core/middleware.py) (WU 1.5 partial: no usage/cost accounting yet; retry lacks jitter/Retry-After).
-- ✅ Plugin discovery via entry points — [plugins.py](../python/packages/ocai-core/src/ocai/core/plugins.py).
-- ✅ OpenAI adapter + codec **stub** (no network I/O, canned response) — [adapter.py](../python/packages/ocai-openai/src/ocai/openai/adapter.py) (WU 1.2 / 2.3 OpenAI side partial).
-- ✅ Spec: JSON Schema + one golden fixture + conformance test — [spec/](../spec/README.md).
-- ✅ Path-filtered CI (python active; ts/go stubbed).
-- ❌ Missing: real HTTP I/O, streaming/`ChatChunk`, error taxonomy, recorded-fixture harness, Anthropic/Gemini, capabilities, embeddings/vector store, polyglot.
-
-## How to brief each session
-
-Give the instance: (1) the root `CLAUDE.md` rules, (2) the single WU's scope +
-done-criteria from its milestone file, (3) the relevant `spec/` files, and (4)
-an instruction to verify against recorded fixtures and report results before
-finishing. **One WU per PR.**
-
-### Suggested first three sessions
-
-1. **WU 1.1** — finalize canonical types + `Report`. Solo first; it blocks v0.1.
-   (Mostly scaffolded — finish `ToolCall`, confirm `Report.merge`, lock the API.)
-2. **WU 1.6** — recorded-fixture test harness (respx/VCR). In parallel; makes
-   every later WU verifiable without live keys.
-3. Then fan out: WU 1.2 / 1.4 / 1.5 in parallel; WU 1.3 (streaming) after 1.2.
+Archived pre-rearchitecture plans: [`archive/`](archive/README.md).
