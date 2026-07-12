@@ -2,30 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ocai.dev/spec/schema/message.schema.json",
   "title": "Message",
-  "description": "A single canonical-IR chat message. Open/tolerant: unknown keys are preserved, never rejected.",
+  "$comment": "Role: the canonical chat message (docs/architecture.md §3.1; ocai/chat/types/message.py) in omit-absent wire form. Parts-only storage: the pre-July-2026 flat `content` field is gone; every turn is `role` + an ordered list of parts (parts.schema.json). Tolerant: unknown members sweep to `extensions` on decode, so additionalProperties stays permissive.",
+  "description": "A single conversation turn: who spoke (an open role code) and the ordered content parts they produced. The unit every codec encodes/decodes and every conversion edge maps.",
   "type": "object",
-  "required": ["role", "content"],
+  "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
   "properties": {
     "role": {
       "type": "string",
-      "description": "Sender role. Open enum: readers MUST tolerate unknown roles.",
-      "examples": ["system", "user", "assistant", "tool"]
+      "description": "The author's open role code. Known canonical values: user, model (canonical name is model, not assistant — codecs translate), system, tool. Unknown wire roles are LEGAL and preserved verbatim, never coerced to a sentinel."
     },
-    "content": {
-      "type": ["string", "null"],
-      "description": "Text content. null when the turn carries only tool_calls."
-    },
-    "tool_calls": {
-      "type": ["array", "null"],
-      "description": "Optional structured tool/function invocations.",
-      "items": { "type": "object", "additionalProperties": true }
-    },
-    "extensions": {
-      "type": "object",
-      "description": "Per-object escape hatch for non-canonical data. Always present (may be empty).",
-      "additionalProperties": true,
-      "default": {}
+    "parts": {
+      "type": "array",
+      "description": "The ordered content parts making up the turn. Always emitted, even when empty — an empty parts list is data, not absence.",
+      "items": { "$ref": "parts.schema.json" }
     }
   },
-  "additionalProperties": true
+  "required": ["role", "parts"]
 }

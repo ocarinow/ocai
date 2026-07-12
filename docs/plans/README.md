@@ -17,7 +17,7 @@ interface and Gemini are horizon items, not the near-term goal.
 |---|---|---|---|---|
 | WU-00 | Baseline commit + roadmap replacement | — | [m1](m1-foundations.md) | ✅ done |
 | WU-01 | Enforcement becomes executable | — | [m1](m1-foundations.md) | ⬜ |
-| WU-02 | spec/schema regeneration I (message/parts/request) | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-02 | spec/schema regeneration I (message/parts/request) | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-03 | spec/schema regeneration II (response/finish/usage) | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-04 | `EdgeContract.certify` | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-05 | Unknown-X fixture vocabulary | M1 | [m1](m1-foundations.md) | ⬜ |

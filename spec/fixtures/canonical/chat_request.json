@@ -1,0 +1,159 @@
+{
+  "description": "Canonical chat.request example exercising the parts taxonomy (text with a cache_hint, image over a url Source, reasoning with a replay-required signature, tool_call with the id/anchor lanes, tool_result with nested parts), tools, tool_choice, and three-lane config (typed knobs + reasoning + structured output in `config`; destination passthrough in namespaced `provider_options`). Synthetic, wire-accurate, hand-authored: the document is exactly what the omit-absent canonical encoders (to_dict) emit — no recorded provider traffic, no nulls, no empty bags.",
+  "shape": "chat.request",
+  "document": {
+    "version": "2026-07",
+    "provider_options": {
+      "openai.chat_completions": {
+        "user": "user-1234"
+      }
+    },
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "system",
+        "parts": [
+          {
+            "version": "2026-07",
+            "cache_hint": {
+              "version": "2026-07",
+              "ttl": "5m"
+            },
+            "text": "You are a terse zoology assistant.",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "What animal is in this picture?",
+            "type": "text"
+          },
+          {
+            "version": "2026-07",
+            "source": {
+              "version": "2026-07",
+              "url": "https://example.com/pets/cat-042.png",
+              "mime_type": "image/png",
+              "type": "url"
+            },
+            "type": "image"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "summary": "Inspecting the image for identifying features.",
+            "signature": {
+              "provider": "openai",
+              "interface": "responses",
+              "kind": "thought_signature",
+              "id": "sig_7fe2a1",
+              "replay": "required"
+            },
+            "type": "reasoning"
+          },
+          {
+            "version": "2026-07",
+            "id": "item_call_001",
+            "anchor": {
+              "provider": "openai",
+              "interface": "responses",
+              "kind": "item",
+              "id": "fc_9c3d1e",
+              "replay": "optional"
+            },
+            "call_id": "call_9c3d1e",
+            "name": "identify_animal",
+            "args_json": "{\"image_url\": \"https://example.com/pets/cat-042.png\"}",
+            "status": "input_complete",
+            "executed_by": "client",
+            "type": "tool_call"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "tool",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "call_9c3d1e",
+            "parts": [
+              {
+                "version": "2026-07",
+                "text": "Domestic cat (Felis catus), tabby coat.",
+                "type": "text"
+              }
+            ],
+            "is_error": false,
+            "type": "tool_result"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "identify_animal",
+        "parameters": {
+          "properties": {
+            "image_url": {
+              "type": "string",
+              "description": "URL of the image to identify."
+            }
+          },
+          "type": "object",
+          "required": ["image_url"]
+        },
+        "description": "Identify the animal shown in an image."
+      }
+    ],
+    "tool_choice": {
+      "version": "2026-07",
+      "mode": "auto"
+    },
+    "config": {
+      "version": "2026-07",
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "max_output_tokens": 1024,
+      "stop_sequences": ["<END>"],
+      "seed": 42,
+      "parallel_tool_calls": true,
+      "modalities": ["text"],
+      "reasoning": {
+        "version": "2026-07",
+        "effort": "medium",
+        "include_thoughts": true
+      },
+      "output": {
+        "version": "2026-07",
+        "mode": "json_schema",
+        "name": "animal_report",
+        "schema": {
+          "properties": {
+            "animal": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "number"
+            }
+          },
+          "type": "object",
+          "required": ["animal"]
+        },
+        "strict": true
+      }
+    }
+  }
+}

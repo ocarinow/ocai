@@ -2,40 +2,220 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ocai.dev/spec/schema/chat_request.schema.json",
   "title": "ChatRequest",
-  "description": "Canonical-IR chat request. Provider-neutral; provider-specific knobs live in provider_options.",
+  "$comment": "Role: the canonical chat generation request (docs/architecture.md §3.1; ocai/chat/types/request.py) in omit-absent wire form — the shape `chat.request` payload the conversion graph encodes from the canonical node to a provider node. Knobs obey the three-lane law (§3.4): first-class typed fields live in `config` here; provider-unique data rides censused `extensions`; destination passthrough rides `provider_options` namespaced by destination interface (both on the shared envelope). Single-response forever: there is no `n`.",
+  "description": "A provider-neutral chat request: the target model, the conversation, the tools the model may call, the whether/which tool policy, and the typed generation config.",
   "type": "object",
-  "required": ["ir_version", "model", "messages"],
+  "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
   "properties": {
-    "ir_version": {
-      "type": "string",
-      "description": "Canonical IR schema version (distinct from provider wire version and library API version).",
-      "examples": ["0.1"]
-    },
     "model": {
       "type": "string",
-      "description": "Provider model identifier, passed through verbatim."
+      "description": "The identifier of the model to invoke, passed to the provider verbatim."
     },
     "messages": {
       "type": "array",
+      "description": "The conversation so far, in order.",
       "items": { "$ref": "message.schema.json" }
     },
     "tools": {
-      "type": ["array", "null"],
-      "description": "Optional tool/function declarations.",
-      "items": { "type": "object", "additionalProperties": true }
+      "type": "array",
+      "description": "The tools the model may call; omitted when none.",
+      "items": { "$ref": "#/$defs/tool" }
     },
-    "provider_options": {
-      "type": "object",
-      "description": "Escape hatch for provider-specific request params (temperature, top_p, ...) that have no canonical home yet.",
-      "additionalProperties": true,
-      "default": {}
+    "tool_choice": {
+      "$ref": "#/$defs/toolChoice",
+      "description": "The whether/which tool policy; omitted when unconstrained."
     },
-    "extensions": {
-      "type": "object",
-      "description": "Per-object extension bag for forward-compatible additive data.",
-      "additionalProperties": true,
-      "default": {}
+    "config": {
+      "$ref": "#/$defs/chatConfig",
+      "description": "The typed generation configuration; omitted when every knob is the provider default."
     }
   },
-  "additionalProperties": true
+  "required": ["model", "messages"],
+  "$defs": {
+    "jsonSchemaDocument": {
+      "$comment": "A JSON Schema (Draft 2020-12) document carried as data, not applied by this spec: an object-form schema or a boolean schema (true = anything, false = nothing). Unknown keywords are preserved losslessly (ocai/core/jsonschema.py).",
+      "type": ["object", "boolean"],
+      "description": "A JSON Schema document, verbatim."
+    },
+    "tool": {
+      "$comment": "ocai/chat/types/tools.py Tool — a model-invocable tool as pure, serializable data; no callable is retained.",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The tool's name, as exposed to the model."
+        },
+        "parameters": {
+          "$ref": "#/$defs/jsonSchemaDocument",
+          "description": "JSON Schema describing the tool's input parameters."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the tool."
+        },
+        "output": {
+          "$ref": "#/$defs/jsonSchemaDocument",
+          "description": "JSON Schema describing the tool's output, when known."
+        }
+      },
+      "required": ["name", "parameters"]
+    },
+    "toolChoice": {
+      "$comment": "ocai/chat/types/tools.py ToolChoice — codecs map the open mode onto each dialect's idiom (OpenAI tool_choice, Anthropic tool_choice, Gemini functionCallingConfig).",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "The open choice code. Known canonical values: auto (model decides), none (no tool may be called), required (at least one call), named (must call the tool in `name`). Unknown values are legal and preserved verbatim."
+        },
+        "name": {
+          "type": "string",
+          "description": "The tool the model must call when mode is named."
+        }
+      }
+    },
+    "chatConfig": {
+      "$comment": "ocai/chat/types/config.py ChatConfig — every field is optional and omitted when unset (provider default). Honesty rule: out-of-range values pass VERBATIM with an APPROXIMATED report — never rescaled, never clamped, never silent.",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "temperature": {
+          "type": "number",
+          "description": "Sampling temperature, passed verbatim — out-of-range values are APPROXIMATED-reported, never clamped."
+        },
+        "top_p": {
+          "type": "number",
+          "description": "Nucleus-sampling probability mass."
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "description": "The output token ceiling, reasoning included where the provider counts it that way (dialect codecs own the per-interface accounting shift)."
+        },
+        "stop_sequences": {
+          "type": "array",
+          "description": "Sequences that end generation when emitted.",
+          "items": { "type": "string" }
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Best-effort determinism seed."
+        },
+        "frequency_penalty": {
+          "type": "number",
+          "description": "Repetition penalty scaled by frequency."
+        },
+        "presence_penalty": {
+          "type": "number",
+          "description": "Repetition penalty for mere presence."
+        },
+        "parallel_tool_calls": {
+          "type": "boolean",
+          "description": "Whether the model may emit several tool calls in one turn."
+        },
+        "top_k": {
+          "type": "integer",
+          "description": "Profile-gated top-k sampling cutoff: the feature gate consults the destination's CapabilityProfile before conversion."
+        },
+        "logprobs": {
+          "type": "integer",
+          "description": "Profile-gated count of top logprobs to return per token; omitted disables."
+        },
+        "modalities": {
+          "type": "array",
+          "description": "The open output-modality codes requested. Known values: text, audio. Omitted means text.",
+          "items": { "type": "string" }
+        },
+        "audio": {
+          "$ref": "#/$defs/audioOutputConfig",
+          "description": "Audio-output settings, meaningful when \"audio\" is in modalities [provisional]."
+        },
+        "reasoning": {
+          "$ref": "#/$defs/reasoningConfig",
+          "description": "How much the model should think and whether thoughts are surfaced."
+        },
+        "output": {
+          "$ref": "#/$defs/outputFormat",
+          "description": "The structured-output contract."
+        },
+        "cache": {
+          "$ref": "#/$defs/cacheConfig",
+          "description": "Request-level prompt-caching configuration [provisional]."
+        }
+      }
+    },
+    "reasoningConfig": {
+      "$comment": "ocai/chat/types/config.py ReasoningConfig — bridges the two native idioms (effort levels vs token budgets) as sibling optionals; the codec maps or APPROXIMATED-reports the translation.",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "effort": {
+          "type": "string",
+          "description": "The open effort code. Known canonical values: low, medium, high. Unknown values are legal and preserved verbatim."
+        },
+        "budget_tokens": {
+          "type": "integer",
+          "description": "The maximum tokens the model may spend thinking."
+        },
+        "include_thoughts": {
+          "type": "boolean",
+          "description": "Whether reasoning content should be surfaced as reasoning parts in the response."
+        }
+      }
+    },
+    "outputFormat": {
+      "$comment": "ocai/chat/types/config.py OutputFormat — the structured-output contract for a generation.",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "The open output-mode code. Known canonical values: text (free-form, the default), json (provider-enforced syntactically-valid JSON, no schema), json_schema (provider-enforced conformance to `schema`). Unknown values are legal."
+        },
+        "name": {
+          "type": "string",
+          "description": "The schema's name, where the destination requires one (OpenAI json_schema.name)."
+        },
+        "schema": {
+          "$ref": "#/$defs/jsonSchemaDocument",
+          "description": "The JSON Schema the output must conform to when mode is json_schema."
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Whether the provider must enforce the schema exactly rather than best-effort."
+        }
+      }
+    },
+    "audioOutputConfig": {
+      "$comment": "ocai/chat/types/config.py AudioOutputConfig [provisional] — only one first-party interface (OpenAI audio) exercises it today.",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "voice": {
+          "type": "string",
+          "description": "The provider voice identifier, verbatim."
+        },
+        "format": {
+          "type": "string",
+          "description": "The requested audio container/encoding as an open code (e.g. wav, mp3, pcm16)."
+        }
+      }
+    },
+    "cacheConfig": {
+      "$comment": "ocai/chat/types/config.py CacheConfig [provisional] — the request-scoped complement to per-part cache hints.",
+      "type": "object",
+      "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "The open caching-mode code. Known values: auto, explicit, off. Omitted means the provider default."
+        },
+        "ref": {
+          "$ref": "parts.schema.json#/$defs/providerRef",
+          "description": "An existing provider-side cache handle to generate against (Gemini cachedContent); crossing another (provider, interface) is reported UNSUPPORTED."
+        }
+      }
+    }
+  }
 }

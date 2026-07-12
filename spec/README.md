@@ -90,6 +90,20 @@ A conforming implementation MUST decode `wire_events` into documents
 `canonical-json.md` §8). No new part type is admissible without its delta
 type, its fold law, and paired chunks/response fixtures **in the same change**.
 
+### Canonical document fixture (one canonical payload)
+
+For pinning a single canonical-IR document — a wire-accurate example of one
+shape rather than a conversion:
+
+```jsonc
+{
+  "description": "what this document exercises",
+  "shape": "chat.request",   // the canonical shape token
+  "document": { /* the canonical payload, exactly as an omit-absent
+                   to_dict() encoder emits it — no nulls, no empty bags */ }
+}
+```
+
 ### Normative unknown-X fixtures
 
 `fixtures/` also carries total-decode vectors every port must pass: unknown
@@ -98,10 +112,35 @@ envelope keys sweep into `extensions`, unknown finish reasons decode to
 `reason: "unknown"` with the `native` lane preserved. **No decode path may
 ever raise on unknown input.**
 
-> Status: the fixtures currently in `fixtures/` predate the July 2026
-> re-architecture (old flat-`content` IR, `(provider, version)` sources).
-> They are stale-pending-regeneration against the new shapes, alongside
-> `schema/` — kept until the regenerated set lands so history stays diffable.
+## How fixtures map to schemas (the validation convention)
+
+CI validates **every** `fixtures/**/*.json` against the schemas in
+`schema/` (`tests/test_spec_schemas.py` in the Python tree; every language
+port mirrors the same harness). The mapping is structural — derived from the
+fixture document itself, no side registry:
+
+- **Shape → schema file.** The canonical schema for shape token `x.y` is
+  `schema/x_y.schema.json` (dots become underscores): `chat.request` →
+  `chat_request.schema.json`. Each schema's `$id` is
+  `https://ocai.dev/spec/schema/<filename>`, and cross-file `$ref`s resolve
+  against those ids.
+- **Canonical document fixture** (top-level `shape` + `document`): the
+  `document` payload validates against the schema for `shape`.
+- **Edge fixture** (top-level `src` + `dst` + `input` + `expect`): each side
+  whose coordinate names the canonical interface (`provider == "ocai"`)
+  validates its payload — `input` for `src`, `expect` for `dst` — against
+  the schema for that side's `shape`. Provider-wire payloads are *not*
+  validated against `schema/`: provider wire truth is the codec conformance
+  suite's job, not the canonical schemas'.
+- **Fold triple** (top-level `node` + `wire_events` + `chunks` +
+  `response`): every entry of `chunks` validates against the canonical
+  schema for `<capability>.chunk`, and `response` against the canonical
+  schema for `<capability>.response`, where `<capability>` is the first
+  segment of `node.shape`.
+
+The harness fails loudly when a fixture matches none of the three kinds, or
+when a payload maps to a schema file that does not exist — a fixture that
+cannot be validated is a spec bug, never a skip.
 
 ## Three version axes — never conflate
 

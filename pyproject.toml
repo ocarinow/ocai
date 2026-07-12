@@ -17,7 +17,16 @@ ocai-anthropic = { workspace = true }
 # httpx is listed explicitly because the `ocai` dist ships it behind the [http]
 # extra now — the wire tests exercise the HttpxTransport leaf directly.
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "respx>=0.21", "httpx>=0.27"]
+# jsonschema validates spec/fixtures against spec/schema in tests only — it must
+# never become a runtime dependency of any distribution (rule 11).
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+    "respx>=0.21",
+    "httpx>=0.27",
+    "jsonschema>=4.23",
+]
 docs = [
     "zensical>=0.0.45",
 ]

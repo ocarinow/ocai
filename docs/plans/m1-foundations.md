@@ -47,6 +47,14 @@ milestone files to `archive/`; this roadmap replaces them.
 - **Done:** stale schemas gone, new ones land, `spec/schema/README.md` banner
   removed; validation test collects every fixture; pytest green.
 - **Deps:** WU-00. (WU-02/03 are one logical unit, deliberately pre-split.)
+- **Decision:** fixture→schema mapping is structural (documented in
+  `spec/README.md` "How fixtures map to schemas"): shape token `x.y` →
+  `schema/x_y.schema.json`; canonical-document fixtures (`shape`+`document`),
+  edge fixtures (only `provider == "ocai"` sides validate), fold triples
+  (`chunks`/`response`). Shared `$defs` (envelope, providerRef, source, span,
+  annotation, cacheHint) live in `parts.schema.json`; the replacement fixture
+  is `spec/fixtures/canonical/chat_request.json` (wire-accurate `to_dict()`
+  output, synthetic hand-authored).
 
 ## WU-03 — spec/schema regeneration II: response, finish, usage + rule-11 test
 

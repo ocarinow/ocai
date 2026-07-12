@@ -5,18 +5,23 @@ The schemas are the neutral source of truth: language dataclasses/structs are
 **conformance-tested against them**, never generated from them (nor they from
 the code).
 
-> **STALE-PENDING-REGENERATION.** The three schemas currently here —
-> `message.schema.json`, `chat_request.schema.json`,
-> `chat_response.schema.json` — describe the pre-July-2026 IR (flat
-> `content` field, `ir_version: "0.1"`, no parts taxonomy). They are being
-> regenerated against the re-architected IR of
-> [`docs/architecture.md`](../../docs/architecture.md) §3.1 (parts-only
-> `Message`, `FinishInfo`, `ChatChunk`/`StreamEnd`, `Consumption` usage,
-> omit-absent encoding, dated `ocai@2026-07` revision). They are kept — not
-> deleted — until the regenerated set lands, so the change is diffable; do
-> not extend them and do not validate new fixtures against them.
+Naming and identity conventions:
 
-Schema rules (unchanged by the re-architecture):
+- The schema file for shape token `x.y` is `x_y.schema.json` (dots become
+  underscores): `chat.request` → `chat_request.schema.json`. This mapping is
+  what the fixture validation harness relies on — see "How fixtures map to
+  schemas" in [`../README.md`](../README.md).
+- Every schema carries an `$id` of the form
+  `https://ocai.dev/spec/schema/<filename>`; cross-file `$ref`s are relative
+  and resolve against those ids.
+- Every schema carries a top-level `$comment` explaining its role and naming
+  the code it mirrors.
+- Shared building blocks (the IR envelope, `ProviderRef`, the `Source`
+  union, `Span`/`Annotation`, `CacheHint`) live in the `$defs` of
+  [`parts.schema.json`](parts.schema.json) and are referenced from the other
+  schemas.
+
+Schema rules:
 
 - **Additive-only, tolerant readers.** Never rename, remove, or repurpose a
   member; new members are optional; `additionalProperties` stays permissive

@@ -1,0 +1,424 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/parts.schema.json",
+  "title": "Part",
+  "$comment": "Role: the canonical chat part taxonomy (docs/architecture.md §3.1; ocai/chat/types/parts.py). One document = one Part in omit-absent wire form. The `type` tag is an OPEN string vocabulary: known canonical tags dispatch to a variant subschema via if/then; a tag this revision does not know matches no branch and still validates (that payload decodes to PartUnknown — total decode, never a raise). This file also hosts the shared $defs (envelope, providerRef, source, span, annotation, cacheHint) that message.schema.json and chat_request.schema.json reference.",
+  "description": "One canonical content part: a tagged union on `type`, kept open through the part registry. Every part carries the universal optionals `id` (stable part identity), `anchor` (a ProviderRef to provider-side state), and `cache_hint`, plus the common IR envelope.",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "The open part discriminator. Known canonical tags: text, image, audio, video, document, reasoning, tool_call, tool_result, server_tool_call, server_tool_result, refusal, opaque (plus the placeholder `undefined`). Plugins register namespaced tags (e.g. \"anthropic.mid_conv_system\"). Unknown tags are LEGAL: readers decode them to PartUnknown, preserving the payload verbatim."
+    }
+  },
+  "allOf": [
+    { "$ref": "#/$defs/partBase" },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "text" } } },
+      "then": { "$ref": "#/$defs/partText" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "image" } } },
+      "then": { "$ref": "#/$defs/partMedia" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "audio" } } },
+      "then": { "$ref": "#/$defs/partMedia" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "video" } } },
+      "then": { "$ref": "#/$defs/partVideo" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "document" } } },
+      "then": { "$ref": "#/$defs/partDocument" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "reasoning" } } },
+      "then": { "$ref": "#/$defs/partReasoning" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "tool_call" } } },
+      "then": { "$ref": "#/$defs/partToolCall" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "tool_result" } } },
+      "then": { "$ref": "#/$defs/partToolResult" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "server_tool_call" } } },
+      "then": { "$ref": "#/$defs/partServerTool" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "server_tool_result" } } },
+      "then": { "$ref": "#/$defs/partServerTool" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "refusal" } } },
+      "then": { "$ref": "#/$defs/partRefusal" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "opaque" } } },
+      "then": { "$ref": "#/$defs/partOpaque" }
+    }
+  ],
+  "$defs": {
+    "envelope": {
+      "$comment": "The common IR envelope (ocai/core/ir.py IRObject) every canonical object carries. Omit-absent: unset optionals and empty bags are never emitted; schemas therefore never require them.",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "The canonical IR revision this object conforms to — a dated tag on the `ocai` interface (e.g. \"2026-07\"). Never the library semver, never a provider interface tag: the three version axes stay distinct."
+        },
+        "provider_options": {
+          "type": "object",
+          "description": "Request passthrough, namespaced by destination interface (e.g. key \"openai.chat_completions\"). A codec expands only its own namespace; foreign namespaces are never forwarded.",
+          "additionalProperties": true
+        },
+        "extensions": {
+          "type": "object",
+          "description": "The namespaced bag for unmapped-but-preserved provider data (e.g. key \"openai.logit_bias\"). Censused: every key's value schema is registered in spec/extensions/; an unregistered key is a CI failure.",
+          "additionalProperties": true
+        }
+      }
+    },
+    "providerRef": {
+      "$comment": "ocai/core/refs.py ProviderRef — a name for state living on one provider interface's side. Crossing any other (provider, interface) is UNSUPPORTED: reported, never silently dropped.",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "The provider that minted the ref (e.g. \"openai\")."
+        },
+        "interface": {
+          "type": "string",
+          "description": "The interface within the provider (e.g. \"responses\")."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Open code for what the ref names. Known canonical values: response_id, file, thought_signature, audio_id. Unknown values are legal and preserved verbatim."
+        },
+        "id": {
+          "type": "string",
+          "description": "The provider's opaque identifier, verbatim."
+        },
+        "replay": {
+          "type": "string",
+          "description": "Whether the provider requires the ref back on follow-ups. Open code; known values: optional (useful context), required (dropping it produces a 400 on replay — weighted as breakage, not mere loss)."
+        }
+      }
+    },
+    "cacheHint": {
+      "$comment": "ocai/chat/types/config.py CacheHint [provisional] — a per-part prompt-caching marker (Anthropic cache_control is the model).",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "ttl": {
+          "type": "string",
+          "description": "Requested cache lifetime as an open provider-shaped token (e.g. \"5m\", \"1h\"); absent means the provider default."
+        }
+      }
+    },
+    "span": {
+      "$comment": "ocai/chat/types/annotations.py Span — a half-open character range [start, end) in Unicode code points of the decoded text.",
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The inclusive start offset."
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The exclusive end offset; end >= start."
+        }
+      },
+      "required": ["start", "end"]
+    },
+    "annotation": {
+      "$comment": "ocai/chat/types/annotations.py Annotation — one span-anchored citation carried by a text part, never a side channel.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "span": {
+          "$ref": "#/$defs/span",
+          "description": "The text range being attributed; absent when the provider cited the whole part."
+        },
+        "url": {
+          "type": "string",
+          "description": "The cited web URL, when the source is a web page."
+        },
+        "document_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index of the cited request document, when the source is caller-supplied material."
+        },
+        "file": {
+          "$ref": "#/$defs/providerRef",
+          "description": "The provider-side file handle backing the citation, when the source is an uploaded file."
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable title of the cited source."
+        },
+        "cited_text": {
+          "type": "string",
+          "description": "The verbatim excerpt the provider quoted, when given."
+        },
+        "opaque": {
+          "$ref": "#/$defs/providerRef",
+          "description": "Provider-opaque citation state (e.g. an encrypted grounding token) riding along verbatim to keep the citation replayable."
+        }
+      }
+    },
+    "source": {
+      "$comment": "ocai/core/sources.py Source union — where media bytes live. An open tagged union like Part: known tags dispatch via if/then; unknown tags are legal (SourceUnknown preserves them verbatim).",
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "base64" } } },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "string",
+                "description": "The base64-encoded media payload."
+              },
+              "mime_type": {
+                "type": "string",
+                "description": "The media MIME type, when known."
+              }
+            }
+          }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "url" } } },
+          "then": {
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "The URL of the remote media."
+              },
+              "mime_type": {
+                "type": "string",
+                "description": "The media MIME type, when known."
+              }
+            }
+          }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "ref" } } },
+          "then": {
+            "properties": {
+              "ref": {
+                "$ref": "#/$defs/providerRef",
+                "description": "The provider-side file handle (OpenAI file_id, Gemini Files API name, Anthropic Files)."
+              },
+              "media_type": {
+                "type": "string",
+                "description": "The media MIME type, when known."
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The open source discriminator. Known canonical tags: base64 (inline payload), url (remote), ref (provider-hosted handle); placeholder `undefined`. Unknown tags are legal and decode to SourceUnknown."
+        }
+      }
+    },
+    "partBase": {
+      "$comment": "The universal optionals every part shares (PartBase), applied to KNOWN and UNKNOWN tags alike, plus the IR envelope.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The part's stable identity within its message, when the provider (or ocai) assigned one — what lets item semantics (OpenAI /responses) round-trip."
+        },
+        "anchor": {
+          "$ref": "#/$defs/providerRef",
+          "description": "Provider-side state backing this part (an item id, a file handle); inherits ProviderRef's cross-interface UNSUPPORTED rule."
+        },
+        "cache_hint": {
+          "$ref": "#/$defs/cacheHint",
+          "description": "A per-part prompt-caching marker [provisional]."
+        }
+      }
+    },
+    "partText": {
+      "description": "A run of text with its citations anchored on it (PartText).",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The text content."
+        },
+        "annotations": {
+          "type": "array",
+          "description": "Span-anchored citations attributing ranges of `text` to sources; they travel with the text through slicing, folding, and conversion.",
+          "items": { "$ref": "#/$defs/annotation" }
+        }
+      }
+    },
+    "partMedia": {
+      "description": "An image or audio part: media referenced through the Source union (PartImage / PartAudio).",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source",
+          "description": "Where the media bytes live — inline base64, a URL, or a provider-hosted ref."
+        }
+      }
+    },
+    "partVideo": {
+      "description": "A video part over the Source union, with optional clipping/sampling metadata (PartVideo).",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source",
+          "description": "Where the video bytes live."
+        },
+        "start_offset": {
+          "type": "string",
+          "description": "Where playback/sampling starts, as a provider-shaped duration token (e.g. \"20s\"), verbatim."
+        },
+        "end_offset": {
+          "type": "string",
+          "description": "Where playback/sampling ends; same form as start_offset."
+        },
+        "fps": {
+          "type": "number",
+          "description": "The frame-sampling rate requested for the model."
+        }
+      }
+    },
+    "partDocument": {
+      "description": "A document part (PDF and friends) over the Source union, with citation-support metadata (PartDocument).",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source",
+          "description": "Where the document bytes live."
+        },
+        "title": {
+          "type": "string",
+          "description": "The document's title, surfaced to the model for citations."
+        },
+        "context": {
+          "type": "string",
+          "description": "Caller-supplied context about the document, surfaced to the model but never quoted as content."
+        }
+      }
+    },
+    "partReasoning": {
+      "description": "Model reasoning — ONE merged shape for every provider idiom (PartReasoning): a /responses reasoning item, an Anthropic thinking block, or a Gemini thought is one part each, never two correlated ones.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The raw reasoning text, when the provider surfaces it."
+        },
+        "summary": {
+          "type": "string",
+          "description": "The provider-generated summary of the reasoning, when the interface returns one instead of (or besides) raw text."
+        },
+        "signature": {
+          "$ref": "#/$defs/providerRef",
+          "description": "The provider's integrity signature over the reasoning; replay=required signatures are weighted as breakage when dropped."
+        },
+        "opaque": {
+          "$ref": "#/$defs/providerRef",
+          "description": "Encrypted/opaque reasoning state (OpenAI encrypted_content) that must ride along verbatim."
+        }
+      }
+    },
+    "partToolCall": {
+      "description": "The model's request to invoke a named tool (PartToolCall). args_json is the authoritative wire truth: a verbatim JSON string, parsed on read, compared under the *_json parse-compare rule (spec/canonical-json.md §7).",
+      "properties": {
+        "call_id": {
+          "type": "string",
+          "description": "The id correlating this call with its tool_result sibling. Cross-provider conversion regenerates call ids — recorded as a SemanticShift, never silent."
+        },
+        "name": {
+          "type": "string",
+          "description": "The tool name, matching a request Tool.name."
+        },
+        "args_json": {
+          "type": "string",
+          "description": "The arguments as the verbatim JSON string the model produced (a partial fragment is legal mid-stream)."
+        },
+        "status": {
+          "type": "string",
+          "description": "The open tool-call lifecycle code shared with streaming. Known values: input_streaming, input_complete, executing, output_available, output_error. Unknown values are legal and preserved verbatim."
+        },
+        "executed_by": {
+          "type": "string",
+          "description": "Who runs the tool. Known values: client (the caller replies with a tool_result), provider (built-in tools; results arrive as server_tool_result). Open code."
+        }
+      }
+    },
+    "partToolResult": {
+      "description": "The caller's answer to a tool_call, correlated by call_id — a sibling in the transcript, never nested inside the call (PartToolResult).",
+      "properties": {
+        "call_id": {
+          "type": "string",
+          "description": "The id of the tool_call this answers."
+        },
+        "parts": {
+          "type": "array",
+          "description": "The result content — itself a list of parts, so tools can return text, images, and documents without a parallel content model.",
+          "items": { "$ref": "#" }
+        },
+        "is_error": {
+          "type": "boolean",
+          "description": "Whether the tool execution failed; the parts then carry the error content."
+        }
+      }
+    },
+    "partServerTool": {
+      "description": "A provider-executed built-in tool invocation or result (PartServerToolCall / PartServerToolResult): a typed spine — kind, id, lifecycle — over a verbatim, byte-faithful payload.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "The open tool-kind code. Known values: web_search, code_execution, mcp_call. Unknown kinds are legal, preserved verbatim, and remain visible and reportable."
+        },
+        "call_id": {
+          "type": "string",
+          "description": "The id correlating the call with its server_tool_result sibling."
+        },
+        "status": {
+          "type": "string",
+          "description": "The open lifecycle code shared with tool_call parts. Known values: input_streaming, input_complete, executing, output_available, output_error."
+        },
+        "payload": {
+          "type": "object",
+          "description": "The provider's invocation/result payload, verbatim and byte-faithful — never reshaped.",
+          "additionalProperties": true
+        }
+      }
+    },
+    "partRefusal": {
+      "description": "A refusal surfaced as content (PartRefusal); pairs with finish.reason == \"refusal\". Mid-generation refusal is a response; a pre-generation block is a ContentFilterError, not a response.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The refusal text."
+        }
+      }
+    },
+    "partOpaque": {
+      "description": "DELIBERATE provider-unique content, census-registered in spec/extensions/ (PartOpaque). Strictly distinct from the PartUnknown decoder fallback: opaque is chosen on purpose by an author or codec; unknown is a future canonical tag this revision cannot name.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "The namespaced, censused content key (e.g. \"anthropic.mid_conv_system\"). An unregistered kind is a CI failure."
+        },
+        "payload": {
+          "type": "object",
+          "description": "The provider content, verbatim.",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}
