@@ -1,0 +1,63 @@
+# uv WORKSPACE ROOT. This is a "virtual" root: it is NOT a published package,
+# it only ties the member distributions together for local development.
+[tool.uv.workspace]
+members = ["python/packages/*"]
+
+# Resolve the in-repo distributions to the local workspace members instead of
+# PyPI. This is what makes `ocai[openai]` (extra -> ocai-openai) and the plugin's
+# `ocai>=0.1,<0.2` pin both point at the local source trees.
+[tool.uv.sources]
+ocai = { workspace = true }
+ocai-openai = { workspace = true }
+ocai-anthropic = { workspace = true }
+
+# Dev tooling for the whole workspace. Installed by `uv sync` by default.
+# respx records HTTP request/response pairs so adapter tests need no live keys
+# and no provider SDK mocks (rule 10); pytest-asyncio runs the async transport.
+# httpx is listed explicitly because the `ocai` dist ships it behind the [http]
+# extra now — the wire tests exercise the HttpxTransport leaf directly.
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "respx>=0.21", "httpx>=0.27"]
+docs = [
+    "zensical>=0.0.45",
+]
+
+# ---------------------------------------------------------------------------
+# Tooling config (shared across all members)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = [
+    "python/packages/ocai-core/src",
+    "python/packages/ocai-openai/src",
+    "python/packages/ocai-anthropic/src",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "PERF"]
+# UP042: we use `(str, Enum)` deliberately rather than `StrEnum`.
+ignore = ["UP042"]
+
+[tool.ruff.lint.isort]
+# ocai is a PEP 420 namespace split across distributions; treat it as first-party
+# so imports group correctly regardless of which member you're editing.
+known-first-party = ["ocai"]
+# One import per line (no `from x import a, b`).
+force-single-line = true
+# Within a section, sort by type first (CONSTANTS, Classes, then lowercase
+# funcs/vars), then lexically.
+order-by-type = true
+
+[tool.ruff.format]
+# Match the surrounding style: double quotes, spaces, trailing commas honored.
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = ["python/packages/ocai-core/tests"]
+addopts = "-q"
+asyncio_mode = "auto"

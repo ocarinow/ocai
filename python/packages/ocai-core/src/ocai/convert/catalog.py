@@ -1,0 +1,766 @@
+"""Scoped, governed conversion registries (§4.3).
+
+The old process-global `GRAPHS`/`SCHEMAS`/`COMPONENTS` are gone. A plugin
+exports one frozen, declarative `CatalogFragment` — data, no import-time
+mutation of any shared state — and an application composes exactly the
+fragments it trusts:
+
+    catalog = Catalog.of(openai.FRAGMENT, anthropic.FRAGMENT)
+
+`Catalog.discover()` (entry points, group `ocai.fragments`) is an opt-in
+convenience for "compose everything installed"; `default_catalog()` memoizes
+it and is deliberately the **only** module-level state in `ocai.convert`.
+
+Admission is governed by a `TrustPolicy` (default `OWNED_ENDPOINTS`: a
+fragment may only register edges touching interfaces it publishes or the
+canonical `ocai` interface — foreign bridging needs a named opt-in), and the
+whole composition is auditable: `Catalog.lock()` emits a diffable lockfile
+whose content hash (computed via `ocai.core.canonjson.canonical`) lands in
+every `Route` the catalog resolves.
+
+Internally the catalog partitions one `ConversionGraph` per `Shape` (graphs
+never mix shapes) and delegates `convert`/`stream_converter` to the right
+partition.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from collections.abc import Callable
+from collections.abc import Iterable
+from dataclasses import dataclass
+from enum import Enum
+from functools import cache
+from importlib.metadata import entry_points
+from typing import Any
+from typing import Self
+
+from ocai.convert.graph import ConversionError
+from ocai.convert.graph import ConversionGraph
+from ocai.convert.graph import Converted
+from ocai.convert.graph import Edge
+from ocai.convert.graph import StreamConverter
+from ocai.convert.graph import StreamEdge
+from ocai.core.canonjson import canonical
+from ocai.core.errors import OcaiError
+from ocai.core.fidelity import Route
+from ocai.core.identity import CANONICAL_PROVIDER
+from ocai.core.identity import Capability
+from ocai.core.identity import NodeId
+from ocai.core.identity import Origin
+from ocai.core.identity import Shape
+from ocai.core.identity import Status
+from ocai.core.profile import CapabilityProfile
+from ocai.core.traits import DialectTraits
+
+# The entry-point group a plugin distribution advertises its fragment under
+# (`[project.entry-points."ocai.fragments"] openai = "ocai.openai:FRAGMENT"`).
+# Supersedes the old `ocai.plugins` group of register-callables: the entry
+# point now names *data* (a `CatalogFragment`, or a zero-argument callable
+# returning one), never a function that mutates globals.
+ENTRY_POINT_GROUP = "ocai.fragments"
+
+# A component factory builds a runtime object (codec, adapter) for one
+# resolved `(provider, interface, capability)`. Opaque to the catalog — the
+# plugin owns its signature; the catalog only stores it and hands it back.
+type ComponentFactory = Callable[..., Any]
+
+
+class TrustPolicy(str, Enum):
+    """How a `CatalogBuilder` admits fragments — the governance dial.
+
+    Attributes:
+        OWNED_ENDPOINTS: The default. Every edge a fragment registers must
+            have both endpoints on an interface the fragment itself
+            publishes (via `nodes`) or on the canonical `ocai` interface. A
+            third-party fragment can therefore never silently insert itself
+            between two providers it does not own.
+        ALLOW_LISTED: Like `OWNED_ENDPOINTS`, except fragments whose
+            `origin.distribution` appears in the builder's `allow` set may
+            bridge foreign endpoints — the named opt-in for deliberate
+            cross-provider bridge packages.
+    """
+
+    OWNED_ENDPOINTS = "owned_endpoints"
+    ALLOW_LISTED = "allow_listed"
+
+
+class AdmissionError(OcaiError):
+    """Raised when a fragment fails the composing `TrustPolicy`'s checks."""
+
+
+class ResolutionError(OcaiError):
+    """Raised when `Catalog.resolve` cannot satisfy a request or its pins."""
+
+
+@dataclass(frozen=True, slots=True)
+class Component:
+    """A runtime factory a fragment contributes for one resolved interface.
+
+    The declarative successor of the old `ComponentRegistry` entry: it names
+    *which* `(provider, interface, capability)` the factory serves, so the
+    facade layer can ask the catalog for the codec/adapter builder matching
+    a resolved `Route` without the catalog ever calling it.
+
+    Attributes:
+        provider: The provider the factory serves (e.g. `"openai"`).
+        interface: The interface within the provider
+            (e.g. `"chat_completions"`).
+        capability: The capability the built object implements.
+        factory: The opaque builder; its signature belongs to the plugin.
+    """
+
+    provider: str
+    interface: str
+    capability: Capability
+    factory: ComponentFactory
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogFragment:
+    """Everything one distribution contributes to a catalog — as frozen data.
+
+    The plugin ABI (freezes at v1.0). A plugin module exposes exactly one
+    `FRAGMENT` constant; building it must not mutate any shared state, so
+    importing a plugin is always side-effect free. The `CatalogBuilder`
+    admission-checks a fragment against the composing application's
+    `TrustPolicy` before any of its contents become reachable.
+
+    Attributes:
+        origin: Who ships this fragment — stamped into lockfiles and audit
+            records for every node/edge below.
+        nodes: The `NodeId`s this fragment publishes (its own interfaces'
+            shapes, dated and statused). These define what the fragment
+            "owns" for `TrustPolicy.OWNED_ENDPOINTS`.
+        edges: The payload conversion edges, each carrying its
+            `EdgeContract`.
+        transducers: The chunk-shape transducer edges, likewise
+            contracted.
+        profiles: The `CapabilityProfile` fact sheets for the fragment's
+            interfaces (feature support per model pattern).
+        traits: The `DialectTraits` (`ocai.core.traits`) the wire layer
+            reads as data to host this fragment's interfaces (headers,
+            envelope facts). Carried here opaquely — the catalog never
+            interprets them.
+        components: The runtime factories (codec/adapter builders) keyed by
+            `(provider, interface, capability)`.
+    """
+
+    origin: Origin
+    nodes: tuple[NodeId, ...] = ()
+    edges: tuple[Edge, ...] = ()
+    transducers: tuple[StreamEdge, ...] = ()
+    profiles: tuple[CapabilityProfile, ...] = ()
+    traits: tuple[DialectTraits, ...] = ()
+    components: tuple[Component, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogLock:
+    """The diffable description of one composed catalog, content-hashed.
+
+    Emitted by `Catalog.lock()`. The `hash` lands in every `Route` the
+    catalog resolves, so a stored `Route` plus a stored lockfile
+    reconstructs exactly which conversion logic — down to plugin
+    distribution versions and per-edge declared loss grades — served a
+    call. Committing the lockfile and diffing it across dependency bumps is
+    the intended change-review workflow.
+
+    Attributes:
+        hash: The SHA-256 hex digest of the payload's canonical JSON
+            (`ocai.core.canonjson.canonical`), so semantically equal
+            catalogs hash equal regardless of composition order artifacts.
+        payload: The JSON-shaped lockfile content: trust policy, and per
+            fragment its origin, nodes (with released/status), edges (with
+            derived loss grades and origins), stream edges, profiles, and
+            components.
+    """
+
+    hash: str
+    payload: dict[str, Any]
+
+    def to_json(self) -> str:
+        """Render the lockfile as stable, indented, diff-friendly JSON.
+
+        Returns:
+            The payload serialized with sorted keys and two-space indents —
+            the form meant to be committed to version control.
+        """
+        return json.dumps(self.payload, sort_keys=True, indent=2, ensure_ascii=False)
+
+
+def _admit(fragment: CatalogFragment, trust: TrustPolicy, allow: frozenset[str]) -> None:
+    """Check `fragment` against the trust policy; raise on violation.
+
+    The single admission gate shared by `CatalogBuilder.add` (fail fast at
+    composition) and `Catalog.__init__` (so a directly-constructed catalog
+    cannot bypass governance). Under `OWNED_ENDPOINTS`, every edge endpoint
+    must be canonical or on a `(provider, interface)` the fragment's own
+    `nodes` publish; under `ALLOW_LISTED`, fragments named in `allow` are
+    exempt.
+
+    Args:
+        fragment: The fragment seeking admission.
+        trust: The composing application's policy.
+        allow: Distribution names granted foreign-bridging opt-in.
+
+    Raises:
+        AdmissionError: If any edge touches an interface the fragment
+            neither owns nor is allowed to bridge.
+    """
+    if trust is TrustPolicy.ALLOW_LISTED and fragment.origin.distribution in allow:
+        return
+    owned = {(node.provider, node.interface) for node in fragment.nodes}
+    every_edge: tuple[Edge | StreamEdge, ...] = (*fragment.edges, *fragment.transducers)
+    for edge in every_edge:
+        for endpoint in (edge.src, edge.dst):
+            if endpoint.provider == CANONICAL_PROVIDER:
+                continue
+            if (endpoint.provider, endpoint.interface) not in owned:
+                raise AdmissionError(
+                    f"fragment {fragment.origin} registers an edge touching "
+                    f"{endpoint.provider}/{endpoint.interface}, which it does not publish; "
+                    f"foreign bridging requires TrustPolicy.ALLOW_LISTED with "
+                    f"{fragment.origin.distribution!r} in the allow set"
+                )
+
+
+def _channel_allows(channel: Status, status: Status) -> bool:
+    """Return whether a node with `status` is auto-selectable under `channel`.
+
+    `STABLE` admits only stable nodes; `PREVIEW` admits stable and preview;
+    `DEPRECATED` additionally admits deprecated. `RETIRED` nodes are never
+    auto-selected — they stay reachable only when pinned by tag, existing so
+    archived traffic can still be re-converted through migration edges.
+
+    Args:
+        channel: The lowest channel eligible for auto-selection.
+        status: The candidate node's status.
+
+    Returns:
+        True if `status` is eligible under `channel`.
+    """
+    rank = {Status.STABLE: 0, Status.PREVIEW: 1, Status.DEPRECATED: 2, Status.RETIRED: 3}
+    return rank[status] <= rank[channel] and status is not Status.RETIRED
+
+
+class CatalogBuilder:
+    """Accumulates admission-checked fragments and builds an immutable `Catalog`.
+
+    The mutable composition step, deliberately separate from the immutable
+    result: `add` fails fast at the offending fragment (naming it), so a
+    trust violation surfaces at composition time, never mid-request.
+
+    Interaction: plugins never see a builder — they export data
+    (`CatalogFragment`); applications drive the builder (directly, or via
+    the `Catalog.of` / `Catalog.discover` conveniences that wrap it).
+    """
+
+    def __init__(
+        self,
+        *,
+        trust: TrustPolicy = TrustPolicy.OWNED_ENDPOINTS,
+        allow: frozenset[str] = frozenset(),
+    ) -> None:
+        """Create an empty builder under a trust policy.
+
+        Args:
+            trust: The admission policy for every fragment added.
+            allow: Distribution names granted foreign-bridging opt-in;
+                meaningful only with `TrustPolicy.ALLOW_LISTED`.
+        """
+        self._trust = trust
+        self._allow = allow
+        self._fragments: list[CatalogFragment] = []
+
+    @classmethod
+    def of(
+        cls,
+        *fragments: CatalogFragment,
+        trust: TrustPolicy = TrustPolicy.OWNED_ENDPOINTS,
+        allow: frozenset[str] = frozenset(),
+    ) -> Catalog:
+        """Compose `fragments` into a catalog in one expression.
+
+        Args:
+            fragments: The fragments to admit, in order.
+            trust: The admission policy.
+            allow: Distribution names granted foreign-bridging opt-in.
+
+        Returns:
+            The built, immutable `Catalog`.
+
+        Raises:
+            AdmissionError: If any fragment violates the trust policy.
+        """
+        builder = cls(trust=trust, allow=allow)
+        for fragment in fragments:
+            builder.add(fragment)
+        return builder.build()
+
+    def add(self, fragment: CatalogFragment) -> Self:
+        """Admission-check `fragment` and stage it for the build.
+
+        Args:
+            fragment: The fragment to admit.
+
+        Returns:
+            This builder, for chaining.
+
+        Raises:
+            AdmissionError: If the fragment violates the trust policy.
+        """
+        _admit(fragment, self._trust, self._allow)
+        self._fragments.append(fragment)
+        return self
+
+    def discover(self, *, group: str = ENTRY_POINT_GROUP) -> Self:
+        """Add every fragment advertised by installed distributions.
+
+        The opt-in "compose everything installed" convenience: loads each
+        entry point in `group`, accepting either a `CatalogFragment` value
+        or a zero-argument callable returning one, and admits it through
+        the same trust gate as `add`. Deterministic: entry points are
+        processed in sorted name order.
+
+        Args:
+            group: The entry-point group to scan.
+
+        Returns:
+            This builder, for chaining.
+
+        Raises:
+            AdmissionError: If a discovered fragment violates the trust
+                policy — discovery grants no extra trust.
+            TypeError: If an entry point yields something that is not a
+                `CatalogFragment`.
+        """
+        for ep in sorted(entry_points(group=group), key=lambda ep: ep.name):
+            loaded = ep.load()
+            fragment = loaded() if callable(loaded) else loaded
+            if not isinstance(fragment, CatalogFragment):
+                raise TypeError(
+                    f"entry point {ep.name!r} in group {group!r} yielded "
+                    f"{type(fragment).__name__}, expected a CatalogFragment"
+                )
+            self.add(fragment)
+        return self
+
+    def build(self) -> Catalog:
+        """Freeze the staged fragments into an immutable `Catalog`.
+
+        Returns:
+            The composed catalog.
+        """
+        return Catalog(tuple(self._fragments), trust=self._trust, allow=self._allow)
+
+
+class Catalog:
+    """An immutable, provenance-stamped composition of fragments.
+
+    The application-scoped successor of the old process-global registries.
+    Construction indexes everything once: one `ConversionGraph` per `Shape`
+    (fed the fragments' edges and stream edges), the published nodes for
+    resolution, and the profile/component lookups. After that the catalog
+    only answers questions — `resolve` (which interface revision serves a
+    call, recorded as a `Route`), `convert` (delegate to the right shape's
+    graph), `lock` (the audit lockfile) — and never changes.
+
+    The wire-backed facade (`ocai.chat.model.WireChatModel`) holds one and
+    drives resolve → convert(request) → send → convert(response); a
+    `Workspace` (`ocai.runtime.binding`) scopes one per tenancy unit.
+    """
+
+    def __init__(
+        self,
+        fragments: Iterable[CatalogFragment] = (),
+        *,
+        trust: TrustPolicy = TrustPolicy.OWNED_ENDPOINTS,
+        allow: frozenset[str] = frozenset(),
+    ) -> None:
+        """Compose `fragments` into an indexed, immutable catalog.
+
+        Re-runs admission for every fragment (so direct construction cannot
+        bypass the trust gate), then builds the per-shape graphs and lookup
+        indexes. Prefer `Catalog.of` / `Catalog.discover` in application
+        code.
+
+        Args:
+            fragments: The fragments to compose, in order.
+            trust: The admission policy the composition is checked against.
+            allow: Distribution names granted foreign-bridging opt-in.
+
+        Raises:
+            AdmissionError: If any fragment violates the trust policy, or
+                two fragments register conflicting components for one
+                `(provider, interface, capability)`.
+            ValueError: If any edge crosses shapes.
+        """
+        self._fragments = tuple(fragments)
+        self._trust = trust
+        self._allow = allow
+        self._graphs: dict[Shape, ConversionGraph] = {}
+        node_index: dict[NodeId, None] = {}  # insertion-ordered de-dup
+        components: dict[tuple[str, str, Capability], Component] = {}
+        profiles: list[CapabilityProfile] = []
+        for fragment in self._fragments:
+            _admit(fragment, trust, allow)
+            for node in fragment.nodes:
+                node_index.setdefault(node, None)
+            for edge in fragment.edges:
+                self._graphs.setdefault(edge.src.shape, ConversionGraph()).register(edge)
+            for stream_edge in fragment.transducers:
+                self._graphs.setdefault(
+                    stream_edge.src.shape, ConversionGraph()
+                ).register_stream(stream_edge)
+            profiles.extend(fragment.profiles)
+            for component in fragment.components:
+                key = (component.provider, component.interface, component.capability)
+                existing = components.get(key)
+                if existing is not None and existing.factory is not component.factory:
+                    raise AdmissionError(
+                        f"fragment {fragment.origin} registers a component for "
+                        f"{component.provider}/{component.interface} "
+                        f"({component.capability}) already provided by another "
+                        f"fragment; refusing to shadow it"
+                    )
+                components[key] = component
+        self._nodes = tuple(node_index)
+        self._profiles = tuple(profiles)
+        self._components = components
+        self._lock: CatalogLock | None = None  # computed lazily, then cached
+
+    @classmethod
+    def of(
+        cls,
+        *fragments: CatalogFragment,
+        trust: TrustPolicy = TrustPolicy.OWNED_ENDPOINTS,
+        allow: frozenset[str] = frozenset(),
+    ) -> Catalog:
+        """Compose `fragments` into a catalog (delegates to `CatalogBuilder`).
+
+        The canonical application spelling:
+        `Catalog.of(openai.FRAGMENT, anthropic.FRAGMENT)`.
+
+        Args:
+            fragments: The fragments to admit, in order.
+            trust: The admission policy.
+            allow: Distribution names granted foreign-bridging opt-in.
+
+        Returns:
+            The built, immutable catalog.
+
+        Raises:
+            AdmissionError: If any fragment violates the trust policy.
+        """
+        return CatalogBuilder.of(*fragments, trust=trust, allow=allow)
+
+    @classmethod
+    def discover(
+        cls,
+        *,
+        trust: TrustPolicy = TrustPolicy.OWNED_ENDPOINTS,
+        allow: frozenset[str] = frozenset(),
+        group: str = ENTRY_POINT_GROUP,
+    ) -> Catalog:
+        """Compose everything installed (delegates to `CatalogBuilder.discover`).
+
+        Args:
+            trust: The admission policy — discovery grants no extra trust.
+            allow: Distribution names granted foreign-bridging opt-in.
+            group: The entry-point group to scan.
+
+        Returns:
+            The built catalog of all discovered fragments.
+
+        Raises:
+            AdmissionError: If a discovered fragment violates the policy.
+        """
+        return CatalogBuilder(trust=trust, allow=allow).discover(group=group).build()
+
+    @property
+    def fragments(self) -> tuple[CatalogFragment, ...]:
+        """Return the composed fragments, in admission order."""
+        return self._fragments
+
+    @property
+    def nodes(self) -> tuple[NodeId, ...]:
+        """Return every published node, de-duplicated, in admission order."""
+        return self._nodes
+
+    def resolve(
+        self,
+        capability: Capability,
+        provider: str,
+        *,
+        interface: str | None = None,
+        tag: str | None = None,
+        channel: Status = Status.STABLE,
+    ) -> Route:
+        """Decide which interface revision serves a call; record it as a `Route`.
+
+        Resolution operates on the provider's published request-shape nodes
+        for `capability`. With pins, they are honored exactly (a pinned tag
+        may select `PREVIEW`/`DEPRECATED`/`RETIRED` revisions — pinning is
+        the explicit escape hatch). Without pins, the newest eligible
+        revision wins: latest `STABLE` by `released` under the default
+        channel, never parsing the opaque tag. The returned `Route` carries
+        the reason and this catalog's lock hash — the audit joint.
+
+        Args:
+            capability: The capability being called (e.g. `CHAT`).
+            provider: The provider to resolve within (e.g. `"openai"`).
+            interface: An interface pin, or None for "let ocai choose".
+            tag: A revision-tag pin, or None for "latest eligible".
+            channel: The lowest status eligible for auto-selection when
+                `tag` is not pinned.
+
+        Returns:
+            The `Route` recording the chosen node, the pins, the reason,
+            and the catalog hash.
+
+        Raises:
+            ResolutionError: If the provider/capability is unknown here, the
+                pinned interface or tag does not exist, or nothing is
+                eligible under `channel`.
+        """
+        candidates = [
+            node
+            for node in self._nodes
+            if node.provider == provider
+            and node.capability == capability
+            and node.shape.role == "request"
+            and (interface is None or node.interface == interface)
+        ]
+        if not candidates:
+            pin = f" (interface pin {interface!r})" if interface is not None else ""
+            raise ResolutionError(
+                f"no registered interface for {provider}/{capability}{pin} in this catalog"
+            )
+        if tag is not None:
+            pinned = [node for node in candidates if node.tag == tag]
+            if not pinned:
+                known = ", ".join(sorted({f"{n.interface}@{n.tag}" for n in candidates}))
+                raise ResolutionError(
+                    f"{provider}/{capability} has no revision {tag!r}; known: {known}"
+                )
+            chosen = max(pinned, key=lambda n: (n.released, str(n)))
+            reason = "pinned"
+        else:
+            eligible = [node for node in candidates if _channel_allows(channel, node.status)]
+            if not eligible:
+                raise ResolutionError(
+                    f"no {channel.value} revision for {provider}/{capability} in this catalog"
+                )
+            # TODO: interface-preference policy when several sibling
+            # interfaces are eligible (newest `released` currently wins);
+            # needs settling before the /responses migration flagship WU.
+            chosen = max(eligible, key=lambda n: (n.released, str(n)))
+            reason = f"latest {chosen.status.value}, released {chosen.released.isoformat()}"
+        return Route(
+            capability=capability,
+            node=chosen,
+            requested_interface=interface,
+            requested_tag=tag,
+            reason=reason,
+            catalog_hash=self.lock().hash,
+        )
+
+    def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
+        """Convert `payload` between two nodes of one shape.
+
+        Delegates to the shape's partitioned `ConversionGraph` — the
+        catalog's only conversion entry point, so every conversion in an
+        application runs over admitted, contract-carrying edges.
+
+        Args:
+            payload: The input payload, in `src`'s representation.
+            src: The source node.
+            dst: The destination node; must share `src`'s shape.
+
+        Returns:
+            A `Converted` with the output value and its `FidelityReport`.
+
+        Raises:
+            ConversionError: If the shapes differ, no edges exist for the
+                shape, or no path exists.
+        """
+        if src.shape != dst.shape:
+            raise ConversionError(f"cannot convert across shapes: {src.shape} -> {dst.shape}")
+        graph = self._graphs.get(src.shape)
+        if graph is None:
+            raise ConversionError(f"no conversion edges registered for shape {src.shape}")
+        return graph.convert(payload, src, dst)
+
+    def stream_converter(self, src: NodeId, dst: NodeId) -> StreamConverter:
+        """Build the composite transducer converting chunk events `src -> dst`.
+
+        The streaming twin of `convert`, delegating to the chunk shape's
+        graph. The driver pumps decoded wire events through the result and
+        folds its flush report into the terminal `StreamEnd`.
+
+        Args:
+            src: The source chunk-shape node.
+            dst: The destination chunk-shape node; must share `src`'s shape.
+
+        Returns:
+            A fresh composite `StreamConverter` for one stream traversal.
+
+        Raises:
+            ConversionError: If the shapes differ, no edges exist for the
+                shape, or no stream path exists.
+        """
+        if src.shape != dst.shape:
+            raise ConversionError(f"cannot convert across shapes: {src.shape} -> {dst.shape}")
+        graph = self._graphs.get(src.shape)
+        if graph is None:
+            raise ConversionError(f"no conversion edges registered for shape {src.shape}")
+        return graph.stream_converter(src, dst)
+
+    def profile(self, provider: str, interface: str, model: str) -> CapabilityProfile | None:
+        """Return the most specific `CapabilityProfile` covering `model`.
+
+        The feature gate's lookup: consulted before payload conversion so an
+        `ABSENT` feature can be refused (strict) or loss-recorded (annotate)
+        without building a doomed request. Specificity comes from the
+        profiles' `model_pattern`s — a `"claude-4*"` sheet beats a `"*"`
+        sheet for `"claude-4-opus"`.
+
+        Args:
+            provider: The provider the request targets.
+            interface: The interface within the provider.
+            model: The concrete model name from the request.
+
+        Returns:
+            The best-matching profile, or None when the catalog holds no
+            facts for the triple.
+        """
+        # TODO: filter self._profiles by provider/interface, keep those whose
+        # matches(model) is true (CapabilityProfile.matches is itself TODO),
+        # and rank by pattern specificity (longest literal prefix wins).
+        raise NotImplementedError
+
+    def component(self, provider: str, interface: str, capability: Capability) -> ComponentFactory:
+        """Return the runtime factory registered for the resolved interface.
+
+        Called by the facade layer with a `Route`'s coordinates to obtain
+        the codec/adapter builder the serving plugin shipped.
+
+        Args:
+            provider: The provider from the resolved route.
+            interface: The interface from the resolved route.
+            capability: The capability being served.
+
+        Returns:
+            The plugin's opaque factory.
+
+        Raises:
+            LookupError: If no fragment in this catalog provides one — with
+                an install hint, because a missing component usually means a
+                missing plugin distribution, not a broken import.
+        """
+        component = self._components.get((provider, interface, capability))
+        if component is None:
+            composed = sorted({p for (p, _, _) in self._components}) or ["none"]
+            raise LookupError(
+                f"no component for {provider}/{interface} ({capability}) in this catalog. "
+                f"Composed providers: {', '.join(composed)}. If the plugin is not "
+                f"installed, install it with:  pip install ocai-{provider}"
+            )
+        return component.factory
+
+    def lock(self) -> CatalogLock:
+        """Emit the diffable lockfile describing this composition, hashed.
+
+        Computed once and cached (the catalog is immutable). The hash is the
+        SHA-256 of the payload's canonical JSON and is stamped into every
+        `Route` this catalog resolves.
+
+        Returns:
+            The `CatalogLock` for this exact composition.
+        """
+        if self._lock is None:
+            payload: dict[str, Any] = {
+                "trust": self._trust.value,
+                "allow": sorted(self._allow),
+                "fragments": [
+                    {
+                        "origin": str(fragment.origin),
+                        "nodes": [
+                            {
+                                "id": str(node),
+                                "released": node.released.isoformat(),
+                                "status": node.status.value,
+                            }
+                            for node in fragment.nodes
+                        ],
+                        "edges": [_lock_edge(edge) for edge in fragment.edges],
+                        "transducers": [_lock_edge(edge) for edge in fragment.transducers],
+                        "profiles": [
+                            {
+                                "provider": profile.provider,
+                                "interface": profile.interface,
+                                "model_pattern": profile.model_pattern,
+                                "features": {
+                                    key: support.value
+                                    for key, support in sorted(profile.features.items())
+                                },
+                            }
+                            for profile in fragment.profiles
+                        ],
+                        "components": [
+                            {
+                                "provider": component.provider,
+                                "interface": component.interface,
+                                "capability": str(component.capability),
+                            }
+                            for component in fragment.components
+                        ],
+                    }
+                    for fragment in self._fragments
+                ],
+            }
+            digest = hashlib.sha256(canonical(payload).encode("utf-8")).hexdigest()
+            self._lock = CatalogLock(hash=digest, payload=payload)
+        return self._lock
+
+
+def _lock_edge(edge: Edge | StreamEdge) -> dict[str, Any]:
+    """Render one edge's lockfile entry: endpoints, grade, provenance.
+
+    The declared census is summarized by its derived `loss_grade` (the
+    planner-visible cost); the full census stays reviewable in code, where
+    the conformance harness certifies it.
+
+    Args:
+        edge: The payload or stream edge to describe.
+
+    Returns:
+        The JSON-shaped lockfile entry.
+    """
+    return {
+        "src": str(edge.src),
+        "dst": str(edge.dst),
+        "grade": list(edge.contract.loss_grade()),
+        "origin": str(edge.origin),
+        "note": edge.note,
+    }
+
+
+@cache
+def default_catalog() -> Catalog:
+    """Return the process's entry-point-discovered catalog, built once.
+
+    The **only** module-level state in `ocai.convert`, and it is a memoized
+    pure function, not a mutable registry: the first call runs
+    `Catalog.discover()` under the default `TrustPolicy.OWNED_ENDPOINTS`
+    and every later call returns that same immutable catalog. Convenience
+    entry points (a bare `WireChatModel` with no explicit catalog) use it;
+    applications that care about governance compose `Catalog.of(...)`
+    explicitly and never touch this.
+
+    Returns:
+        The memoized default catalog.
+    """
+    return Catalog.discover()

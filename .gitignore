@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.so
+
+# uv / venv
+.venv/
+uv.lock.bak
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node (future typescript/)
+node_modules/
+*.tsbuildinfo
+
+# Go (future go/)
+/go/bin/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

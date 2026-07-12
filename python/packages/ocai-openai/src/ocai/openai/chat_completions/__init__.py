@@ -1,0 +1,88 @@
+"""`ocai.openai.chat_completions` — the OpenAI Chat Completions interface.
+
+One subpackage per interface (§7): this package is everything ocai knows about
+`POST /v1/chat/completions` as a wire protocol — its msgspec decode-boundary
+models (`wire`), its identity + mapping codec (`codec`), and its declarative
+catalog material (`edges`). The sibling `ocai.openai.responses` package is a
+*concurrent interface* of the same chat capability, not a version of this one.
+
+The public surface is `FRAGMENT`: a frozen, provenance-stamped
+`CatalogFragment` an application composes explicitly —
+`Catalog.of(ocai.openai.chat_completions.FRAGMENT, ...)` — with **no
+import-time registration** into any global (rule 14). This package depends on
+`ocai.core` + `ocai.convert` + `ocai.chat` only, never on `ocai.wire`/httpx,
+so offline audit tooling can re-convert archived traffic without the ability
+to make a network call.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ocai.convert.catalog import CatalogFragment
+from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_CHUNK
+from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
+from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
+from ocai.openai.chat_completions.codec import ChatCompletionsCodec
+from ocai.openai.chat_completions.codec import dialect_traits
+from ocai.openai.chat_completions.edges import EDGES
+from ocai.openai.chat_completions.edges import NODES
+from ocai.openai.chat_completions.edges import ORIGIN
+from ocai.openai.chat_completions.edges import PROFILES
+from ocai.openai.chat_completions.edges import TRANSDUCERS
+
+if TYPE_CHECKING:
+    from ocai.chat.protocol import ChatModel
+    from ocai.core.credentials import Credential
+
+__all__ = [
+    "CHAT_COMPLETIONS_CHUNK",
+    "CHAT_COMPLETIONS_REQUEST",
+    "CHAT_COMPLETIONS_RESPONSE",
+    "FRAGMENT",
+    "ChatCompletionsCodec",
+    "chat_model",
+]
+
+# The frozen declarative fragment this interface contributes to a Catalog:
+# its three nodes, its contract-censused edges, its chunk transducer, and its
+# capability profile — all stamped with this distribution's Origin.
+FRAGMENT = CatalogFragment(
+    origin=ORIGIN,
+    nodes=NODES,
+    edges=EDGES,
+    transducers=TRANSDUCERS,
+    profiles=PROFILES,
+    traits=(dialect_traits(),),
+)
+
+
+def chat_model(
+    model: str = "gpt-4o",
+    *,
+    credentials: Credential | None = None,
+) -> ChatModel:
+    """Prefill factory: a first-party OpenAI chat model behind the port.
+
+    The one-liner convenience for the common case — composes
+    `WireChatModel(ChatCompletionsCodec(), binding, catalog)` with a `Direct`
+    host at the OpenAI origin and a minimal catalog built from this
+    interface's `FRAGMENT`. Power users compose the pieces themselves (any
+    host, any transport, richer catalogs); this factory adds nothing they
+    cannot reach.
+
+    Args:
+        model: The default OpenAI model name requests target.
+        credentials: The credential applied per request at the driver leaf.
+            Required — there is no ambient discovery (rule 13).
+
+    Returns:
+        A `ChatModel` implementation backed by this interface.
+
+    Raises:
+        NotImplementedError: Always, until the runtime/wire layers land.
+    """
+    # TODO: build Catalog.of(FRAGMENT), Binding(Direct(OPENAI_BASE_URL),
+    # credentials, HttpxTransport()), and return WireChatModel(...) — blocked
+    # on ocai.runtime.binding and ocai.wire landing.
+    raise NotImplementedError

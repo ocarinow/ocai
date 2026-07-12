@@ -1,0 +1,36 @@
+# Example THIRD-PARTY ocai plugin. Copy this directory, rename `echo` to your
+# provider, and publish independently — nothing here lives in the ocai monorepo.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+# Distribution name convention for community plugins: `ocai-contrib-<name>`.
+# It ships the `ocai.contrib.<name>` import package into the shared namespace.
+name = "ocai-contrib-echo"
+version = "0.2.0"
+description = "Example third-party ocai plugin: the fictional `echo` chat interface."
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [{ name = "Your Name" }]
+
+# Pin a COMPATIBLE CORE RANGE. Every wheel merges into one runtime namespace, so
+# a plugin must match the core public-API (semver) it was built against.
+# Plugins depend on core+convert ONLY: NO httpx (never ocai.wire), NO provider
+# SDK, NO pydantic. msgspec is permitted at the wire-decode boundary only.
+dependencies = ["ocai>=0.2,<0.3"]
+
+# The discovery seam: `Catalog.discover()` collects this entry point. It points
+# at the frozen FRAGMENT value — there is no import-time registration callable.
+[project.entry-points."ocai.plugins"]
+echo = "ocai.contrib.echo:FRAGMENT"
+
+[tool.hatch.build.targets.wheel]
+# Ship ONLY ocai/contrib/echo/ into the shared `ocai` namespace. There is NO
+# ocai/__init__.py and NO ocai/contrib/__init__.py (PEP 420) — only the leaf
+# `ocai/contrib/echo/` is a real package (and it ships py.typed) — so other
+# contrib plugins can add their own ocai/contrib/<name>/ alongside this one.
+packages = ["src/ocai"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["src"]

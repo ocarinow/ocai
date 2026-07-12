@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/chat_request.schema.json",
+  "title": "ChatRequest",
+  "description": "Canonical-IR chat request. Provider-neutral; provider-specific knobs live in provider_options.",
+  "type": "object",
+  "required": ["ir_version", "model", "messages"],
+  "properties": {
+    "ir_version": {
+      "type": "string",
+      "description": "Canonical IR schema version (distinct from provider wire version and library API version).",
+      "examples": ["0.1"]
+    },
+    "model": {
+      "type": "string",
+      "description": "Provider model identifier, passed through verbatim."
+    },
+    "messages": {
+      "type": "array",
+      "items": { "$ref": "message.schema.json" }
+    },
+    "tools": {
+      "type": ["array", "null"],
+      "description": "Optional tool/function declarations.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "provider_options": {
+      "type": "object",
+      "description": "Escape hatch for provider-specific request params (temperature, top_p, ...) that have no canonical home yet.",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Per-object extension bag for forward-compatible additive data.",
+      "additionalProperties": true,
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

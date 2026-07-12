@@ -1,0 +1,396 @@
+"""The conversion graph: planner and executor for one message shape (§4.1).
+
+Nodes are `ocai.core.identity.NodeId`s — one provider *interface* revision of
+one `Shape`. Edges are conversion functions with an `EdgeContract` and an
+`Origin`. Converting `A -> B` is a shortest-path search (Dijkstra) where the
+cost of an edge is **derived from its contract** (`EdgeContract.loss_grade()`,
+a lexicographic tuple) — there is no author-declared float weight, so an edge
+can only be "cheaper" by declaring less loss. The old float `HOP_PENALTY`
+survives as the grade's trailing hops component: equal-loss paths still
+prefer fewer hops, with no magic constant.
+
+The canonical IR nodes (`ocai/ocai@rev`) are the guaranteed backbone: every
+registered interface connects to them, so every pair is reachable in <= 2
+hops even with no direct edge. Direct edges are higher-fidelity shortcuts the
+planner prefers when their contracts grade lower.
+
+**Two-tier loss.** Dijkstra plans *before* seeing a payload, on the declared
+census. The **actual** field-level loss is produced when an edge function
+runs — each returns an `EdgeOutput` carrying the converted value plus its
+`FieldLoss`/`SemanticShift` records. `convert` rolls those into a
+`FidelityReport` and returns a `Converted` (value + report), never a bare
+tuple. The conformance harness certifies that the actual records never
+exceed the declared census.
+
+One graph holds exactly one `Shape` (graphs never mix shapes); the `Catalog`
+partitions its graphs per shape. Streaming conversion joins the same
+machinery via `StreamEdge` — a transducer factory planned like any edge —
+instead of bypassing the graph.
+"""
+
+from __future__ import annotations
+
+import heapq
+import itertools
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+from typing import Protocol
+
+from ocai.convert.contract import EdgeContract
+from ocai.convert.contract import LossGrade
+from ocai.core.fidelity import EdgeReport
+from ocai.core.fidelity import FidelityReport
+from ocai.core.fidelity import FieldLoss
+from ocai.core.fidelity import SemanticShift
+from ocai.core.identity import NodeId
+from ocai.core.identity import Origin
+
+
+@dataclass(frozen=True, slots=True)
+class EdgeOutput:
+    """The result of running one conversion edge on a payload.
+
+    Attributes:
+        value: The converted payload, in the destination node's
+            representation.
+        losses: The actual field-level records this edge incurred, in order.
+        shifts: The actual semantics-level records this edge incurred, in
+            order.
+    """
+
+    value: Any
+    losses: tuple[FieldLoss, ...] = ()
+    shifts: tuple[SemanticShift, ...] = ()
+
+
+# An edge's transform: opaque payload in, `EdgeOutput` out. Payloads are
+# provider-format dicts at dialect nodes and canonical IR objects at the
+# canonical nodes; only the conversion function at each edge knows the shapes.
+EdgeFn = Callable[[Any], EdgeOutput]
+
+
+@dataclass(frozen=True, slots=True)
+class Edge:
+    """A directed conversion edge between two graph nodes.
+
+    The unit a `CatalogFragment` declares and a `ConversionGraph` plans over.
+    Its planner cost is derived from `contract.loss_grade()` — the edge
+    author declares dispositions, never a number.
+
+    Attributes:
+        src: The source node this edge converts from.
+        dst: The destination node this edge converts to. Must share `src`'s
+            `Shape` — an edge never crosses message shapes.
+        fn: The transform applied to the payload when traversing this edge.
+        contract: The declared per-field disposition census; the planner
+            weight and the conformance certification baseline.
+        origin: Which distribution shipped this edge — surfaces in lockfiles
+            and audit records.
+        note: A human-readable note describing what the conversion does.
+    """
+
+    src: NodeId
+    dst: NodeId
+    fn: EdgeFn
+    contract: EdgeContract
+    origin: Origin
+    note: str = ""
+
+
+class StreamConverter(Protocol):
+    """One live transducer instance converting a chunk stream across an edge.
+
+    Built per stream traversal by `StreamEdge.build()`; stateful by design
+    (it buffers partial events, correlates deltas, seals parts). The driver
+    pumps decoded wire events through `feed` and calls `flush` exactly once
+    when the stream ends, collecting both the tail events and the edge's
+    `EdgeReport` — which the facade folds into the terminal `StreamEnd`
+    report so streaming has honesty parity with complete calls.
+    """
+
+    def feed(self, event: Any) -> list[Any]:
+        """Consume one upstream event and emit zero or more downstream ones.
+
+        A transducer may buffer (returning `[]`), pass through, split one
+        event into several, or coalesce several into one.
+
+        Args:
+            event: The next event in the source node's representation.
+
+        Returns:
+            The events ready to emit, in the destination node's
+            representation, in order.
+        """
+        ...
+
+    def flush(self) -> tuple[list[Any], EdgeReport]:
+        """Finish the stream: drain buffers and account for the traversal.
+
+        Called exactly once, after the last `feed`. Aborted streams flush
+        too — sealing in-flight state incomplete rather than dropping it.
+
+        Returns:
+            The remaining events to emit, and the `EdgeReport` of losses
+            and shifts this traversal incurred.
+        """
+        ...
+
+
+# Builds a fresh `StreamConverter` per stream traversal (transducers are
+# stateful; edges are shared and immutable, so the edge carries a factory).
+StreamConverterFactory = Callable[[], StreamConverter]
+
+
+@dataclass(frozen=True, slots=True)
+class StreamEdge:
+    """A directed streaming-conversion edge: a transducer factory.
+
+    The chunk-shape sibling of `Edge`, planned by the same Dijkstra
+    machinery over the same contract-derived grades — streaming conversion
+    joins the graph instead of bypassing it. Where an `Edge` maps one whole
+    payload, a `StreamEdge` builds a stateful `StreamConverter` per stream
+    and converts events incrementally.
+
+    Attributes:
+        src: The source chunk-shape node.
+        dst: The destination chunk-shape node. Must share `src`'s `Shape`.
+        factory: Builds a fresh transducer instance for one traversal.
+        contract: The declared census; planner weight is derived from it,
+            identically to payload edges.
+        origin: Which distribution shipped this edge.
+        note: A human-readable note describing what the conversion does.
+    """
+
+    src: NodeId
+    dst: NodeId
+    factory: StreamConverterFactory
+    contract: EdgeContract
+    origin: Origin
+    note: str = ""
+
+    def build(self) -> StreamConverter:
+        """Return a fresh, stateful transducer for one stream traversal.
+
+        Returns:
+            A new `StreamConverter`; never shared across streams.
+        """
+        return self.factory()
+
+
+@dataclass(frozen=True, slots=True)
+class Converted:
+    """The result of a graph conversion: the output value plus its report.
+
+    Attributes:
+        value: The converted payload at the destination node.
+        report: The `FidelityReport` accumulated along the path — one
+            `EdgeReport` per traversed edge, in order.
+    """
+
+    value: Any
+    report: FidelityReport
+
+
+class ConversionError(LookupError):
+    """Raised when no conversion path exists between two graph nodes."""
+
+
+# The additive identity for grade accumulation along a path.
+_ZERO_GRADE: LossGrade = (0, 0, 0, 0)
+
+
+def _grade_sum(a: LossGrade, b: LossGrade) -> LossGrade:
+    """Return the elementwise sum of two lexicographic loss grades."""
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3])
+
+
+class ConversionGraph:
+    """Edges for one `Shape`, with cached contract-graded shortest-path plans.
+
+    Owned and populated by a `Catalog` (which partitions one graph per
+    shape); user code converts through `Catalog.convert`, which delegates
+    here. Registration is idempotent so composing overlapping fragments is
+    safe. Structural honesty rules the graph is responsible for (e.g. a
+    `ProviderRef` crossing its minting `(provider, interface)` is
+    `UNSUPPORTED`-and-reported) are enforced by the edge functions and
+    certified by conformance; the planner itself only routes.
+    """
+
+    def __init__(self) -> None:
+        """Construct an empty graph with no edges and an empty plan cache."""
+        self._edges: dict[NodeId, list[Edge]] = {}
+        self._stream_edges: dict[NodeId, list[StreamEdge]] = {}
+        # Cache of planned paths keyed by (src, dst). Cleared on register().
+        self._plan_cache: dict[tuple[NodeId, NodeId], list[Edge]] = {}
+        # Monotonic tiebreaker so heap entries never compare NodeId/path.
+        self._counter = itertools.count()
+
+    def register(self, edge: Edge) -> None:
+        """Register a directed conversion edge. Idempotent.
+
+        Registering an identical edge again is a no-op, so composing
+        overlapping fragments is safe. Register both directions explicitly
+        if the conversion is bidirectional (they will have different
+        contracts — decode and encode rarely cost the same).
+
+        Args:
+            edge: The edge to add.
+
+        Raises:
+            ValueError: If the edge's endpoints have different `Shape`s —
+                graphs never mix shapes.
+        """
+        if edge.src.shape != edge.dst.shape:
+            raise ValueError(
+                f"conversion edge crosses shapes: {edge.src.shape} -> {edge.dst.shape}"
+            )
+        edges = self._edges.setdefault(edge.src, [])
+        if edge in edges:
+            return  # idempotent: identical edge already registered
+        edges.append(edge)
+        self._plan_cache.clear()  # any new edge may create a cheaper path
+
+    def register_stream(self, edge: StreamEdge) -> None:
+        """Register a directed streaming-conversion edge. Idempotent.
+
+        Args:
+            edge: The transducer-factory edge to add.
+
+        Raises:
+            ValueError: If the edge's endpoints have different `Shape`s.
+        """
+        if edge.src.shape != edge.dst.shape:
+            raise ValueError(
+                f"stream edge crosses shapes: {edge.src.shape} -> {edge.dst.shape}"
+            )
+        edges = self._stream_edges.setdefault(edge.src, [])
+        if edge in edges:
+            return  # idempotent: identical edge already registered
+        edges.append(edge)
+
+    def _plan(self, src: NodeId, dst: NodeId) -> list[Edge]:
+        """Return the cheapest (lowest summed grade) edge sequence `src -> dst`.
+
+        Dijkstra over the lexicographic `LossGrade` derived from each edge's
+        contract; path cost is the elementwise sum of edge grades, so the
+        comparison prefers less breakage, then less approximation, then less
+        emulation, then fewer hops (the grade's hops component is what the
+        old float `HOP_PENALTY` became). Deterministic: outgoing edges are
+        traversed in `(grade, str(dst))` order and a monotonic counter
+        breaks heap ties, so nodes and paths are never compared directly.
+
+        Args:
+            src: The source node.
+            dst: The destination node.
+
+        Returns:
+            The ordered edges forming the cheapest path (empty if
+            `src == dst`).
+
+        Raises:
+            ConversionError: If no path exists.
+        """
+        if src == dst:
+            return []
+        cached = self._plan_cache.get((src, dst))
+        if cached is not None:
+            return cached
+
+        heap: list[tuple[LossGrade, int, NodeId, list[Edge]]] = [
+            (_ZERO_GRADE, next(self._counter), src, [])
+        ]
+        best: dict[NodeId, LossGrade] = {src: _ZERO_GRADE}
+        while heap:
+            grade, _, node, path = heapq.heappop(heap)
+            if node == dst:
+                self._plan_cache[(src, dst)] = path
+                return path
+            node_best = best.get(node)
+            if node_best is not None and grade > node_best:
+                continue
+            for edge in sorted(
+                self._edges.get(node, []),
+                key=lambda e: (e.contract.loss_grade(), str(e.dst)),
+            ):
+                nd = _grade_sum(grade, edge.contract.loss_grade())
+                dst_best = best.get(edge.dst)
+                if dst_best is None or nd < dst_best:
+                    best[edge.dst] = nd
+                    heapq.heappush(heap, (nd, next(self._counter), edge.dst, [*path, edge]))
+
+        raise ConversionError(f"no conversion path from {src} to {dst}")
+
+    def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
+        """Convert `payload` from node `src` to node `dst`.
+
+        Composes the edge functions along the cheapest planned path and
+        returns a `Converted` carrying the output value and the
+        `FidelityReport` accumulated along the way — one `EdgeReport`
+        (losses, shifts, note) per traversed edge.
+
+        Args:
+            payload: The input payload, in `src`'s representation.
+            src: The source node.
+            dst: The destination node.
+
+        Returns:
+            A `Converted` with the output value and its `FidelityReport`.
+
+        Raises:
+            ConversionError: If no path exists from `src` to `dst`.
+        """
+        path = self._plan(src, dst)
+        report = FidelityReport()
+        value = payload
+        for edge in path:
+            out = edge.fn(value)
+            value = out.value
+            report.edges.append(
+                EdgeReport(edge.src, edge.dst, tuple(out.losses), tuple(out.shifts), edge.note)
+            )
+        return Converted(value, report)
+
+    def stream_converter(self, src: NodeId, dst: NodeId) -> StreamConverter:
+        """Plan and build the composite transducer converting chunks `src -> dst`.
+
+        The streaming twin of `convert`: plans a `StreamEdge` path with the
+        same contract-graded Dijkstra, then chains one freshly-built
+        `StreamConverter` per planned edge into a single composite whose
+        `feed` pipes events through every stage in order and whose `flush`
+        drains the stages front-to-back and returns the merged accounting.
+        The driver pumps SSE-decoded events through the result.
+
+        Args:
+            src: The source chunk-shape node.
+            dst: The destination chunk-shape node.
+
+        Returns:
+            A fresh composite `StreamConverter` for one stream traversal.
+
+        Raises:
+            ConversionError: If no stream-edge path exists.
+        """
+        # TODO: generalize `_plan`'s Dijkstra over the `_stream_edges`
+        # adjacency (same grades, same determinism, separate plan cache),
+        # then compose `edge.build()` per planned edge into one pipeline
+        # object that chains feeds and concatenates flush reports.
+        raise NotImplementedError
+
+    def can_convert(self, src: NodeId, dst: NodeId) -> bool:
+        """Return whether any conversion path exists from `src` to `dst`.
+
+        Args:
+            src: The source node.
+            dst: The destination node.
+
+        Returns:
+            True if a path exists (or `src == dst`), False otherwise. Never
+            raises; a missing path is reported as False rather than
+            propagated.
+        """
+        try:
+            self._plan(src, dst)
+            return True
+        except ConversionError:
+            return False

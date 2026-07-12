@@ -1,0 +1,51 @@
+{
+  "description": "OpenAI v1 /chat/completions request -> canonical ChatRequest. Golden fixture for codec round-trip conformance.",
+  "source": {
+    "provider": "openai",
+    "version": "v1"
+  },
+  "raw": {
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are concise."
+      },
+      {
+        "role": "user",
+        "content": "Hello, who are you?"
+      }
+    ],
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 256
+  },
+  "canonical": {
+    "version": "0.1",
+    "provider_options": {
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "max_tokens": 256
+    },
+    "extensions": {},
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "version": "0.1",
+        "provider_options": {},
+        "extensions": {},
+        "role": "system",
+        "content": "You are concise."
+      },
+      {
+        "version": "0.1",
+        "provider_options": {},
+        "extensions": {},
+        "role": "user",
+        "content": "Hello, who are you?"
+      }
+    ],
+    "tools": null,
+    "config": null
+  }
+}

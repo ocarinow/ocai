@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+# Path-filtered per language. Every job ALSO triggers on spec/** so that a
+# change to the language-neutral source of truth re-runs each implementation's
+# conformance suite — the intended cross-language drift alarm.
+jobs:
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cheap path filter: decide whether the rest of the job should run.
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            run:
+              - 'python/**'
+              - 'spec/**'
+              - 'pyproject.toml'
+              - '.github/workflows/ci.yml'
+
+      - name: Install uv
+        if: steps.changes.outputs.run == 'true'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        if: steps.changes.outputs.run == 'true'
+        run: uv python install 3.13
+
+      - name: Sync workspace
+        if: steps.changes.outputs.run == 'true'
+        run: uv sync
+
+      - name: Ruff
+        if: steps.changes.outputs.run == 'true'
+        run: uv run ruff check
+
+      - name: Pytest
+        if: steps.changes.outputs.run == 'true'
+        run: uv run pytest
+
+  typescript:
+    name: typescript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            run:
+              - 'typescript/**'
+              - 'spec/**'
+      - name: Not yet implemented
+        if: steps.changes.outputs.run == 'true'
+        run: echo "typescript implementation not yet implemented (scaffold mirrors spec/)"
+
+  go:
+    name: go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            run:
+              - 'go/**'
+              - 'spec/**'
+      - name: Not yet implemented
+        if: steps.changes.outputs.run == 'true'
+        run: echo "go implementation not yet implemented (scaffold mirrors spec/)"

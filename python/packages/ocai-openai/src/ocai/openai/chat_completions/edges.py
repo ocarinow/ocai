@@ -1,0 +1,236 @@
+"""Edge definitions for `openai/chat_completions` — the fragment's contents.
+
+This module turns the codec's mapping functions into declarative catalog
+material: graph `Edge`s (each with its honest `EdgeContract` census), the
+chunk-shape `StreamEdge` transducer, and the interface's `CapabilityProfile`.
+Everything here is frozen data assembled once at module load — **no
+import-time mutation of any shared registry** (rule 14); the package
+`__init__` folds these tuples into the exported `CatalogFragment`, and an
+application opts in with `Catalog.of(ocai.openai.FRAGMENT, ...)`.
+
+The censuses below are the load-bearing honesty: the planner derives this
+interface's edge weights from them, and the conformance harness certifies at
+build time that runtime `FieldLoss` never exceeds the declaration — an edge
+claiming lossless that drops a field cannot ship (§4.2). Census entries are
+therefore declared for the *current* implementation (e.g. media parts are
+`DROPPED` until their encode lands), and tightened in the same change that
+implements the mapping.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from ocai.chat.types import ChatRequest
+from ocai.convert.contract import DeclaredDisposition
+from ocai.convert.contract import EdgeContract
+from ocai.convert.graph import Edge
+from ocai.convert.graph import EdgeOutput
+from ocai.convert.graph import StreamEdge
+from ocai.core.fidelity import Disposition
+from ocai.core.identity import NodeId
+from ocai.core.identity import Origin
+from ocai.core.profile import CapabilityProfile
+from ocai.core.profile import Support
+from ocai.openai.chat_completions.codec import CANONICAL_CHUNK
+from ocai.openai.chat_completions.codec import CANONICAL_REQUEST
+from ocai.openai.chat_completions.codec import CANONICAL_RESPONSE
+from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_CHUNK
+from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
+from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
+from ocai.openai.chat_completions.codec import INTERFACE
+from ocai.openai.chat_completions.codec import PROVIDER
+from ocai.openai.chat_completions.codec import ChatCompletionsCodec
+from ocai.openai.chat_completions.codec import ChatCompletionsStreamTransducer
+
+# Provenance stamp for every node/edge this distribution registers; surfaces
+# in catalog lockfiles and audit records.
+# TODO: derive the version from importlib.metadata at fragment-build time.
+ORIGIN = Origin(distribution="ocai-openai", version="0.1.0")
+
+# The single stateless codec instance the edge functions share.
+_CODEC = ChatCompletionsCodec()
+
+# --- Contracts (the per-field disposition census, §4.2) ----------------------
+
+ENCODE_REQUEST_CONTRACT = EdgeContract(
+    census={
+        "model": DeclaredDisposition(Disposition.EXACT),
+        "messages[].role": DeclaredDisposition(Disposition.EXACT),
+        "messages[].parts[text]": DeclaredDisposition(Disposition.EXACT),
+        "messages[].parts[tool_call]": DeclaredDisposition(Disposition.EXACT),
+        # Relocated to a sibling `role: tool` wire message — a SemanticShift,
+        # data-exact.
+        "messages[].parts[tool_result]": DeclaredDisposition(Disposition.EXACT),
+        "messages[].parts[tool_result].is_error": DeclaredDisposition(Disposition.DROPPED),
+        "messages[].parts[refusal]": DeclaredDisposition(Disposition.EXACT),
+        # TODO: tighten to EXACT once Source-union media encode lands.
+        "messages[].parts[image]": DeclaredDisposition(Disposition.DROPPED),
+        "messages[].parts[audio]": DeclaredDisposition(Disposition.DROPPED),
+        "messages[].parts[document]": DeclaredDisposition(Disposition.DROPPED),
+        # No replay lane on this interface; /responses is the reasoning home.
+        "messages[].parts[reasoning]": DeclaredDisposition(Disposition.DROPPED),
+        "tools": DeclaredDisposition(Disposition.EXACT),
+        "tool_choice": DeclaredDisposition(Disposition.EXACT),
+        "config.temperature": DeclaredDisposition(Disposition.EXACT),
+        "config.top_p": DeclaredDisposition(Disposition.EXACT),
+        "config.max_output_tokens": DeclaredDisposition(Disposition.RENAMED),
+        "config.stop_sequences": DeclaredDisposition(Disposition.RENAMED),
+        "config.seed": DeclaredDisposition(Disposition.EXACT),
+        "config.frequency_penalty": DeclaredDisposition(Disposition.EXACT),
+        "config.presence_penalty": DeclaredDisposition(Disposition.EXACT),
+        "config.parallel_tool_calls": DeclaredDisposition(Disposition.EXACT),
+        "config.top_k": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "config.logprobs": DeclaredDisposition(Disposition.EXACT),
+        "config.reasoning.effort": DeclaredDisposition(Disposition.RENAMED),
+        "config.reasoning.budget_tokens": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "config.output": DeclaredDisposition(Disposition.RENAMED),
+        # TODO: implement modalities/audio/cache encode and tighten.
+        "config.modalities": DeclaredDisposition(Disposition.DROPPED),
+        "config.audio": DeclaredDisposition(Disposition.DROPPED),
+        "config.cache": DeclaredDisposition(Disposition.DROPPED),
+    },
+    note="canonical chat.request -> openai/chat_completions",
+)
+
+DECODE_RESPONSE_CONTRACT = EdgeContract(
+    census={
+        "choices[0].message.content": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].message.tool_calls": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].message.refusal": DeclaredDisposition(Disposition.EXACT),
+        # TODO: re-anchor to PartText.annotations after span validation.
+        "choices[0].message.annotations": DeclaredDisposition(Disposition.EXTENSIONS),
+        # TODO: decode to PartAudio + ProviderRef audio id anchor.
+        "choices[0].message.audio": DeclaredDisposition(Disposition.EXTENSIONS),
+        "choices[0].message.function_call": DeclaredDisposition(Disposition.EXTENSIONS),
+        "choices[0].finish_reason": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].logprobs": DeclaredDisposition(Disposition.EXTENSIONS),
+        # Single message forever (§3.1): extras preserved, loss reported.
+        "choices[1:]": DeclaredDisposition(Disposition.EXTENSIONS),
+        "usage": DeclaredDisposition(Disposition.RENAMED),
+        "id": DeclaredDisposition(Disposition.EXACT),
+        "model": DeclaredDisposition(Disposition.EXACT),
+        "created": DeclaredDisposition(Disposition.EXTENSIONS),
+        "system_fingerprint": DeclaredDisposition(Disposition.EXTENSIONS),
+        "service_tier": DeclaredDisposition(Disposition.EXTENSIONS),
+    },
+    note="openai/chat_completions -> canonical chat.response",
+)
+
+DECODE_CHUNK_CONTRACT = EdgeContract(
+    census={
+        "choices[0].delta.content": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].delta.tool_calls": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].delta.refusal": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].delta.role": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].finish_reason": DeclaredDisposition(Disposition.EXACT),
+        "usage": DeclaredDisposition(Disposition.RENAMED),
+        # TODO: surface streamed logprobs/obfuscation via censused extensions.
+        "choices[0].logprobs": DeclaredDisposition(Disposition.DROPPED),
+    },
+    note="openai/chat_completions -> canonical chat.chunk (per event)",
+)
+
+# --- Edge functions (thin, pure wrappers over the codec) ---------------------
+
+
+def encode_request(request: ChatRequest) -> EdgeOutput:
+    """Edge fn `canonical chat.request → openai/chat_completions`.
+
+    Args:
+        request: The canonical request the planner routed to this edge.
+
+    Returns:
+        The wire request dict with this edge's report.
+    """
+    return _CODEC.encode_request(request)
+
+
+def decode_response(payload: dict[str, Any]) -> EdgeOutput:
+    """Edge fn `openai/chat_completions → canonical chat.response`.
+
+    Args:
+        payload: The raw response body, already JSON-parsed.
+
+    Returns:
+        The canonical `ChatResponse` with this edge's report.
+    """
+    return _CODEC.decode_response(payload)
+
+
+def decode_request(payload: dict[str, Any]) -> EdgeOutput:
+    """Edge fn `openai/chat_completions → canonical chat.request`.
+
+    The audit-tool direction: re-converting archived wire traffic back into
+    the canonical IR without any ability to make network calls (§1).
+
+    Args:
+        payload: The raw archived request body.
+
+    Returns:
+        The canonical `ChatRequest` with this edge's report.
+    """
+    raise NotImplementedError  # TODO: inverse mapping + census; needed by archive re-conversion.
+
+
+# --- Fragment contents --------------------------------------------------------
+
+NODES: tuple[NodeId, ...] = (
+    CHAT_COMPLETIONS_REQUEST,
+    CHAT_COMPLETIONS_RESPONSE,
+    CHAT_COMPLETIONS_CHUNK,
+)
+
+EDGES: tuple[Edge, ...] = (
+    Edge(
+        src=CANONICAL_REQUEST,
+        dst=CHAT_COMPLETIONS_REQUEST,
+        fn=encode_request,
+        contract=ENCODE_REQUEST_CONTRACT,
+        origin=ORIGIN,
+    ),
+    Edge(
+        src=CHAT_COMPLETIONS_RESPONSE,
+        dst=CANONICAL_RESPONSE,
+        fn=decode_response,
+        contract=DECODE_RESPONSE_CONTRACT,
+        origin=ORIGIN,
+    ),
+    # TODO: register the decode_request audit edge once implemented.
+)
+
+TRANSDUCERS: tuple[StreamEdge, ...] = (
+    StreamEdge(
+        src=CHAT_COMPLETIONS_CHUNK,
+        dst=CANONICAL_CHUNK,
+        factory=ChatCompletionsStreamTransducer,
+        contract=DECODE_CHUNK_CONTRACT,
+        origin=ORIGIN,
+    ),
+)
+
+# Declared capability facts, consulted by the feature gate BEFORE payload
+# conversion (§2.5). Keys are namespaced open data, not a frozen taxonomy.
+PROFILES: tuple[CapabilityProfile, ...] = (
+    CapabilityProfile(
+        provider=PROVIDER,
+        interface=INTERFACE,
+        model_pattern="*",
+        features={
+            "chat.config.temperature": Support.NATIVE,
+            "chat.config.top_p": Support.NATIVE,
+            "chat.config.top_k": Support.ABSENT,
+            "chat.config.seed": Support.NATIVE,
+            "chat.config.logprobs": Support.NATIVE,
+            "chat.config.frequency_penalty": Support.NATIVE,
+            "chat.config.presence_penalty": Support.NATIVE,
+            "chat.config.output.json_schema": Support.NATIVE,
+            "chat.parts.image": Support.NATIVE,
+            "chat.parts.audio": Support.NATIVE,
+            "chat.parts.reasoning.replay": Support.ABSENT,
+            "chat.tools.parallel": Support.NATIVE,
+        },
+    ),
+    # TODO: reasoning-model profile (o*/gpt-5*): temperature/top_p rejected,
+    # reasoning_effort native — census the exact families before declaring.
+)

@@ -1,0 +1,14 @@
+{
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01XYZ",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-6",
+      "content": [{ "type": "text", "text": "I am Claude, an AI assistant." }],
+      "stop_reason": "end_turn",
+      "usage": { "input_tokens": 14, "output_tokens": 9 }
+    }
+  }
+}

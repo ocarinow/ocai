@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/message.schema.json",
+  "title": "Message",
+  "description": "A single canonical-IR chat message. Open/tolerant: unknown keys are preserved, never rejected.",
+  "type": "object",
+  "required": ["role", "content"],
+  "properties": {
+    "role": {
+      "type": "string",
+      "description": "Sender role. Open enum: readers MUST tolerate unknown roles.",
+      "examples": ["system", "user", "assistant", "tool"]
+    },
+    "content": {
+      "type": ["string", "null"],
+      "description": "Text content. null when the turn carries only tool_calls."
+    },
+    "tool_calls": {
+      "type": ["array", "null"],
+      "description": "Optional structured tool/function invocations.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Per-object escape hatch for non-canonical data. Always present (may be empty).",
+      "additionalProperties": true,
+      "default": {}
+    }
+  },
+  "additionalProperties": true
+}

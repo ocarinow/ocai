@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ocai-openai"
+version = "0.1.0"
+description = "OpenAI adapter plugin for ocai (ships ocai.openai into the shared namespace)."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "FSL-1.1-ALv2"     # source-available (FSL → Apache-2.0 after 2 years)
+authors = [{ name = "ocai maintainers" }]
+# Pin a COMPATIBLE CORE RANGE: every wheel merges into one runtime namespace, so
+# a plugin must match the core public-API (semver) it was built against. The
+# plugin depends on core+convert ONLY — never on ocai.wire or httpx, and it
+# imports NO openai SDK (rule 12). msgspec is the sanctioned decode-boundary
+# tool (rule 11): it decodes the OpenAI wire into typed dialect structs. It
+# stays in the PLUGIN — never in ocai.core.
+dependencies = ["ocai>=0.1,<0.2", "msgspec>=0.18"]
+
+# The fragment entry point (`ocai.convert.catalog.ENTRY_POINT_GROUP`): names
+# DATA — the frozen CatalogFragment — never a register() callable that would
+# mutate globals at import time. `Catalog.discover()` composes it opt-in.
+[project.entry-points."ocai.fragments"]
+openai = "ocai.openai:FRAGMENT"
+
+[project.urls]
+Homepage = "https://github.com/walid/ocai"
+Source = "https://github.com/walid/ocai"
+
+[tool.hatch.build.targets.wheel]
+# Ship ONLY ocai/openai/ into the shared `ocai` namespace. Again: no
+# src/ocai/__init__.py (PEP 420).
+packages = ["src/ocai"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["src"]

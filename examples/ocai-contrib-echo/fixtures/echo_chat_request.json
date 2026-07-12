@@ -1,0 +1,53 @@
+{
+  "description": "echo chat.request -> canonical (identity: echo's wire IS canonical JSON). Golden edge fixture for the template plugin. TEMPLATE STATUS: regenerate `expect` via to_dict() once the re-architected ocai.chat types land.",
+  "src": {
+    "provider": "echo",
+    "interface": "chat",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "model": "echo-1",
+    "messages": [
+      {
+        "role": "system",
+        "parts": [{ "type": "text", "text": "You are concise." }]
+      },
+      {
+        "role": "user",
+        "parts": [{ "type": "text", "text": "Hello, who are you?" }]
+      }
+    ],
+    "config": {
+      "temperature": 0.5,
+      "max_output_tokens": 128
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "model": "echo-1",
+    "messages": [
+      {
+        "role": "system",
+        "parts": [{ "type": "text", "text": "You are concise." }]
+      },
+      {
+        "role": "user",
+        "parts": [{ "type": "text", "text": "Hello, who are you?" }]
+      }
+    ],
+    "config": {
+      "temperature": 0.5,
+      "max_output_tokens": 128
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}
