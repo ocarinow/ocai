@@ -1,0 +1,93 @@
+{
+  "description": "Canonical chat.response example exercising the response envelope end to end: a model turn with a reasoning part (summary + replay-required signature) and an annotated text part (span-anchored citation), a two-lane finish (canonical reason max_tokens, native \"length\", incomplete detail), dimensional usage across the four disjoint token buckets (input / cached / output / reasoning), and provider anchors in info (the response id as a ProviderRef, the model echo, created). Synthetic, wire-accurate, hand-authored: the document is exactly what the omit-absent canonical encoders (to_dict) emit — no recorded provider traffic, no nulls, no empty bags, no raw lane.",
+  "shape": "chat.response",
+  "document": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "summary": "Weighing the two candidate species against the visible coat pattern.",
+          "signature": {
+            "provider": "openai",
+            "interface": "responses",
+            "kind": "thought_signature",
+            "id": "sig_resp_3f9d2c",
+            "replay": "required"
+          },
+          "type": "reasoning"
+        },
+        {
+          "version": "2026-07",
+          "text": "The photo shows a domestic cat (Felis catus). Tabby coats like this are among the most common patterns",
+          "annotations": [
+            {
+              "version": "2026-07",
+              "span": {
+                "start": 18,
+                "end": 44
+              },
+              "url": "https://example.com/encyclopedia/felis-catus",
+              "title": "Felis catus — Example Encyclopedia",
+              "cited_text": "domestic cat (Felis catus)"
+            }
+          ],
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "max_tokens",
+      "native": "length",
+      "detail": {
+        "version": "2026-07",
+        "note": "Output hit the 128-token ceiling before the sentence completed; raise max_output_tokens to finish the turn.",
+        "type": "incomplete"
+      }
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 684,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 128,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 96,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 384,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "openai",
+        "interface": "responses",
+        "kind": "response_id",
+        "id": "resp_0a1b2c3d4e5f",
+        "replay": "optional"
+      },
+      "model": "gpt-4o-2024-08-06",
+      "created": "2026-07-01T12:00:00+00:00"
+    }
+  }
+}

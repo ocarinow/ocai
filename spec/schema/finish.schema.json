@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/finish.schema.json",
+  "title": "FinishInfo",
+  "$comment": "Role: why generation stopped (docs/architecture.md §3.1; ocai/chat/types/finish.py FinishInfo) in omit-absent wire form. Two-lane honesty: `reason` is the canonical OPEN stop code and `native` preserves the provider's verbatim wire value — an unknown wire value decodes to reason \"unknown\" with the native lane intact, never a raise (total decode, rule 6). `detail` is a tagged union with its own open registry (DETAIL_REGISTRY): known tags dispatch to a variant subschema via if/then; a tag this revision does not know matches no branch and still validates (that payload decodes to DetailOpaque, byte-faithful). Boundary rule (normative): a mid-generation refusal or filter stop is a RESPONSE carrying this info; a pre-generation block is a ContentFilterError — no response existed to report on.",
+  "description": "Why generation stopped: the canonical open stop code, the provider's verbatim native value, and an optional typed elaboration.",
+  "type": "object",
+  "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+  "properties": {
+    "reason": {
+      "type": "string",
+      "description": "The canonical open stop code. Known canonical values: complete, max_tokens, stop_sequence, tool_call, content_filter, refusal, recitation, paused, malformed, error, unknown. An OPEN vocabulary, never a closed enum: a wire value core does not recognize decodes to \"unknown\" with `native` preserving it verbatim."
+    },
+    "native": {
+      "type": "string",
+      "description": "The provider's verbatim wire value (e.g. \"length\", \"end_turn\", \"RECITATION\"), always preserved — the second lane of the two-lane honesty pattern."
+    },
+    "detail": {
+      "$ref": "#/$defs/finishDetail",
+      "description": "The typed elaboration, when the reason warrants one (safety ratings, refusal categories, truncation notes, mid-generation errors)."
+    }
+  },
+  "required": ["reason"],
+  "$defs": {
+    "finishDetail": {
+      "$comment": "The FinishDetail tagged union (ocai/chat/types/finish.py), kept open through DETAIL_REGISTRY: known canonical tags dispatch to a variant subschema via if/then; unknown tags are LEGAL and decode to DetailOpaque, which preserves the payload verbatim. DetailOpaque doubles as the deliberate opaque member — finish details are terminal metadata, never re-encoded into requests, so the opaque/unknown split parts use is collapsed here.",
+      "type": "object",
+      "allOf": [
+        { "$ref": "parts.schema.json#/$defs/envelope" },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "safety" } } },
+          "then": { "$ref": "#/$defs/detailSafety" }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "refusal" } } },
+          "then": { "$ref": "#/$defs/detailRefusal" }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "incomplete" } } },
+          "then": { "$ref": "#/$defs/detailIncomplete" }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "error" } } },
+          "then": { "$ref": "#/$defs/detailError" }
+        }
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The open detail discriminator. Known canonical tags: safety, refusal, incomplete, error (plus the placeholder `undefined`). Unknown tags are LEGAL: readers decode them to DetailOpaque, preserving the payload verbatim."
+        }
+      }
+    },
+    "safetyRating": {
+      "$comment": "ocai/chat/types/finish.py SafetyRating — one per-category safety assessment inside a safety detail. Not an IR envelope carrier: a plain value object like span.",
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "The open safety-category code, provider-verbatim (e.g. \"HARM_CATEGORY_DANGEROUS_CONTENT\")."
+        },
+        "level": {
+          "type": "string",
+          "description": "The open severity/probability code, provider-verbatim (e.g. \"HIGH\"); absent when the provider gives none."
+        },
+        "blocked": {
+          "type": "boolean",
+          "description": "Whether this category triggered the block, when the provider says so."
+        }
+      },
+      "required": ["category"]
+    },
+    "detailSafety": {
+      "description": "Elaboration for safety-driven stops — reason \"content_filter\" (SafetyDetail).",
+      "properties": {
+        "ratings": {
+          "type": "array",
+          "description": "The per-category assessments the provider reported.",
+          "items": { "$ref": "#/$defs/safetyRating" }
+        },
+        "block_source": {
+          "type": "string",
+          "description": "The open code for which safety layer blocked (e.g. \"provider\", \"platform\"), when distinguishable."
+        }
+      }
+    },
+    "detailRefusal": {
+      "description": "Elaboration for refusal stops — reason \"refusal\", pairing with a refusal part (RefusalDetail).",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "The open refusal-category code, provider-verbatim, when given."
+        },
+        "explanation": {
+          "type": "string",
+          "description": "The provider's human-readable explanation, when given."
+        }
+      }
+    },
+    "detailIncomplete": {
+      "description": "Elaboration for truncated/paused stops — reasons \"max_tokens\" and \"paused\" (IncompleteDetail).",
+      "properties": {
+        "note": {
+          "type": "string",
+          "description": "The provider's explanation of what was cut short or how to resume, when given."
+        }
+      }
+    },
+    "detailError": {
+      "description": "Elaboration for error stops — reason \"error\" (ErrorDetail). A finish record on a response that partially exists; a call that produced nothing raises through the error taxonomy instead.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "The canonical error-taxonomy code, when mappable (e.g. \"transient\")."
+        },
+        "message": {
+          "type": "string",
+          "description": "The provider's error message, verbatim."
+        }
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@ Implements the fixture-to-schema mapping convention documented in
   `document` against the schema for `shape`.
 - An **edge fixture** (`src`/`dst`/`input`/`expect`) validates each side
   whose coordinate names the canonical interface (`provider == "ocai"`).
-- A **fold triple** (`node`/`wire_events`/`chunks`/`response`) validates
+- A **fold triple** (`node`/`chunks`/`response`, optional `wire_events`) validates
   `chunks` against `<capability>.chunk` and `response` against
   `<capability>.response`.
 
@@ -129,7 +129,7 @@ def _validatable_payloads(fixture: dict[str, Any], path: Path) -> list[tuple[str
             if coordinate.get("provider") == CANONICAL_PROVIDER:
                 triples.append((coordinate["shape"], fixture[payload_key], payload_key))
         return triples
-    if {"node", "wire_events", "chunks", "response"} <= fixture.keys():
+    if {"node", "chunks", "response"} <= fixture.keys():
         capability = str(fixture["node"]["shape"]).split(".", 1)[0]
         triples = [
             (f"{capability}.chunk", chunk, f"chunks[{index}]")
@@ -204,6 +204,26 @@ def test_canonical_chat_request_fixture_exercises_parts_tools_config() -> None:
     assert document["config"]["output"]["mode"] == "json_schema"
 
 
+def test_canonical_chat_response_fixture_exercises_finish_usage_info() -> None:
+    """The WU-03 response fixture actually covers what it claims to cover."""
+    fixture = _load_json(FIXTURES_DIR / "canonical" / "chat_response.json")
+    document = fixture["document"]
+    part_types = {part["type"] for part in document["message"]["parts"]}
+    assert {"reasoning", "text"} <= part_types
+    text_parts = [p for p in document["message"]["parts"] if p["type"] == "text"]
+    assert any(p.get("annotations") for p in text_parts), "fixture must exercise annotations"
+    assert document["finish"]["reason"] == "max_tokens"
+    assert document["finish"]["native"], "fixture must exercise the native lane"
+    assert document["finish"]["detail"]["type"] == "incomplete"
+    sources = {item["source"] for item in document["usage"]["consumptions"]}
+    assert {"input", "output", "reasoning", "cached"} <= sources, (
+        "fixture must exercise all four disjoint token buckets"
+    )
+    assert document["info"]["id"]["kind"] == "response_id"
+    assert document["info"]["model"], "fixture must exercise the model echo"
+    assert document["info"]["created"], "fixture must exercise created"
+
+
 # ---------------------------------------------------------------------------
 # The validator bites: open vocabularies admit unknowns, wrong types fail.
 # ---------------------------------------------------------------------------
@@ -262,6 +282,69 @@ def test_chat_request_requires_model_and_messages() -> None:
     assert _errors_for_shape_raw("chat_request", {"messages": []})
     assert _errors_for_shape_raw("chat_request", {"model": "m"})
     assert not _errors_for_shape_raw("chat_request", {"model": "m", "messages": []})
+
+
+def test_unknown_finish_reason_and_detail_tag_validate() -> None:
+    """Finish codes are open: unknown reasons and detail tags are legal."""
+    finish = {
+        "reason": "unknown",
+        "native": "TELEPATHY_LIMIT",
+        "detail": {"type": "telepathy", "waves": 3},
+    }
+    assert not _errors_for_shape_raw("finish", finish)
+
+
+def test_known_detail_tag_with_wrong_payload_type_fails() -> None:
+    """A known detail tag with a mistyped payload is rejected — branches apply."""
+    assert _errors_for_shape_raw(
+        "finish", {"reason": "error", "detail": {"type": "error", "message": 42}}
+    )
+    assert _errors_for_shape_raw(
+        "finish", {"reason": "content_filter", "detail": {"type": "safety", "ratings": "HIGH"}}
+    )
+    assert _errors_for_shape_raw(
+        "finish", {"reason": "max_tokens", "detail": {"type": "incomplete", "note": []}}
+    )
+
+
+def test_finish_requires_reason() -> None:
+    """`reason` is always emitted (defaults to unknown), so it may be required."""
+    assert _errors_for_shape_raw("finish", {"native": "stop"})
+    assert not _errors_for_shape_raw("finish", {"reason": "complete"})
+
+
+def test_usage_open_dimensions_validate_and_known_shape_bites() -> None:
+    """Consumption dimensions are open codes; the value/dimension types bind."""
+    open_codes = {
+        "consumptions": [{"value": 3, "modality": "smell", "unit": "sniffs", "source": "ambient"}]
+    }
+    assert not _errors_for_shape_raw("usage", open_codes)
+    gateway_cost = {
+        "consumptions": [
+            {"value": "0.0125", "modality": "text", "unit": "currency", "source": "output"}
+        ]
+    }
+    assert not _errors_for_shape_raw("usage", gateway_cost)
+    mistyped_value = {
+        "consumptions": [{"value": [1], "modality": "text", "unit": "tokens", "source": "input"}]
+    }
+    assert _errors_for_shape_raw("usage", mistyped_value)
+    assert _errors_for_shape_raw(
+        "usage", {"consumptions": [{"value": 3, "modality": "text", "unit": "tokens"}]}
+    ), "a consumption without its source dimension must fail"
+
+
+def test_chat_response_requires_message_only() -> None:
+    """`message` is the one always-emitted member; everything else is optional."""
+    assert _errors_for_shape_raw("chat_response", {})
+    assert not _errors_for_shape_raw(
+        "chat_response", {"message": {"role": "model", "parts": []}}
+    )
+    unknown_role_and_raw = {
+        "message": {"role": "narrator", "parts": []},
+        "raw": {"anything": ["goes", 1, None]},
+    }
+    assert not _errors_for_shape_raw("chat_response", unknown_role_and_raw)
 
 
 def test_edge_fixture_convention_maps_canonical_sides_only() -> None:

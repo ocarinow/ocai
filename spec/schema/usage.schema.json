@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/usage.schema.json",
+  "title": "Usage",
+  "$comment": "Role: aggregated consumption for one call (docs/architecture.md §3.1; ocai/chat/types/usage.py Usage) in omit-absent wire form. The dimensional model: each consumption pins one measured value to three OPEN string dimensions — what was consumed (modality), how it is counted (unit), and which bucket of the call it belongs to (source) — so a provider can report a dimension core has never named without a release (rule 6). Normalization rule (normative, per provider): the source buckets are DISJOINT — input excludes cached input, output excludes reasoning where the provider itemizes it — so a total is a plain sum and no token is ever counted twice; each dialect codec documents how it maps its wire fields onto the disjoint buckets. The currency unit is RESERVED for gateway-reported cost; first-party cost computation stays an interceptor's job, never the IR's.",
+  "description": "What one call consumed: a list of measured consumptions, each pinned to open modality/unit/source dimensions over disjoint buckets.",
+  "type": "object",
+  "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
+  "properties": {
+    "consumptions": {
+      "type": "array",
+      "description": "The measured consumptions for the call, in report order; omitted when the provider reported none.",
+      "items": { "$ref": "#/$defs/consumption" }
+    }
+  },
+  "$defs": {
+    "consumption": {
+      "$comment": "ocai/chat/types/usage.py Consumption — one measured quantity pinned to the dimensions that give it meaning. Not an IR envelope carrier: a plain value object like span.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": ["number", "string"],
+          "description": "The consumed amount. Numeric for counts; a string is legal for gateway-reported amounts (e.g. a decimal cost)."
+        },
+        "modality": {
+          "type": "string",
+          "description": "The open code for what kind of content was consumed. Known canonical values: text, image, audio, video. Unknown values are legal and preserved verbatim."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The open code for how the value is counted. Known canonical values: tokens, characters, requests, samples, currency (reserved for gateway-reported cost; the consumption's extensions carry the currency code). Unknown values are legal and preserved verbatim."
+        },
+        "source": {
+          "type": "string",
+          "description": "The open code for which DISJOINT bucket of the call this belongs to. Known canonical values: input (prompt, excluding cache reads), output (completion, excluding itemized reasoning), reasoning (itemized thinking), cached (cache-read input). Unknown values are legal and preserved verbatim."
+        }
+      },
+      "required": ["value", "modality", "unit", "source"]
+    }
+  }
+}
