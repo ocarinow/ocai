@@ -85,9 +85,14 @@ by **fold triples** — three correlated artifacts in one fixture:
 ```
 
 A conforming implementation MUST decode `wire_events` into documents
-`semantic_equal` to `chunks`, and `StreamAccumulator.fold(chunks)` MUST be
+`semantic_equal` to `chunks`, `StreamAccumulator.fold(chunks)` MUST be
 `semantic_equal` to `response` (with the `raw`/`raw_event` lanes excluded, per
-`canonical-json.md` §8). No new part type is admissible without its delta
+`canonical-json.md` §8), and every `partStop` carrying an authoritative final
+part MUST have that part equal the slot's delta accumulation (the ratchet's
+second clause — the harness checks it by re-folding with the finals stripped).
+`wire_events` is OPTIONAL: a canonical-node triple (`node.provider == "ocai"`)
+carries its chunks already canonical, so the decode leg is skipped and only
+the fold clauses run. No new part type is admissible without its delta
 type, its fold law, and paired chunks/response fixtures **in the same change**.
 
 ### Canonical document fixture (one canonical payload)
@@ -104,13 +109,65 @@ shape rather than a conversion:
 }
 ```
 
-### Normative unknown-X fixtures
+### Normative unknown-X fixtures (unknown vectors)
 
-`fixtures/` also carries total-decode vectors every port must pass: unknown
+`fixtures/unknown/` carries total-decode vectors every port must pass: unknown
 part tags decode to `PartUnknown`, unknown deltas to `DeltaUnknown`, unknown
-envelope keys sweep into `extensions`, unknown finish reasons decode to
-`reason: "unknown"` with the `native` lane preserved. **No decode path may
-ever raise on unknown input.**
+finish-detail tags to `DetailOpaque`, unknown envelope keys sweep into
+`extensions`, unknown finish reasons decode to `reason: "unknown"` with the
+`native` lane preserved, and unknown role codes are preserved verbatim. **No
+decode path may ever raise on unknown input.**
+
+Each vector is a canonical document fixture — same `shape`/`document` keys,
+same schema mapping (the open schemas accept unknown content by construction)
+— plus a required `expect` block declaring what total decode must do with the
+unknown material:
+
+```jsonc
+{
+  "description": "what unknown material this vector carries",
+  "shape": "message",
+  "document": { /* canonical payload with deliberately unknown content */ },
+  "expect": {
+    "fallbacks": [   // paths that MUST decode to the named fallback type
+      {"path": "parts[1]", "type": "PartUnknown"}
+    ],
+    "extensions": [  // undeclared keys that MUST sweep into their owner's extensions bag
+      {"owner": "", "key": "routing_tier"}
+    ],
+    "preserved": [   // paths whose re-encoded value MUST equal the document's, verbatim
+      {"path": "role"}
+    ]
+  }
+}
+```
+
+Paths are dot-separated member names with zero-based `[i]` indexing
+(`messages[0].parts[1]`); the empty string names the document root. The three
+`expect` lists are each optional and empty by default:
+
+- **`fallbacks`** — the value at `path` in the *decoded object graph* must be
+  an instance of the canonical fallback type named by `type`: one of
+  `PartUnknown`, `DeltaUnknown`, `DetailOpaque`, or `SourceUnknown`. The names
+  are the cross-language vocabulary; each port maps them onto its native types
+  (in Python, the class name).
+- **`extensions`** — `key` is not a declared member of the object at document
+  path `owner`; the tolerant reader must sweep it into that object's
+  `extensions` bag under the same key, where re-encoding must emit it.
+- **`preserved`** — the re-encoded value at `path` must be `semantic_equal` to
+  the document's value at `path` (open codes like unknown roles, the finish
+  `native` lane).
+
+A conforming implementation MUST satisfy, for every unknown vector (this is
+`conformance.check_unknown_inputs`, mirrored by every language port):
+
+1. decoding `document` never raises — total decode;
+2. every `fallbacks`, `extensions`, and `preserved` expectation holds;
+3. re-encoding the decoded value is `semantic_equal` to `document` *after
+   applying the declared sweeps* (each `extensions` entry relocates
+   `owner.key` to `owner.extensions.key`); with no sweeps declared the round
+   trip is verbatim — nothing is lost on the way to a future revision that
+   names the unknown material.
 
 ## How fixtures map to schemas (the validation convention)
 
@@ -126,14 +183,18 @@ fixture document itself, no side registry:
   against those ids.
 - **Canonical document fixture** (top-level `shape` + `document`): the
   `document` payload validates against the schema for `shape`.
+- **Unknown vector** (top-level `shape` + `document` + `expect`, under
+  `fixtures/unknown/`): validates exactly like a canonical document fixture —
+  the additive `expect` block is the total-decode contract (see "Normative
+  unknown-X fixtures" above), not a validated payload.
 - **Edge fixture** (top-level `src` + `dst` + `input` + `expect`): each side
   whose coordinate names the canonical interface (`provider == "ocai"`)
   validates its payload — `input` for `src`, `expect` for `dst` — against
   the schema for that side's `shape`. Provider-wire payloads are *not*
   validated against `schema/`: provider wire truth is the codec conformance
   suite's job, not the canonical schemas'.
-- **Fold triple** (top-level `node` + `wire_events` + `chunks` +
-  `response`): every entry of `chunks` validates against the canonical
+- **Fold triple** (top-level `node` + `chunks` + `response`; `wire_events`
+  optional): every entry of `chunks` validates against the canonical
   schema for `<capability>.chunk`, and `response` against the canonical
   schema for `<capability>.response`, where `<capability>` is the first
   segment of `node.shape`.

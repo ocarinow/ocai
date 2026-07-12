@@ -1,0 +1,15 @@
+{
+  "description": "Unknown finish reason, two-lane form: the canonical document a codec must produce when the provider's wire finish value is not recognized — `reason` is the open code \"unknown\" and `native` preserves the wire value verbatim. Both lanes must survive the canonical to_dict round trip untouched. Synthetic, hand-authored.",
+  "shape": "finish",
+  "document": {
+    "version": "2026-07",
+    "reason": "unknown",
+    "native": "quantum_decoherence"
+  },
+  "expect": {
+    "preserved": [
+      { "path": "reason" },
+      { "path": "native" }
+    ]
+  }
+}

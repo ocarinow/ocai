@@ -1,0 +1,20 @@
+{
+  "description": "Unknown role: a message authored by a role core has never seen. `role` is an open string code, not a closed enum — the unknown value must be preserved verbatim through decode and re-encode, never coerced to a sentinel and never raised on. Synthetic, hand-authored.",
+  "shape": "message",
+  "document": {
+    "version": "2026-07",
+    "role": "narrator",
+    "parts": [
+      {
+        "version": "2026-07",
+        "text": "Meanwhile, far from the observatory...",
+        "type": "text"
+      }
+    ]
+  },
+  "expect": {
+    "preserved": [
+      { "path": "role" }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "description": "Unknown part tag: a message whose second part carries a `type` this revision does not know. Total decode must land it on the PartUnknown fallback, byte-faithful — the payload (including its unrecognized tag, its `id`, and its nested content) survives the to_dict round trip verbatim for later upgrade via IR self-migration edges. Synthetic, hand-authored.",
+  "shape": "message",
+  "document": {
+    "version": "2026-07",
+    "role": "user",
+    "parts": [
+      {
+        "version": "2026-07",
+        "text": "What does the hologram show?",
+        "type": "text"
+      },
+      {
+        "type": "holographic_frame",
+        "id": "part_holo_1",
+        "frames": [
+          {
+            "depth_map": "AAECAw==",
+            "parallax": 0.42
+          }
+        ],
+        "codec": "lightfield/v2"
+      }
+    ]
+  },
+  "expect": {
+    "fallbacks": [
+      { "path": "parts[1]", "type": "PartUnknown" }
+    ],
+    "preserved": [
+      { "path": "parts[1].type" },
+      { "path": "parts[1].frames" }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "description": "Unknown delta tag: a streaming delta whose `type` this revision does not know (a future canonical delta). Total decode must land the whole document on the DeltaUnknown fallback, byte-faithful — no version stamp is injected and every member survives the to_dict round trip verbatim. Synthetic, hand-authored.",
+  "shape": "deltas",
+  "document": {
+    "type": "waveform",
+    "samples": [0, 1, 0, -1],
+    "rate_hz": 8000
+  },
+  "expect": {
+    "fallbacks": [
+      { "path": "", "type": "DeltaUnknown" }
+    ],
+    "preserved": [
+      { "path": "type" },
+      { "path": "samples" }
+    ]
+  }
+}

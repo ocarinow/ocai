@@ -1,0 +1,23 @@
+{
+  "description": "Unknown finish-detail tag: a finish record whose `detail` carries a `type` this revision does not know. Total decode must land the detail on the DetailOpaque fallback (the detail union's unknown-tag fallback), byte-faithful through the to_dict round trip, while the recognized `reason`/`native` lanes decode normally. Synthetic, hand-authored.",
+  "shape": "finish",
+  "document": {
+    "version": "2026-07",
+    "reason": "content_filter",
+    "native": "safety_stop",
+    "detail": {
+      "type": "safety_audit_trail",
+      "audit_id": "aud_9x2",
+      "layers": ["platform", "model"]
+    }
+  },
+  "expect": {
+    "fallbacks": [
+      { "path": "detail", "type": "DetailOpaque" }
+    ],
+    "preserved": [
+      { "path": "detail" },
+      { "path": "native" }
+    ]
+  }
+}

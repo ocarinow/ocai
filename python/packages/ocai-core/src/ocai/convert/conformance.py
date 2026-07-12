@@ -51,8 +51,9 @@ from ocai.core.identity import NodeId
 
 # A golden fixture: the JSON object documented in `spec/README.md` —
 # `{description, source: {provider, interface, tag}, raw, canonical}` for
-# conversion fixtures; fold triples additionally carry
-# `{events, chunks, response}`.
+# conversion fixtures; fold triples carry `{node, chunks, response}` plus an
+# optional `wire_events` (absent on canonical-node triples, whose chunks are
+# already canonical and need no decode leg).
 type Fixture = dict[str, Any]
 
 # `raw` provider payload -> `canonical` IR dict (as produced by `to_dict()`).
@@ -201,55 +202,149 @@ def assert_graph_roundtrip(
     return forward.report
 
 
+def _strip_authoritative_finals(chunks: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+    """Strip the authoritative final part from every delta-fed `partStop`.
+
+    The mechanical half of the ratchet's second clause: for each part slot
+    that received at least one `partDelta`, the `partStop`'s final part is
+    removed, so re-folding the stripped stream yields the *pure delta
+    accumulation* for that slot. A `partStop` whose slot saw no deltas
+    keeps its part — with nothing accumulated, the clause is vacuous and
+    the final is simply the part's only carrier.
+
+    The chunk vocabulary read here (`type`, `index`, `part`, and the
+    `partStart`/`partDelta`/`partStop` codes) is the spec's canonical
+    chunk-stream contract (`spec/schema/chat_chunk.schema.json`), not a
+    capability import; index resolution mirrors the normative accumulator
+    (explicit `index`, else the most recently started slot, else 0).
+
+    Args:
+        chunks: The fixture's canonical chunk dicts, in stream order.
+
+    Returns:
+        The stripped chunk list, or None when no chunk was stripped (the
+        clause has nothing to check).
+    """
+    order: list[int] = []
+    seen: set[int] = set()
+    fed: set[int] = set()
+    stripped: list[dict[str, Any]] = []
+    stripped_any = False
+    for chunk in chunks:
+        chunk_type = chunk.get("type")
+        explicit = chunk.get("index")
+        if chunk_type == "partStart":
+            index = explicit if isinstance(explicit, int) else len(order)
+            if index not in seen:
+                seen.add(index)
+                order.append(index)
+        elif chunk_type == "partDelta":
+            index = explicit if isinstance(explicit, int) else (order[-1] if order else 0)
+            if index not in seen:
+                seen.add(index)
+                order.append(index)
+            fed.add(index)
+        elif chunk_type == "partStop" and "part" in chunk:
+            index = explicit if isinstance(explicit, int) else (order[-1] if order else 0)
+            if index in fed:
+                chunk = {key: value for key, value in chunk.items() if key != "part"}
+                stripped_any = True
+        stripped.append(chunk)
+    return stripped if stripped_any else None
+
+
 def assert_fold_triple(
     fixture: Fixture,
     *,
-    decode_event: Callable[[Any], list[Any]],
-    fold: Callable[[list[Any]], Any],
+    decode_event: Callable[[Any], list[dict[str, Any]]] | None = None,
+    fold: Callable[[list[dict[str, Any]]], dict[str, Any]],
 ) -> None:
     """Assert one fold-triple fixture: wire events → chunks → folded response.
 
     The executable form of the streaming law
     `fold(stream(request)) == complete(request)` (rule 7). A fold triple
-    carries three correlated views of one streamed call:
+    carries correlated views of one streamed call:
 
-    - `events` — the recorded wire event log (decoded SSE data payloads),
+    - `wire_events` — the recorded wire event log, *optional*: absent on
+      canonical-node triples whose chunks are already canonical,
     - `chunks` — the canonical `ChatChunk` dicts those events must decode
       to,
     - `response` — the canonical response dict the chunks must fold to.
 
-    The runner asserts both legs with `semantic_equal`: every wire event
-    decodes to exactly the expected chunks (including the terminal
-    `streamStop` carrying `StreamEnd`), and folding the chunks reproduces
-    the response. `fold` is a parameter (typically
-    `StreamAccumulator.fold`) so this harness never imports a capability
-    package.
+    Three clauses, all under `semantic_equal`:
+
+    1. **Decode leg** (only when `wire_events` is present): the events
+       decode, in order, to exactly the expected chunks.
+    2. **Fold leg** (mandatory): folding the chunks reproduces the
+       response.
+    3. **The ratchet's second clause**: each `partStop`'s authoritative
+       final part MUST equal its delta accumulation — checked by stripping
+       the finals from every delta-fed `partStop`
+       (`_strip_authoritative_finals`) and asserting the re-fold still
+       reproduces the response.
+
+    `decode_event` and `fold` are parameters (typically wrapping the
+    codec's `decode_event` and `StreamAccumulator.fold`) so this harness
+    never imports a capability package; both speak plain dicts.
 
     Args:
-        fixture: A fold-triple fixture carrying `events`, `chunks`, and
-            `response`.
-        decode_event: The codec's wire-event → canonical-chunks function
-            (one event may yield zero or more chunks).
-        fold: The capability's normative accumulator, folding the chunk
-            sequence into a complete response object.
+        fixture: A fold-triple fixture carrying `chunks`, `response`, and
+            optionally `wire_events`.
+        decode_event: The codec's wire-event → canonical-chunk-dicts
+            function (one event may yield zero or more chunks); required
+            exactly when the fixture carries `wire_events`.
+        fold: The capability's normative accumulator, folding a canonical
+            chunk-dict sequence into the complete response dict.
 
     Raises:
-        AssertionError: If the decoded chunks or the folded response
-            diverge from the fixture.
+        AssertionError: If any clause diverges from the fixture, or the
+            fixture carries `wire_events` but no `decode_event` was
+            supplied.
     """
-    # TODO: decode fixture["events"] through decode_event in order, flatten,
-    # semantic_equal each chunk's to_dict() against fixture["chunks"]; then
-    # fold the decoded chunks and semantic_equal the result's to_dict()
-    # against fixture["response"]; also assert PART_STOP finals equal their
-    # delta accumulation (the ratchet's second clause).
-    raise NotImplementedError
+    expected_chunks: list[dict[str, Any]] = fixture["chunks"]
+    wire_events = fixture.get("wire_events")
+    if wire_events is not None:
+        assert decode_event is not None, (
+            "fixture carries wire_events but no decode_event was supplied — "
+            "the decode leg cannot be verified"
+        )
+        decoded: list[dict[str, Any]] = []
+        for event in wire_events:
+            decoded.extend(decode_event(event))
+        assert len(decoded) == len(expected_chunks), (
+            "decode_event(wire_events) yielded a different number of chunks "
+            f"than the fixture expects: {len(decoded)} != {len(expected_chunks)}"
+        )
+        pairs = zip(decoded, expected_chunks, strict=True)
+        for position, (actual, expected) in enumerate(pairs):
+            assert semantic_equal(actual, expected), (
+                f"decoded chunk [{position}] did not match the fixture.\n"
+                f"  expected: {canonical(expected)}\n"
+                f"  actual:   {canonical(actual)}"
+            )
+    folded = fold(list(expected_chunks))
+    assert semantic_equal(folded, fixture["response"]), (
+        "fold(chunks) did not reproduce the fixture's response (the fold law).\n"
+        f"  expected: {canonical(fixture['response'])}\n"
+        f"  actual:   {canonical(folded)}"
+    )
+    stripped = _strip_authoritative_finals(expected_chunks)
+    if stripped is not None:
+        refolded = fold(stripped)
+        assert semantic_equal(refolded, fixture["response"]), (
+            "a partStop's authoritative final part does not equal its delta "
+            "accumulation (the ratchet's second clause): re-folding with the "
+            "finals stripped diverged from the response.\n"
+            f"  expected: {canonical(fixture['response'])}\n"
+            f"  actual:   {canonical(refolded)}"
+        )
 
 
 def check_fold_triples(
     directory: str | Path,
     *,
-    decode_event: Callable[[Any], list[Any]],
-    fold: Callable[[list[Any]], Any],
+    decode_event: Callable[[Any], list[dict[str, Any]]] | None = None,
+    fold: Callable[[list[dict[str, Any]]], dict[str, Any]],
     pattern: str = "*.json",
 ) -> list[Path]:
     """Run `assert_fold_triple` over every fixture in `directory`.
@@ -260,8 +355,10 @@ def check_fold_triples(
 
     Args:
         directory: The folder of fold-triple fixtures to check.
-        decode_event: The codec's wire-event → canonical-chunks function.
-        fold: The capability's normative accumulator.
+        decode_event: The codec's wire-event → canonical-chunk-dicts
+            function; required for fixtures carrying `wire_events`.
+        fold: The capability's normative accumulator, folding a canonical
+            chunk-dict sequence into the complete response dict.
         pattern: The glob selecting fixture files.
 
     Returns:
@@ -304,37 +401,216 @@ def certify_edge(edge: Edge, payloads: Iterable[Any]) -> list[ContractViolation]
     return violations
 
 
+def _split_path(path: str) -> list[str | int]:
+    """Parse the unknown-vector path grammar into name and index segments.
+
+    The grammar (`spec/README.md`, "Normative unknown-X fixtures"):
+    dot-separated member names with zero-based `[i]` indexing
+    (`messages[0].parts[1]`); the empty string names the root.
+
+    Args:
+        path: The fixture path expression.
+
+    Returns:
+        The segments in order — member names as strings, indices as ints.
+    """
+    segments: list[str | int] = []
+    for token in path.split("."):
+        if not token:
+            continue
+        name, bracket, rest = token.partition("[")
+        if name:
+            segments.append(name)
+        while bracket:
+            index_text, _, rest = rest.partition("]")
+            segments.append(int(index_text))
+            _, bracket, rest = rest.partition("[")
+    return segments
+
+
+def _walk(root: Any, segments: list[str | int]) -> Any:
+    """Resolve path `segments` against a document dict or a decoded object.
+
+    Integer segments index into sequences; string segments read mapping keys
+    on dicts and attributes on anything else — so one walker serves both the
+    fixture `document` and the decoded IR object graph.
+
+    Args:
+        root: The value to walk from.
+        segments: The parsed path segments.
+
+    Returns:
+        The value at the path.
+
+    Raises:
+        AssertionError: If a segment cannot be resolved — the value is
+            missing material the fixture addresses.
+    """
+    resolved = root
+    for segment in segments:
+        try:
+            if isinstance(segment, int):
+                resolved = resolved[segment]
+            elif isinstance(resolved, dict):
+                resolved = resolved[segment]
+            else:
+                resolved = getattr(resolved, segment)
+        except (KeyError, IndexError, AttributeError, TypeError) as exc:
+            raise AssertionError(
+                f"path segment {segment!r} cannot be resolved on "
+                f"{type(resolved).__name__}: {exc}"
+            ) from exc
+    return resolved
+
+
+def _apply_sweeps(document: dict[str, Any], sweeps: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return a copy of `document` with each declared extensions sweep applied.
+
+    Builds the round-trip expectation for an unknown vector: every swept key
+    is removed from its owner object and re-homed under the owner's
+    `extensions` bag, exactly as the tolerant reader does.
+
+    Args:
+        document: The vector's canonical document.
+        sweeps: The vector's `expect.extensions` entries
+            (`{"owner": <path>, "key": <member>}`).
+
+    Returns:
+        The expected re-encoded document.
+
+    Raises:
+        AssertionError: If a sweep's owner is not an object or its key is
+            not present in the document — a malformed vector.
+    """
+    expected: dict[str, Any] = json.loads(json.dumps(document))
+    for sweep in sweeps:
+        owner = _walk(expected, _split_path(sweep["owner"]))
+        key = sweep["key"]
+        assert isinstance(owner, dict) and key in owner, (
+            f"malformed vector: sweep key {key!r} is not a member of the "
+            f"document object at {sweep['owner']!r}"
+        )
+        owner.setdefault("extensions", {})[key] = owner.pop(key)
+    return expected
+
+
+def assert_unknown_vector(fixture: Fixture, *, decode: Callable[[dict[str, Any]], Any]) -> None:
+    """Assert one unknown-X vector: total decode, fallback typing, no loss.
+
+    The executable form of rule 6 for a single vector (the fixture shape and
+    `expect` vocabulary are normative in `spec/README.md`, "Normative
+    unknown-X fixtures"). Four assertions:
+
+    1. **Total decode** — `decode(document)` never raises, whatever unknown
+       material the document carries.
+    2. **Fallback typing** — every `expect.fallbacks` path decodes to the
+       canonical fallback type it names. Types are compared by *name*
+       (`PartUnknown`, `DeltaUnknown`, `DetailOpaque`, `SourceUnknown`) so
+       this module never imports a capability package and the vocabulary
+       stays language-neutral.
+    3. **Sweeps and preservation** — every `expect.extensions` key lands
+       verbatim in its owner's `extensions` bag (and only there), and every
+       `expect.preserved` path re-encodes `semantic_equal` to the document's
+       value.
+    4. **Round trip** — `to_dict()` of the decoded value is `semantic_equal`
+       to the document with the declared sweeps applied; verbatim when none
+       are declared.
+
+    Args:
+        fixture: An unknown vector carrying `document` and `expect`.
+        decode: The decoder under test (canonical document dict → IR object
+            exposing `to_dict`).
+
+    Raises:
+        AssertionError: If decoding raises, a fallback lands on the wrong
+            type, a sweep or preservation expectation fails, or the round
+            trip loses material.
+    """
+    document = fixture["document"]
+    expect: dict[str, Any] = fixture.get("expect") or {}
+    try:
+        decoded = decode(document)
+    except Exception as exc:  # total decode: NOTHING may escape the decoder.
+        raise AssertionError(
+            f"total decode violated: decode raised {type(exc).__name__}: {exc}"
+        ) from exc
+    for entry in expect.get("fallbacks") or []:
+        target = _walk(decoded, _split_path(entry["path"]))
+        assert type(target).__name__ == entry["type"], (
+            f"expected {entry['path'] or '<root>'} to decode to the "
+            f"{entry['type']} fallback, got {type(target).__name__}"
+        )
+    reencoded = decoded.to_dict()
+    sweeps: list[dict[str, Any]] = expect.get("extensions") or []
+    for entry in sweeps:
+        owner_segments = _split_path(entry["owner"])
+        key = entry["key"]
+        document_owner = _walk(document, owner_segments)
+        reencoded_owner = _walk(reencoded, owner_segments)
+        bag = reencoded_owner.get("extensions") or {}
+        assert key in bag and semantic_equal(bag[key], document_owner[key]), (
+            f"expected key {key!r} at {entry['owner'] or '<root>'} to sweep "
+            f"verbatim into its owner's extensions bag; bag holds {sorted(bag)}"
+        )
+        assert key not in reencoded_owner, (
+            f"swept key {key!r} must not also survive as a member of its owner"
+        )
+    for entry in expect.get("preserved") or []:
+        segments = _split_path(entry["path"])
+        expected_value = _walk(document, segments)
+        actual_value = _walk(reencoded, segments)
+        assert semantic_equal(actual_value, expected_value), (
+            f"expected {entry['path']!r} to re-encode verbatim.\n"
+            f"  expected: {canonical(expected_value)}\n"
+            f"  actual:   {canonical(actual_value)}"
+        )
+    expected_document = _apply_sweeps(document, sweeps)
+    assert semantic_equal(reencoded, expected_document), (
+        "re-encoding the decoded value lost or reshaped material.\n"
+        f"  expected: {canonical(expected_document)}\n"
+        f"  actual:   {canonical(reencoded)}"
+    )
+
+
 def check_unknown_inputs(
     directory: str | Path,
     *,
     decode: Callable[[dict[str, Any]], Any],
     pattern: str = "*.json",
 ) -> list[Path]:
-    """Run the normative unknown-X fixtures: total decode, never a raise.
+    """Run the normative unknown-X vectors: total decode, never a raise.
 
     The executable form of rule 6, and part of the cross-language
-    conformance bar (TS/Go ports run the same fixtures). Each fixture's
-    `raw` contains deliberately unknown material — unknown part/delta/detail
-    tags, unknown envelope keys, unknown enum codes — and the runner asserts
-    the decoder (a) never raises, (b) lands unknown tags on the registered
-    Unknown fallback types, (c) sweeps unknown envelope keys into
-    `extensions`, and (d) preserves everything verbatim through a
-    `to_dict()` round trip (`semantic_equal`), so nothing is lost on the
-    way to a future revision that names it.
+    conformance bar (TS/Go ports run the same fixtures). Each vector's
+    `document` contains deliberately unknown material — unknown part/delta/
+    detail tags, unknown envelope keys, unknown open codes — and the runner
+    asserts, per `assert_unknown_vector`: the decoder (a) never raises,
+    (b) lands unknown tags on the registered Unknown fallback types,
+    (c) sweeps unknown envelope keys into `extensions`, and (d) preserves
+    everything verbatim through a `to_dict()` round trip (`semantic_equal`),
+    so nothing is lost on the way to a future revision that names it. The
+    vector shape and `expect` vocabulary are documented in `spec/README.md`
+    ("Normative unknown-X fixtures").
 
     Args:
-        directory: The folder of unknown-X fixtures to check.
-        decode: The decoder under test (raw dict → IR object).
-        pattern: The glob selecting fixture files.
+        directory: The folder of unknown-X vectors to check.
+        decode: The decoder under test (canonical document dict → IR
+            object); use `pattern` to select the vectors this decoder
+            handles (e.g. `"message_*.json"`).
+        pattern: The glob selecting vector files.
 
     Returns:
-        The list of fixture paths that were checked.
+        The list of vector paths that were checked.
 
     Raises:
-        AssertionError: If any decode raises, drops unknown material, or
-            no fixtures are found.
+        AssertionError: If any vector fails, or none are found.
     """
-    # TODO: needs the fixture vocabulary for expectations ("expect" blocks
-    # naming which paths must decode to Unknown types vs sweep to
-    # extensions) plus the verbatim-preservation round-trip assertion.
-    raise NotImplementedError
+    checked: list[Path] = []
+    for path, fixture in iter_fixtures(directory, pattern=pattern):
+        try:
+            assert_unknown_vector(fixture, decode=decode)
+        except AssertionError as exc:
+            raise AssertionError(f"{path}: {exc}") from exc
+        checked.append(path)
+    assert checked, f"no unknown-X vectors found in {directory!r} — nothing was checked"
+    return checked

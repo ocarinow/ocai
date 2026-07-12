@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/schema/deltas.schema.json",
+  "title": "Delta",
+  "$comment": "Role: the canonical streaming delta union (docs/architecture.md §3.1; ocai/chat/types/stream.py). One document = one Delta in omit-absent wire form, mirroring the part taxonomy one-to-one (the streaming ratchet: no new part type without its delta type). The `type` tag is an OPEN string vocabulary: known canonical tags dispatch to a variant subschema via if/then; a tag this revision does not know matches no branch and still validates (that payload decodes to DeltaUnknown — total decode, never a raise). The M2 chat_chunk.schema.json references this file for its `delta` lane.",
+  "description": "One canonical streaming delta: a tagged union on `type`, kept open through the delta registry. Applied to an open part slot by StreamAccumulator with append semantics per delta type.",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "The open delta discriminator. Known canonical tags: text, tool_args, reasoning, signature, annotation, refusal, blob (plus the placeholder `undefined`). Unknown tags are LEGAL: readers decode them to DeltaUnknown, preserving the payload verbatim."
+    }
+  },
+  "allOf": [
+    { "$ref": "parts.schema.json#/$defs/envelope" },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "text" } } },
+      "then": { "$ref": "#/$defs/deltaText" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "tool_args" } } },
+      "then": { "$ref": "#/$defs/deltaToolArgs" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "reasoning" } } },
+      "then": { "$ref": "#/$defs/deltaReasoning" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "signature" } } },
+      "then": { "$ref": "#/$defs/deltaSignature" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "annotation" } } },
+      "then": { "$ref": "#/$defs/deltaAnnotation" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "refusal" } } },
+      "then": { "$ref": "#/$defs/deltaRefusal" }
+    },
+    {
+      "if": { "required": ["type"], "properties": { "type": { "const": "blob" } } },
+      "then": { "$ref": "#/$defs/deltaBlob" }
+    }
+  ],
+  "$defs": {
+    "deltaText": {
+      "description": "A text fragment appended to the open text part (DeltaText).",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The fragment, appended verbatim."
+        }
+      }
+    },
+    "deltaToolArgs": {
+      "description": "A tool-argument string fragment appended to the open tool_call part (DeltaToolArgs). Raw string pieces concatenated onto args_json and parsed once, at PART_STOP — fragments are rarely valid JSON on their own.",
+      "properties": {
+        "fragment": {
+          "type": "string",
+          "description": "The raw argument-string fragment, appended verbatim."
+        }
+      }
+    },
+    "deltaReasoning": {
+      "description": "A reasoning fragment appended to the open reasoning part (DeltaReasoning); the two textual lanes stream independently on some interfaces.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "A raw reasoning-text fragment, when streamed."
+        },
+        "summary": {
+          "type": "string",
+          "description": "A summary fragment, when streamed."
+        }
+      }
+    },
+    "deltaSignature": {
+      "description": "A reasoning-signature fragment for the open reasoning part (DeltaSignature); signatures stream as opaque string pieces and the codec's transducer mints the final ProviderRef on the sealed part.",
+      "properties": {
+        "signature": {
+          "type": "string",
+          "description": "The signature fragment, verbatim."
+        }
+      }
+    },
+    "deltaAnnotation": {
+      "description": "A completed citation appended to the open text part (DeltaAnnotation); annotations arrive whole, never as fragments.",
+      "properties": {
+        "annotation": {
+          "$ref": "parts.schema.json#/$defs/annotation",
+          "description": "The completed span-anchored citation."
+        }
+      }
+    },
+    "deltaRefusal": {
+      "description": "A refusal-text fragment appended to the open refusal part (DeltaRefusal).",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The fragment, appended verbatim."
+        }
+      }
+    },
+    "deltaBlob": {
+      "description": "A base64 media fragment appended to the open media part (DeltaBlob); the sealed part's inline base64 Source is the concatenation.",
+      "properties": {
+        "data": {
+          "type": "string",
+          "description": "The base64 fragment, appended verbatim."
+        }
+      }
+    }
+  }
+}

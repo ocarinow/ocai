@@ -1,0 +1,34 @@
+{
+  "description": "Unknown envelope keys: a chat.request carrying two undeclared top-level members (`routing_tier`, `watermark`) and a message carrying one (`mood`) — the additive fields of a newer peer. The tolerant reader must sweep each into its OWNER's `extensions` bag (root keys to the request's bag, the message key to that message's bag), preserving the values verbatim; nothing else moves. Synthetic, hand-authored.",
+  "shape": "chat.request",
+  "document": {
+    "version": "2026-07",
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "hello",
+            "type": "text"
+          }
+        ],
+        "mood": "wistful"
+      }
+    ],
+    "routing_tier": "priority-express",
+    "watermark": {
+      "enabled": true,
+      "profile": "wm-3"
+    }
+  },
+  "expect": {
+    "extensions": [
+      { "owner": "", "key": "routing_tier" },
+      { "owner": "", "key": "watermark" },
+      { "owner": "messages[0]", "key": "mood" }
+    ]
+  }
+}
