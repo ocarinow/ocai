@@ -2,9 +2,10 @@
 
 The port (`ChatModel`), the canonical chat IR (`ocai.chat.types`), the
 canonical graph nodes (`ocai.chat.canonical`), and the wire-backed facade
-(`WireChatModel`). Everything except `model.py` depends on `ocai.core`
-only; `model.py` is the one designated module that composes
-convert/runtime/wire behind the port.
+(`WireChatModel`). Everything except `facade.py` depends on `ocai.core`
+only; `facade.py` is the one designated module that composes
+convert/runtime/wire behind the port (named `facade` so the future
+`ocai.chat.model()` front-door factory is never shadowed by a module).
 
 The curated exports below are the user-facing surface: build a
 `ChatRequest` from `Message`s and `Tool`s, call any `ChatModel`, receive a
@@ -16,7 +17,7 @@ from ocai.chat.canonical import CANONICAL_CHAT_REQUEST
 from ocai.chat.canonical import CANONICAL_CHAT_RESPONSE
 from ocai.chat.canonical import OCAI_INTERFACE
 from ocai.chat.canonical import REVISION
-from ocai.chat.model import WireChatModel
+from ocai.chat.facade import WireChatModel
 from ocai.chat.protocol import ChatModel
 from ocai.chat.types import AsyncChatStream
 from ocai.chat.types import ChatChunk

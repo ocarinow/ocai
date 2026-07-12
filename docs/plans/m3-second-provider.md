@@ -1,6 +1,6 @@
 # M3 — The second provider and the proofs
 
-Goal: Anthropic end-to-end **with zero changes to `ocai/chat/model.py`** (the
+Goal: Anthropic end-to-end **with zero changes to `ocai/chat/facade.py`** (the
 pattern-replay claim, tested), plus the cross-conversion fidelity report demo
 — flagship demo #1. Architecture refs: §7 (plugin shape), §8 (lifecycle), §2.2
 (SemanticShift), §2.4 (ProviderRef crossing rule).
@@ -28,7 +28,7 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
   error pairs; facade unary tests for anthropic mirroring
   `test_facade_unary.py`.
 - **Done:** chat/achat e2e green **with zero changes to
-  `ocai/chat/model.py`** — assert the pattern holds; this is the "adding
+  `ocai/chat/facade.py`** — assert the pattern holds; this is the "adding
   providers follows the same pattern" proof. pytest green.
 - **Deps:** WU-07, WU-13.
 
@@ -59,28 +59,33 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
   test; pytest green.
 - **Deps:** WU-06 + WU-13 only.
 
-## WU-16 — The front door: `ocai.chat.model()` + plugins become pure data
+## WU-16 — The front doors wired end-to-end (§3.4)
 
-Maintainer course-correction (2026-07-13): users must NEVER import from a
-provider package; installing `ocai-openai` only augments the graph. No
-framework containers.
+Maintainer-refined design (2026-07-13): TWO equivalent doors, neither forced —
+the core string door for data-driven switching, and the plugin helper as
+sanctioned sugar over the same machinery. Installing a provider dist has
+exactly one structural effect: graph augmentation. No framework containers.
 
-- **Scope:** (1) NEW `ocai.chat.model(provider, *, credentials, host=None,
-  catalog=None, transport=None, interceptors=())` per architecture §3.4 —
+- **Scope:** (1) NEW `ocai.chat.model(provider, model_name, *, credentials,
+  host=None, catalog=None, transport=None, interceptors=())` per §3.4 —
   resolves against the discovered default catalog (or an explicit one), builds
   the codec via the fragment's component factory, composes the `Binding`
   internally (`Direct` from the fragment's first-party endpoint data), returns
-  a `ChatModel`. (2) Move first-party endpoint data (base URL) into the
-  fragment (extend `DialectTraits` or the `Component` descriptor — decide
-  in-WU) so the front door never imports a plugin. (3) DELETE the
-  `chat_model()` prefills from both plugins and the `Workspace` class from
-  `ocai/runtime/binding.py` (keep `Binding` + `validate()`; scrub Workspace
-  from runtime docstrings and the catalog.py docstring). (4)
-  `ocai/runtime/dual.py` — `from_sync`/`from_async`. (5) `Catalog.discover()`
-  integration test (entry points already declared).
-- **Done:** the §3.4 five-liner works end-to-end on a recorded pair with ZERO
-  provider imports; grep proves no `Workspace` and no plugin prefill remains;
+  a `ChatModel` bound to `model_name`. Lives in `ocai/chat/__init__.py` (the
+  facade module is `chat/facade.py` — never shares the factory's name).
+  (2) Move first-party endpoint data (base URL) into the fragment (extend
+  `DialectTraits` or the `Component` descriptor — decide in-WU) so the core
+  door never imports a plugin. (3) WIRE the plugin `chat_model()` helpers
+  (currently NotImplementedError stubs) as thin wrappers over the exact same
+  fragment + facade path — deferred imports per the documented seam.
+  (4) DELETE the `Workspace` class from `ocai/runtime/binding.py` (keep
+  `Binding` + `validate()`; scrub Workspace from runtime docstrings and the
+  catalog.py docstring). (5) `ocai/runtime/dual.py` — `from_sync`/`from_async`.
+  (6) `Catalog.discover()` integration test (entry points already declared).
+- **Done:** the §3.4 five-liner works end-to-end on a recorded pair with zero
+  provider imports; `ocai.openai.chat_model("gpt-5", credentials=...)` returns
+  the identical composition (asserted); grep proves no `Workspace` remains;
   dual adapters pass sync↔async round-trips; the discovery test composes both
   installed fragments; pytest green.
-- **Deps:** WU-07 (facade); pull EARLY — right after WU-07 — so no example or
-  test ever teaches the plugin-import path.
+- **Deps:** WU-07 (facade); pull EARLY — right after WU-07 — so examples and
+  tests teach the real doors from the start.

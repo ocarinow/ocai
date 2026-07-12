@@ -25,7 +25,7 @@ milestone files to `archive/`; this roadmap replaces them.
   layered contract (`ocai.core` ← capabilities ← `ocai.convert` ←
   `ocai.runtime` ← `ocai.wire`); forbidden contracts (plugins must not import
   `ocai.wire`/`ocai.runtime`/httpx) with the single sanctioned exception
-  `ocai.chat.model`; `.github/workflows/ci.yml` — add `uv run lint-imports`;
+  `ocai.chat.facade`; `.github/workflows/ci.yml` — add `uv run lint-imports`;
   `ocai/convert/catalog.py` — finish the canonical-backbone admission check in
   `_admit` (every edge endpoint canonical or fragment-owned).
 - **Done:** `lint-imports` passes locally and in CI; a violation smoke test
@@ -43,7 +43,7 @@ milestone files to `archive/`; this roadmap replaces them.
   until a real fragment needs it.
 - **Decision:** import-linter runs with `exclude_type_checking_imports = true`
   (annotation-only imports are erased at runtime and carry no layer
-  coupling). Besides the sanctioned `ocai.chat.model` exception, the layered
+  coupling). Besides the sanctioned `ocai.chat.facade` exception, the layered
   contract `ignore_imports` the runtime drivers'/binding's documented
   *deferred* function-level imports of `ocai.wire` value modules
   (http/sse/transport) — the package arrow stays wire → runtime. A third
@@ -162,7 +162,7 @@ door.
   no longer reads `request.model`; the wire `model` field is injected from the
   bound resource (thread it through the edge/codec signature the way
   `EndpointSpec.resource` already flows; decide the exact seam in-WU and
-  record it). Censuses updated (no `model` row). (4) `ocai/chat/model.py` —
+  record it). Censuses updated (no `model` row). (4) `ocai/chat/facade.py` —
   `WireChatModel` gains the bound `model_name`; document that the §3.4 front
   doors pass it at construction. (5) Reinstate the plugin helper stubs
   (`ocai.openai.chat_model`, `ocai.anthropic.chat_model`) as thin sanctioned
@@ -222,7 +222,7 @@ door.
 
 ## WU-07 — Facade unary lifecycle: `WireChatModel.chat/achat` — **MILESTONE M1**
 
-- **Scope:** `ocai/chat/model.py` — the §8 assembly:
+- **Scope:** `ocai/chat/facade.py` — the §8 assembly:
   `catalog.resolve(CHAT, provider, pins)` → `Route`;
   `catalog.convert(request, canonical → route node)`; build `EndpointSpec`
   (Operation from the codec's `native_path`, `DialectTraits` from the
@@ -230,7 +230,7 @@ door.
   `catalog.convert(raw → canonical)`; merge request-leg + response-leg
   reports; extract usage; assemble `CallResult` (raw verbatim, never
   credentials). `achat` over `AsyncDriver` with shared pure helpers. Replace
-  `codec: Any` with a small typed codec Protocol (home: `ocai.chat.model`).
+  `codec: Any` with a small typed codec Protocol (home: `ocai.chat.facade`).
 - **Tests:** `tests/test_facade_unary.py` on recorded pairs replayed through
   the real `HttpxTransport` via respx: the existing
   `tests/http/openai_chat_completion.json`, plus new tool-call, 429-then-200

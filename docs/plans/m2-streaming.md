@@ -118,7 +118,7 @@ in parallel sessions/branches; WU-11 joins the tracks.
 
 ## WU-11 — Facade streaming: `stream/astream` — **MILESTONE M2**
 
-- **Scope:** `ocai/chat/model.py` — `stream`/`astream`: encode via graph;
+- **Scope:** `ocai/chat/facade.py` — `stream`/`astream`: encode via graph;
   `catalog.stream_converter(wire chunk node → canonical chunk node)`; driver
   stream pump; wrap in `ChatStream`/`AsyncChatStream` (verify
   `.end`-after-iteration); `StreamEnd.report` = request-leg report +

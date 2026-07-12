@@ -2,7 +2,13 @@
 
 The named input the `EmbeddingModel` port takes — the structural fix for
 the old port, which accepted a loose `Embeddable` union and therefore had
-no home for the model name or per-request options.
+no home for per-request options.
+
+There is deliberately **no `model` field** (mirroring chat's WU-05a
+course-correction): the model name is provider-specific routing data, bound
+to the model object at the front door and injected into the wire payload by
+the codec from `EndpointSpec.resource` — a request is a pure, portable
+graph payload.
 
 Provisional per architecture §9: freezes only after it carries `CallResult`
 in real use.
@@ -26,10 +32,12 @@ class EmbeddingRequest(IRObject):
     The constructor accepts the same sugar the old port did — a bare string
     or `Document`, or a list of either — normalized to `list[Document]` in
     `__post_init__`, so codecs and edges only ever see one shape (the same
-    boundary-sugar pattern as chat's `Message`).
+    boundary-sugar pattern as chat's `Message`). And no `model`: the model
+    name is routing data bound to the model object at the front door,
+    injected on the wire by the codec from the bound resource — the same
+    request replays against any bound model with zero edits.
 
     Attributes:
-        model: The identifier of the embedding model to invoke.
         inputs: The documents to embed, in order; `Embedding.index` in the
             response aligns to this list.
         dimensions: The requested output dimensionality, where the provider
@@ -38,7 +46,6 @@ class EmbeddingRequest(IRObject):
 
     object: ClassVar[str] = "embedding.request"
 
-    model: str
     inputs: list[Document]
     dimensions: int | None = None
 
@@ -65,14 +72,13 @@ class EmbeddingRequest(IRObject):
         """Build an `EmbeddingRequest` from a serialized dict, totally.
 
         Args:
-            data: A mapping with `model`, `inputs`, the optional
-                `dimensions`, and the common IR envelope keys.
+            data: A mapping with `inputs`, the optional `dimensions`, and
+                the common IR envelope keys.
 
         Returns:
             The decoded `EmbeddingRequest`.
         """
         return cls(
-            model=data.get("model", ""),
             inputs=[
                 Document.from_dict(item)
                 for item in data.get("inputs") or []

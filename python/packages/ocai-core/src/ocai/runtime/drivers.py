@@ -4,7 +4,7 @@ There is exactly one request pipeline (architecture §8) and these two classes
 are its only executors; everything that is not the physical I/O call is
 synchronous, pure, and shared between them (the module-level helpers below):
 
-1. **encode** — already done by the facade (`ocai.chat.model.WireChatModel`)
+1. **encode** — already done by the facade (`ocai.chat.facade.WireChatModel`)
    via the conversion graph; the driver receives an encoded wire payload.
 2. **policy hooks** — every `WirePolicy.on_request` judges the (still
    unauthenticated) request; the first non-`Proceed` decision wins and the

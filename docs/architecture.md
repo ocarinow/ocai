@@ -33,8 +33,9 @@ failure.
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ ocai.core        CONTRACT LAYER — pure stdlib, zero deps, zero I/O         │
-│                  identity · fidelity · errors · result · credentials ·     │
-│                  refs · profile · ir · canonjson · jsonschema · sources    │
+│                  identity · fidelity · errors · result · usage · finish ·  │
+│                  credentials · refs · profile · ir · canonjson ·           │
+│                  jsonschema · sources                                      │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ ocai.chat / ocai.embedding / ocai.vectorstore    CAPABILITY CONTRACTS      │
 │                  port Protocol + canonical IR types    (→ core only)       │
@@ -48,8 +49,10 @@ failure.
 │ ocai.wire        REMOTE TRANSPORT — HttpRequest/Response, SSE, transports, │
 │                  hosts, wire policies    (→ runtime; httpx via extra)      │
 └────────────────────────────────────────────────────────────────────────────┘
-   ocai.chat.model (the wire-backed facade) is the ONE chat module allowed to
-   import convert/runtime/wire — the port and types never do.
+   ocai.chat.facade (the wire-backed facade) is the ONE chat module allowed to
+   import convert/runtime/wire — the port and types never do. Convention: a
+   facade module never shares the front-door factory's name, so the future
+   ocai.chat.model() factory (§3.4) is never shadowed by a module.
 
  Plugin dists (ocai-openai, ocai-anthropic, …): one subpackage PER INTERFACE
  (ocai.openai.chat_completions, ocai.openai.responses). Depend on core+convert
@@ -121,11 +124,18 @@ smuggle it through bags.
 
 ### 2.4 `refs.py` — provider-anchored state [frozen-candidate]
 
-`ProviderRef(provider, interface, kind, id, replay)` names state that lives on
-a provider's side: `previous_response_id`, file handles, thought signatures,
-audio ids. Structural rule enforced by the graph: **a `ProviderRef` crossing
-any other `(provider, interface)` is `UNSUPPORTED` — reported, never silently
-dropped.** `replay ∈ {OPTIONAL, REQUIRED}`: REQUIRED anchors (Gemini
+`ProviderRef(provider, interface, kind, id, replay, scope, qualifier)` names
+state that lives on a provider's side: `previous_response_id`, file handles,
+thought signatures, audio ids. The structural rule the graph enforces is
+**scoped** by `scope` (open code, constants on `RefScope`):
+**interface-scoped** refs (the default) are `UNSUPPORTED` crossing any other
+`(provider, interface)` — reported, never silently dropped;
+**provider-scoped** refs survive same-provider sibling-interface crossings
+unreported (an OpenAI file id is valid across
+`chat_completions`/`responses`/`batch`) and are `UNSUPPORTED` across
+providers; **model-scoped** refs are additionally *breakage* when the bound
+resource changes (Gemini `cachedContents`), with `qualifier` naming the bound
+resource. `replay ∈ {OPTIONAL, REQUIRED}`: REQUIRED anchors (Gemini
 `thoughtSignature`, Anthropic thinking signatures) are weighted as *breakage*
 in planning, not mere loss — dropping them produces a 400, not degraded output.
 
@@ -159,7 +169,23 @@ parse-compare/preserve-verbatim rule for embedded JSON strings (`args_json`).
 `canonical(obj) -> str` and `semantic_equal(a, b) -> bool`. TS/Go ports
 implement the same spec; they cannot each invent their own.
 
-### 2.8 `traits.py` and survivors
+### 2.8 `usage.py` / `finish.py` — the cross-capability outcome vocabulary [frozen-candidate]
+
+Hoisted from `ocai.chat` pre-freeze (the capability stress-test): the
+dimensional `Consumption`/`Usage` model and `FinishInfo` with its detail
+union describe what *any* capability's call consumed and why it stopped —
+chat tokens, image generation seconds, vector-store read-units, an async
+job's terminal state — so `CallResult.usage` is typed `Usage | None` in core
+and every capability reports through the one vocabulary.
+`ocai.chat.types.usage` / `ocai.chat.types.finish` remain as pure re-export
+shims; their schemas (`usage.schema.json`, `finish.schema.json`) are **core
+contracts**, capability-neutral, not chat-local. Deliberately NOT hoisted:
+`Document`/`Vector` stay in `ocai.embedding` while it is provisional — the
+first rerank/vectorstore implementation will force a hoist-or-duplicate
+decision on them while both packages are still provisional, decided then
+with real usage in hand.
+
+### 2.9 `traits.py` and survivors
 
 `DialectTraits` (vendor, first-party headers, cloud body version) lives in the
 **contract layer**, not in `ocai.wire`: it is *declared* by plugin interface
@@ -172,7 +198,7 @@ unchanged; *application* moved to the driver leaf, §5), `jsonschema.py`,
 
 ## 3. `ocai.chat` — the chat capability contract
 
-Depends on `ocai.core` only (except `model.py`, the designated facade).
+Depends on `ocai.core` only (except `facade.py`, the designated facade).
 
 ### 3.1 `types/` — the canonical chat IR [frozen-candidate unless noted]
 
@@ -209,7 +235,8 @@ is over). First-class by the three-lane law (§3.4): `temperature`, `top_p`,
 values pass **verbatim with an APPROXIMATED report — never rescaled, never
 clamped, never silent.**
 
-**`types/finish.py`** — `FinishInfo(reason, native, detail)`: canonical open
+**`types/finish.py`** — re-export shim; the vocabulary is core-owned (§2.8):
+`FinishInfo(reason, native, detail)`: canonical open
 code (`complete | max_tokens | stop_sequence | tool_call | content_filter |
 refusal | recitation | paused | malformed | error | …`), `native` verbatim
 provider value, `detail` a tagged union (`SafetyDetail(ratings, block_source)`,
@@ -219,7 +246,8 @@ native lane preserved — enum growth is structurally crash-proof. Boundary
 rule: mid-generation refusal is a *response*; pre-generation block (Gemini
 `promptFeedback`) is a `ContentFilterError`.
 
-**`types/usage.py`** — the dimensional `Consumption` model survives (it
+**`types/usage.py`** — re-export shim; the vocabulary is core-owned (§2.8):
+the dimensional `Consumption` model survives (it
 generalizes across capabilities) with open-string dimensions, a
 `cached`/`reasoning` source, a reserved `currency` unit for gateway-reported
 cost (first-party cost stays middleware's job — stance on record), a
@@ -250,6 +278,9 @@ raw string, parsed once at PART_STOP)`, `DeltaReasoning`, `DeltaSignature`,
 equal the delta accumulation, aborted streams seal parts `incomplete`, and
 **no new part type is admissible without its delta type, fold law, and paired
 chunks/response fixtures in the same change** (the streaming-first ratchet).
+`StreamEnd` stays per-capability (terminal envelopes are duck-typed on
+`.usage`/`.finish`/`.report`; a premature generic `StreamEnd` would drag chat
+chunk semantics into core).
 
 ### 3.2 `protocol.py` — the port
 
@@ -266,7 +297,7 @@ Bare name = sync, `a`-prefix = async (repo-wide convention). The port is the
 implement it directly and return the same `CallResult` (with
 `route.host = "in-process"`).
 
-### 3.3 `model.py` — the wire-backed facade
+### 3.3 `facade.py` — the wire-backed facade
 
 `WireChatModel(codec, binding, catalog, model_name=...)` — the composition of
 a dialect codec, a `Binding` (§5), and a `Catalog` (§4) behind the port, plus
@@ -421,7 +452,7 @@ string door must always work without it.
 user code
   └─ ChatModel port (ocai.chat.protocol)              CallContext rides along
        └─ CallInterceptor chain (runtime)             fallback · policy · cost · cache · tracing
-            └─ WireChatModel facade (ocai.chat.model)
+            └─ WireChatModel facade (ocai.chat.facade)
                  ├─ Catalog.resolve(capability, provider, pins) → Route(NodeId, reason, catalog hash)
                  ├─ ConversionGraph.convert(request, ocai@rev → target NodeId)
                  │      └─ per-edge: EdgeContract-checked fn → FieldLoss/SemanticShift
@@ -458,3 +489,86 @@ streaming edge), `spec/extensions/` (censused extension schemas),
 `spec/interfaces/` (catalog descriptors as data). CI re-runs every language
 suite on `spec/**` changes; fixtures are validated against schemas so
 spec-vs-code contradictions are structurally detectable.
+
+## 11. Adding a capability (normative recipe)
+
+Any new capability — rerank, image, transcription, realtime, files, jobs — is
+added by this recipe. Every step is additive; none touches a frozen surface.
+
+1. **Mint identity as data.** Define `Capability("<name>")` and one `Shape`
+   per message role per operation (`("rerank","request")`, or
+   `("vectorstore","query.request")` for multi-op ports). `Capability`,
+   `Shape`, and `NodeId` are open value objects; graphs never mix shapes, so
+   the new capability's conversion graphs are born partitioned from every
+   existing one. Zero core changes.
+2. **Write the canonical IR in a new capability package** (`ocai.<name>`)
+   that imports `ocai.core` **only** (import-linter enforced). Named
+   request/response dataclasses extend `IRObject` (omit-absent `to_dict`,
+   tolerant `from_dict`); enums are open codes with canonical constants;
+   unions are tagged through `TagRegistry` with an Unknown fallback. **Reuse
+   core vocabulary — `Usage`, `FinishInfo`, `ProviderRef`/`SourceRef`, the
+   `Source` union — never mint capability-local clones.**
+3. **No routing data in the request.** The model/index/voice name is bound at
+   the front door and injected by the codec from `EndpointSpec.resource`; a
+   request IR carrying a `model` field fails review. Requests are pure,
+   portable graph payloads.
+4. **Define the port.** A `Protocol` whose every method returns
+   `CallResult[NamedResult]` and accepts optional `ctx: CallContext`;
+   bare-name sync plus `a`-prefixed async twins; multi-op capabilities get
+   one method per operation. Local in-process adapters implement the port
+   directly and return the same `CallResult` (`route=None` or
+   `host="in-process"`) — local and remote are peers.
+5. **Publish canonical nodes.** The capability's canonical IR is the
+   interface named `ocai`: register a `NodeId` per shape at the current
+   canonical revision, and at least one request-role shape per operation
+   (the resolution anchor).
+6. **Contribute provider support as fragment data.** Each provider interface
+   adds, via its `CatalogFragment`: nodes, edges with `EdgeContract`s (full
+   census + declared `SemanticShift`s), a `CapabilityProfile`,
+   `DialectTraits`, and endpoint data (`Operation` kinds, native paths,
+   resource pattern). A `ProviderRef` leaving its validity scope is
+   `UNSUPPORTED`-and-reported; asynchronous execution (submit/poll/fetch) is
+   modeled as separate `Operation`s, each returning its own `CallResult` and
+   `Route`, anchored by `ProviderRef(kind="job")`.
+7. **Admit knobs by the three-lane law (§3.5).** First-class fields require
+   ≥2–3 interfaces with congruent semantics; provider-unique keys are
+   censused extensions in `spec/extensions/`; destination-scoped passthrough
+   rides `provider_options`. Exclusions are recorded with promotion triggers.
+8. **If the capability streams, ship the streaming ratchet with it.** One
+   canonical chunk union per streaming shape, a `Delta` type per
+   part/fragment kind, and a capability-defined fold law with fold-triple
+   fixtures — the law itself is per-capability (chat folds by concatenation;
+   image previews fold by replacement; duplex sessions fold a frame log into
+   a transcript). No event type is admissible without its delta, fold law,
+   and paired fixtures in the same change.
+9. **Map failures and consumption through core.** Wire errors go through the
+   shared taxonomy with codec `map_error` refinement; consumption is
+   reported as core `Consumption` records — new modalities/units (`seconds`,
+   `read_units`, `search_units`) are open-code data, never releases.
+10. **Land schemas and fixtures in `spec/` in the same change.** JSON Schema
+    per shape, golden fixtures per edge, fold triples per streaming edge,
+    censused extension schemas. The cross-language drift alarm covers the
+    capability from its first commit.
+11. **Build the front door last, on the same grammar.**
+    `ocai.<name>.<factory>(provider, resource, *, credentials, host=None,
+    catalog=None, ...)` composes codec + `Binding` + `Catalog` behind the
+    port; the facade module must not share the factory's name. The facade —
+    never an edge, never a driver — owns any 1-logical-call→N-wire-calls
+    fan-out (batch splitting, job polling legs, resumable uploads), merging
+    usage and reports and declaring the fan-out as a `SemanticShift`.
+12. **Certify before shipping; freeze only when earned.** Run the
+    conformance harness: round-trips under `canonjson.semantic_equal`,
+    EdgeContract certification (runtime loss never exceeds declaration),
+    unknown-X totality fixtures. The package stays [provisional] until it
+    has carried `CallResult` in real use, then freezes additive-only.
+
+The scope litmus test: a thing with provider-varying wire dialects is a
+capability (rerank, moderation, files); a thing with no wire dialect
+(chunking, prompt management, LLM judges, eval orchestration, application
+memory) is built ON ocai — the kernel contributes substrate (pure-data IR,
+canonical JSON, `CallContext`, the ledger), never the feature. Recorded
+doctrine: the conversion graph never registers vector-space edges (embeddings
+from different models do not "convert"); batch fan-out lives in facades;
+`Job`/`JobHandle` is the reserved name for the async-job vocabulary (never
+`Operation`); `Catalog.resolve` gains a `role=` kwarg when the first multi-op
+capability lands.

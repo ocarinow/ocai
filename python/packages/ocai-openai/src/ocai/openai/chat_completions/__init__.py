@@ -88,7 +88,7 @@ def chat_model(
     """
     # TODO: WU-16 — build Catalog.of(FRAGMENT), Binding(Direct(OPENAI_BASE_URL),
     # credentials, HttpxTransport()), and return WireChatModel(...,
-    # model_name=model_name) via DEFERRED imports of ocai.chat.model /
+    # model_name=model_name) via DEFERRED imports of ocai.chat.facade /
     # ocai.runtime / ocai.wire (module level would break the plugin import
     # contract; the facade is the sanctioned composition seam).
     raise NotImplementedError

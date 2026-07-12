@@ -35,7 +35,7 @@ MODULES = (
     # capability contracts
     "ocai.chat",
     "ocai.chat.canonical",
-    "ocai.chat.model",
+    "ocai.chat.facade",
     "ocai.chat.protocol",
     "ocai.chat.types",
     "ocai.embedding",

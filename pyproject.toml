@@ -102,9 +102,11 @@ exclude_type_checking_imports = true
 # (`|`) — chat/embedding/vectorstore never import each other.
 #
 # ignore_imports carries the TWO sanctioned seams:
-# 1. `ocai.chat.model` — the ONE chat module allowed to import
-#    convert/runtime/wire (the wire-backed facade; §3.3). Entries may be
-#    unmatched until WU-07 lands the real imports, hence alerting = warn.
+# 1. `ocai.chat.facade` — the ONE chat module allowed to import
+#    convert/runtime/wire (the wire-backed facade; §3.3; named `facade` so
+#    the future `ocai.chat.model()` factory is never shadowed by a module).
+#    Entries may be unmatched until WU-07 lands the real imports, hence
+#    alerting = warn.
 # 2. The runtime drivers'/binding's documented *deferred* (function-level)
 #    imports of `ocai.wire` VALUE modules (http/sse/transport): the package
 #    arrow points wire -> runtime, and runtime touches wire value classes
@@ -120,12 +122,12 @@ layers = [
     "ocai.core",
 ]
 ignore_imports = [
-    "ocai.chat.model -> ocai.convert",
-    "ocai.chat.model -> ocai.convert.**",
-    "ocai.chat.model -> ocai.runtime",
-    "ocai.chat.model -> ocai.runtime.**",
-    "ocai.chat.model -> ocai.wire",
-    "ocai.chat.model -> ocai.wire.**",
+    "ocai.chat.facade -> ocai.convert",
+    "ocai.chat.facade -> ocai.convert.**",
+    "ocai.chat.facade -> ocai.runtime",
+    "ocai.chat.facade -> ocai.runtime.**",
+    "ocai.chat.facade -> ocai.wire",
+    "ocai.chat.facade -> ocai.wire.**",
     "ocai.runtime.drivers -> ocai.wire.http",
     "ocai.runtime.drivers -> ocai.wire.sse",
     "ocai.runtime.drivers -> ocai.wire.transport",

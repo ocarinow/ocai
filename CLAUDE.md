@@ -73,7 +73,9 @@ examples/    ocai-contrib-echo (plugin template)
 
 Layer dependency arrows (enforced; violations are build failures):
 capabilities → core; convert → core; runtime → core+convert; wire → runtime;
-`ocai.chat.model` is the one chat module allowed to import convert/runtime/wire;
+`ocai.chat.facade` is the one chat module allowed to import convert/runtime/wire
+(a facade module never shares the front-door factory's name — `ocai.chat.model()`
+stays free for the factory);
 plugins → core+convert ONLY (never wire/httpx).
 
 ## Three version axes — keep distinct, never conflate

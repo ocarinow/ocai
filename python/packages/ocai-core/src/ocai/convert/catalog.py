@@ -406,7 +406,7 @@ class Catalog:
     call, recorded as a `Route`), `convert` (delegate to the right shape's
     graph), `lock` (the audit lockfile) — and never changes.
 
-    The wire-backed facade (`ocai.chat.model.WireChatModel`) holds one and
+    The wire-backed facade (`ocai.chat.facade.WireChatModel`) holds one and
     drives resolve → convert(request) → send → convert(response); a
     `Workspace` (`ocai.runtime.binding`) scopes one per tenancy unit.
     """

@@ -1,7 +1,10 @@
 """`WireChatModel` — the wire-backed facade (architecture §3.3, §3.4, §8).
 
 The ONE chat module allowed to import `ocai.convert` / `ocai.runtime` /
-`ocai.wire` (the port and the types never do). A provider is not a subclass
+`ocai.wire` (the port and the types never do). Named `facade`, not `model`,
+by convention: a facade module never shares the front-door factory's name,
+so the future `ocai.chat.model()` factory (§3.4) is never shadowed by the
+module that implements it. A provider is not a subclass
 but a **composition of three values plus a bound resource**:
 
 - a dialect **codec** — the wire I/O for one provider interface (shipped by

@@ -180,7 +180,7 @@ class Workspace:
         Raises:
             NotImplementedError: Skeleton stub.
         """
-        # TODO: needs Catalog.resolve + the WireChatModel facade (ocai.chat.model)
+        # TODO: needs Catalog.resolve + the WireChatModel facade (ocai.chat.facade)
         # to land; then: resolve -> facade -> compose(self.interceptors, facade).
         raise NotImplementedError("Workspace.chat is a skeleton stub")
 

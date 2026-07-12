@@ -10,7 +10,12 @@ merged `PartReasoning` shape carrying summary + encrypted_content in one part;
 `previous_response_id` as a `ProviderRef` anchor; item-id identity), full
 certification bar (fixtures, fold triples, census). Precondition inside this
 milestone: settle the interface-preference resolution policy flagged at
-`catalog.py:556`. The proof itself — the wedge feature: identical user code,
+`catalog.py:556`. H1 must also settle the request-side continuation-anchor
+shape **before its fixtures multiply** (recommended:
+`ChatRequest.anchors: list[ProviderRef] | None`, additive, carrying the
+UNSUPPORTED-on-crossing edge obligation of every `ProviderRef`) — the home
+for `previous_response_id` on the way *in*, not just the response id on the
+way out. The proof itself — the wedge feature: identical user code,
 catalog resolution flips `openai/chat_completions → openai/responses`,
 `Route.reason` shows the decision, and the `FidelityReport` shows exactly what
 the migration cost. Per architecture §9 this is a freeze-qualification gate;
@@ -56,3 +61,30 @@ The TypeScript port starts from `spec/canonical-json.md` (implement
 is the moat's portability proof and the reason WU-02/03/05/08 invest so
 heavily in fixture vocabulary. CI's typescript job goes from stub to real; Go
 follows the same recipe when pulled.
+
+## H6 — Capability breadth: rerank, files, jobs
+
+Three additions by the architecture §11 recipe, none touching a frozen
+surface. **Rerank**: provider rerank APIs (Cohere, Voyage, hosted
+open-weights) become a real capability — identity as data, `ocai.rerank` IR
+importing core only, a port returning `CallResult[RerankResult]`, canonical
+nodes, provider fragments; the first multi-provider capability added after
+the freeze, so it is the recipe's proof. **Files**: a small CRUD capability
+whose artifacts are cross-capability `ProviderRef`s — upload once, and the
+provider-scoped handle rides chat, embedding, or batch requests under the
+scoped crossing rule. **`ocai.jobs`**: the capability-neutral
+submit/poll/fetch helper at the runtime tier — `Job`/`JobHandle` vocabulary
+(never `Operation`), each leg its own `Operation` returning its own
+`CallResult` and `Route`, anchored by `ProviderRef(kind="job")`; batch APIs
+and long-running generations compose over it in facades.
+
+## H7 — Eval & safety substrate
+
+Moderation endpoints become a capability (they have provider-varying wire
+dialects — the §11 scope litmus test admits them); eval tooling is built ON
+ocai as a satellite leveraging the ledger: a `Route` + catalog lock hash +
+`FidelityReport` make every eval run reproducible and attributable, so a
+regression is attributable to the prompt, the provider revision, or the
+conversion — not smeared across all three. The kernel contributes substrate
+(pure-data IR, canonical JSON, `CallContext`, the ledger), never the eval
+feature itself.
