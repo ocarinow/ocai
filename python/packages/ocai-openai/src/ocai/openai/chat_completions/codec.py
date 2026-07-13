@@ -30,23 +30,30 @@ from datetime import datetime
 from typing import Any
 
 from ocai.chat.types import ChatChunk
+from ocai.chat.types import ChatConfig
 from ocai.chat.types import ChatRequest
 from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
 from ocai.chat.types import Consumption
+from ocai.chat.types import Delta
 from ocai.chat.types import DeltaRefusal
 from ocai.chat.types import DeltaText
 from ocai.chat.types import DeltaToolArgs
 from ocai.chat.types import FinishInfo
 from ocai.chat.types import Message
+from ocai.chat.types import OutputFormat
 from ocai.chat.types import Part
+from ocai.chat.types import PartOpaque
 from ocai.chat.types import PartReasoning
 from ocai.chat.types import PartRefusal
 from ocai.chat.types import PartText
 from ocai.chat.types import PartToolCall
 from ocai.chat.types import PartToolResult
+from ocai.chat.types import ReasoningConfig
 from ocai.chat.types import ResponseInfo
+from ocai.chat.types import StreamEnd
 from ocai.chat.types import Tool
+from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
 from ocai.convert.graph import EdgeOutput
 from ocai.core.errors import ContentFilterError
@@ -63,7 +70,12 @@ from ocai.core.identity import CHAT_RESPONSE
 from ocai.core.identity import NodeId
 from ocai.core.identity import Status
 from ocai.core.identity import canonical_node
+from ocai.core.jsonschema import JsonSchema
+from ocai.core.jsonschema import decode_schema
 from ocai.core.refs import ProviderRef
+from ocai.core.refs import RefScope
+from ocai.core.refs import Replay
+from ocai.core.sources import SourceRef
 from ocai.core.traits import DialectTraits
 
 # Interface coordinates. `TAG` is an opaque dated revision token — the GA wire
@@ -114,6 +126,16 @@ CANONICAL_CHUNK = canonical_node(CHAT_CHUNK)
 # wire layer's SSE parser — Anthropic terminates differently (`message_stop`).
 _DONE = "[DONE]"
 
+# Stateless canonical slot mapping for streamed parts (WU-10). Chat
+# Completions streams one choice's signals without part boundaries: message
+# text/refusal have no index and the `tool_calls` entries carry their own
+# wire index. Mirroring the unary decoder's part order (content, then tool
+# calls) makes folding a stream reproduce the blocking decode structurally:
+# text/refusal ride slot 0; the tool_calls entry at wire index `t` rides
+# slot `t + 1`.
+_TEXT_SLOT = 0
+_TOOL_SLOT_OFFSET = 1
+
 # Wire `finish_reason` → canonical open `FinishInfo.reason` code. Unknown wire
 # values decode to `"unknown"` with the verbatim value preserved in `native`
 # (rule 6) — enum growth is structurally crash-proof.
@@ -133,6 +155,29 @@ _ROLE_FROM_CANONICAL = {"model": "assistant"}
 # Response envelope keys the decoder maps explicitly; every other key is swept
 # into namespaced `extensions` (tolerant reader, rule 6).
 _KNOWN_RESPONSE_KEYS = frozenset({"id", "object", "created", "model", "choices", "usage"})
+
+# Request envelope keys `decode_request` maps explicitly (the audit direction);
+# every other key sweeps into namespaced `extensions` (tolerant reader, rule 6).
+_KNOWN_REQUEST_KEYS = frozenset(
+    {
+        "model",
+        "messages",
+        "tools",
+        "tool_choice",
+        "temperature",
+        "top_p",
+        "seed",
+        "frequency_penalty",
+        "presence_penalty",
+        "parallel_tool_calls",
+        "logprobs",
+        "max_completion_tokens",
+        "max_tokens",
+        "stop",
+        "reasoning_effort",
+        "response_format",
+    }
+)
 
 # OpenAI's documented inclusive ranges for the range-limited sampling knobs
 # (https://developers.openai.com/api/reference — chat.completions create).
@@ -192,6 +237,69 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     _add("cached", (raw.get("prompt_tokens_details") or {}).get("cached_tokens"))
     _add("reasoning", (raw.get("completion_tokens_details") or {}).get("reasoning_tokens"))
     return Usage(consumptions=consumptions)
+
+
+def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
+    """Report a `ProviderRef` leaving its validity scope (the §2.4 rule).
+
+    A ref is valid here when its minting `(provider, interface)` is this
+    interface, or when it is provider-scoped and same-provider (an OpenAI
+    file id is valid across sibling interfaces — that crossing is
+    unreported by design). Anything else is `UNSUPPORTED`-and-reported,
+    never silently dropped; `REQUIRED`-replay anchors weigh heavier because
+    dropping them is breakage (a 400 on replay), not degraded output.
+
+    Args:
+        path: The loss path the record anchors to.
+        ref: The ref under the crossing check, if any.
+
+    Returns:
+        The `UNSUPPORTED` record, or None when the ref is valid here (or
+        absent).
+    """
+    if ref is None:
+        return None
+    if ref.provider == PROVIDER and (
+        ref.interface == INTERFACE or ref.scope == RefScope.PROVIDER
+    ):
+        return None
+    return FieldLoss(
+        path=path,
+        disposition=Disposition.UNSUPPORTED,
+        severity=2.0 if ref.replay is Replay.REQUIRED else 1.0,
+        note=(
+            f"{ref.scope}-scoped ref {ref} is not valid on "
+            f"{PROVIDER}/{INTERFACE}; reported, never silently dropped (§2.4)"
+        ),
+    )
+
+
+def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
+    """Collect the §2.4 crossing records for one part's provider-anchored state.
+
+    Checks the universal `anchor` plus a media part's `SourceRef` handle.
+    Reasoning `signature`/`opaque` anchors are handled by the reasoning
+    encode path itself (this interface has no replay lane at all, reported
+    there).
+
+    Args:
+        path: The part's loss path prefix.
+        part: The canonical part to check.
+
+    Returns:
+        The `UNSUPPORTED` records for refs leaving their scope; empty when
+        every ref (if any) is valid here.
+    """
+    losses: list[FieldLoss] = []
+    anchor_loss = _foreign_ref_loss(f"{path}.anchor", getattr(part, "anchor", None))
+    if anchor_loss is not None:
+        losses.append(anchor_loss)
+    source = getattr(part, "source", None)
+    if isinstance(source, SourceRef):
+        source_loss = _foreign_ref_loss(f"{path}.source", source.ref)
+        if source_loss is not None:
+            losses.append(source_loss)
+    return losses
 
 
 class ChatCompletionsCodec:
@@ -298,6 +406,20 @@ class ChatCompletionsCodec:
         own = (request.provider_options or {}).get(f"{PROVIDER}.{INTERFACE}")
         if isinstance(own, dict):
             payload.update(own)
+        # Lane 2 (extensions) has no encode lane on this interface yet: the
+        # bag is preserved on the canonical form, but this wire body cannot
+        # carry it — reported, never silently vanished (rule 5).
+        # TODO: re-expand this interface's own censused extension keys
+        # (e.g. openai.logit_bias) onto the payload and tighten the census.
+        losses.extend(
+            FieldLoss(
+                path=f"extensions[{key}]",
+                disposition=Disposition.DROPPED,
+                severity=0.5,
+                note=f"extensions[{key!r}] has no {PROVIDER}/{INTERFACE} encode lane yet",
+            )
+            for key in sorted(request.extensions or {})
+        )
         return EdgeOutput(payload, tuple(losses), tuple(shifts))
 
     def _encode_message(
@@ -332,6 +454,10 @@ class ChatCompletionsCodec:
         refusal: str | None = None
         for p, part in enumerate(message.parts):
             path = f"messages[{index}].parts[{p}]"
+            # The §2.4 scoped honesty rule: provider-anchored state leaving
+            # its validity scope is UNSUPPORTED-and-reported before the part
+            # itself is mapped (or dropped) below.
+            losses.extend(_part_ref_losses(path, part))
             if isinstance(part, PartText):
                 texts.append(part.text)
             elif isinstance(part, PartToolCall):
@@ -602,6 +728,358 @@ class ChatCompletionsCodec:
             return {"type": "json_object"}
         return {"type": "text"}
 
+    def decode_request(self, payload: dict[str, Any]) -> EdgeOutput:
+        """Decode a chat-completions request body into a `ChatRequest`.
+
+        The `openai/chat_completions → canonical chat.request` edge function
+        — the audit direction: re-converting archived wire traffic back into
+        the canonical IR with no ability to make network calls (§1), and the
+        first hop of every cross-provider request conversion (WU-15). The
+        inverse of `encode_request`, with one deliberate asymmetry: the wire
+        `model` member is **routing data, not canonical content** (§3.4 — a
+        `ChatRequest` never carries a model), so its echo is preserved
+        recoverably as `extensions["openai.model"]` with an `EXTENSIONS`
+        record; re-encoding toward any interface binds a fresh resource at
+        the front door. Sibling `role: tool` wire messages re-thread as
+        canonical tool turns (the inverse relocation, declared), and unknown
+        envelope keys sweep into `extensions` — total decode, never a raise
+        (rule 6).
+
+        Args:
+            payload: The raw archived request body, already JSON-parsed.
+
+        Returns:
+            An `EdgeOutput` with the canonical `ChatRequest` and this
+            edge's records.
+        """
+        losses: list[FieldLoss] = []
+        shifts: list[SemanticShift] = []
+        extensions: dict[str, Any] = {}
+        messages: list[Message] = []
+        for index, wire_msg in enumerate(payload.get("messages") or []):
+            if not isinstance(wire_msg, dict):
+                continue
+            messages.append(self._decode_request_message(index, wire_msg, losses, shifts))
+        tools = self._decode_request_tools(payload, extensions, losses)
+        tool_choice = self._decode_request_tool_choice(payload, extensions, losses)
+        config = self._decode_request_config(payload, extensions, losses)
+        model = payload.get("model")
+        if model is not None:
+            extensions[f"{PROVIDER}.model"] = model
+            losses.append(
+                FieldLoss(
+                    path="model",
+                    disposition=Disposition.EXTENSIONS,
+                    note=(
+                        "wire model is routing data (§3.4): the canonical request "
+                        "carries no model; the echo rides extensions['openai.model']"
+                    ),
+                )
+            )
+        for key in sorted(set(payload) - _KNOWN_REQUEST_KEYS):
+            extensions[f"{PROVIDER}.{key}"] = payload[key]
+            losses.append(
+                FieldLoss(
+                    path=key,
+                    disposition=Disposition.EXTENSIONS,
+                    note=f"unmapped envelope key preserved in extensions['{PROVIDER}.{key}']",
+                )
+            )
+        request = ChatRequest(
+            messages=messages,
+            tools=tools or None,
+            tool_choice=tool_choice,
+            config=config,
+            extensions=extensions,
+        )
+        return EdgeOutput(request, tuple(losses), tuple(shifts))
+
+    def _decode_request_message(
+        self,
+        index: int,
+        wire_msg: dict[str, Any],
+        losses: list[FieldLoss],
+        shifts: list[SemanticShift],
+    ) -> Message:
+        """Decode one wire request message into a canonical message.
+
+        A `role: tool` wire message re-threads as a canonical tool turn
+        carrying a `PartToolResult` (the inverse of the encode relocation —
+        recorded as a `SemanticShift`, data-exact). Otherwise `content`
+        becomes `PartText` (array-form text items included; other item types
+        ride `PartOpaque`, reported), `tool_calls` become typed
+        `PartToolCall`s with `args_json` kept verbatim, and `refusal` maps
+        to `PartRefusal`.
+
+        Args:
+            index: The wire message's position, used in loss/shift paths.
+            wire_msg: The wire request message.
+            losses: The edge's loss accumulator, appended in place.
+            shifts: The edge's shift accumulator, appended in place.
+
+        Returns:
+            The canonical `Message`.
+        """
+        role = wire_msg.get("role", "user")
+        if role == "tool":
+            shifts.append(
+                SemanticShift(
+                    kind=ShiftKind.RELOCATION,
+                    path=f"messages[{index}]",
+                    note="sibling `role: tool` wire message re-threads as a canonical tool turn",
+                )
+            )
+            return Message(
+                role="tool",
+                parts=[
+                    PartToolResult(
+                        call_id=wire_msg.get("tool_call_id", ""),
+                        parts=self._decode_request_content(index, wire_msg, losses),
+                    )
+                ],
+            )
+        parts = self._decode_request_content(index, wire_msg, losses)
+        for call in wire_msg.get("tool_calls") or []:
+            function = call.get("function") or {}
+            parts.append(
+                PartToolCall(
+                    call_id=call.get("id", ""),
+                    name=function.get("name", ""),
+                    args_json=function.get("arguments", ""),
+                    status="input_complete",
+                    executed_by="client",
+                )
+            )
+        refusal = wire_msg.get("refusal")
+        if refusal:
+            parts.append(PartRefusal(text=refusal))
+        return Message(role=_ROLE_TO_CANONICAL.get(role, role), parts=parts)
+
+    def _decode_request_content(
+        self,
+        index: int,
+        wire_msg: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> list[Part]:
+        """Decode a wire message's `content` member into canonical parts.
+
+        String content becomes one `PartText` (empty string: no part — the
+        encode side emits `""` for part-less turns). Array-form content
+        decodes `text` items exactly; any other item type is preserved as a
+        reported `PartOpaque` pending Source-union media decode — never
+        silenced, never a raise.
+
+        Args:
+            index: The wire message's position, used in loss paths.
+            wire_msg: The wire request message carrying `content`.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded parts, possibly empty.
+        """
+        content = wire_msg.get("content")
+        parts: list[Part] = []
+        if isinstance(content, str):
+            if content:
+                parts.append(PartText(text=content))
+            return parts
+        if isinstance(content, list):
+            for j, item in enumerate(content):
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "text":
+                    parts.append(PartText(text=item.get("text", "")))
+                    continue
+                # TODO: decode image_url / input_audio / file items onto the
+                # Source union; until then they ride PartOpaque, reported.
+                losses.append(
+                    FieldLoss(
+                        path=f"messages[{index}].content[{j}]",
+                        disposition=Disposition.EXTENSIONS,
+                        note=f"content item type {item.get('type')!r} preserved as PartOpaque",
+                    )
+                )
+                parts.append(PartOpaque(kind=f"{PROVIDER}.{item.get('type')}", payload=item))
+        return parts
+
+    def _decode_request_tools(
+        self,
+        payload: dict[str, Any],
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> list[Tool]:
+        """Decode the wire `tools` array into canonical `Tool`s.
+
+        Function tools decode typed; anything else (a future built-in tool
+        shape) is preserved in `extensions["openai.tools"]` with a reported
+        `EXTENSIONS` record.
+
+        Args:
+            payload: The raw request body.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded tools, possibly empty.
+        """
+        tools: list[Tool] = []
+        for i, entry in enumerate(payload.get("tools") or []):
+            function = entry.get("function") if isinstance(entry, dict) else None
+            if isinstance(function, dict) and entry.get("type") == "function":
+                parameters = function.get("parameters")
+                tools.append(
+                    Tool(
+                        name=function.get("name", ""),
+                        parameters=JsonSchema.from_dict(
+                            parameters if isinstance(parameters, dict) else {}
+                        ),
+                        description=function.get("description"),
+                    )
+                )
+                continue
+            extensions.setdefault(f"{PROVIDER}.tools", []).append(entry)
+            losses.append(
+                FieldLoss(
+                    path=f"tools[{i}]",
+                    disposition=Disposition.EXTENSIONS,
+                    note="non-function tool entry preserved in extensions['openai.tools']",
+                )
+            )
+        return tools
+
+    def _decode_request_tool_choice(
+        self,
+        payload: dict[str, Any],
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> ToolChoice | None:
+        """Decode the wire `tool_choice` into the canonical `ToolChoice`.
+
+        The string codes map one-to-one; the named-function object becomes
+        mode `named`. An inexpressible shape is preserved in
+        `extensions["openai.tool_choice"]` with a reported record.
+
+        Args:
+            payload: The raw request body.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded `ToolChoice`, or None when absent/inexpressible.
+        """
+        choice = payload.get("tool_choice")
+        if choice is None:
+            return None
+        if choice in ("auto", "none", "required"):
+            return ToolChoice(mode=choice)
+        if isinstance(choice, dict) and choice.get("type") == "function":
+            name = (choice.get("function") or {}).get("name")
+            if name:
+                return ToolChoice(mode="named", name=name)
+        extensions[f"{PROVIDER}.tool_choice"] = choice
+        losses.append(
+            FieldLoss(
+                path="tool_choice",
+                disposition=Disposition.EXTENSIONS,
+                note="inexpressible tool_choice preserved in extensions['openai.tool_choice']",
+            )
+        )
+        return None
+
+    def _decode_request_config(
+        self,
+        payload: dict[str, Any],
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> ChatConfig | None:
+        """Decode the wire config knobs into a canonical `ChatConfig`.
+
+        The exact inverse of `_encode_config`'s renames
+        (`max_completion_tokens`/legacy `max_tokens` → `max_output_tokens`,
+        `stop` → `stop_sequences`, `reasoning_effort` → `reasoning.effort`,
+        `response_format` → `output`); values pass verbatim — decode has no
+        range opinion (§3.1: ranges are the destination's business, and here
+        the wire already accepted them).
+
+        Args:
+            payload: The raw request body.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded `ChatConfig`, or None when the wire set no knob.
+        """
+        knobs: dict[str, Any] = {
+            key: payload.get(key)
+            for key in (
+                "temperature",
+                "top_p",
+                "seed",
+                "frequency_penalty",
+                "presence_penalty",
+                "parallel_tool_calls",
+                "logprobs",
+            )
+        }
+        knobs["max_output_tokens"] = payload.get(
+            "max_completion_tokens", payload.get("max_tokens")
+        )
+        stop = payload.get("stop")
+        if isinstance(stop, str):
+            knobs["stop_sequences"] = [stop]
+        elif isinstance(stop, list):
+            knobs["stop_sequences"] = list(stop)
+        effort = payload.get("reasoning_effort")
+        if effort is not None:
+            knobs["reasoning"] = ReasoningConfig(effort=effort)
+        fmt = payload.get("response_format")
+        if isinstance(fmt, dict):
+            knobs["output"] = self._decode_response_format(fmt, extensions, losses)
+        if all(value is None for value in knobs.values()):
+            return None
+        return ChatConfig(**knobs)
+
+    def _decode_response_format(
+        self,
+        fmt: dict[str, Any],
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> OutputFormat | None:
+        """Decode a wire `response_format` selector into an `OutputFormat`.
+
+        Args:
+            fmt: The wire `response_format` object.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded `OutputFormat`, or None for an unrecognized
+            selector (preserved in extensions, reported).
+        """
+        ftype = fmt.get("type")
+        if ftype == "text":
+            return OutputFormat(mode="text")
+        if ftype == "json_object":
+            return OutputFormat(mode="json")
+        if ftype == "json_schema":
+            selector = fmt.get("json_schema") or {}
+            schema = selector.get("schema")
+            return OutputFormat(
+                mode="json_schema",
+                name=selector.get("name"),
+                schema=decode_schema(schema) if schema is not None else None,
+                strict=selector.get("strict"),
+            )
+        extensions[f"{PROVIDER}.response_format"] = fmt
+        losses.append(
+            FieldLoss(
+                path="response_format",
+                disposition=Disposition.EXTENSIONS,
+                note="unrecognized selector preserved in extensions['openai.response_format']",
+            )
+        )
+        return None
+
     def decode_response(self, payload: dict[str, Any]) -> EdgeOutput:
         """Decode a chat-completions response body into a `ChatResponse`.
 
@@ -810,19 +1288,16 @@ class ChatCompletionsCodec:
         return FinishInfo(reason=_FINISH_REASONS.get(native, "unknown"), native=native)
 
     def decode_event(self, event: str | None, data: str) -> ChatChunk | None:
-        """Decode one chat-completions SSE frame into a canonical `ChatChunk`.
+        """Decode one chat-completions SSE frame into its first canonical chunk.
 
-        The per-event half of the chunk-shape `StreamEdge`; the sans-io SSE
-        field parsing itself lives in `ocai.wire.sse` and hands this method
-        the frame's `event` name and `data` payload, so the plugin never
-        touches a socket. Text deltas become `PART_DELTA(DeltaText)`,
-        tool-call argument fragments become `PART_DELTA(DeltaToolArgs)` (raw
-        string fragments, parsed once at PART_STOP), refusal fragments become
-        `DeltaRefusal`, the opening role-only delta becomes `STREAM_START`, a
-        `finish_reason` becomes a `FINISH` chunk with a typed `FinishInfo`,
-        and the usage-only final frame becomes a `USAGE` chunk. The `[DONE]`
-        sentinel returns `None`; the transducer emits the terminal
-        `STREAM_STOP`/`StreamEnd`.
+        The single-chunk face of the frame decoder — the shape the facade's
+        `ChatCodec` protocol declares. Most chat-completions frames carry
+        exactly one signal, and this returns it; a multi-signal frame
+        (role+content, id+arguments, several `tool_calls` entries) surfaces
+        only its *first* chunk here — `decode_frame` is the total, ordered
+        decoder the `ChatCompletionsStreamTransducer` consumes on the
+        streaming path. The `[DONE]` sentinel returns `None`; the transducer
+        emits the terminal `STREAM_STOP`/`StreamEnd`.
 
         Args:
             event: The SSE `event:` field, if the frame carried one (OpenAI
@@ -830,47 +1305,151 @@ class ChatCompletionsCodec:
             data: The SSE `data:` payload.
 
         Returns:
-            The canonical chunk, or `None` when the frame surfaces nothing.
+            The frame's first canonical chunk, or `None` when the frame
+            surfaces nothing.
+        """
+        chunks = self.decode_frame(event, data).value
+        return chunks[0] if chunks else None
+
+    def decode_frame(self, event: str | None, data: str) -> EdgeOutput:
+        """Decode one chat-completions SSE frame into its ordered chunks.
+
+        The total per-frame half of the chunk-shape `StreamEdge`; the
+        sans-io SSE field parsing itself lives in `ocai.wire.sse` and hands
+        this method the frame's `event` name and `data` payload, so the
+        plugin never touches a socket. One wire frame may carry several
+        signals, and each becomes its own chunk, in wire order: the opening
+        `role` becomes `STREAM_START`, a `content` fragment
+        `PART_DELTA(DeltaText)`, a `refusal` fragment
+        `PART_DELTA(DeltaRefusal)`, each `tool_calls` entry a `PART_START`
+        (id frames, carrying the `PartToolCall` skeleton) and/or a
+        `PART_DELTA(DeltaToolArgs)` (raw string fragments, parsed once at
+        PART_STOP), a `finish_reason` a `FINISH` chunk with a typed
+        `FinishInfo`, and a `usage` object a cumulative `USAGE` chunk. The
+        `[DONE]` sentinel surfaces nothing — the transducer owns the
+        terminal contract.
+
+        Part slots follow the stateless `_TEXT_SLOT`/`_TOOL_SLOT_OFFSET`
+        mapping, reproducing the unary decoder's part order so a stream's
+        fold matches the blocking decode structurally.
+
+        Single message forever (§3.1): only the choice at index 0 is
+        decoded. A frame interleaving foreign choices (`n > 1`) drops them
+        with a reported `FieldLoss` — the frames stay recoverable verbatim
+        on the surfaced chunks' `raw_event` lane — mirroring the unary
+        edge's `choices[1:]` census.
+
+        Args:
+            event: The SSE `event:` field, if the frame carried one (OpenAI
+                does not use named events on this interface).
+            data: The SSE `data:` payload.
+
+        Returns:
+            An `EdgeOutput` whose value is the frame's canonical chunks, in
+            order (possibly empty), with any dropped-choice records.
         """
         if data.strip() == _DONE:
-            return None
+            return EdgeOutput([])
         raw = json.loads(data)
-        choices = raw.get("choices") or []
-        if not choices:
-            usage = _usage(raw.get("usage"))
-            if usage is not None:
-                return ChatChunk(type=ChunkType.USAGE, usage=usage, raw_event=raw)
-            return None
-        choice = choices[0]
-        # TODO: choices[1:] in streams — reject n>1 at admission (§3.1); until
-        # then extra streamed choices are not surfaced here.
-        index = choice.get("index", 0)
+        chunks: list[ChatChunk] = []
+        losses: list[FieldLoss] = []
+        for choice in raw.get("choices") or []:
+            if choice.get("index", 0) != 0:
+                losses.append(
+                    FieldLoss(
+                        path="choices[1:]",
+                        disposition=Disposition.DROPPED,
+                        severity=1.0,
+                        note=(
+                            "single-message IR: n>1 fails admission (§3.1); the "
+                            f"streamed choice at index {choice.get('index')} is "
+                            "dropped (recoverable verbatim from raw_event)"
+                        ),
+                    )
+                )
+                continue
+            self._decode_choice_frame(choice, raw, chunks)
+        usage = _usage(raw.get("usage"))
+        if usage is not None:
+            # stream_options include_usage: the final chunk reports the whole
+            # request's consumption — cumulative by definition.
+            chunks.append(
+                ChatChunk(type=ChunkType.USAGE, usage=usage, usage_cumulative=True, raw_event=raw)
+            )
+        return EdgeOutput(chunks, tuple(losses))
+
+    def _decode_choice_frame(
+        self, choice: dict[str, Any], raw: dict[str, Any], chunks: list[ChatChunk]
+    ) -> None:
+        """Decode choice 0's signals from one frame, appending chunks in order.
+
+        Args:
+            choice: The wire choice entry at index 0.
+            raw: The whole parsed frame, stamped verbatim on each chunk's
+                `raw_event`.
+            chunks: The frame's chunk accumulator, appended in place.
+        """
         delta = choice.get("delta") or {}
+        if delta.get("role"):
+            chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
         content = delta.get("content")
         if content is not None:
-            return ChatChunk(
-                type=ChunkType.PART_DELTA,
-                index=index,
-                delta=DeltaText(text=content),
-                raw_event=raw,
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.PART_DELTA,
+                    index=_TEXT_SLOT,
+                    delta=DeltaText(text=content),
+                    raw_event=raw,
+                )
             )
         if delta.get("refusal") is not None:
-            return ChatChunk(
-                type=ChunkType.PART_DELTA,
-                index=index,
-                delta=DeltaRefusal(text=delta["refusal"]),
-                raw_event=raw,
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.PART_DELTA,
+                    index=_TEXT_SLOT,
+                    delta=DeltaRefusal(text=delta["refusal"]),
+                    raw_event=raw,
+                )
             )
-        tool_calls = delta.get("tool_calls") or []
-        if tool_calls:
-            call = tool_calls[0]
-            function = call.get("function") or {}
-            if call.get("id"):
-                # First frame for this tool call: open the part with its
-                # identity; argument fragments follow as DeltaToolArgs.
-                return ChatChunk(
+        for call in delta.get("tool_calls") or []:
+            self._decode_tool_call_frame(call, raw, chunks)
+        native = choice.get("finish_reason")
+        if native is not None:
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.FINISH,
+                    finish=FinishInfo(
+                        reason=_FINISH_REASONS.get(native, "unknown"), native=native
+                    ),
+                    raw_event=raw,
+                )
+            )
+
+    def _decode_tool_call_frame(
+        self, call: dict[str, Any], raw: dict[str, Any], chunks: list[ChatChunk]
+    ) -> None:
+        """Decode one streamed `tool_calls` entry, appending its chunks.
+
+        An id-bearing entry opens the part: a `PART_START` carrying the
+        `PartToolCall` skeleton, followed by a `PART_DELTA` when the same
+        entry already carries a non-empty argument fragment — the
+        multi-signal split, skeleton before first delta. Later entries for
+        the same wire index carry only fragments and become bare
+        `PART_DELTA`s.
+
+        Args:
+            call: The wire `tool_calls` entry.
+            raw: The whole parsed frame, stamped on each chunk's
+                `raw_event`.
+            chunks: The frame's chunk accumulator, appended in place.
+        """
+        slot = call.get("index", 0) + _TOOL_SLOT_OFFSET
+        function = call.get("function") or {}
+        if call.get("id"):
+            chunks.append(
+                ChatChunk(
                     type=ChunkType.PART_START,
-                    index=index,
+                    index=slot,
                     part=PartToolCall(
                         call_id=call["id"],
                         name=function.get("name", ""),
@@ -880,26 +1459,26 @@ class ChatCompletionsCodec:
                     ),
                     raw_event=raw,
                 )
-            # TODO: a single frame can carry id AND an arguments fragment, and
-            # multiple tool_calls entries — the transducer must split those
-            # into multiple canonical chunks (feed returns a list).
-            return ChatChunk(
+            )
+            arguments = function.get("arguments")
+            if arguments:
+                chunks.append(
+                    ChatChunk(
+                        type=ChunkType.PART_DELTA,
+                        index=slot,
+                        delta=DeltaToolArgs(fragment=arguments),
+                        raw_event=raw,
+                    )
+                )
+            return
+        chunks.append(
+            ChatChunk(
                 type=ChunkType.PART_DELTA,
-                index=index,
+                index=slot,
                 delta=DeltaToolArgs(fragment=function.get("arguments", "")),
                 raw_event=raw,
             )
-        if delta.get("role"):
-            return ChatChunk(type=ChunkType.STREAM_START, index=index, raw_event=raw)
-        native = choice.get("finish_reason")
-        if native is not None:
-            return ChatChunk(
-                type=ChunkType.FINISH,
-                index=index,
-                finish=FinishInfo(reason=_FINISH_REASONS.get(native, "unknown"), native=native),
-                raw_event=raw,
-            )
-        return None
+        )
 
     def map_error(self, status: int | None, body: dict[str, Any] | None) -> OcaiError | None:
         """Refine an OpenAI error body onto the precise error taxonomy.
@@ -938,17 +1517,41 @@ class ChatCompletionsStreamTransducer:
 
     The stateful per-stream object a chunk-shape `StreamEdge` manufactures
     (one per stream — transducers are never shared). `feed` maps each wire
-    frame through `ChatCompletionsCodec.decode_event` and stamps monotonic
-    `seq` numbers; `flush` seals the stream and hands the graph this edge's
-    `EdgeReport` so streaming conversion pays the same visible toll as
-    non-streaming (§4.1).
+    frame through `ChatCompletionsCodec.decode_frame` (one frame may split
+    into several canonical chunks, in order), stamps monotonic `seq`
+    numbers, and adds the statefulness a well-formed canonical stream needs
+    on this dialect:
+
+    - **Part boundaries.** The wire opens tool-call parts explicitly (the
+      id frame) but never text/refusal parts, so the first delta into an
+      unopened slot is preceded by a synthesized `PART_START` carrying the
+      matching skeleton — every delta-fed slot starts with its skeleton
+      before its first delta.
+    - **The terminal contract.** When the `[DONE]` sentinel arrives, the
+      still-open tool-call slots are sealed (`PART_STOP`, advancing them to
+      `input_complete` in the fold) and the terminal `STREAM_STOP` is
+      emitted carrying `StreamEnd(usage, finish)` — usage from the
+      `stream_options` final chunk when present, finish from the
+      accumulated `finish_reason`. A stream that dies before `[DONE]` gets
+      **no** terminal chunk: synthesizing one would pass accumulated
+      content off as complete, and the accumulator's aborted-stream sealing
+      (`extensions["ocai.incomplete"]`) is the honest downstream.
+
+    `flush` hands the graph this edge's `EdgeReport` (dropped foreign
+    choices under §3.1's single-message rule) so streaming conversion pays
+    the same visible toll as non-streaming (§4.1).
     """
 
     def __init__(self) -> None:
-        """Initialize per-stream state (codec, sequence counter, losses)."""
+        """Initialize per-stream state (codec, sequence counter, slots, records)."""
         self._codec = ChatCompletionsCodec()
         self._seq = 0
         self._losses: list[FieldLoss] = []
+        self._usage: Usage | None = None
+        self._finish: FinishInfo | None = None
+        self._started: set[int] = set()
+        self._open_tool_slots: list[int] = []
+        self._done = False
 
     def feed(self, event: Any) -> list[ChatChunk]:
         """Convert one wire SSE event into zero or more canonical chunks.
@@ -958,28 +1561,137 @@ class ChatCompletionsStreamTransducer:
                 attributes) produced by the wire layer's `SSEParser`.
 
         Returns:
-            The canonical chunks this frame surfaced, `seq`-stamped.
+            The canonical chunks this frame surfaced, `seq`-stamped, in
+            order — including any synthesized part boundary and, on the
+            `[DONE]` sentinel, the terminal chunks.
         """
-        # TODO: split multi-signal frames (role+content, id+arguments,
-        # several tool_calls entries) into multiple chunks; today decode_event
-        # surfaces at most one chunk per frame.
-        chunk = self._codec.decode_event(getattr(event, "event", None), event.data)
-        if chunk is None:
-            return []
-        chunk.seq = self._seq
-        self._seq += 1
-        return [chunk]
+        data = event.data
+        if isinstance(data, str) and data.strip() == _DONE:
+            return self._terminal(data.strip())
+        out = self._codec.decode_frame(getattr(event, "event", None), data)
+        self._losses.extend(out.losses)
+        emitted: list[ChatChunk] = []
+        for chunk in out.value:
+            emitted.extend(self._admit(chunk))
+        return emitted
 
-    def flush(self) -> tuple[list[ChatChunk], EdgeReport]:
-        """Seal the stream and report this edge's accumulated fidelity.
+    def _admit(self, chunk: ChatChunk) -> list[ChatChunk]:
+        """Track one decoded chunk's stream state and stamp it.
+
+        Args:
+            chunk: The next decoded chunk, in frame order.
 
         Returns:
-            The terminal chunks (a `STREAM_STOP` carrying `StreamEnd` once
-            the terminal contract is implemented) and the edge's report.
+            The chunk (seq-stamped), preceded by a synthesized `PART_START`
+            when it is the first delta into an unopened text/refusal slot.
         """
-        # TODO: emit the terminal STREAM_STOP chunk with
-        # StreamEnd(usage, finish, report) — needs the accumulated usage and
-        # finish tracked across feed() calls; seal open parts as incomplete.
+        emitted: list[ChatChunk] = []
+        if chunk.type == ChunkType.PART_START:
+            if chunk.index is not None:
+                self._started.add(chunk.index)
+                if isinstance(chunk.part, PartToolCall):
+                    self._open_tool_slots.append(chunk.index)
+        elif chunk.type == ChunkType.PART_DELTA and chunk.index is not None:
+            skeleton = self._skeleton(chunk.delta)
+            if skeleton is not None and chunk.index not in self._started:
+                self._started.add(chunk.index)
+                emitted.append(
+                    self._stamp(
+                        ChatChunk(
+                            type=ChunkType.PART_START,
+                            index=chunk.index,
+                            part=skeleton,
+                            raw_event=chunk.raw_event,
+                        )
+                    )
+                )
+        elif chunk.type == ChunkType.USAGE and chunk.usage is not None:
+            self._usage = chunk.usage
+        elif chunk.type == ChunkType.FINISH and chunk.finish is not None:
+            self._finish = chunk.finish
+        emitted.append(self._stamp(chunk))
+        return emitted
+
+    @staticmethod
+    def _skeleton(delta: Delta | None) -> Part | None:
+        """Return the part skeleton a first delta of this type opens.
+
+        Text and refusal deltas open their parts implicitly on this wire;
+        tool-call parts are opened by their id frame, so an argument
+        fragment with no prior skeleton mints nothing here (the
+        accumulator's honesty channel reports the mismatch).
+
+        Args:
+            delta: The delta of the first `PART_DELTA` into an unopened
+                slot.
+
+        Returns:
+            The skeleton to synthesize a `PART_START` with, or None when
+            this delta type opens no part.
+        """
+        if isinstance(delta, DeltaText):
+            return PartText(text="")
+        if isinstance(delta, DeltaRefusal):
+            return PartRefusal(text="")
+        return None
+
+    def _stamp(self, chunk: ChatChunk) -> ChatChunk:
+        """Stamp the next monotonic `seq` onto `chunk` and return it.
+
+        Args:
+            chunk: The chunk to stamp.
+
+        Returns:
+            The same chunk, seq-stamped.
+        """
+        chunk.seq = self._seq
+        self._seq += 1
+        return chunk
+
+    def _terminal(self, sentinel: str) -> list[ChatChunk]:
+        """Seal open tool slots and emit the terminal `STREAM_STOP`.
+
+        Args:
+            sentinel: The verbatim `[DONE]` payload, stamped as the
+                terminal chunks' `raw_event`.
+
+        Returns:
+            The `PART_STOP` seals (slot order) plus the `STREAM_STOP`
+            carrying `StreamEnd(usage, finish)`; empty if the terminal was
+            already emitted.
+        """
+        if self._done:
+            return []
+        self._done = True
+        emitted = [
+            self._stamp(ChatChunk(type=ChunkType.PART_STOP, index=slot, raw_event=sentinel))
+            for slot in self._open_tool_slots
+        ]
+        self._open_tool_slots.clear()
+        emitted.append(
+            self._stamp(
+                ChatChunk(
+                    type=ChunkType.STREAM_STOP,
+                    end=StreamEnd(usage=self._usage, finish=self._finish),
+                    raw_event=sentinel,
+                )
+            )
+        )
+        return emitted
+
+    def flush(self) -> tuple[list[ChatChunk], EdgeReport]:
+        """Seal the stream's accounting and report this edge's fidelity.
+
+        The terminal `STREAM_STOP` is emitted by `feed` when `[DONE]`
+        arrives, so the tail here is always empty: a stream that never
+        reached its sentinel was aborted, and synthesizing a terminal for
+        it would pass accumulated content off as complete — the
+        accumulator's aborted-stream sealing owns that case.
+
+        Returns:
+            An empty tail and the edge's `EdgeReport` of accumulated
+            losses (dropped foreign choices).
+        """
         report = EdgeReport(
             src=CHAT_COMPLETIONS_CHUNK,
             dst=CANONICAL_CHUNK,

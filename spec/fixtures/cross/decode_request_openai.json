@@ -1,0 +1,187 @@
+{
+  "description": "Audit-direction decode edge (WU-15): a recorded openai/chat_completions request (system turn + function tools + a full tool round) decodes back into the canonical IR — hop 1 of the cross fixture request_openai_to_anthropic.json, pinned alone so the intermediate canonical form is golden too. The wire `model` is routing data, not canonical content (3.4): its echo rides the censused extensions['openai.model'] with an honest EXTENSIONS record; the sibling `role: tool` wire message re-threads as a canonical tool turn carrying a PartToolResult (the inverse of the encode relocation, declared); tool_calls decode to typed PartToolCalls with `arguments` kept verbatim as args_json; the knob renames run backwards (max_completion_tokens -> config.max_output_tokens) and land on the contract, not in per-call records. Same recorded input as the cross fixture, by construction.",
+  "src": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "input": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a terse zoology assistant."
+      },
+      {
+        "role": "user",
+        "content": "What is the weather in Paris right now?"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_9c3d1e",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\": \"Paris\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_9c3d1e",
+        "content": "Service unavailable: upstream weather API timed out."
+      },
+      {
+        "role": "assistant",
+        "content": "I could not reach the weather service for Paris just now."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Look up current weather for a city.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "City to look up."
+              }
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto",
+    "temperature": 0.5,
+    "max_completion_tokens": 512
+  },
+  "expect": {
+    "version": "2026-07",
+    "extensions": {
+      "openai.model": "gpt-4o-2024-08-06"
+    },
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "system",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "You are a terse zoology assistant.",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "What is the weather in Paris right now?",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "call_9c3d1e",
+            "name": "get_weather",
+            "args_json": "{\"city\": \"Paris\"}",
+            "status": "input_complete",
+            "executed_by": "client",
+            "type": "tool_call"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "tool",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "call_9c3d1e",
+            "parts": [
+              {
+                "version": "2026-07",
+                "text": "Service unavailable: upstream weather API timed out.",
+                "type": "text"
+              }
+            ],
+            "is_error": false,
+            "type": "tool_result"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "I could not reach the weather service for Paris just now.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "get_weather",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "City to look up."
+            }
+          },
+          "required": ["city"]
+        },
+        "description": "Look up current weather for a city."
+      }
+    ],
+    "tool_choice": {
+      "version": "2026-07",
+      "mode": "auto"
+    },
+    "config": {
+      "version": "2026-07",
+      "temperature": 0.5,
+      "max_output_tokens": 512
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "model",
+      "disposition": "extensions",
+      "note": "wire model is routing data; echo rides extensions['openai.model'] (3.4)"
+    }
+  ],
+  "expect_shifts": [
+    {
+      "kind": "relocation",
+      "path": "messages[3]",
+      "note": "sibling `role: tool` wire message re-threads as a canonical tool turn"
+    }
+  ]
+}

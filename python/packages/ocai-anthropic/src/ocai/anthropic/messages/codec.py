@@ -30,6 +30,7 @@ from datetime import date
 from typing import Any
 
 from ocai.chat.types import ChatChunk
+from ocai.chat.types import ChatConfig
 from ocai.chat.types import ChatRequest
 from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
@@ -40,6 +41,7 @@ from ocai.chat.types import DeltaText
 from ocai.chat.types import DeltaToolArgs
 from ocai.chat.types import FinishInfo
 from ocai.chat.types import Message
+from ocai.chat.types import OutputFormat
 from ocai.chat.types import Part
 from ocai.chat.types import PartOpaque
 from ocai.chat.types import PartReasoning
@@ -48,9 +50,11 @@ from ocai.chat.types import PartServerToolResult
 from ocai.chat.types import PartText
 from ocai.chat.types import PartToolCall
 from ocai.chat.types import PartToolResult
+from ocai.chat.types import ReasoningConfig
 from ocai.chat.types import RefusalDetail
 from ocai.chat.types import ResponseInfo
 from ocai.chat.types import Tool
+from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
 from ocai.convert.graph import EdgeOutput
 from ocai.core.errors import AuthError
@@ -68,8 +72,12 @@ from ocai.core.identity import CHAT_RESPONSE
 from ocai.core.identity import NodeId
 from ocai.core.identity import Status
 from ocai.core.identity import canonical_node
+from ocai.core.jsonschema import JsonSchema
+from ocai.core.jsonschema import decode_schema
 from ocai.core.refs import ProviderRef
+from ocai.core.refs import RefScope
 from ocai.core.refs import Replay
+from ocai.core.sources import SourceRef
 from ocai.core.traits import DialectTraits
 
 # Interface coordinates. `TAG` is an opaque dated revision token, ordered by
@@ -179,6 +187,25 @@ _KNOB_RANGES: dict[str, tuple[float, float]] = {
     "top_p": (0.0, 1.0),
 }
 
+# Request envelope keys `decode_request` maps explicitly (the audit
+# direction); every other key sweeps into namespaced `extensions` (rule 6).
+_KNOWN_REQUEST_KEYS = frozenset(
+    {
+        "model",
+        "messages",
+        "system",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "stop_sequences",
+        "tools",
+        "tool_choice",
+        "thinking",
+        "output_config",
+    }
+)
+
 # The `*_tool_result` block types that decode to PartServerToolResult, mapped
 # to their open canonical `kind` codes.
 _SERVER_RESULT_KINDS = {
@@ -273,6 +300,68 @@ def _thought_signature(signature: str) -> ProviderRef:
         id=signature,
         replay=Replay.REQUIRED,
     )
+
+
+def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
+    """Report a `ProviderRef` leaving its validity scope (the §2.4 rule).
+
+    A ref is valid here when its minting `(provider, interface)` is this
+    interface, or when it is provider-scoped and same-provider (crossing
+    Anthropic sibling interfaces is unreported by design). Anything else is
+    `UNSUPPORTED`-and-reported, never silently dropped; `REQUIRED`-replay
+    anchors weigh heavier because dropping them is breakage (a 400 on
+    replay), not degraded output.
+
+    Args:
+        path: The loss path the record anchors to.
+        ref: The ref under the crossing check, if any.
+
+    Returns:
+        The `UNSUPPORTED` record, or None when the ref is valid here (or
+        absent).
+    """
+    if ref is None:
+        return None
+    if ref.provider == PROVIDER and (
+        ref.interface == INTERFACE or ref.scope == RefScope.PROVIDER
+    ):
+        return None
+    return FieldLoss(
+        path=path,
+        disposition=Disposition.UNSUPPORTED,
+        severity=2.0 if ref.replay is Replay.REQUIRED else 1.0,
+        note=(
+            f"{ref.scope}-scoped ref {ref} is not valid on "
+            f"{PROVIDER}/{INTERFACE}; reported, never silently dropped (§2.4)"
+        ),
+    )
+
+
+def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
+    """Collect the §2.4 crossing records for one part's provider-anchored state.
+
+    Checks the universal `anchor` plus a media part's `SourceRef` handle.
+    Reasoning `signature`/`opaque` anchors are handled by `_encode_reasoning`
+    itself (the replay refusal path).
+
+    Args:
+        path: The part's loss path prefix.
+        part: The canonical part to check.
+
+    Returns:
+        The `UNSUPPORTED` records for refs leaving their scope; empty when
+        every ref (if any) is valid here.
+    """
+    losses: list[FieldLoss] = []
+    anchor_loss = _foreign_ref_loss(f"{path}.anchor", getattr(part, "anchor", None))
+    if anchor_loss is not None:
+        losses.append(anchor_loss)
+    source = getattr(part, "source", None)
+    if isinstance(source, SourceRef):
+        source_loss = _foreign_ref_loss(f"{path}.source", source.ref)
+        if source_loss is not None:
+            losses.append(source_loss)
+    return losses
 
 
 class MessagesCodec:
@@ -400,6 +489,20 @@ class MessagesCodec:
         own = (request.provider_options or {}).get(f"{PROVIDER}.{INTERFACE}")
         if isinstance(own, dict):
             payload.update(own)
+        # Lane 2 (extensions) has no encode lane on this interface yet: the
+        # bag is preserved on the canonical form, but this wire body cannot
+        # carry it — reported, never silently vanished (rule 5).
+        # TODO: re-expand this interface's own censused extension keys onto
+        # the payload and tighten the census.
+        losses.extend(
+            FieldLoss(
+                path=f"extensions[{key}]",
+                disposition=Disposition.DROPPED,
+                severity=0.5,
+                note=f"extensions[{key!r}] has no {PROVIDER}/{INTERFACE} encode lane yet",
+            )
+            for key in sorted(request.extensions or {})
+        )
         return EdgeOutput(payload, tuple(losses), tuple(shifts))
 
     def _encode_message(
@@ -444,6 +547,10 @@ class MessagesCodec:
         blocks: list[dict[str, Any]] = []
         for p, part in enumerate(message.parts):
             path = f"messages[{index}].parts[{p}]"
+            # The §2.4 scoped honesty rule: provider-anchored state leaving
+            # its validity scope is UNSUPPORTED-and-reported before the part
+            # itself is mapped (or dropped) below.
+            losses.extend(_part_ref_losses(path, part))
             if isinstance(part, PartText):
                 blocks.append({"type": "text", "text": part.text})
             elif isinstance(part, PartToolCall):
@@ -739,6 +846,439 @@ class MessagesCodec:
             for name in ("modalities", "audio", "cache")
             if getattr(config, name, None) is not None
         )
+
+    def decode_request(self, payload: dict[str, Any]) -> EdgeOutput:
+        """Decode a Messages request body into a `ChatRequest`.
+
+        The `anthropic/messages → canonical chat.request` edge function —
+        the audit direction: re-converting archived wire traffic back into
+        the canonical IR with no ability to make network calls (§1), and the
+        first hop of every cross-provider request conversion (WU-15). The
+        inverse of `encode_request`, with the dialect's signature moves run
+        backwards: the top-level `system` field **un-hoists** to a leading
+        canonical system message (a declared `SemanticShift(relocation)`),
+        `role: user` wire messages carrying `tool_result` blocks re-thread
+        as canonical tool turns (the inverse relocation, declared), and
+        `tool_use.input` objects serialize to the canonical `args_json`
+        wire-truth lane (the declared `anthropic.args_serialized` shift).
+        The wire `model` member is **routing data, not canonical content**
+        (§3.4): its echo rides `extensions["anthropic.model"]` with an
+        `EXTENSIONS` record; re-encoding anywhere binds a fresh resource at
+        the front door. Unknown envelope keys sweep into `extensions` —
+        total decode, never a raise (rule 6).
+
+        Args:
+            payload: The raw archived request body, already JSON-parsed.
+
+        Returns:
+            An `EdgeOutput` with the canonical `ChatRequest` and this
+            edge's records.
+        """
+        losses: list[FieldLoss] = []
+        shifts: list[SemanticShift] = []
+        extensions: dict[str, Any] = {}
+        messages: list[Message] = []
+        system = payload.get("system")
+        if system is not None:
+            messages.append(Message(role="system", parts=self._decode_system(system, losses)))
+            shifts.append(
+                SemanticShift(
+                    kind=ShiftKind.RELOCATION,
+                    path="system",
+                    note="top-level `system` field un-hoists to a leading canonical system message",
+                )
+            )
+        for index, wire_msg in enumerate(payload.get("messages") or []):
+            if not isinstance(wire_msg, dict):
+                continue
+            messages.append(self._decode_request_message(index, wire_msg, losses, shifts))
+        tools = self._decode_request_tools(payload, extensions, losses)
+        tool_choice, parallel = self._decode_request_tool_choice(payload, extensions, losses)
+        config = self._decode_request_config(payload, parallel, extensions, losses)
+        model = payload.get("model")
+        if model is not None:
+            extensions[f"{PROVIDER}.model"] = model
+            losses.append(
+                FieldLoss(
+                    path="model",
+                    disposition=Disposition.EXTENSIONS,
+                    note=(
+                        "wire model is routing data (§3.4): the canonical request "
+                        "carries no model; the echo rides extensions['anthropic.model']"
+                    ),
+                )
+            )
+        for key in sorted(set(payload) - _KNOWN_REQUEST_KEYS):
+            extensions[f"{PROVIDER}.{key}"] = payload[key]
+            losses.append(
+                FieldLoss(
+                    path=key,
+                    disposition=Disposition.EXTENSIONS,
+                    note=f"unmapped envelope key preserved in extensions['{PROVIDER}.{key}']",
+                )
+            )
+        request = ChatRequest(
+            messages=messages,
+            tools=tools or None,
+            tool_choice=tool_choice,
+            config=config,
+            extensions=extensions,
+        )
+        return EdgeOutput(request, tuple(losses), tuple(shifts))
+
+    def _decode_system(self, system: Any, losses: list[FieldLoss]) -> list[Part]:
+        """Decode the wire `system` field's content into canonical parts.
+
+        The wire accepts a plain string or an array of text blocks; either
+        becomes `PartText` parts. A non-text system block is preserved as a
+        reported `PartOpaque` — never silenced.
+
+        Args:
+            system: The wire `system` value (string or block array).
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded parts of the canonical system message.
+        """
+        if isinstance(system, str):
+            return [PartText(text=system)]
+        parts: list[Part] = []
+        for j, block in enumerate(system if isinstance(system, list) else []):
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                parts.append(PartText(text=block.get("text", "")))
+                continue
+            losses.append(
+                FieldLoss(
+                    path=f"system[{j}]",
+                    disposition=Disposition.EXTENSIONS,
+                    note=f"system block type {block.get('type')!r} preserved as PartOpaque",
+                )
+            )
+            parts.append(PartOpaque(kind=f"{PROVIDER}.{block.get('type')}", payload=block))
+        return parts
+
+    def _decode_request_message(
+        self,
+        index: int,
+        wire_msg: dict[str, Any],
+        losses: list[FieldLoss],
+        shifts: list[SemanticShift],
+    ) -> Message:
+        """Decode one wire request message into a canonical message.
+
+        Content blocks decode through `_decode_request_block`; a `role:
+        user` wire message carrying at least one `tool_result` block
+        re-threads as a canonical tool turn (the Messages wire has no tool
+        role — the inverse of the encode relocation, recorded as a
+        `SemanticShift`, data-exact).
+
+        Args:
+            index: The wire message's position, used in loss/shift paths.
+            wire_msg: The wire request message.
+            losses: The edge's loss accumulator, appended in place.
+            shifts: The edge's shift accumulator, appended in place.
+
+        Returns:
+            The canonical `Message`.
+        """
+        role = wire_msg.get("role", "user")
+        content = wire_msg.get("content")
+        parts: list[Part] = []
+        has_tool_result = False
+        if isinstance(content, str):
+            if content:
+                parts.append(PartText(text=content))
+        elif isinstance(content, list):
+            for j, block in enumerate(content):
+                if not isinstance(block, dict):
+                    continue
+                part = self._decode_request_block(index, j, block, losses, shifts)
+                if isinstance(part, PartToolResult):
+                    has_tool_result = True
+                parts.append(part)
+        if role == "user" and has_tool_result:
+            shifts.append(
+                SemanticShift(
+                    kind=ShiftKind.RELOCATION,
+                    path=f"messages[{index}]",
+                    note=(
+                        "`role: user` wire message carrying tool_result blocks "
+                        "re-threads as a canonical tool turn"
+                    ),
+                )
+            )
+            return Message(role="tool", parts=parts)
+        return Message(role=_ROLE_TO_CANONICAL.get(role, role), parts=parts)
+
+    def _decode_request_block(
+        self,
+        message_index: int,
+        block_index: int,
+        block: dict[str, Any],
+        losses: list[FieldLoss],
+        shifts: list[SemanticShift],
+    ) -> Part:
+        """Decode one request content block into a typed canonical part.
+
+        The request-side sibling of the response decoder's `_decode_block`
+        (kept separate because request paths carry the message coordinate):
+        `text` → `PartText`, `tool_use` → `PartToolCall` (the `input` object
+        serialized to `args_json` — the declared shift), `tool_result` →
+        `PartToolResult` with `is_error` crossing exactly, `thinking` /
+        `redacted_thinking` → `PartReasoning` with their REQUIRED anchors.
+        Total: unknown block types become reported `PartOpaque`s, never an
+        exception (rule 6).
+
+        Args:
+            message_index: The wire message's position, used in paths.
+            block_index: The block's position within the message.
+            block: The wire content block.
+            losses: The edge's loss accumulator, appended in place.
+            shifts: The edge's shift accumulator, appended in place.
+
+        Returns:
+            The decoded canonical part.
+        """
+        btype = block.get("type")
+        path = f"messages[{message_index}].content[{block_index}]"
+        if btype == "text":
+            return PartText(text=block.get("text", ""))
+        if btype == "tool_use":
+            # The wire carries a parsed object; canonical truth is the
+            # string lane — serialization is a recorded shift, not a loss.
+            shifts.append(
+                SemanticShift(
+                    kind="anthropic.args_serialized",
+                    path=f"{path}.input",
+                    note="tool_use.input object serialized to canonical args_json",
+                )
+            )
+            return PartToolCall(
+                call_id=block.get("id", ""),
+                name=block.get("name", ""),
+                args_json=json.dumps(block.get("input") or {}),
+                status="input_complete",
+                executed_by="client",
+            )
+        if btype == "tool_result":
+            nested: list[Part] = []
+            nested_content = block.get("content")
+            if isinstance(nested_content, str):
+                if nested_content:
+                    nested.append(PartText(text=nested_content))
+            elif isinstance(nested_content, list):
+                for n, item in enumerate(nested_content):
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("type") == "text":
+                        nested.append(PartText(text=item.get("text", "")))
+                        continue
+                    # TODO: nested image results are native here; decode onto
+                    # the Source union and tighten.
+                    losses.append(
+                        FieldLoss(
+                            path=f"{path}.content[{n}]",
+                            disposition=Disposition.EXTENSIONS,
+                            note=(
+                                f"tool_result content type {item.get('type')!r} "
+                                "preserved as PartOpaque"
+                            ),
+                        )
+                    )
+                    nested.append(PartOpaque(kind=f"{PROVIDER}.{item.get('type')}", payload=item))
+            return PartToolResult(
+                call_id=block.get("tool_use_id", ""),
+                parts=nested,
+                is_error=bool(block.get("is_error", False)),
+            )
+        if btype == "thinking":
+            signature = block.get("signature")
+            return PartReasoning(
+                text=block.get("thinking", ""),
+                signature=_thought_signature(signature) if signature else None,
+            )
+        if btype == "redacted_thinking":
+            return PartReasoning(
+                opaque=ProviderRef(
+                    provider=PROVIDER,
+                    interface=INTERFACE,
+                    kind="redacted_thinking",
+                    id=block.get("data", ""),
+                    replay=Replay.REQUIRED,
+                )
+            )
+        losses.append(
+            FieldLoss(
+                path=path,
+                disposition=Disposition.EXTENSIONS,
+                note=f"content block type {btype!r} preserved as PartOpaque",
+            )
+        )
+        return PartOpaque(kind=f"{PROVIDER}.{btype}", payload=block)
+
+    def _decode_request_tools(
+        self,
+        payload: dict[str, Any],
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> list[Tool]:
+        """Decode the wire `tools` array into canonical `Tool`s.
+
+        Custom tools decode typed (`input_schema` is the rename of the
+        canonical `parameters`); server-tool entries (a versioned built-in
+        type) are preserved in `extensions["anthropic.tools"]` with a
+        reported `EXTENSIONS` record.
+
+        Args:
+            payload: The raw request body.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded tools, possibly empty.
+        """
+        tools: list[Tool] = []
+        for i, entry in enumerate(payload.get("tools") or []):
+            if isinstance(entry, dict) and entry.get("type", "custom") == "custom":
+                schema = entry.get("input_schema")
+                tools.append(
+                    Tool(
+                        name=entry.get("name", ""),
+                        parameters=JsonSchema.from_dict(
+                            schema if isinstance(schema, dict) else {}
+                        ),
+                        description=entry.get("description"),
+                    )
+                )
+                continue
+            extensions.setdefault(f"{PROVIDER}.tools", []).append(entry)
+            losses.append(
+                FieldLoss(
+                    path=f"tools[{i}]",
+                    disposition=Disposition.EXTENSIONS,
+                    note="non-custom tool entry preserved in extensions['anthropic.tools']",
+                )
+            )
+        return tools
+
+    def _decode_request_tool_choice(
+        self,
+        payload: dict[str, Any],
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> tuple[ToolChoice | None, bool | None]:
+        """Decode the wire `tool_choice` object.
+
+        The tagged objects map back onto the canonical open modes
+        (`{type: any}` → `required` is the rename's inverse), and the
+        wire's `disable_parallel_tool_use` rider inverts back onto the
+        canonical opt-in `config.parallel_tool_calls` (returned separately —
+        it is config data, not tool-choice data). An inexpressible shape is
+        preserved in `extensions["anthropic.tool_choice"]`, reported.
+
+        Args:
+            payload: The raw request body.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded `ToolChoice` (or None) and the canonical
+            `parallel_tool_calls` value (or None when the wire is silent).
+        """
+        choice = payload.get("tool_choice")
+        if not isinstance(choice, dict):
+            return None, None
+        parallel: bool | None = None
+        disable = choice.get("disable_parallel_tool_use")
+        if disable is not None:
+            parallel = not disable
+        ctype = choice.get("type")
+        mode = {"auto": "auto", "any": "required", "none": "none"}.get(ctype)
+        if mode is not None:
+            return ToolChoice(mode=mode), parallel
+        if ctype == "tool" and choice.get("name"):
+            return ToolChoice(mode="named", name=choice["name"]), parallel
+        extensions[f"{PROVIDER}.tool_choice"] = choice
+        losses.append(
+            FieldLoss(
+                path="tool_choice",
+                disposition=Disposition.EXTENSIONS,
+                note="inexpressible tool_choice preserved in extensions['anthropic.tool_choice']",
+            )
+        )
+        return None, parallel
+
+    def _decode_request_config(
+        self,
+        payload: dict[str, Any],
+        parallel: bool | None,
+        extensions: dict[str, Any],
+        losses: list[FieldLoss],
+    ) -> ChatConfig | None:
+        """Decode the wire config knobs into a canonical `ChatConfig`.
+
+        The exact inverse of `_encode_config`'s renames (the **required**
+        `max_tokens` → `max_output_tokens`, `stop_sequences` verbatim,
+        `thinking.budget_tokens` → `reasoning.budget_tokens`,
+        `output_config.format` → `output`); values pass verbatim — decode
+        has no range opinion (§3.1: the wire already accepted them).
+
+        Args:
+            payload: The raw request body.
+            parallel: The canonical `parallel_tool_calls` recovered from the
+                wire's `tool_choice.disable_parallel_tool_use` rider.
+            extensions: The request extensions bag, mutated in place.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The decoded `ChatConfig`, or None when the wire set no knob
+            (unreachable on well-formed traffic — `max_tokens` is required
+            here — but decode stays total).
+        """
+        knobs: dict[str, Any] = {
+            key: payload.get(key) for key in ("temperature", "top_p", "top_k")
+        }
+        knobs["max_output_tokens"] = payload.get("max_tokens")
+        knobs["parallel_tool_calls"] = parallel
+        stop = payload.get("stop_sequences")
+        if isinstance(stop, list):
+            knobs["stop_sequences"] = list(stop)
+        thinking = payload.get("thinking")
+        if isinstance(thinking, dict):
+            if thinking.get("type") == "enabled":
+                knobs["reasoning"] = ReasoningConfig(budget_tokens=thinking.get("budget_tokens"))
+            else:
+                extensions[f"{PROVIDER}.thinking"] = thinking
+                losses.append(
+                    FieldLoss(
+                        path="thinking",
+                        disposition=Disposition.EXTENSIONS,
+                        note="non-enabled thinking config preserved in extensions",
+                    )
+                )
+        output_config = payload.get("output_config")
+        if isinstance(output_config, dict):
+            fmt = output_config.get("format")
+            if isinstance(fmt, dict) and fmt.get("type") == "json_schema":
+                schema = fmt.get("schema")
+                knobs["output"] = OutputFormat(
+                    mode="json_schema",
+                    schema=decode_schema(schema) if schema is not None else None,
+                )
+            else:
+                extensions[f"{PROVIDER}.output_config"] = output_config
+                losses.append(
+                    FieldLoss(
+                        path="output_config",
+                        disposition=Disposition.EXTENSIONS,
+                        note="unrecognized output_config preserved in extensions",
+                    )
+                )
+        if all(value is None for value in knobs.values()):
+            return None
+        return ChatConfig(**knobs)
 
     def decode_response(self, payload: dict[str, Any]) -> EdgeOutput:
         """Decode a Messages response body into a `ChatResponse`.

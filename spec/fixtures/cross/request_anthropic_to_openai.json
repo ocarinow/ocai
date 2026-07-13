@@ -1,0 +1,186 @@
+{
+  "description": "Cross-conversion fidelity proof (WU-15, flagship demo #1), reverse request leg: a recorded anthropic/messages request (top-level `system` field + custom tools + a tool round whose tool_result carries `is_error: true`) converts to an openai/chat_completions request through the canonical backbone — the planner's 2-hop path. The merged per-edge report is the product: hop 1 (audit decode) un-hoists `system` to a leading canonical system message (relocation), re-threads the `role: user` wire message carrying tool_result blocks as a canonical tool turn (relocation), serializes tool_use.input to the canonical args_json wire truth (the declared anthropic.args_serialized shift), and banks the wire `model` in extensions['anthropic.model'] (routing data, 3.4); hop 2 (chat_completions encode) relocates the tool result to a sibling `role: tool` wire message (relocation) and honestly DROPS `is_error` — chat_completions has no wire lane for the flag (the asymmetry the unary censuses already pin: EXACT one way, DROPPED the other) — plus the foreign extension. expect carries the destination `model` member as the harness's bind_resource injection, below the graph (WU-05a).",
+  "src": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "temperature": 0.5,
+    "system": "You are a terse zoology assistant.",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "What is the weather in Paris right now?"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_01A09q90qw90lq917835lq9",
+            "name": "get_weather",
+            "input": {
+              "city": "Paris"
+            }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+            "content": [
+              {
+                "type": "text",
+                "text": "Service unavailable: upstream weather API timed out."
+              }
+            ],
+            "is_error": true
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "I could not reach the weather service for Paris just now."
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "type": "custom",
+        "name": "get_weather",
+        "description": "Look up current weather for a city.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "City to look up."
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    ],
+    "tool_choice": {
+      "type": "auto"
+    }
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a terse zoology assistant."
+      },
+      {
+        "role": "user",
+        "content": "What is the weather in Paris right now?"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "toolu_01A09q90qw90lq917835lq9",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\": \"Paris\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "toolu_01A09q90qw90lq917835lq9",
+        "content": "Service unavailable: upstream weather API timed out."
+      },
+      {
+        "role": "assistant",
+        "content": "I could not reach the weather service for Paris just now."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Look up current weather for a city.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "City to look up."
+              }
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto",
+    "temperature": 0.5,
+    "max_completion_tokens": 1024
+  },
+  "expect_losses": [
+    {
+      "path": "model",
+      "disposition": "extensions",
+      "note": "hop 1: wire model is routing data; echo rides extensions['anthropic.model']"
+    },
+    {
+      "path": "messages[3].parts[0].is_error",
+      "disposition": "dropped",
+      "note": "hop 2: tool-result error flag has no chat_completions field"
+    },
+    {
+      "path": "extensions[anthropic.model]",
+      "disposition": "dropped",
+      "note": "hop 2: the foreign extension has no chat_completions encode lane yet"
+    }
+  ],
+  "expect_shifts": [
+    {
+      "kind": "relocation",
+      "path": "system",
+      "note": "hop 1: top-level `system` field un-hoists to a leading canonical system message"
+    },
+    {
+      "kind": "anthropic.args_serialized",
+      "path": "messages[1].content[0].input",
+      "note": "hop 1: tool_use.input object serialized to canonical args_json"
+    },
+    {
+      "kind": "relocation",
+      "path": "messages[2]",
+      "note": "hop 1: `role: user` wire message carrying tool_result blocks re-threads as a canonical tool turn"
+    },
+    {
+      "kind": "relocation",
+      "path": "messages[3].parts[0]",
+      "note": "hop 2: tool result relocated to a sibling `role: tool` wire message"
+    }
+  ]
+}

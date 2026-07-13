@@ -116,6 +116,23 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "config.modalities": DeclaredDisposition(Disposition.DROPPED),
         "config.audio": DeclaredDisposition(Disposition.DROPPED),
         "config.cache": DeclaredDisposition(Disposition.DROPPED),
+        # The §2.4 scoped honesty rule: a ProviderRef leaving its validity
+        # scope (interface-scoped elsewhere-minted anchors; any foreign
+        # provider's refs) is UNSUPPORTED-and-reported, never silent.
+        # Provider-scoped refs crossing OpenAI sibling interfaces pass
+        # unreported by the same rule.
+        "messages[].parts[].anchor": DeclaredDisposition(
+            Disposition.UNSUPPORTED, "only refs valid on openai/chat_completions cross (§2.4)"
+        ),
+        "messages[].parts[].source": DeclaredDisposition(
+            Disposition.UNSUPPORTED,
+            "a SourceRef file handle outside its validity scope is reported (§2.4)",
+        ),
+        # TODO: re-expand this interface's own censused extension keys and
+        # tighten; today the whole bag has no encode lane, honestly DROPPED.
+        "extensions[]": DeclaredDisposition(
+            Disposition.DROPPED, "request extensions have no chat_completions encode lane yet"
+        ),
     },
     semantic_shifts=(
         SemanticShift(
@@ -153,6 +170,50 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
     note="openai/chat_completions -> canonical chat.response",
 )
 
+# The audit direction (WU-15): a recorded chat_completions request decodes
+# back into the canonical IR. One deliberate asymmetry vs the encode census:
+# the wire `model` member is routing data (§3.4 — the canonical request never
+# carries a model), so its echo rides extensions['openai.model'], recoverable
+# for the audit trail; re-encoding anywhere binds a fresh resource at the
+# front door. The RENAMED rows document the exact knob inverses and produce
+# no per-call records.
+DECODE_REQUEST_CONTRACT = EdgeContract(
+    census={
+        "model": DeclaredDisposition(
+            Disposition.EXTENSIONS,
+            "routing data, not canonical content; echo preserved in "
+            "extensions['openai.model'] (§3.4)",
+        ),
+        # TODO: decode image_url/input_audio/file content items onto the
+        # Source union and tighten to EXACT.
+        "messages[].content[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "non-text array content items ride PartOpaque"
+        ),
+        "tools[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "non-function tool entries ride extensions['openai.tools']"
+        ),
+        "tool_choice": DeclaredDisposition(
+            Disposition.EXTENSIONS, "inexpressible shapes ride extensions['openai.tool_choice']"
+        ),
+        "max_completion_tokens": DeclaredDisposition(Disposition.RENAMED),
+        "max_tokens": DeclaredDisposition(Disposition.RENAMED, "legacy alias, same rename"),
+        "stop": DeclaredDisposition(Disposition.RENAMED),
+        "reasoning_effort": DeclaredDisposition(Disposition.RENAMED),
+        "response_format": DeclaredDisposition(
+            Disposition.EXTENSIONS,
+            "renames to config.output; unrecognized selectors ride extensions",
+        ),
+    },
+    semantic_shifts=(
+        SemanticShift(
+            kind=ShiftKind.RELOCATION,
+            path="messages[]",
+            note="sibling `role: tool` wire messages re-thread as canonical tool turns",
+        ),
+    ),
+    note="openai/chat_completions -> canonical chat.request (audit direction)",
+)
+
 DECODE_CHUNK_CONTRACT = EdgeContract(
     census={
         "choices[0].delta.content": DeclaredDisposition(Disposition.EXACT),
@@ -163,6 +224,12 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
         "usage": DeclaredDisposition(Disposition.RENAMED),
         # TODO: surface streamed logprobs/obfuscation via censused extensions.
         "choices[0].logprobs": DeclaredDisposition(Disposition.DROPPED),
+        # Single-message IR (§3.1): n>1 fails admission; a stream that
+        # interleaves foreign choices anyway has them dropped per frame with
+        # a reported FieldLoss (WU-10 stance: drop-with-report, recoverable
+        # verbatim from raw_event — a stream has no coherent extensions home
+        # for interleaved foreign deltas, unlike the unary edge's bag).
+        "choices[1:]": DeclaredDisposition(Disposition.DROPPED),
     },
     note="openai/chat_completions -> canonical chat.chunk (per event)",
 )
@@ -198,7 +265,8 @@ def decode_request(payload: dict[str, Any]) -> EdgeOutput:
     """Edge fn `openai/chat_completions → canonical chat.request`.
 
     The audit-tool direction: re-converting archived wire traffic back into
-    the canonical IR without any ability to make network calls (§1).
+    the canonical IR without any ability to make network calls (§1), and the
+    first hop of every cross-provider request conversion (WU-15).
 
     Args:
         payload: The raw archived request body.
@@ -206,7 +274,7 @@ def decode_request(payload: dict[str, Any]) -> EdgeOutput:
     Returns:
         The canonical `ChatRequest` with this edge's report.
     """
-    raise NotImplementedError  # TODO: inverse mapping + census; needed by archive re-conversion.
+    return _CODEC.decode_request(payload)
 
 
 # --- Fragment contents --------------------------------------------------------
@@ -232,7 +300,13 @@ EDGES: tuple[Edge, ...] = (
         contract=DECODE_RESPONSE_CONTRACT,
         origin=ORIGIN,
     ),
-    # TODO: register the decode_request audit edge once implemented.
+    Edge(
+        src=CHAT_COMPLETIONS_REQUEST,
+        dst=CANONICAL_REQUEST,
+        fn=decode_request,
+        contract=DECODE_REQUEST_CONTRACT,
+        origin=ORIGIN,
+    ),
 )
 
 TRANSDUCERS: tuple[StreamEdge, ...] = (

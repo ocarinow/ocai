@@ -106,6 +106,61 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
   against the cross fixture; the example's printed report is asserted in a
   test; pytest green.
 - **Deps:** WU-06 + WU-13 only.
+- **Decision (wire `model` disposition):** EXTENSIONS, not dropped-to-route —
+  `decode_request` banks the wire `model` as the censused
+  `extensions["openai.model"]` / `extensions["anthropic.model"]`
+  (`spec/extensions/`): routing data never enters the request IR (§3.4), but
+  the echo stays recoverable on the canonical artifact for the audit trail.
+  The cross direction then reports the foreign extension **DROPPED at the
+  destination encode edge** — both encode censuses gained an `extensions[]`
+  DROPPED row (the bag has no encode lane yet; TODO: re-expand own-namespace
+  censused keys) so the sweep is declared, never silent. Net effect in the
+  demo: the model echo is ultimately dropped-to-route, and the report shows
+  exactly where.
+- **Decision (where the `is_error` drop is pinned):** a recorded
+  chat_completions request *cannot* carry the flag — the wire has no lane
+  for it, which is precisely why the encode census drops it — so
+  `spec/fixtures/cross/` pins BOTH directions:
+  `request_openai_to_anthropic.json` (system hoist + tool-turn threading)
+  and `request_anthropic_to_openai.json` (system un-hoist +
+  `anthropic.args_serialized` + the `is_error` DROP). Two `decode_request_*`
+  fixtures pin each audit edge alone so the intermediate canonical form is
+  golden and schema-validated; they live in `cross/` (not the per-interface
+  dirs) because the shared plugin suites dispatch decode fixtures by
+  response shape via non-recursive globs and would misroute request-shaped
+  decode pins — keeping WU-15's pins in `cross/` leaves those suites
+  untouched for the concurrent streaming work.
+- **Decision (response leg — the recorded deviation):** the REQUEST cross
+  direction landed fully; the response leg runs decode-only. Both
+  wire→canonical response edges exist and their reports `merge` onto the
+  request leg exactly as the facade folds a call (asserted + demoed);
+  canonical→wire response needs encode_response edges that do not exist
+  yet — pinned by `test_encode_response_direction_does_not_exist_yet`,
+  which flips the day they land.
+- **Decision (§2.4 enforcement point):** the scoped ref rule runs in the
+  encode edge functions — a `_foreign_ref_loss` helper per codec checks
+  `part.anchor` and `SourceRef` media handles (anthropic thinking anchors
+  keep their existing replay-refusal path); the encode censuses gained
+  `messages[].parts[].anchor`/`.source` (and anthropic `.signature`)
+  UNSUPPORTED rows. Interface-scoped refs are UNSUPPORTED crossing any
+  other `(provider, interface)`; provider-scoped refs cross same-provider
+  siblings unreported; model-scoped qualifier breakage stays below the
+  graph at bind time (not modeled here).
+- **Decision (tool-call ids cross verbatim):** no ID_REGENERATED shift is
+  emitted — both destination wires accept the foreign-shaped id strings the
+  fixtures pin (`call_*` on Messages, `toolu_*` on chat_completions), so
+  regenerating (or fabricating a shift for) them would be dishonest; the
+  kind stays reserved for a destination that rejects foreign id shapes.
+- **Decision (decode-request inverse moves, declared):** the audit edges
+  declare the encode moves run backwards — anthropic `system` un-hoists to
+  a leading canonical system turn (RELOCATION at `system`), `role: user`
+  wire messages carrying `tool_result` blocks re-thread as canonical tool
+  turns (RELOCATION), openai sibling `role: tool` messages likewise, and
+  `tool_use.input` reuses the plugin-minted `anthropic.args_serialized`
+  kind. The runnable example is `examples/cross_conversion_demo.py` (a
+  script, not a docs snippet — it imports both plugins and reads the golden
+  fixtures, so demo and spec cannot drift); its printed report is asserted
+  in `test_example_output_is_the_real_report`.
 
 ## WU-16 — The front doors wired end-to-end (§3.4)
 

@@ -113,6 +113,27 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "config.modalities": DeclaredDisposition(Disposition.DROPPED),
         "config.audio": DeclaredDisposition(Disposition.DROPPED),
         "config.cache": DeclaredDisposition(Disposition.DROPPED),
+        # The §2.4 scoped honesty rule: a ProviderRef leaving its validity
+        # scope (interface-scoped elsewhere-minted anchors; any foreign
+        # provider's refs) is UNSUPPORTED-and-reported, never silent.
+        # Provider-scoped refs crossing Anthropic sibling interfaces pass
+        # unreported by the same rule.
+        "messages[].parts[].anchor": DeclaredDisposition(
+            Disposition.UNSUPPORTED, "only refs valid on anthropic/messages cross (§2.4)"
+        ),
+        "messages[].parts[].source": DeclaredDisposition(
+            Disposition.UNSUPPORTED,
+            "a SourceRef file handle outside its validity scope is reported (§2.4)",
+        ),
+        # Foreign thinking anchors refuse replay (see codec._encode_reasoning).
+        "messages[].parts[].signature": DeclaredDisposition(
+            Disposition.UNSUPPORTED, "thinking replay requires this interface's anchor (§2.4)"
+        ),
+        # TODO: re-expand this interface's own censused extension keys and
+        # tighten; today the whole bag has no encode lane, honestly DROPPED.
+        "extensions[]": DeclaredDisposition(
+            Disposition.DROPPED, "request extensions have no Messages encode lane yet"
+        ),
     },
     semantic_shifts=(
         SemanticShift(
@@ -166,6 +187,78 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
     note="anthropic/messages -> canonical chat.response",
 )
 
+# The audit direction (WU-15): a recorded Messages request decodes back into
+# the canonical IR — the dialect's signature moves run backwards, declared:
+# `system` un-hoists to a leading canonical system message, `role: user` wire
+# messages carrying tool_result blocks re-thread as canonical tool turns, and
+# `tool_use.input` serializes to the canonical args_json wire-truth lane. One
+# deliberate asymmetry vs the encode census: the wire `model` member is
+# routing data (§3.4 — the canonical request never carries a model), so its
+# echo rides extensions['anthropic.model'], recoverable for the audit trail;
+# re-encoding anywhere binds a fresh resource at the front door. The RENAMED
+# rows document the exact knob inverses and produce no per-call records.
+DECODE_REQUEST_CONTRACT = EdgeContract(
+    census={
+        "model": DeclaredDisposition(
+            Disposition.EXTENSIONS,
+            "routing data, not canonical content; echo preserved in "
+            "extensions['anthropic.model'] (§3.4)",
+        ),
+        "system[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "non-text system blocks ride PartOpaque"
+        ),
+        # TODO: decode image/document blocks onto the Source union and
+        # tighten to EXACT.
+        "messages[].content[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "unrecognized block types ride PartOpaque"
+        ),
+        "messages[].content[].content[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "non-text nested tool_result content rides PartOpaque"
+        ),
+        "tools[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "server-tool entries ride extensions['anthropic.tools']"
+        ),
+        "tool_choice": DeclaredDisposition(
+            Disposition.EXTENSIONS,
+            "inexpressible shapes ride extensions['anthropic.tool_choice']",
+        ),
+        "thinking": DeclaredDisposition(
+            Disposition.EXTENSIONS,
+            "renames to config.reasoning.budget_tokens; non-enabled shapes ride extensions",
+        ),
+        "output_config": DeclaredDisposition(
+            Disposition.EXTENSIONS,
+            "renames to config.output; unrecognized shapes ride extensions",
+        ),
+        "max_tokens": DeclaredDisposition(Disposition.RENAMED),
+        "stop_sequences": DeclaredDisposition(Disposition.RENAMED),
+        "tools": DeclaredDisposition(
+            Disposition.RENAMED, "input_schema is the rename of the canonical parameters"
+        ),
+    },
+    semantic_shifts=(
+        SemanticShift(
+            kind=ShiftKind.RELOCATION,
+            path="system",
+            note="top-level `system` field un-hoists to a leading canonical system message",
+        ),
+        SemanticShift(
+            kind=ShiftKind.RELOCATION,
+            path="messages[]",
+            note=(
+                "`role: user` wire messages carrying tool_result blocks "
+                "re-thread as canonical tool turns"
+            ),
+        ),
+        SemanticShift(
+            kind="anthropic.args_serialized",
+            path="messages[].content[].input",
+            note="tool_use.input objects serialize to the canonical args_json wire-truth lane",
+        ),
+    ),
+    note="anthropic/messages -> canonical chat.request (audit direction)",
+)
+
 DECODE_CHUNK_CONTRACT = EdgeContract(
     census={
         "message_start": DeclaredDisposition(Disposition.EXACT),
@@ -216,7 +309,8 @@ def decode_request(payload: dict[str, Any]) -> EdgeOutput:
     """Edge fn `anthropic/messages → canonical chat.request`.
 
     The audit-tool direction: re-converting archived wire traffic back into
-    the canonical IR without any ability to make network calls (§1).
+    the canonical IR without any ability to make network calls (§1), and the
+    first hop of every cross-provider request conversion (WU-15).
 
     Args:
         payload: The raw archived request body.
@@ -224,7 +318,7 @@ def decode_request(payload: dict[str, Any]) -> EdgeOutput:
     Returns:
         The canonical `ChatRequest` with this edge's report.
     """
-    raise NotImplementedError  # TODO: inverse mapping + census; needed by archive re-conversion.
+    return _CODEC.decode_request(payload)
 
 
 # --- Fragment contents --------------------------------------------------------
@@ -250,7 +344,13 @@ EDGES: tuple[Edge, ...] = (
         contract=DECODE_RESPONSE_CONTRACT,
         origin=ORIGIN,
     ),
-    # TODO: register the decode_request audit edge once implemented.
+    Edge(
+        src=MESSAGES_REQUEST,
+        dst=CANONICAL_REQUEST,
+        fn=decode_request,
+        contract=DECODE_REQUEST_CONTRACT,
+        origin=ORIGIN,
+    ),
 )
 
 TRANSDUCERS: tuple[StreamEdge, ...] = (

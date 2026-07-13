@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.model",
+  "description": "The `model` member of a recorded anthropic/messages wire request, preserved when the audit-direction decode edge lifts the request into the canonical IR. The model name is routing data, never canonical content (a ChatRequest carries no model field; the front door binds the resource, architecture 3.4) — this key keeps the audit trail of which model the archived call targeted without pretending the name is portable.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "none expected — routing data stays out of the request IR by design (3.4)",
+  "type": "string"
+}
