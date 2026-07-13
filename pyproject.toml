@@ -71,9 +71,10 @@ docstring-code-format = true
 testpaths = [
     "python/packages/ocai-core/tests",
     "python/packages/ocai-openai/tests",
+    "python/packages/ocai-anthropic/tests",
 ]
 # importlib mode lets sibling distributions ship same-named test modules
-# (ocai-core and ocai-openai both carry a test_conformance.py).
+# (every distribution carries a test_conformance.py).
 addopts = "-q --import-mode=importlib"
 asyncio_mode = "auto"
 
@@ -110,12 +111,16 @@ exclude_type_checking_imports = true
 # 1. `ocai.chat.facade` — the ONE chat module allowed to import
 #    convert/runtime/wire (the wire-backed facade; §3.3; named `facade` so
 #    the future `ocai.chat.model()` factory is never shadowed by a module).
-#    Entries may be unmatched until WU-07 lands the real imports, hence
-#    alerting = warn.
+#    WU-07 landed the real imports: only submodule (`.**`) entries exist,
+#    because the facade imports specific value modules, never the bare
+#    packages (a bare `ocai.wire` import would chain to httpx through its
+#    __init__ and break the quarantine contract below).
 # 2. The runtime drivers'/binding's documented *deferred* (function-level)
 #    imports of `ocai.wire` VALUE modules (http/sse/transport): the package
 #    arrow points wire -> runtime, and runtime touches wire value classes
 #    only inside the pipeline, never at module import time (WU-01 decision).
+# Every entry matches a real import; unmatched entries error (the default),
+# so a stale ignore is itself a build failure.
 [[tool.importlinter.contracts]]
 name = "Layered architecture: core <- capabilities <- convert <- runtime <- wire"
 type = "layers"
@@ -127,18 +132,14 @@ layers = [
     "ocai.core",
 ]
 ignore_imports = [
-    "ocai.chat.facade -> ocai.convert",
     "ocai.chat.facade -> ocai.convert.**",
-    "ocai.chat.facade -> ocai.runtime",
     "ocai.chat.facade -> ocai.runtime.**",
-    "ocai.chat.facade -> ocai.wire",
     "ocai.chat.facade -> ocai.wire.**",
     "ocai.runtime.drivers -> ocai.wire.http",
     "ocai.runtime.drivers -> ocai.wire.sse",
     "ocai.runtime.drivers -> ocai.wire.transport",
     "ocai.runtime.binding -> ocai.wire.transport",
 ]
-unmatched_ignore_imports_alerting = "warn"
 
 # §1 plugin rule: plugin distributions depend on core + capability contracts +
 # convert ONLY — never on wire/runtime/httpx — so an offline audit tool can

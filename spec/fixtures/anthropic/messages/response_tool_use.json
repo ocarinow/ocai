@@ -1,0 +1,147 @@
+{
+  "description": "Decode edge, tool use: the model's `tool_use` content block becomes a typed PartToolCall — call_id/name verbatim, the wire's parsed `input` object serialized to the canonical `args_json` wire-truth lane (a declared SemanticShift `anthropic.args_serialized`, because the string form is canonical truth and this wire only ever carries the object — the mirror image of chat_completions where `arguments` IS already the string), status input_complete, executed_by client; the preamble `text` block decodes as a sibling PartText; stop_reason `tool_use` becomes reason `tool_call` with the native lane verbatim. Synthetic, wire-accurate, hand-authored against ToolUseBlock / TextBlock (ocai-anthropic messages/wire.py).",
+  "src": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "msg_01Aq9w938a90dw8q9tGVsnjR",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-4-8",
+    "content": [
+      {
+        "type": "text",
+        "text": "I'll check the current weather in Paris."
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_01A09q90qw90lq917835lq9",
+        "name": "get_weather",
+        "input": {
+          "city": "Paris"
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 58,
+      "output_tokens": 15,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "I'll check the current weather in Paris.",
+          "type": "text"
+        },
+        {
+          "version": "2026-07",
+          "call_id": "toolu_01A09q90qw90lq917835lq9",
+          "name": "get_weather",
+          "args_json": "{\"city\": \"Paris\"}",
+          "status": "input_complete",
+          "executed_by": "client",
+          "type": "tool_call"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_use"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 58,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 15,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "anthropic.cache_write"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "msg_01Aq9w938a90dw8q9tGVsnjR",
+        "replay": "optional"
+      },
+      "model": "claude-opus-4-8"
+    },
+    "raw": {
+      "id": "msg_01Aq9w938a90dw8q9tGVsnjR",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-8",
+      "content": [
+        {
+          "type": "text",
+          "text": "I'll check the current weather in Paris."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01A09q90qw90lq917835lq9",
+          "name": "get_weather",
+          "input": {
+            "city": "Paris"
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 58,
+        "output_tokens": 15,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0
+      }
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": [
+    {
+      "kind": "anthropic.args_serialized",
+      "path": "content[1].input",
+      "note": "tool_use.input object serialized to canonical args_json"
+    }
+  ]
+}

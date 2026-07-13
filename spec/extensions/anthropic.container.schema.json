@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.container",
+  "description": "Container info attached to an anthropic/messages response when a code-execution container served the request: the container id (reusable across requests to keep REPL state) and its expiry timestamp. Provider-unique server-side-tool infrastructure metadata with no canonical home; rides ChatResponse.extensions with an EXTENSIONS FieldLoss so it is preserved and reported, never silenced. The id is a candidate ProviderRef once container reuse is modeled as provider-anchored state.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "promote to a ProviderRef(kind=container) anchor when the server-tool loop lands",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "expires_at": { "type": "string" }
+  },
+  "required": ["id"],
+  "additionalProperties": true
+}

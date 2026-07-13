@@ -1,0 +1,52 @@
+{
+  "description": "Encode edge, plain text: a single user turn crosses canonical chat.request -> anthropic/messages losslessly — the text part becomes a `text` content block and `config.max_output_tokens` renames to the wire's REQUIRED `max_tokens` (a rename on the contract, not re-reported per call; the fixture supplies it so no injection shift fires). Synthetic, wire-accurate, hand-authored against the MessagesRequest / MessageParam / TextBlockParam structs (ocai-anthropic messages/wire.py). The wire `model` member is NOT edge output: the canonical request carries no model (WU-05a, architecture §3.4) and the harness injects the bound resource via the codec's bind_resource seam, below the edge — ports must do the same before comparing.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Say hello.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 1024
+    }
+  },
+  "expect": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Say hello."
+          }
+        ]
+      }
+    ]
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

@@ -288,3 +288,47 @@ door.
   the expected losses, `usage.input_tokens` matches the recording, `raw` is
   untouched; `achat` twin passes; pytest green.
 - **Deps:** WU-06 (hard), WU-01 (soft).
+- **Decision (interface pin defaults to the codec):** `interface=None` now
+  pins the composed codec's own interface instead of letting resolution
+  roam — the facade is composed *of* a dialect, and an unpinned resolve
+  over `ocai.openai.FRAGMENT` would pick `openai/responses` (newer
+  `released`) and mismatch the `ChatCompletionsCodec`. Free catalog choice
+  is the §3.4 front doors' job (they resolve first, then build the matching
+  codec from the fragment's component factory). An *explicit* pin that
+  resolves off the codec's interface raises `CompositionError` at the seam.
+- **Decision (`ChatCodec` protocol):** typed home `ocai.chat.facade`, as
+  planned; members are what both plugin codecs actually share — `provider`/
+  `interface`, the three shape nodes, `native_path`, `bind_resource`,
+  `encode_request`/`decode_response`/`decode_event`, `map_error` — plus
+  `dialect_traits()`, which existed only as a module function in both
+  plugins and was added as a codec method (additive) because the catalog
+  carries traits opaquely with no `(provider, interface)` key to look them
+  up by. The facade builds `EndpointSpec` from it and closes `map_error`
+  over `(err.status, err.raw)` as the drivers' `ErrorRefiner`.
+- **Decision (policies enter at the facade):** `WireChatModel` gained
+  `policies: Sequence[WirePolicy] = ()` — the drivers take their hook chain
+  at construction and the WU's 429-then-200 test composes `RetryPolicy`
+  through the facade; both drivers are built once in `__init__`. `ctx` is
+  accepted per the port contract but not yet threaded into the wire hooks
+  (no driver seam exists; a later WU's job).
+- **Decision (decode-leg node + host stamp):** resolution is request-shape,
+  so the decode leg finds the published response-shape sibling (same
+  provider/interface/tag) in `catalog.nodes` — `ResolutionError` names the
+  fragment if it failed to publish one. `Route.host` is stamped with
+  `Host.endpoint(spec)` (the physical URL) after the spec exists — hosting
+  stays below the graph, resolution never knows clouds exist.
+- **Decision (tests + fixtures):** `tests/test_facade_unary.py` (13 tests)
+  replays synthetic wire-accurate pairs through the real `HttpxTransport`
+  via respx; new recordings `openai_chat_completion_{tool_call,retry,
+  auth_error,context_length}.json`. The extra 400-overflow pair exists
+  because `context_length_exceeded` is a 400 only `map_error` can classify —
+  the positive proof the layer-2 refiner is wired (a 401 alone cannot
+  distinguish coarse from refined).
+- **Decision (lint-imports verified):** the three package-level ignore
+  entries (`facade -> ocai.convert/runtime/wire` bare) could never match —
+  the facade imports specific value modules (`catalog`, `drivers`,
+  `binding`, `hosting`); a bare `ocai.wire` import would chain to httpx
+  through its `__init__` and break the quarantine contract. Trimmed them to
+  the matched `.**` entries and restored default unmatched-ignore erroring,
+  so a stale ignore is itself a build failure. 3 contracts kept, zero
+  warnings.

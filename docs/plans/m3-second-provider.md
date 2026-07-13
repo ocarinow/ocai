@@ -21,6 +21,54 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
   `[]`; the system hoist appears in `expect_shifts` and matches runtime;
   fixtures validate against schemas; ruff clean.
 - **Deps:** WU-02/03/04 (hard); WU-06 (pattern, soft). Parallel with M2.
+- **Decision (census upper bound, replayed):** the WU-06 rule applied to this
+  dialect's ranges — `temperature` and `top_p` are both **0..1** here (the
+  temperature ceiling is 1.0, not OpenAI's 2.0), so both declare
+  APPROXIMATED in the encode census and `_KNOB_RANGES` in `codec.py` emits
+  the APPROXIMATED `FieldLoss` only for out-of-range values, passed verbatim,
+  never clamped. Same value, different fate per interface — that asymmetry is
+  the point of per-edge censuses.
+- **Decision (max_tokens injection is a shift, not a loss):** the wire
+  REQUIRES `max_tokens`; when the canonical config omits it (None = "provider
+  default", inexpressible here) the encoder injects `DEFAULT_MAX_TOKENS` and
+  records a declared `SemanticShift(emulation)` at `config.max_output_tokens`
+  — no canonical field was lost, but the call runs under a ceiling the caller
+  never set, which is semantic divergence, not field loss (§2.2 keeps those
+  distinct). Declared on `ENCODE_REQUEST_CONTRACT.semantic_shifts`.
+- **Decision (the cache dimension, codec.py:232):**
+  `cache_read_input_tokens` → the canonical `cached` consumption source;
+  `cache_creation_input_tokens` → an **open-source `Consumption`** under the
+  plugin-namespaced code `anthropic.cache_write` — NOT an extensions-bag
+  entry: cache writes are real billed tokens Anthropic itemizes disjointly
+  from `input_tokens`, so they belong on the dimensional model where
+  `Usage.total_tokens` stays a plain sum (§11.9: new dimensions are open-code
+  data, never releases). The source code is namespaced like every
+  plugin-minted open code (precedent: the `anthropic.args_serialized` shift
+  kind); promotion to a core `UsageSource` constant triggers when a second
+  provider itemizes cache writes. No `spec/extensions/` entry — the census
+  governs extensions-bag keys, and this never enters a bag.
+- **Decision (unary closures the fixtures forced):** the canonical `tool`
+  role threads as a `role: user` wire message carrying the native
+  `tool_result` blocks (the Messages wire has no tool role) with a declared
+  `SemanticShift(relocation)` — while `is_error` crosses EXACT, the honest
+  asymmetry vs chat_completions, asserted explicitly in the suite; canonical
+  `ToolChoice` now maps by `mode` (`auto`→`{type: auto}`,
+  `required`→`{type: any}`, `none`→`{type: none}`, `named`→`{type: tool,
+  name}` — the old code matched on `isinstance(str)` and silently mis-routed
+  every mode-object); response `info` decodes typed — `id` becomes an
+  interface-scoped `ProviderRef(kind="response_id")`, `model` stays the echo,
+  and this wire carries no creation timestamp; `output_config.format.schema`
+  renders through `JsonSchema.to_dict()` (it was embedding the typed object),
+  with `config.output.name`/`.strict` honestly DROPPED-censused (the wire
+  format object carries only the schema itself).
+- **Decision (extension census):** `anthropic.stop_sequence` and
+  `anthropic.container` are census-registered in `spec/extensions/` — both
+  now appear in a shipped fixture's `extensions` bag, and an unregistered key
+  there is a CI failure by the census law.
+- **Decision (collection & scope):** root `testpaths` gained the anthropic
+  tests dir (`--import-mode=importlib` already in place from WU-06). The
+  streaming transducer TODOs (`message_delta` fold, typed mid-stream error)
+  stay untouched — WU-14b territory.
 
 ## WU-14a — Anthropic unary end-to-end (the pattern proof)
 
@@ -66,12 +114,16 @@ the core string door for data-driven switching, and the plugin helper as
 sanctioned sugar over the same machinery. Installing a provider dist has
 exactly one structural effect: graph augmentation. No framework containers.
 
-- **Scope:** (1) NEW `ocai.chat.model(provider, model_name, *, credentials,
-  host=None, catalog=None, transport=None, interceptors=())` per §3.4 —
+- **Scope:** (1) NEW `ocai.chat.model(spec, *, credentials, host=None,
+  catalog=None, transport=None, interceptors=())` per §3.4, where `spec` is
+  the single string `"<provider>/<model>"` (maintainer decision 2026-07-13:
+  LiteLLM/OpenRouter convention; split on the FIRST slash only — the model
+  part may contain slashes, e.g. HF ids on vLLM; the spec never carries an
+  interface — pinning stays a kwarg; one config value switches providers) —
   resolves against the discovered default catalog (or an explicit one), builds
   the codec via the fragment's component factory, composes the `Binding`
   internally (`Direct` from the fragment's first-party endpoint data), returns
-  a `ChatModel` bound to `model_name`. Lives in `ocai/chat/__init__.py` (the
+  a `ChatModel` bound to the parsed model name. Lives in `ocai/chat/__init__.py` (the
   facade module is `chat/facade.py` — never shares the factory's name).
   (2) Move first-party endpoint data (base URL) into the fragment (extend
   `DialectTraits` or the `Component` descriptor — decide in-WU) so the core

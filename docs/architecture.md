@@ -319,21 +319,27 @@ import ocai.chat
 from ocai.core import ApiKey
 from ocai.chat.types import ChatRequest, Message
 
-chat = ocai.chat.model("openai", "gpt-5",
-                       credentials=ApiKey.from_env("OPENAI_API_KEY"))
+chat = ocai.chat.model("openai/gpt-5", credentials=ApiKey.from_env("OPENAI_API_KEY"))
 res = chat.chat(ChatRequest(messages=[Message.user("hello")]))
 ```
 
 Two equivalent doors, neither forced:
 
-1. **The core string door** — `ocai.chat.model(provider, model_name, *,
-   credentials, host=None, catalog=None, transport=None, interceptors=())`:
-   resolves the provider against the discovered default catalog (or an
-   explicit one), builds the codec from the fragment's registered component
-   factory, composes the `Binding` internally (`Direct` host from the
-   fragment's first-party endpoint data unless a host is passed). Switching
-   provider — or riding an interface migration — is changing a string or a
-   pin.
+1. **The core string door** — `ocai.chat.model(spec, *, credentials,
+   host=None, catalog=None, transport=None, interceptors=())` where `spec` is
+   the single string `"<provider>/<resource>"` (the LiteLLM/OpenRouter
+   convention). Normative parse rule: **split on the FIRST slash only** — the
+   resource may itself contain slashes (HuggingFace ids on vLLM hosts:
+   `"openai/meta-llama/Llama-3.3-70B"`). The spec never carries an interface
+   (pinning is an explicit kwarg), and internals keep provider and resource
+   as separate typed coordinates — the string is front-door sugar, not a
+   wire format. The factory resolves the provider against the discovered
+   default catalog (or an explicit one), builds the codec from the fragment's
+   registered component factory, composes the `Binding` internally (`Direct`
+   host from the fragment's first-party endpoint data unless a host is
+   passed). The whole provider+model choice is ONE config value:
+   `ocai.chat.model(os.environ["OCAI_MODEL"], ...)` — switching providers is
+   a deployment change, zero code.
 2. **The plugin helper** — a provider package MAY ship convenience sugar
    (`from ocai.openai import chat_model; chat_model("gpt-5",
    credentials=key)`). It must be a thin wrapper over the exact same
@@ -550,8 +556,10 @@ added by this recipe. Every step is additive; none touches a frozen surface.
     censused extension schemas. The cross-language drift alarm covers the
     capability from its first commit.
 11. **Build the front door last, on the same grammar.**
-    `ocai.<name>.<factory>(provider, resource, *, credentials, host=None,
-    catalog=None, ...)` composes codec + `Binding` + `Catalog` behind the
+    `ocai.<name>.<factory>("<provider>/<resource>", *, credentials,
+    host=None, catalog=None, ...)` — one spec string, split on the FIRST
+    slash (`"pinecone/my-index"`, `"voyage/voyage-4-large"`; the resource may
+    contain slashes) — composes codec + `Binding` + `Catalog` behind the
     port; the facade module must not share the factory's name. The facade —
     never an edge, never a driver — owns any 1-logical-call→N-wire-calls
     fan-out (batch splitting, job polling legs, resumable uploads), merging

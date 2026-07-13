@@ -1,0 +1,142 @@
+{
+  "description": "Decode edge, cache usage + extensions sweep: `usage.cache_read_input_tokens` maps to the canonical `cached` consumption source and `usage.cache_creation_input_tokens` to the plugin-namespaced open source `anthropic.cache_write` (the WU-13 dimension decision: cache writes are real billed tokens Anthropic itemizes disjointly from input_tokens, so they ride the dimensional Consumption model — where total_tokens stays a plain sum — not an extensions bag; promotion to a core UsageSource constant triggers when a second provider itemizes cache writes). The matched custom stop sequence (`stop_reason: stop_sequence`) is preserved in extensions['anthropic.stop_sequence'] with an EXTENSIONS FieldLoss, and the unmapped `container` envelope key sweeps VERBATIM into extensions['anthropic.container'] the same way — preserved and reported, never silenced, never pretending to be portable (three-lane law, lane 2; both keys are census-registered in spec/extensions/). Synthetic, wire-accurate, hand-authored against Usage / CacheCreation / Container / Message (ocai-anthropic messages/wire.py); the container-plus-cache combination is a synthetic composition pinning both mappings in one vector.",
+  "src": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "msg_01WCcbXi1nqLqCVXzR0uErJx",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-4-8",
+    "content": [
+      {
+        "type": "text",
+        "text": "Chapter 7 ends with the reactor breach."
+      }
+    ],
+    "stop_reason": "stop_sequence",
+    "stop_sequence": "###",
+    "usage": {
+      "input_tokens": 210,
+      "output_tokens": 40,
+      "cache_creation_input_tokens": 1024,
+      "cache_read_input_tokens": 2048
+    },
+    "container": {
+      "id": "container_011CPjXt1nqLqCVXzR0uEr",
+      "expires_at": "2026-07-13T01:15:00Z"
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "extensions": {
+      "anthropic.stop_sequence": "###",
+      "anthropic.container": {
+        "id": "container_011CPjXt1nqLqCVXzR0uEr",
+        "expires_at": "2026-07-13T01:15:00Z"
+      }
+    },
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Chapter 7 ends with the reactor breach.",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "stop_sequence",
+      "native": "stop_sequence"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 210,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 40,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 2048,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 1024,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "anthropic.cache_write"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "msg_01WCcbXi1nqLqCVXzR0uErJx",
+        "replay": "optional"
+      },
+      "model": "claude-opus-4-8"
+    },
+    "raw": {
+      "id": "msg_01WCcbXi1nqLqCVXzR0uErJx",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-8",
+      "content": [
+        {
+          "type": "text",
+          "text": "Chapter 7 ends with the reactor breach."
+        }
+      ],
+      "stop_reason": "stop_sequence",
+      "stop_sequence": "###",
+      "usage": {
+        "input_tokens": 210,
+        "output_tokens": 40,
+        "cache_creation_input_tokens": 1024,
+        "cache_read_input_tokens": 2048
+      },
+      "container": {
+        "id": "container_011CPjXt1nqLqCVXzR0uEr",
+        "expires_at": "2026-07-13T01:15:00Z"
+      }
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "stop_sequence",
+      "disposition": "extensions",
+      "note": "matched stop sequence preserved in extensions"
+    },
+    {
+      "path": "container",
+      "disposition": "extensions",
+      "note": "unmapped envelope key preserved in extensions['anthropic.container']"
+    }
+  ],
+  "expect_shifts": []
+}

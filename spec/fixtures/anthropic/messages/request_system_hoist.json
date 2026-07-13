@@ -1,0 +1,110 @@
+{
+  "description": "Encode edge, system hoist: the Messages wire has NO system role — the leading canonical system turn relocates to the top-level `system` field, data-exact, recorded as the declared SemanticShift(relocation) (the signature move of this dialect, the honest counterpart of chat_completions carrying `role: system` natively). The remaining user/model/user turns cross as alternating user/assistant wire messages (the model->assistant role rename is normalized exactly once at the codec boundary, not a loss). Synthetic, wire-accurate, hand-authored against MessagesRequest.system / MessageParam (ocai-anthropic messages/wire.py). The wire `model` member is the harness's bind_resource injection, below the edge (WU-05a).",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "system",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "You are a terse zoology assistant.",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Name one nocturnal raptor.",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "The barn owl (Tyto alba).",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "And one diurnal raptor?",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 1024
+    }
+  },
+  "expect": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "system": "You are a terse zoology assistant.",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Name one nocturnal raptor."
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "The barn owl (Tyto alba)."
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "And one diurnal raptor?"
+          }
+        ]
+      }
+    ]
+  },
+  "expect_losses": [],
+  "expect_shifts": [
+    {
+      "kind": "relocation",
+      "path": "messages[0]",
+      "note": "system message relocated to the top-level `system` field"
+    }
+  ]
+}

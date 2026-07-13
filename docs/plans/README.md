@@ -24,13 +24,13 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-05b | Backbone corrections from the capability stress-test (vocab hoist, ProviderRef.scope, SourceRef.mime_type, census token, facade rename, §11) | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-05a | API shape correction: `model` off `ChatRequest`; two front doors (§3.4) | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-06 | OpenAI chat_completions unary certification | M1 | [m1](m1-foundations.md) | ✅ |
-| WU-07 | Facade unary lifecycle — **M1** | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-07 | Facade unary lifecycle — **M1** | M1 | [m1](m1-foundations.md) | ✅ **M1** |
 | WU-08 | Fold law hardening + streaming spec shapes | M2 | [m2](m2-streaming.md) | ✅ |
 | WU-09 | Stream conversion joins the graph | M2 | [m2](m2-streaming.md) | ✅ |
 | WU-10 | OpenAI streaming codec + fold triples | M2 | [m2](m2-streaming.md) | ⬜ |
 | WU-11 | Facade streaming — **M2** | M2 | [m2](m2-streaming.md) | ⬜ |
 | WU-12 | Profile gate | M2 | [m2](m2-streaming.md) | ⬜ |
-| WU-13 | Anthropic messages unary certification | M3 | [m3](m3-second-provider.md) | ⬜ |
+| WU-13 | Anthropic messages unary certification | M3 | [m3](m3-second-provider.md) | ✅ |
 | WU-14a | Anthropic unary e2e (the pattern proof) | M3 | [m3](m3-second-provider.md) | ⬜ |
 | WU-14b | Anthropic streaming e2e — **M3** | M3 | [m3](m3-second-provider.md) | ⬜ |
 | WU-15 | Cross-conversion fidelity proof (flagship demo #1) | M3 | [m3](m3-second-provider.md) | ⬜ |

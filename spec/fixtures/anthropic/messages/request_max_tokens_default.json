@@ -1,0 +1,54 @@
+{
+  "description": "Encode edge, required max_tokens injection: the Messages wire REQUIRES max_tokens, but the canonical request omits config entirely (None means 'provider default' — a semantics this wire cannot express). The encoder injects DEFAULT_MAX_TOKENS (1024) and records the declared SemanticShift(emulation) at config.max_output_tokens: the honest disposition is a shift, not a FieldLoss — no canonical field was lost, but the call now runs under a ceiling the caller never asked for, reproduced by different mechanics (WU-13 decision). Synthetic, wire-accurate, hand-authored against MessagesRequest.max_tokens (ocai-anthropic messages/wire.py). The wire `model` member is the harness's bind_resource injection, below the edge (WU-05a).",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Summarize the plot of Hamlet in one sentence.",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Summarize the plot of Hamlet in one sentence."
+          }
+        ]
+      }
+    ]
+  },
+  "expect_losses": [],
+  "expect_shifts": [
+    {
+      "kind": "emulation",
+      "path": "config.max_output_tokens",
+      "note": "wire requires max_tokens; injected default 1024"
+    }
+  ]
+}

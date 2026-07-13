@@ -1,0 +1,116 @@
+{
+  "description": "Decode edge, plain text: a standard Messages response body crosses anthropic/messages -> canonical chat.response losslessly — the `text` content block becomes a PartText on a `model`-role turn (wire `assistant`, normalized once), stop_reason `end_turn` becomes the two-lane FinishInfo (reason `complete`, native verbatim), usage maps onto the disjoint Consumption buckets (input/output/cached/anthropic.cache_write — Anthropic's input_tokens EXCLUDES cache reads and writes, so the buckets are disjoint on the wire and total_tokens stays a plain sum), and the envelope identity decodes typed: `id` as an interface-scoped ProviderRef (kind response_id — crossing another (provider, interface) is UNSUPPORTED-and-reported, §2.4), `model` as the echo (this wire carries no creation timestamp). The `raw` lane is the untouched wire body, verbatim; a `stop_sequence: null` surfaces nothing. Synthetic, wire-accurate, hand-authored against Message / TextBlock / Usage (ocai-anthropic messages/wire.py).",
+  "src": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-4-8",
+    "content": [
+      {
+        "type": "text",
+        "text": "Hello! How can I help you today?"
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 12,
+      "output_tokens": 9,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Hello! How can I help you today?",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "end_turn"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 12,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 9,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "anthropic.cache_write"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+        "replay": "optional"
+      },
+      "model": "claude-opus-4-8"
+    },
+    "raw": {
+      "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-8",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello! How can I help you today?"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 12,
+        "output_tokens": 9,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0
+      }
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

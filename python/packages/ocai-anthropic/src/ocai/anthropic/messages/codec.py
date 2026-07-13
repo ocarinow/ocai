@@ -169,6 +169,16 @@ _KNOWN_RESPONSE_KEYS = frozenset(
     }
 )
 
+# Anthropic's documented inclusive ranges for the range-limited sampling
+# knobs (https://platform.claude.com/docs/en/api/messages — note the 0..1
+# temperature ceiling, unlike OpenAI's 0..2). Out-of-range values pass
+# VERBATIM with an APPROXIMATED FieldLoss — never rescaled, never clamped,
+# never silent (§3.1 honesty rule).
+_KNOB_RANGES: dict[str, tuple[float, float]] = {
+    "temperature": (0.0, 1.0),
+    "top_p": (0.0, 1.0),
+}
+
 # The `*_tool_result` block types that decode to PartServerToolResult, mapped
 # to their open canonical `kind` codes.
 _SERVER_RESULT_KINDS = {
@@ -204,9 +214,16 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     """Map an Anthropic `usage` object onto the dimensional model.
 
     Buckets per the documented disjoint-bucket rule for this provider:
-    `input_tokens` → input (NOT including cache reads — Anthropic's buckets
-    are disjoint, unlike OpenAI's), `output_tokens` → output,
-    `cache_read_input_tokens` → cached, and
+    `input_tokens` → input (NOT including cache reads or cache writes —
+    Anthropic's buckets are disjoint, unlike OpenAI's), `output_tokens` →
+    output, `cache_read_input_tokens` → the canonical cached bucket,
+    `cache_creation_input_tokens` → the plugin-namespaced open source code
+    `anthropic.cache_write` (WU-13 decision: cache writes are real billed
+    tokens Anthropic itemizes disjointly, so they belong on the dimensional
+    `Consumption` model — where `total_tokens` stays a plain sum — not in an
+    extensions bag; the source code is namespaced like every plugin-minted
+    open code, with promotion to a core `UsageSource` constant triggered by
+    a second provider itemizing cache writes), and
     `output_tokens_details.thinking_tokens` → reasoning.
 
     Args:
@@ -228,9 +245,8 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     _add("input", raw.get("input_tokens"))
     _add("output", raw.get("output_tokens"))
     _add("cached", raw.get("cache_read_input_tokens"))
+    _add("anthropic.cache_write", raw.get("cache_creation_input_tokens"))
     _add("reasoning", (raw.get("output_tokens_details") or {}).get("thinking_tokens"))
-    # TODO: cache_creation_input_tokens needs a censused dimension (a write,
-    # not a read — billed differently).
     return Usage(consumptions=consumptions)
 
 
@@ -283,6 +299,20 @@ class MessagesCodec:
             The Messages API path.
         """
         return MESSAGES_PATH
+
+    def dialect_traits(self) -> DialectTraits:
+        """Return this interface's hosting traits (the module `dialect_traits`).
+
+        The codec-attached face of the facade seam (WU-07): `WireChatModel`
+        builds each call's `EndpointSpec.traits` from the codec it was
+        composed with, so the wire layer reads the dialect's hosting facts
+        (the `anthropic-version` header, the Vertex body-version injection)
+        as data without the facade ever reaching into plugin modules.
+
+        Returns:
+            The interface's `DialectTraits`.
+        """
+        return dialect_traits()
 
     def bind_resource(self, payload: dict[str, Any], resource: str) -> dict[str, Any]:
         """Inject the bound model name as this wire's `model` member.
@@ -380,10 +410,14 @@ class MessagesCodec:
 
         Parts map onto content blocks: `PartText` → `text`, `PartToolCall` →
         `tool_use` (the `args_json` wire truth parsed back into the `input`
-        object), `PartToolResult` → `tool_result` (native here — no
-        relocation, unlike chat_completions), `PartReasoning` → `thinking`
-        with its REQUIRED signature anchor replayed verbatim. Parts with no
-        lane are reported, never silenced.
+        object), `PartToolResult` → `tool_result` (native here — `is_error`
+        included, the honest asymmetry vs chat_completions), `PartReasoning`
+        → `thinking` with its REQUIRED signature anchor replayed verbatim.
+        Parts with no lane are reported, never silenced.
+
+        The Messages wire has no `tool` role: a canonical tool turn threads
+        as a `role: user` message whose content is the `tool_result` blocks
+        — data-exact, recorded as a `SemanticShift(relocation)`.
 
         Args:
             index: The message's position, used in loss paths.
@@ -394,6 +428,16 @@ class MessagesCodec:
         Returns:
             The wire message dict.
         """
+        role = _ROLE_FROM_CANONICAL.get(message.role, message.role)
+        if message.role == "tool":
+            role = "user"
+            shifts.append(
+                SemanticShift(
+                    kind=ShiftKind.RELOCATION,
+                    path=f"messages[{index}]",
+                    note="canonical tool turn threads as a `role: user` wire message",
+                )
+            )
         blocks: list[dict[str, Any]] = []
         for p, part in enumerate(message.parts):
             path = f"messages[{index}].parts[{p}]"
@@ -425,7 +469,7 @@ class MessagesCodec:
                         note=f"part type {type(part).__name__!r} not yet encoded on this interface",
                     )
                 )
-        return {"role": _ROLE_FROM_CANONICAL.get(message.role, message.role), "content": blocks}
+        return {"role": role, "content": blocks}
 
     def _encode_tool_result(
         self, path: str, part: PartToolResult, losses: list[FieldLoss]
@@ -523,12 +567,14 @@ class MessagesCodec:
     def _encode_tool_choice(
         self, request: ChatRequest, payload: dict[str, Any], losses: list[FieldLoss]
     ) -> None:
-        """Encode the canonical `tool_choice` onto the payload.
+        """Encode the canonical `ToolChoice` onto the payload.
 
-        Canonical open modes map to Anthropic's tagged objects:
+        The canonical open modes map to Anthropic's tagged objects:
         `auto` → `{"type": "auto"}`, `required` → `{"type": "any"}` (a
-        rename), `none` → `{"type": "none"}`; a forced named tool becomes
-        `{"type": "tool", "name": ...}`.
+        rename), `none` → `{"type": "none"}`; `named` becomes
+        `{"type": "tool", "name": ...}`. A mode this interface cannot
+        express (an unknown open code, or `named` without a name) is
+        reported `DROPPED`, never silenced.
 
         Args:
             request: The canonical request carrying `tool_choice`.
@@ -538,31 +584,21 @@ class MessagesCodec:
         choice = request.tool_choice
         if choice is None:
             return
-        if isinstance(choice, str):
-            wire = {"auto": "auto", "required": "any", "none": "none"}.get(choice)
-            if wire is not None:
-                payload["tool_choice"] = {"type": wire}
-                return
-            losses.append(
-                FieldLoss(
-                    path="tool_choice",
-                    disposition=Disposition.DROPPED,
-                    severity=1.0,
-                    note=f"unrecognized tool_choice mode {choice!r}",
-                )
-            )
+        mode = getattr(choice, "mode", None)
+        wire = {"auto": "auto", "required": "any", "none": "none"}.get(mode)
+        if wire is not None:
+            payload["tool_choice"] = {"type": wire}
             return
         name = getattr(choice, "name", None)
-        if name:
+        if mode == "named" and name:
             payload["tool_choice"] = {"type": "tool", "name": name}
             return
-        # TODO: align with the canonical ToolChoice shape once it lands.
         losses.append(
             FieldLoss(
                 path="tool_choice",
                 disposition=Disposition.DROPPED,
                 severity=1.0,
-                note=f"unrecognized tool_choice shape {type(choice).__name__!r}",
+                note=f"tool_choice mode {mode!r} has no Messages expression",
             )
         )
 
@@ -577,10 +613,12 @@ class MessagesCodec:
 
         `temperature`/`top_p`/`top_k` are native (the newest models reject
         `temperature` — a *profile* fact the feature gate applies before this
-        encoder runs, §2.5). `max_output_tokens` renames to the **required**
-        `max_tokens`; sampling knobs Anthropic lacks (`seed`, penalties,
-        `logprobs`) are reported `UNSUPPORTED`. Values pass verbatim — never
-        rescaled, never clamped.
+        encoder runs, §2.5). Values pass **verbatim** — never rescaled, never
+        clamped; a value outside a documented range (`_KNOB_RANGES` — note
+        Anthropic's 0..1 temperature ceiling) is the provider's to reject and
+        ours to report with an `APPROXIMATED` `FieldLoss`. `max_output_tokens`
+        renames to the **required** `max_tokens`; sampling knobs Anthropic
+        lacks (`seed`, penalties, `logprobs`) are reported `UNSUPPORTED`.
 
         Args:
             request: The canonical request carrying `config`.
@@ -603,12 +641,25 @@ class MessagesCodec:
             payload["max_tokens"] = max_tokens
         if config is None:
             return
-        # TODO: emit APPROXIMATED FieldLoss for out-of-range values
-        # (temperature > 1.0 here, unlike OpenAI's 2.0) — verbatim always.
         for key in ("temperature", "top_p", "top_k"):
             value = getattr(config, key)
             if value is not None:
                 payload[key] = value
+        for name, (low, high) in _KNOB_RANGES.items():
+            value = getattr(config, name)
+            if value is not None and not low <= value <= high:
+                losses.append(
+                    FieldLoss(
+                        path=f"config.{name}",
+                        disposition=Disposition.APPROXIMATED,
+                        severity=0.5,
+                        note=(
+                            f"config.{name}={value} is outside Anthropic's documented "
+                            f"{low}..{high} range; passed verbatim, never clamped — "
+                            "the provider may reject it"
+                        ),
+                    )
+                )
         if config.stop_sequences:
             payload["stop_sequences"] = list(config.stop_sequences)
         losses.extend(
@@ -645,9 +696,26 @@ class MessagesCodec:
                 )
         if config.output is not None:
             if config.output.mode == "json_schema" and config.output.schema is not None:
+                schema = config.output.schema
                 payload["output_config"] = {
-                    "format": {"type": "json_schema", "schema": config.output.schema}
+                    "format": {
+                        "type": "json_schema",
+                        # `Schema` is `JsonSchema | bool`: render the typed
+                        # form to its plain wire dict; a boolean passes.
+                        "schema": schema.to_dict() if hasattr(schema, "to_dict") else schema,
+                    }
                 }
+                # The wire format object carries only the schema itself.
+                losses.extend(
+                    FieldLoss(
+                        path=f"config.output.{member}",
+                        disposition=Disposition.DROPPED,
+                        severity=1.0,
+                        note=f"Messages output_config.format has no {member} member",
+                    )
+                    for member in ("name", "strict")
+                    if getattr(config.output, member, None) is not None
+                )
             elif config.output.mode != "text":
                 losses.append(
                     FieldLoss(
@@ -703,7 +771,7 @@ class MessagesCodec:
         message = Message(role=_ROLE_TO_CANONICAL.get(role, role), parts=parts)
         finish = self._decode_finish(payload, extensions, losses)
         usage = _usage(payload.get("usage"))
-        info = ResponseInfo(id=payload.get("id"), model=payload.get("model"))
+        info = self._decode_info(payload)
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
             extensions[f"anthropic.{key}"] = payload[key]
             losses.append(
@@ -722,6 +790,35 @@ class MessagesCodec:
             extensions=extensions,
         )
         return EdgeOutput(response, tuple(losses), tuple(shifts))
+
+    def _decode_info(self, payload: dict[str, Any]) -> ResponseInfo:
+        """Decode the response envelope's identity keys into `ResponseInfo`.
+
+        `id` becomes an interface-scoped `ProviderRef` (kind
+        `"response_id"`) — the scoped-crossing rule then reports it
+        `UNSUPPORTED` if it ever leaves `anthropic/messages`; `model` is the
+        provider's echo, verbatim. This wire carries no creation timestamp.
+
+        Args:
+            payload: The raw response body, already JSON-parsed.
+
+        Returns:
+            The canonical `ResponseInfo`.
+        """
+        raw_id = payload.get("id")
+        return ResponseInfo(
+            id=(
+                ProviderRef(
+                    provider=PROVIDER,
+                    interface=INTERFACE,
+                    kind="response_id",
+                    id=raw_id,
+                )
+                if isinstance(raw_id, str)
+                else None
+            ),
+            model=payload.get("model"),
+        )
 
     def _decode_block(
         self,

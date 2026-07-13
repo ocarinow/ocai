@@ -1,0 +1,182 @@
+{
+  "description": "Encode edge, full tool round: the PartToolCall becomes a native `tool_use` content block (the args_json wire truth parsed back into the `input` object) and the tool turn's PartToolResult becomes a native `tool_result` block — with `is_error: true` crossing EXACTLY, the honest asymmetry vs chat_completions where the flag is DROPPED. The Messages wire has no tool role, so the canonical tool turn threads as a `role: user` wire message carrying the tool_result blocks — a declared SemanticShift(relocation), data-exact. Also exercises tools (the flat `{type: custom, name, input_schema}` wire shape — input_schema is the rename of the canonical `parameters`) and canonical ToolChoice mode `auto` mapping to the tagged `{type: auto}` object. Synthetic, wire-accurate, hand-authored against ToolUseBlockParam / ToolResultBlockParam / Tool / ToolChoiceAuto (ocai-anthropic messages/wire.py). The wire `model` member is the harness's bind_resource injection, below the edge (WU-05a).",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "What is the weather in Paris right now?",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "toolu_01A09q90qw90lq917835lq9",
+            "name": "get_weather",
+            "args_json": "{\"city\": \"Paris\"}",
+            "status": "input_complete",
+            "executed_by": "client",
+            "type": "tool_call"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "tool",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "toolu_01A09q90qw90lq917835lq9",
+            "parts": [
+              {
+                "version": "2026-07",
+                "text": "Service unavailable: upstream weather API timed out.",
+                "type": "text"
+              }
+            ],
+            "is_error": true,
+            "type": "tool_result"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "I could not reach the weather service for Paris just now.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "get_weather",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "City to look up."
+            }
+          },
+          "required": ["city"]
+        },
+        "description": "Look up current weather for a city."
+      }
+    ],
+    "tool_choice": {
+      "version": "2026-07",
+      "mode": "auto"
+    },
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 1024
+    }
+  },
+  "expect": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "What is the weather in Paris right now?"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_01A09q90qw90lq917835lq9",
+            "name": "get_weather",
+            "input": {
+              "city": "Paris"
+            }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+            "content": [
+              {
+                "type": "text",
+                "text": "Service unavailable: upstream weather API timed out."
+              }
+            ],
+            "is_error": true
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "I could not reach the weather service for Paris just now."
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "type": "custom",
+        "name": "get_weather",
+        "description": "Look up current weather for a city.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "City to look up."
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    ],
+    "tool_choice": {
+      "type": "auto"
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": [
+    {
+      "kind": "relocation",
+      "path": "messages[2]",
+      "note": "canonical tool turn threads as a `role: user` wire message"
+    }
+  ]
+}

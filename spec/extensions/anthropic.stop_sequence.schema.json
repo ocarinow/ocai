@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.stop_sequence",
+  "description": "The custom stop sequence that actually ended generation, echoed on anthropic/messages response envelopes when stop_reason is `stop_sequence`. The canonical FinishInfo already carries the two-lane reason/native pair; WHICH configured sequence matched is provider-unique response metadata with no canonical home, so it rides ChatResponse.extensions with an EXTENSIONS FieldLoss — preserved and reported, never portable-by-pretense.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "promote onto a typed FinishInfo detail if a second provider echoes the matched stop sequence",
+  "type": "string"
+}

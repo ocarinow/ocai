@@ -34,6 +34,8 @@ from ocai.convert.graph import Edge
 from ocai.convert.graph import EdgeOutput
 from ocai.convert.graph import StreamEdge
 from ocai.core.fidelity import Disposition
+from ocai.core.fidelity import SemanticShift
+from ocai.core.fidelity import ShiftKind
 from ocai.core.identity import NodeId
 from ocai.core.identity import Origin
 from ocai.core.profile import CapabilityProfile
@@ -48,6 +50,15 @@ _CODEC = MessagesCodec()
 
 # --- Contracts (the per-field disposition census, §4.2) ----------------------
 
+# Census upper-bound decision (WU-13, replaying WU-06): a census entry bounds
+# EVERY payload the edge may see, so the range-limited knobs (temperature and
+# top_p — Anthropic documents a 0..1 ceiling for both, unlike OpenAI's 0..2
+# temperature) declare APPROXIMATED. The runtime emits APPROXIMATED only for
+# out-of-range values (passed verbatim, never clamped) and stays silent
+# (EXACT) in range, which certification accepts because EXACT sits in a
+# strictly lower severity band. The declared grade is honestly worse for it:
+# this edge pays two APPROXIMATED slots in `loss_grade()` rather than
+# advertising an exactness it cannot promise for every payload.
 ENCODE_REQUEST_CONTRACT = EdgeContract(
     # No `model` row: the canonical request carries no model (WU-05a, §3.4) —
     # the wire member is injected by the facade from the bound resource via
@@ -62,8 +73,12 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "messages[].parts[text]": DeclaredDisposition(Disposition.EXACT),
         # args_json string parsed back into the wire `input` object.
         "messages[].parts[tool_call]": DeclaredDisposition(Disposition.RENAMED),
+        # `tool_result` blocks are native — is_error INCLUDED, the honest
+        # asymmetry vs chat_completions (which drops the error flag).
         "messages[].parts[tool_result]": DeclaredDisposition(Disposition.EXACT),
         "messages[].parts[tool_result].is_error": DeclaredDisposition(Disposition.EXACT),
+        # TODO: nested image/document result content is native on this wire.
+        "messages[].parts[tool_result].parts[]": DeclaredDisposition(Disposition.DROPPED),
         # thinking replay w/ REQUIRED signature anchor; foreign anchors are
         # UNSUPPORTED by the graph's ref rule before this edge runs.
         "messages[].parts[reasoning]": DeclaredDisposition(Disposition.EXACT),
@@ -74,8 +89,12 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "messages[].parts[refusal]": DeclaredDisposition(Disposition.DROPPED),
         "tools": DeclaredDisposition(Disposition.RENAMED),
         "tool_choice": DeclaredDisposition(Disposition.RENAMED),
-        "config.temperature": DeclaredDisposition(Disposition.EXACT),
-        "config.top_p": DeclaredDisposition(Disposition.EXACT),
+        "config.temperature": DeclaredDisposition(
+            Disposition.APPROXIMATED, "range-limited (0..1): out-of-range passes verbatim"
+        ),
+        "config.top_p": DeclaredDisposition(
+            Disposition.APPROXIMATED, "range-limited (0..1): out-of-range passes verbatim"
+        ),
         "config.top_k": DeclaredDisposition(Disposition.EXACT),
         "config.max_output_tokens": DeclaredDisposition(Disposition.RENAMED),
         "config.stop_sequences": DeclaredDisposition(Disposition.RENAMED),
@@ -87,11 +106,29 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "config.reasoning.budget_tokens": DeclaredDisposition(Disposition.RENAMED),
         "config.reasoning.effort": DeclaredDisposition(Disposition.APPROXIMATED),
         "config.output": DeclaredDisposition(Disposition.RENAMED),
+        # The wire's output_config.format carries only the schema itself.
+        "config.output.name": DeclaredDisposition(Disposition.DROPPED),
+        "config.output.strict": DeclaredDisposition(Disposition.DROPPED),
         # TODO: cache_hint → per-block cache_control breakpoints.
         "config.modalities": DeclaredDisposition(Disposition.DROPPED),
         "config.audio": DeclaredDisposition(Disposition.DROPPED),
         "config.cache": DeclaredDisposition(Disposition.DROPPED),
     },
+    semantic_shifts=(
+        SemanticShift(
+            kind=ShiftKind.RELOCATION,
+            path="messages[]",
+            note=(
+                "leading system turns relocate to the top-level `system` field; "
+                "canonical tool turns thread as `role: user` wire messages"
+            ),
+        ),
+        SemanticShift(
+            kind=ShiftKind.EMULATION,
+            path="config.max_output_tokens",
+            note="the wire requires max_tokens; an omitted ceiling gets the injected default",
+        ),
+    ),
     note="canonical chat.request -> anthropic/messages",
 )
 
@@ -111,11 +148,21 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
         "stop_reason": DeclaredDisposition(Disposition.EXACT),
         "stop_details": DeclaredDisposition(Disposition.EXACT),
         "stop_sequence": DeclaredDisposition(Disposition.EXTENSIONS),
+        # cache_read_input_tokens → the canonical cached bucket;
+        # cache_creation_input_tokens → the open `anthropic.cache_write`
+        # consumption source (WU-13 decision, see `codec._usage`).
         "usage": DeclaredDisposition(Disposition.RENAMED),
         "id": DeclaredDisposition(Disposition.EXACT),
         "model": DeclaredDisposition(Disposition.EXACT),
         "container": DeclaredDisposition(Disposition.EXTENSIONS),
     },
+    semantic_shifts=(
+        SemanticShift(
+            kind="anthropic.args_serialized",
+            path="content[].input",
+            note="tool_use.input objects serialize to the canonical args_json wire-truth lane",
+        ),
+    ),
     note="anthropic/messages -> canonical chat.response",
 )
 
