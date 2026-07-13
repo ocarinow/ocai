@@ -145,3 +145,41 @@ in parallel sessions/branches; WU-11 joins the tracks.
   strict-refuse vs annotate-report for a gated knob; model-pattern matching
   cases; a facade test proving the gate runs before encode; pytest green.
 - **Deps:** WU-07.
+- **Decision:** undeclared feature keys resolve **NATIVE** — profiles declare
+  EXCEPTIONS; the absence of a declared limitation is not a limitation (keys
+  are open data, so the opposite default would demand enumerating an
+  unbounded universe, and NATIVE-by-default is what keeps profiles additive).
+  Layering: `Catalog.profiles_for` returns matches most-specific-first
+  (specificity = literal-prefix length before the first wildcard; ties keep
+  admission order), and `ocai.core.profile.resolve_support` takes the first
+  profile *declaring* the key — a specific sheet silent about a key never
+  masks the interface-wide sheet. `Catalog.profile` is the ranking's head.
+  The scaffold's `CapabilityProfile.resolve` stub shipped implemented as
+  `check_feature` (the plan's name; nothing referenced the stub, and it
+  avoids overloading `Catalog.resolve`).
+- **Decision:** gate mode is a plain `WireChatModel(strict: bool = False)`
+  ctor flag — annotate is the default; a richer fidelity-policy enum can
+  supersede it additively. Strict raises the new `UnsupportedFeatureError`
+  (taxonomy + `ocai.core` export; carries `features`/`model`/`provider`)
+  from `_prepare` after resolve and BEFORE `catalog.convert` — proven by a
+  spy catalog recording zero converts and respx recording zero wire calls.
+  Annotate mode emits one gate `EdgeReport`
+  (`CANONICAL_CHAT_REQUEST → route.node`, note `"feature gate (pre-encode)"`)
+  with a `FieldLoss(UNSUPPORTED)` per occurrence, merged AHEAD of the encode
+  leg; the payload still goes out **verbatim** — never stripped, never
+  clamped — the report warns, the provider stays authoritative.
+- **Decision:** the request census (`_request_features`) derives
+  `(feature key, canonical path)` pairs for every set config knob, the
+  reasoning dials, `output.mode` json/json_schema, `chat.tools` /
+  `chat.tools.parallel`, and the gated part kinds (image/audio/video/
+  document, reasoning-in-request = `chat.parts.reasoning.replay`); keys the
+  plugins never declare resolve NATIVE, so the census may safely name more
+  than any profile does.
+- **Decision:** OpenAI reasoning census = two profiles (`o*`, `gpt-5*`)
+  sharing one fact sheet (fnmatch has no alternation): temperature/top_p
+  ABSENT, `reasoning.effort` NATIVE. Anthropic census = one class pattern
+  `claude-opus-4-[678]*` with temperature plain ABSENT (extend the class as
+  families ship); top_p stays NATIVE via the `"*"` sheet — the documented
+  temperature/top_p mutual exclusion is a cross-knob constraint the
+  per-feature gate deliberately does not model (top_p alone is accepted;
+  declaring it ABSENT would refuse valid requests).

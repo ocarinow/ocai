@@ -29,12 +29,12 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-09 | Stream conversion joins the graph | M2 | [m2](m2-streaming.md) | ✅ |
 | WU-10 | OpenAI streaming codec + fold triples | M2 | [m2](m2-streaming.md) | ⬜ |
 | WU-11 | Facade streaming — **M2** | M2 | [m2](m2-streaming.md) | ⬜ |
-| WU-12 | Profile gate | M2 | [m2](m2-streaming.md) | ⬜ |
+| WU-12 | Profile gate | M2 | [m2](m2-streaming.md) | ✅ |
 | WU-13 | Anthropic messages unary certification | M3 | [m3](m3-second-provider.md) | ✅ |
 | WU-14a | Anthropic unary e2e (the pattern proof) | M3 | [m3](m3-second-provider.md) | ⬜ |
 | WU-14b | Anthropic streaming e2e — **M3** | M3 | [m3](m3-second-provider.md) | ⬜ |
 | WU-15 | Cross-conversion fidelity proof (flagship demo #1) | M3 | [m3](m3-second-provider.md) | ⬜ |
-| WU-16 | Front doors wired end-to-end: `ocai.chat.model()` + plugin helper + discovery; Workspace removed | M3 | [m3](m3-second-provider.md) | ⬜ |
+| WU-16 | Front doors wired end-to-end: `ocai.chat.model()` + plugin helper + discovery; Workspace removed | M3 | [m3](m3-second-provider.md) | ✅ |
 | H1–H5 | Horizon milestones | — | [horizon](horizon.md) | ⬜ |
 
 ## Milestones

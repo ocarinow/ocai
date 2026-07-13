@@ -95,6 +95,45 @@ class ContentFilterError(OcaiError):
     """The request/response was blocked by a provider content filter/safety system."""
 
 
+class UnsupportedFeatureError(OcaiError):
+    """A profile-gated feature is declared `ABSENT` for the bound model.
+
+    Raised by the facade's feature gate in **strict** mode, before the
+    request is encoded and before any wire attempt — the request never
+    leaves the process. The gate checked the request's feature keys against
+    the catalog's `CapabilityProfile` facts for the resolved
+    `(provider, interface)` and the bound model name, and at least one key
+    resolved to `Support.ABSENT`. Annotate mode (the default) records the
+    same facts as `UNSUPPORTED` field losses on the call's `FidelityReport`
+    instead of raising.
+
+    Attributes:
+        features: The namespaced feature keys that resolved `ABSENT`.
+        model: The bound model name the profile facts were checked against.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        features: tuple[str, ...] = (),
+        model: str | None = None,
+        provider: str | None = None,
+    ) -> None:
+        """Construct the strict-mode refusal.
+
+        Args:
+            message: The human-readable error message, naming the features
+                and the model.
+            features: The namespaced feature keys that resolved `ABSENT`.
+            model: The bound model name the facts were checked against.
+            provider: The provider the resolved route targets.
+        """
+        super().__init__(message, provider=provider)
+        self.features = features
+        self.model = model
+
+
 def _retry_after_seconds(value: str | None) -> float | None:
     """Parse a `Retry-After` header value (delta-seconds form) to float."""
     if not value:

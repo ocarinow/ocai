@@ -19,7 +19,8 @@ The vocabulary, by module:
 - `finish` — why a run stopped, in any capability: `FinishInfo`,
   `FinishReason`, and the detail union (hoisted from chat pre-freeze).
 - `refs` — provider-anchored state: `ProviderRef` and its `Replay` rule.
-- `profile` — declared capability facts: `CapabilityProfile` / `Support`.
+- `profile` — declared capability facts: `CapabilityProfile` / `Support`,
+  plus the gate's layering rule `resolve_support`.
 - `ir` — the IR envelope (`IRObject`: omit-absent encode, tolerant decode)
   and the total-decode `TagRegistry`.
 - `canonjson` — the one normative equality predicate: `canonical` /
@@ -50,6 +51,7 @@ from ocai.core.errors import ContextLengthError
 from ocai.core.errors import OcaiError
 from ocai.core.errors import RateLimitError
 from ocai.core.errors import TransientError
+from ocai.core.errors import UnsupportedFeatureError
 from ocai.core.errors import error_from_response
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
@@ -98,6 +100,7 @@ from ocai.core.primitives import Value
 from ocai.core.primitives import ValueType
 from ocai.core.profile import CapabilityProfile
 from ocai.core.profile import Support
+from ocai.core.profile import resolve_support
 from ocai.core.refs import ProviderRef
 from ocai.core.refs import Replay
 from ocai.core.result import CallContext
@@ -184,6 +187,7 @@ __all__ = [
     "Support",
     "TagRegistry",
     "TransientError",
+    "UnsupportedFeatureError",
     "Usage",
     "UsageModality",
     "UsageSource",
@@ -199,5 +203,6 @@ __all__ = [
     "encode_schema",
     "error_from_response",
     "require_credential",
+    "resolve_support",
     "semantic_equal",
 ]

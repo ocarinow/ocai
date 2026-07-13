@@ -21,6 +21,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
+from fnmatch import fnmatchcase
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class Support(str, Enum):
@@ -46,7 +51,9 @@ class CapabilityProfile:
     A frozen fact sheet, registered via a plugin's `CatalogFragment` and
     looked up by the feature gate with the concrete model name at call time.
     Multiple profiles for one interface may coexist with different
-    `model_pattern`s; the catalog picks the most specific match.
+    `model_pattern`s; the catalog ranks the matches most-specific-first
+    (`Catalog.profiles_for`) and the gate layers them — the first profile
+    declaring a feature key wins (`resolve_support`).
 
     Attributes:
         provider: The provider the facts are about (e.g. `"anthropic"`).
@@ -72,14 +79,22 @@ class CapabilityProfile:
         Returns:
             True when `model` falls inside `model_pattern`.
         """
-        raise NotImplementedError  # TODO: fnmatch.fnmatchcase(model, self.model_pattern)
+        return fnmatchcase(model, self.model_pattern)
 
-    def resolve(self, feature: str, model: str) -> Support:
+    def check_feature(self, feature: str, model: str) -> Support:
         """Return the declared support level for `feature` on `model`.
 
-        The feature gate's single entry point: called before payload
+        The single-profile half of the feature gate: called before payload
         conversion so an `ABSENT` feature can be refused (strict) or
         loss-recorded (annotate) without ever building a doomed request.
+
+        Undeclared policy (normative): a feature key absent from `features`
+        resolves to `Support.NATIVE`. Profiles declare *exceptions* — the
+        absence of a declared limitation is not a limitation. Defaulting the
+        other way would force every profile to enumerate the whole open
+        feature universe (impossible: keys are namespaced open data), and
+        this default is what keeps profiles additive — declaring a new fact
+        never changes the meaning of the ones already shipped.
 
         Args:
             feature: The namespaced feature key (e.g.
@@ -87,12 +102,41 @@ class CapabilityProfile:
             model: The concrete model name the request targets.
 
         Returns:
-            The declared `Support` for the feature.
+            The declared `Support` for the feature, or `Support.NATIVE` when
+            this profile declares nothing about it.
 
         Raises:
             LookupError: When `model` does not match this profile's pattern.
         """
-        # TODO: check matches(model); look up `feature` in `features`; decide
-        # and document the default for undeclared feature keys (likely NATIVE
-        # with a "undeclared" annotation, so profiles stay additive).
-        raise NotImplementedError
+        if not self.matches(model):
+            raise LookupError(
+                f"model {model!r} is outside this profile's pattern "
+                f"{self.model_pattern!r} ({self.provider}/{self.interface})"
+            )
+        return self.features.get(feature, Support.NATIVE)
+
+
+def resolve_support(profiles: Sequence[CapabilityProfile], feature: str) -> Support:
+    """Resolve one feature key across specificity-ranked profiles.
+
+    The layering rule of the feature gate: `profiles` is expected
+    most-specific-first (the order `Catalog.profiles_for` returns), the first
+    profile that *declares* `feature` wins, and a key no profile declares
+    resolves to `Support.NATIVE` — the same undeclared policy as
+    `CapabilityProfile.check_feature`, applied across the stack (a specific
+    sheet that is silent about a key never masks the interface-wide sheet
+    that declares it).
+
+    Args:
+        profiles: The matching profiles, most specific first.
+        feature: The namespaced feature key to resolve.
+
+    Returns:
+        The first declared `Support`, or `Support.NATIVE` when undeclared
+        everywhere.
+    """
+    for profile in profiles:
+        declared = profile.features.get(feature)
+        if declared is not None:
+            return declared
+    return Support.NATIVE
