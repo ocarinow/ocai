@@ -119,6 +119,77 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
 - **Done:** `check_fold_triples` green; fold-equals-unary on a paired recorded
   exchange; pytest green.
 - **Deps:** WU-11, WU-14a.
+- **Decision (WU-10's shape, replayed):** the total ordered per-event decoder
+  is a new `MessagesCodec.decode_frame(event, data) -> EdgeOutput`;
+  `decode_event` keeps the `ChatCodec`-protocol face as the thin first-chunk
+  delegate. Multi-signal events split in wire order: `message_start` →
+  `STREAM_START` + the opening snapshot as a cumulative `USAGE` chunk;
+  `message_delta` → the accumulating `FINISH` + the cumulative `USAGE`
+  update; `ping` → a canonical `PING` chunk (no longer silently `None`).
+  `content_block_start` opens the typed skeleton — `tool_use` with **empty**
+  `args_json` and `input_streaming` status (the wire's placeholder
+  `input: {}` never seeds the string lane, so NO `anthropic.args_serialized`
+  shift fires on the streaming path: the `input_json_delta` fragments ARE
+  the wire truth here, the honest asymmetry vs the unary edge's parsed
+  object); thinking/redacted_thinking/text and the server-tool spine decode
+  as in the unary edge, losses no longer discarded.
+- **Decision (cumulative usage settles per source):** `message_start` and
+  `message_delta` report CUMULATIVE snapshots covering exactly the keys each
+  names (`message_delta` typically only running `output_tokens`), flagged
+  `usage_cumulative=True` per the chunk vocabulary; the transducer merges
+  per consumption source — last snapshot wins per source, omitted keys keep
+  their earlier values, first-appearance order matches the unary bucket
+  order — and the terminal `StreamEnd.usage` carries the settled totals
+  (mid-stream fold usage stays whatever the last snapshot said; the
+  terminal overrides, which is what makes fold-equals-unary hold).
+- **Decision (terminal contract, codec.py:1007 closed):** `message_stop` is
+  this wire's terminal — `decode_frame` surfaces a bare `STREAM_STOP` and
+  the transducer (the only stateful party) enriches it with
+  `StreamEnd(usage=settled, finish=accumulated)`, sealing any still-open
+  slot first (`PART_STOP`, seal-on-end like the OpenAI exemplar; vacuous on
+  well-formed streams — this wire stops every block explicitly). Aborted
+  streams get NO synthesized terminal; a malformed double `message_stop`
+  mints no second one. `content_block_stop` stays a bare `PART_STOP` — the
+  wire carries no authoritative final part, so the ratchet's
+  strip-and-refold clause is vacuous by construction.
+- **Decision (typed mid-stream error, codec.py:925 closed):** the in-band
+  `error` event (HTTP 200 — the status-based layer never runs) decodes to
+  an `ERROR` chunk carrying the wire-shaped `ErrorInfo`: canonical code
+  derived from the SAME `_ERROR_TYPES` table `map_error` uses
+  (`overloaded_error`→`transient`, `authentication_error`→`auth`, …),
+  `retryable` from taxonomy class descent (`TransientError` ⇒ True,
+  `AuthError` ⇒ False), `native` the verbatim wire error object; unknown
+  types stay open (`"unknown"`, retryability unclaimed). The stream then
+  ends without a terminal — the accumulator's `ocai.incomplete` sealing is
+  the honest downstream, asserted end-to-end over a recorded exchange. The
+  529-on-open path separately proves `map_error` (layer 2) is wired on the
+  streaming facade for this dialect too.
+- **Decision (census truth-up):** `DECODE_CHUNK_CONTRACT` gained
+  `message_start.usage` RENAMED, `message_delta.stop_sequence` EXTENSIONS
+  (the matched stop sequence rides the FINISH chunk's censused
+  `anthropic.stop_sequence` extension, mirroring the unary edge), `ping`
+  EXACT, and the `content[]`/`content[].citations` EXTENSIONS rows for
+  start-block decode totality; `citations_delta` now emits its censused
+  DROPPED `FieldLoss` instead of a silent `None`. A per-fixture
+  certification test runs the transducer's flush accounting against the
+  contract — the streaming edge is now certified like the unary edges.
+- **Decision (fixtures + pairing):** three synthetic wire-accurate triples —
+  `stream_plain_text.json` (ping, stop_sequence finish + extension),
+  `stream_tool_use_args.json` (leading text slot, empty-skeleton tool_use,
+  both cache dimensions on the stream path), `stream_usage_paired.json`
+  PAIRED with the existing unary `response_plain_text.json`. At the port,
+  `tests/test_facade_stream_anthropic.py` pairs the new
+  `anthropic_messages_stream.json` recording with the EXISTING
+  `anthropic_messages.json` unary recording (same logical request, no new
+  paired file needed); fold-equals-unary carries WU-10/11's exact carve-out
+  (verbatim `raw` lanes and response `info` excluded).
+- **Decision (the pattern held, streamed):** zero changes to
+  `ocai/chat/facade.py`, the drivers, the graph, or the openai plugin —
+  the M2 streaming machinery replayed with only the VALUES swapped
+  (fragment catalog + `Direct(ANTHROPIC_BASE_URL)` + bare `x-api-key`
+  credential + `MessagesCodec`); the module docstring states the guarantee
+  and the integrator verifies via
+  `git diff -- python/packages/ocai-core/src/ocai/chat/facade.py`.
 
 ## WU-15 — Cross-conversion fidelity proof (flagship demo #1)
 

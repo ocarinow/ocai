@@ -262,7 +262,19 @@ DECODE_REQUEST_CONTRACT = EdgeContract(
 DECODE_CHUNK_CONTRACT = EdgeContract(
     census={
         "message_start": DeclaredDisposition(Disposition.EXACT),
+        # The opening snapshot's running totals map onto the dimensional
+        # Consumption model (cumulative USAGE chunk), same rename as unary.
+        "message_start.usage": DeclaredDisposition(Disposition.RENAMED),
         "content_block_start": DeclaredDisposition(Disposition.EXACT),
+        # Start-block decode is total: unknown block types ride PartOpaque
+        # and citations on a start block bank pending span validation —
+        # the same paths the unary decoder reports (per event).
+        "content[]": DeclaredDisposition(
+            Disposition.EXTENSIONS, "unknown start-block types ride PartOpaque"
+        ),
+        "content[].citations": DeclaredDisposition(
+            Disposition.EXTENSIONS, "citations ride raw/extensions pending span validation"
+        ),
         "content_block_delta.text_delta": DeclaredDisposition(Disposition.EXACT),
         "content_block_delta.thinking_delta": DeclaredDisposition(Disposition.EXACT),
         "content_block_delta.input_json_delta": DeclaredDisposition(Disposition.EXACT),
@@ -271,8 +283,14 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
         "content_block_delta.citations_delta": DeclaredDisposition(Disposition.DROPPED),
         "content_block_stop": DeclaredDisposition(Disposition.EXACT),
         "message_delta.stop_reason": DeclaredDisposition(Disposition.EXACT),
+        # The matched stop sequence rides the FINISH chunk's censused
+        # `anthropic.stop_sequence` extension, mirroring the unary edge.
+        "message_delta.stop_sequence": DeclaredDisposition(Disposition.EXTENSIONS),
         "message_delta.usage": DeclaredDisposition(Disposition.RENAMED),
         "message_stop": DeclaredDisposition(Disposition.EXACT),
+        "ping": DeclaredDisposition(Disposition.EXACT),
+        # Mid-stream error events decode to the wire-shaped ErrorInfo:
+        # canonical taxonomy code + verbatim native payload + retryability.
         "error": DeclaredDisposition(Disposition.EXACT),
     },
     note="anthropic/messages -> canonical chat.chunk (per event)",

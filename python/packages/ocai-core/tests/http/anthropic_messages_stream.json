@@ -1,0 +1,35 @@
+{
+  "description": "Recorded Anthropic /v1/messages STREAMING exchange (WU-14b): the same logical request as anthropic_messages.json answered over the streaming path — PAIRED with that unary recording for the fold law at the port. The request body carries the codec's bind_stream marking (`stream: true` alone; usage needs no opt-in on this wire — message_start/message_delta carry it natively). message_start reports the opening cumulative usage snapshot, message_delta the final cumulative output beside the accumulating finish, and message_stop is the terminal. Synthetic, wire-accurate against the Messages streaming event structs; replayed via respx so tests need no live key and no provider SDK mock (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [{ "type": "text", "text": "Hello, who are you?" }]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024,
+      "stream": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "event: message_start\ndata: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_01XYZ\", \"type\": \"message\", \"role\": \"assistant\", \"model\": \"claude-opus-4-6\", \"content\": [], \"stop_reason\": null, \"stop_sequence\": null, \"usage\": {\"input_tokens\": 14, \"output_tokens\": 1}}}",
+      "event: ping\ndata: {\"type\": \"ping\"}",
+      "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}",
+      "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"text_delta\", \"text\": \"I am Claude,\"}}",
+      "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"text_delta\", \"text\": \" an AI assistant.\"}}",
+      "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 0}",
+      "event: message_delta\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"end_turn\", \"stop_sequence\": null}, \"usage\": {\"output_tokens\": 9}}",
+      "event: message_stop\ndata: {\"type\": \"message_stop\"}"
+    ]
+  }
+}

@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from ocai.anthropic.messages.codec import MessagesCodec
+from ocai.anthropic.messages.codec import MessagesStreamTransducer
 from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChunkType
 from ocai.openai.chat_completions.codec import ChatCompletionsCodec
@@ -116,7 +117,7 @@ def test_anthropic_sse_decodes_to_canonical_chunks() -> None:
     assert types == [
         ChunkType.STREAM_START,
         ChunkType.PART_START,
-        # ping decoded to None and was skipped
+        ChunkType.PING,  # keep-alives surface as canonical PING chunks
         ChunkType.PART_DELTA,
         ChunkType.PART_DELTA,
         ChunkType.PART_STOP,
@@ -128,3 +129,34 @@ def test_anthropic_sse_decodes_to_canonical_chunks() -> None:
     assert finish is not None
     assert finish.reason == "complete"
     assert finish.native == "end_turn"
+
+
+def test_anthropic_transducer_stamps_seq_and_reports() -> None:
+    # The StreamEdge factory product for the second provider (WU-14b): the
+    # total event decode plus the stream's statefulness — the terminal
+    # STREAM_STOP enriched with StreamEnd(usage, finish) when message_stop
+    # arrives, seq stamping, and the per-traversal EdgeReport handed back at
+    # flush (honesty parity, §4.1).
+    transducer = MessagesStreamTransducer()
+    chunks = [
+        chunk for frame in SSEParser().feed(ANTHROPIC_SSE) for chunk in transducer.feed(frame)
+    ]
+    tail, report = transducer.flush()
+
+    assert [c.type for c in chunks] == [
+        ChunkType.STREAM_START,
+        ChunkType.PART_START,
+        ChunkType.PING,
+        ChunkType.PART_DELTA,
+        ChunkType.PART_DELTA,
+        ChunkType.PART_STOP,
+        ChunkType.FINISH,
+        ChunkType.STREAM_STOP,  # message_stop, enriched by the transducer
+    ]
+    assert [c.seq for c in chunks] == [0, 1, 2, 3, 4, 5, 6, 7]
+    end = chunks[-1].end
+    assert end is not None
+    assert end.finish is not None and end.finish.native == "end_turn"
+    assert end.usage is None  # no usage snapshots on this recording
+    assert tail == []  # the terminal rode message_stop, not the flush
+    assert report.lossless

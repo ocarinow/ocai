@@ -1,0 +1,260 @@
+{
+  "description": "Decode+fold, tool-use stream: content_block_start opens the PartToolCall skeleton with EMPTY args_json and input_streaming status — the wire's placeholder `input: {}` never seeds the canonical string lane, so no args-serialization shift is recorded on this path (fragments ARE the wire truth here, unlike the unary edge's parsed object) — input_json_delta fragments append verbatim as DeltaToolArgs raw strings (parsed once at PART_STOP, never per fragment), and content_block_stop's bare partStop advances the fold to input_complete. A leading text block exercises the multi-slot ordering this wire signals explicitly. message_start itemizes BOTH cache dimensions (cache_read -> the canonical cached bucket, cache_creation -> the open anthropic.cache_write source, the WU-13 decision on the streaming path), message_delta carries the accumulating finish (stop_reason `tool_use` -> canonical `tool_call`) plus the cumulative output snapshot, and message_stop emits the terminal streamStop with the settled usage and finish. Synthetic, wire-accurate, hand-authored against ContentBlockStartEvent/ContentBlockDeltaInputJson (wire.py).",
+  "node": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "event: message_start\ndata: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_01Stream1ToolUseAAAAAAAA\", \"type\": \"message\", \"role\": \"assistant\", \"model\": \"claude-opus-4-8\", \"content\": [], \"stop_reason\": null, \"stop_sequence\": null, \"usage\": {\"input_tokens\": 55, \"output_tokens\": 2, \"cache_creation_input_tokens\": 4, \"cache_read_input_tokens\": 10}}}",
+    "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"text_delta\", \"text\": \"Let me check the weather.\"}}",
+    "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 0}",
+    "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 1, \"content_block\": {\"type\": \"tool_use\", \"id\": \"toolu_01Stream1ToolUse\", \"name\": \"get_weather\", \"input\": {}}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 1, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"{\\\"city\\\"\"}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 1, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \": \\\"Paris\\\"}\"}}",
+    "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 1}",
+    "event: message_delta\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"tool_use\", \"stop_sequence\": null}, \"usage\": {\"output_tokens\": 17}}",
+    "event: message_stop\ndata: {\"type\": \"message_stop\"}"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 1,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 55,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 2,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          },
+          {
+            "value": 10,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "cached"
+          },
+          {
+            "value": 4,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "anthropic.cache_write"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 2,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 3,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "Let me check the weather.",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 4,
+      "index": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 5,
+      "index": 1,
+      "part": {
+        "version": "2026-07",
+        "call_id": "toolu_01Stream1ToolUse",
+        "name": "get_weather",
+        "args_json": "",
+        "status": "input_streaming",
+        "executed_by": "client",
+        "type": "tool_call"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 6,
+      "index": 1,
+      "delta": {
+        "version": "2026-07",
+        "fragment": "{\"city\"",
+        "type": "tool_args"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 7,
+      "index": 1,
+      "delta": {
+        "version": "2026-07",
+        "fragment": ": \"Paris\"}",
+        "type": "tool_args"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 8,
+      "index": 1
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 9,
+      "finish": {
+        "version": "2026-07",
+        "reason": "tool_call",
+        "native": "tool_use"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 10,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 17,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 11,
+      "end": {
+        "version": "2026-07",
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 55,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 17,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            },
+            {
+              "value": 10,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "cached"
+            },
+            {
+              "value": 4,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "anthropic.cache_write"
+            }
+          ]
+        },
+        "finish": {
+          "version": "2026-07",
+          "reason": "tool_call",
+          "native": "tool_use"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Let me check the weather.",
+          "type": "text"
+        },
+        {
+          "version": "2026-07",
+          "call_id": "toolu_01Stream1ToolUse",
+          "name": "get_weather",
+          "args_json": "{\"city\": \"Paris\"}",
+          "status": "input_complete",
+          "executed_by": "client",
+          "type": "tool_call"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_use"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 55,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 17,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 10,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "anthropic.cache_write"
+        }
+      ]
+    }
+  }
+}

@@ -35,10 +35,12 @@ from ocai.chat.types import ChatRequest
 from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
 from ocai.chat.types import Consumption
+from ocai.chat.types import Delta
 from ocai.chat.types import DeltaReasoning
 from ocai.chat.types import DeltaSignature
 from ocai.chat.types import DeltaText
 from ocai.chat.types import DeltaToolArgs
+from ocai.chat.types import ErrorInfo
 from ocai.chat.types import FinishInfo
 from ocai.chat.types import Message
 from ocai.chat.types import OutputFormat
@@ -53,6 +55,7 @@ from ocai.chat.types import PartToolResult
 from ocai.chat.types import ReasoningConfig
 from ocai.chat.types import RefusalDetail
 from ocai.chat.types import ResponseInfo
+from ocai.chat.types import StreamEnd
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
@@ -145,6 +148,44 @@ _ERROR_TYPES: dict[str, type[OcaiError]] = {
     "authentication_error": AuthError,
     "permission_error": AuthError,
 }
+
+# Taxonomy class → the open canonical `ErrorInfo.code` for the mid-stream
+# `error` event (rule 8 on the streaming path): the SSE stream is HTTP 200,
+# so the two-layer status/body mapping never runs — the codec maps the
+# in-band envelope through the SAME `_ERROR_TYPES` taxonomy and renders the
+# wire-shaped `ErrorInfo` (code + verbatim native payload + retryability).
+_ERROR_CODES: dict[type[OcaiError], str] = {
+    RateLimitError: "rate_limit",
+    TransientError: "transient",
+    AuthError: "auth",
+}
+
+
+def _stream_error(err: dict[str, Any]) -> ErrorInfo:
+    """Map a mid-stream `error` event payload onto the wire-shaped `ErrorInfo`.
+
+    The streaming face of `map_error` (rule 8): `error.type` classifies
+    through the same `_ERROR_TYPES` taxonomy, the canonical code comes from
+    the mapped class (`TransientError` descendants are retryable, `AuthError`
+    is not), and the provider's error object rides `native` verbatim — so a
+    recorded stream replays identically to a live one. An unrecognized type
+    maps to the open `"unknown"` code with retryability unclaimed, never a
+    raise (rule 6).
+
+    Args:
+        err: The wire `error` member of the event (`{"type", "message"}`).
+
+    Returns:
+        The wire-shaped mid-stream error record.
+    """
+    cls = _ERROR_TYPES.get(err.get("type") or "")
+    if cls is None:
+        return ErrorInfo(code="unknown", native=err)
+    return ErrorInfo(
+        code=_ERROR_CODES[cls],
+        native=err,
+        retryable=issubclass(cls, TransientError),
+    )
 
 # Wire `stop_reason` → canonical open `FinishInfo.reason` code. Unknown wire
 # values decode to `"unknown"` with the verbatim value in `native` (rule 6).
@@ -1522,96 +1563,250 @@ class MessagesCodec:
         )
 
     def decode_event(self, event: str | None, data: str) -> ChatChunk | None:
-        """Decode one Messages SSE event into a canonical `ChatChunk`.
+        """Decode one Messages SSE event into its first canonical chunk.
 
-        Anthropic types each event on the SSE `event:` line and in the
-        payload's `type`. Lifecycle events map to
-        `STREAM_START`/`PART_START`/`PART_STOP`/`STREAM_STOP`;
-        `content_block_delta` fans out by delta type (`text_delta` →
-        `DeltaText`, `thinking_delta` → `DeltaReasoning`, `input_json_delta`
-        → `DeltaToolArgs` raw fragments parsed once at PART_STOP,
-        `signature_delta` → `DeltaSignature`); `message_delta` becomes a
-        `FINISH` chunk carrying the typed `FinishInfo` and cumulative usage;
-        keep-alive `ping`s and unknown events return `None` — never an
-        exception (rule 6).
+        The single-chunk face of the event decoder — the shape the facade's
+        `ChatCodec` protocol declares. Most Messages events carry exactly one
+        signal, and this returns it; a multi-signal event (`message_start`
+        with usage, `message_delta` with finish and usage) surfaces only its
+        *first* chunk here — `decode_frame` is the total, ordered decoder
+        the `MessagesStreamTransducer` consumes on the streaming path.
 
         Args:
             event: The SSE `event:` name (mirrors the payload `type`).
             data: The SSE `data:` payload.
 
         Returns:
-            The canonical chunk, or `None` when the frame surfaces nothing.
+            The event's first canonical chunk, or `None` when the event
+            surfaces nothing.
+        """
+        chunks = self.decode_frame(event, data).value
+        return chunks[0] if chunks else None
+
+    def decode_frame(self, event: str | None, data: str) -> EdgeOutput:
+        """Decode one Messages SSE event into its ordered canonical chunks.
+
+        The total per-event half of the chunk-shape `StreamEdge` (the WU-10
+        pattern replayed on this dialect); the sans-io SSE field parsing
+        lives in `ocai.wire.sse` and hands this method the event's name and
+        `data` payload, so the plugin never touches a socket. Anthropic types
+        each event on the SSE `event:` line and in the payload's `type`, and
+        one wire event may carry several signals, each its own chunk in wire
+        order:
+
+        - `message_start` → `STREAM_START`, then the opening snapshot's
+          cumulative usage as a `USAGE` chunk (`usage_cumulative=True`) —
+          the wire's running totals, flagged per the chunk vocabulary;
+        - `content_block_start` → `PART_START` with the typed skeleton
+          (`tool_use` opens a `PartToolCall` with empty `args_json` and
+          `input_streaming` status — the wire's placeholder `input: {}`
+          never seeds the string lane; thinking/redacted_thinking/text and
+          the server-tool spine decode as in the unary edge);
+        - `content_block_delta` → one typed `PART_DELTA` (`text_delta` →
+          `DeltaText`, `thinking_delta` → `DeltaReasoning`,
+          `input_json_delta` → `DeltaToolArgs` raw fragments parsed once at
+          PART_STOP, `signature_delta` → `DeltaSignature`); a delta type
+          with no canonical lane yet (`citations_delta`) is dropped with a
+          reported `FieldLoss`, recoverable from the event log;
+        - `content_block_stop` → a bare `PART_STOP` (this wire carries no
+          authoritative final part — the delta accumulation is the only
+          carrier, so the fold law's strip-and-refold clause is vacuous);
+        - `message_delta` → the accumulating `FINISH` (typed `FinishInfo`;
+          a matched `stop_sequence` rides the chunk's censused
+          `anthropic.stop_sequence` extension, reported), then the
+          cumulative `USAGE` chunk (`usage_cumulative=True` — the wire
+          reports running totals for exactly the keys it names);
+        - `message_stop` → a bare `STREAM_STOP`; the transducer owns the
+          terminal contract and stamps `StreamEnd(usage, finish)` onto it;
+        - `ping` → a `PING` keep-alive chunk;
+        - `error` → an `ERROR` chunk carrying the wire-shaped `ErrorInfo`
+          (canonical taxonomy code + verbatim native payload + retryability,
+          rule 8) — see `_stream_error`;
+        - any unrecognized event surfaces nothing canonical — never an
+          exception (rule 6).
+
+        Args:
+            event: The SSE `event:` name (mirrors the payload `type`).
+            data: The SSE `data:` payload.
+
+        Returns:
+            An `EdgeOutput` whose value is the event's canonical chunks, in
+            order (possibly empty), with any drop/extension records.
         """
         raw = json.loads(data)
         etype = raw.get("type")
+        chunks: list[ChatChunk] = []
+        losses: list[FieldLoss] = []
         if etype == "message_start":
-            return ChatChunk(type=ChunkType.STREAM_START, raw_event=raw)
-        if etype == "content_block_start":
-            block = raw.get("content_block") or {}
-            part = self._decode_block(raw.get("index", 0), block, [], [])
-            return ChatChunk(
-                type=ChunkType.PART_START,
-                index=raw.get("index", 0),
-                part=part,
-                raw_event=raw,
-            )
-        if etype == "content_block_delta":
-            delta = raw.get("delta") or {}
-            dtype = delta.get("type")
+            chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
+            usage = _usage((raw.get("message") or {}).get("usage"))
+            if usage is not None:
+                chunks.append(
+                    ChatChunk(
+                        type=ChunkType.USAGE, usage=usage, usage_cumulative=True, raw_event=raw
+                    )
+                )
+        elif etype == "content_block_start":
             index = raw.get("index", 0)
-            if dtype == "text_delta":
-                return ChatChunk(
-                    type=ChunkType.PART_DELTA,
+            block = raw.get("content_block") or {}
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.PART_START,
                     index=index,
-                    delta=DeltaText(text=delta.get("text", "")),
+                    part=self._decode_start_block(index, block, losses),
                     raw_event=raw,
                 )
-            if dtype == "thinking_delta":
-                return ChatChunk(
-                    type=ChunkType.PART_DELTA,
-                    index=index,
-                    delta=DeltaReasoning(text=delta.get("thinking", "")),
-                    raw_event=raw,
-                )
-            if dtype == "input_json_delta":
-                return ChatChunk(
-                    type=ChunkType.PART_DELTA,
-                    index=index,
-                    delta=DeltaToolArgs(fragment=delta.get("partial_json", "")),
-                    raw_event=raw,
-                )
-            if dtype == "signature_delta":
-                return ChatChunk(
-                    type=ChunkType.PART_DELTA,
-                    index=index,
-                    delta=DeltaSignature(signature=delta.get("signature", "")),
-                    raw_event=raw,
-                )
-            # TODO: citations_delta → DeltaAnnotation after span validation.
-            return None
-        if etype == "content_block_stop":
-            return ChatChunk(type=ChunkType.PART_STOP, index=raw.get("index", 0), raw_event=raw)
-        if etype == "message_delta":
-            native = (raw.get("delta") or {}).get("stop_reason")
-            finish = (
-                FinishInfo(reason=_STOP_REASONS.get(native, "unknown"), native=native)
-                if native
-                else None
             )
-            return ChatChunk(
+        elif etype == "content_block_delta":
+            self._decode_delta_event(raw, chunks, losses)
+        elif etype == "content_block_stop":
+            chunks.append(
+                ChatChunk(type=ChunkType.PART_STOP, index=raw.get("index", 0), raw_event=raw)
+            )
+        elif etype == "message_delta":
+            self._decode_message_delta(raw, chunks, losses)
+        elif etype == "message_stop":
+            chunks.append(ChatChunk(type=ChunkType.STREAM_STOP, raw_event=raw))
+        elif etype == "ping":
+            chunks.append(ChatChunk(type=ChunkType.PING, raw_event=raw))
+        elif etype == "error":
+            err = raw.get("error")
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.ERROR,
+                    error=_stream_error(err if isinstance(err, dict) else {}),
+                    raw_event=raw,
+                )
+            )
+        # Any unrecognized event type surfaces nothing canonical (rule 6);
+        # the verbatim event stays on the wire log, never a raise.
+        return EdgeOutput(chunks, tuple(losses))
+
+    def _decode_start_block(
+        self, index: int, block: dict[str, Any], losses: list[FieldLoss]
+    ) -> Part:
+        """Decode a `content_block_start` block into its part skeleton.
+
+        A `tool_use` start opens a *streaming* skeleton: empty `args_json`
+        (the wire's placeholder `input: {}` is not serialized — the
+        authoritative string lane accumulates from `input_json_delta`
+        fragments) and `input_streaming` status, advanced to
+        `input_complete` when the fold seals the slot. Every other block
+        type decodes exactly as the unary `_decode_block` does (thinking
+        blocks with their REQUIRED signature anchors, `redacted_thinking`
+        arriving complete, the server-tool spine, unknown types as reported
+        `PartOpaque`s).
+
+        Args:
+            index: The wire block index, used in loss paths.
+            block: The wire `content_block` being opened.
+            losses: The edge's loss accumulator, appended in place.
+
+        Returns:
+            The typed part skeleton for the opening slot.
+        """
+        if block.get("type") == "tool_use":
+            return PartToolCall(
+                call_id=block.get("id", ""),
+                name=block.get("name", ""),
+                args_json="",
+                status="input_streaming",
+                executed_by="client",
+            )
+        # Only the tool_use branch of _decode_block records a shift (the
+        # args serialization handled above), so the discard list stays empty.
+        return self._decode_block(index, block, losses, [])
+
+    def _decode_delta_event(
+        self, raw: dict[str, Any], chunks: list[ChatChunk], losses: list[FieldLoss]
+    ) -> None:
+        """Decode one `content_block_delta` event, appending its chunk.
+
+        Args:
+            raw: The whole parsed event, stamped on the chunk's `raw_event`.
+            chunks: The event's chunk accumulator, appended in place.
+            losses: The edge's loss accumulator, appended in place.
+        """
+        delta = raw.get("delta") or {}
+        dtype = delta.get("type")
+        typed: Delta | None = None
+        if dtype == "text_delta":
+            typed = DeltaText(text=delta.get("text", ""))
+        elif dtype == "thinking_delta":
+            typed = DeltaReasoning(text=delta.get("thinking", ""))
+        elif dtype == "input_json_delta":
+            typed = DeltaToolArgs(fragment=delta.get("partial_json", ""))
+        elif dtype == "signature_delta":
+            typed = DeltaSignature(signature=delta.get("signature", ""))
+        if typed is not None:
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.PART_DELTA,
+                    index=raw.get("index", 0),
+                    delta=typed,
+                    raw_event=raw,
+                )
+            )
+            return
+        # TODO: citations_delta → DeltaAnnotation after span validation
+        # (§3.1 — never emit a possibly-misattributed span).
+        losses.append(
+            FieldLoss(
+                path=f"content_block_delta.{dtype}",
+                disposition=Disposition.DROPPED,
+                severity=1.0,
+                note=(
+                    f"content_block_delta type {dtype!r} has no canonical delta "
+                    "lane yet; dropped (recoverable verbatim from the event log)"
+                ),
+            )
+        )
+
+    def _decode_message_delta(
+        self, raw: dict[str, Any], chunks: list[ChatChunk], losses: list[FieldLoss]
+    ) -> None:
+        """Decode one `message_delta` event, appending its ordered chunks.
+
+        The accumulating finish first (`stop_reason` → the typed two-lane
+        `FinishInfo`; a matched `stop_sequence` is preserved on the FINISH
+        chunk's censused `anthropic.stop_sequence` extension with a reported
+        `EXTENSIONS` record — mirroring the unary edge), then the CUMULATIVE
+        usage snapshot as a `USAGE` chunk flagged `usage_cumulative=True`:
+        the wire reports running totals for exactly the keys it names, so
+        the transducer merges per source and the terminal `StreamEnd`
+        carries the settled totals.
+
+        Args:
+            raw: The whole parsed event, stamped on each chunk's `raw_event`.
+            chunks: The event's chunk accumulator, appended in place.
+            losses: The edge's loss accumulator, appended in place.
+        """
+        delta = raw.get("delta") or {}
+        native = delta.get("stop_reason")
+        if native:
+            finish_chunk = ChatChunk(
                 type=ChunkType.FINISH,
-                finish=finish,
-                usage=_usage(raw.get("usage")),
+                finish=FinishInfo(reason=_STOP_REASONS.get(native, "unknown"), native=native),
                 raw_event=raw,
             )
-        if etype == "message_stop":
-            return ChatChunk(type=ChunkType.STREAM_STOP, raw_event=raw)
-        if etype == "error":
-            # TODO: typed mid-stream error shape (canonical code + native +
-            # retryable, rule 8) instead of the bare raw_event.
-            return ChatChunk(type=ChunkType.ERROR, raw_event=raw)
-        # ping and any unrecognized event: nothing canonical to surface.
-        return None
+            if delta.get("stop_sequence") is not None:
+                finish_chunk.extensions[f"{PROVIDER}.stop_sequence"] = delta["stop_sequence"]
+                losses.append(
+                    FieldLoss(
+                        path="message_delta.stop_sequence",
+                        disposition=Disposition.EXTENSIONS,
+                        note=(
+                            "matched stop sequence preserved in the FINISH chunk's "
+                            "extensions['anthropic.stop_sequence']"
+                        ),
+                    )
+                )
+            chunks.append(finish_chunk)
+        usage = _usage(raw.get("usage"))
+        if usage is not None:
+            chunks.append(
+                ChatChunk(type=ChunkType.USAGE, usage=usage, usage_cumulative=True, raw_event=raw)
+            )
 
     def map_error(self, status: int | None, body: dict[str, Any] | None) -> OcaiError | None:
         """Refine an Anthropic error body onto the precise error taxonomy.
@@ -1652,18 +1847,46 @@ class MessagesCodec:
 class MessagesStreamTransducer:
     """Streaming transducer: Messages SSE events → canonical chunks.
 
-    The stateful per-stream object the chunk-shape `StreamEdge` manufactures.
-    `feed` maps each wire event through `MessagesCodec.decode_event` and
-    stamps monotonic `seq` numbers; `flush` seals the stream and reports the
-    edge's accumulated fidelity so streaming pays the same visible toll as
-    non-streaming (§4.1).
+    The stateful per-stream object the chunk-shape `StreamEdge` manufactures
+    (one per stream — transducers are never shared). `feed` maps each wire
+    event through `MessagesCodec.decode_frame` (one event may split into
+    several canonical chunks, in order), stamps monotonic `seq` numbers, and
+    adds the statefulness a well-formed canonical stream needs on this
+    dialect:
+
+    - **Cumulative usage settlement.** `message_start` and `message_delta`
+      report CUMULATIVE usage snapshots covering exactly the keys each names
+      (`message_delta` typically carries only running `output_tokens`), so
+      the transducer merges per consumption source — last snapshot wins per
+      source, keys a later snapshot omits keep their earlier values — and
+      the terminal `StreamEnd.usage` carries the settled totals.
+    - **The terminal contract.** `message_stop` is this wire's terminal:
+      any still-open slot (a block whose `content_block_stop` never came)
+      is sealed first (`PART_STOP`, advancing tool calls to
+      `input_complete` in the fold), then the `STREAM_STOP` is enriched
+      with `StreamEnd(usage, finish)` — usage from the settled cumulative
+      snapshots, finish from the accumulated `message_delta` record. A
+      stream that dies before `message_stop` gets **no** terminal chunk:
+      synthesizing one would pass accumulated content off as complete, and
+      the accumulator's aborted-stream sealing (`extensions
+      ["ocai.incomplete"]`) is the honest downstream. A mid-stream `error`
+      event passes through as its wire-shaped `ERROR` chunk; the wire then
+      closes without a terminal, honestly.
+
+    `flush` hands the graph this edge's `EdgeReport` (extension banks and
+    dropped delta lanes) so streaming conversion pays the same visible toll
+    as non-streaming (§4.1).
     """
 
     def __init__(self) -> None:
-        """Initialize per-stream state (codec, sequence counter, losses)."""
+        """Initialize per-stream state (codec, sequence counter, accumulators)."""
         self._codec = MessagesCodec()
         self._seq = 0
         self._losses: list[FieldLoss] = []
+        self._sources: dict[str, Consumption] = {}
+        self._finish: FinishInfo | None = None
+        self._open_slots: list[int] = []
+        self._done = False
 
     def feed(self, event: Any) -> list[ChatChunk]:
         """Convert one wire SSE event into zero or more canonical chunks.
@@ -1673,25 +1896,107 @@ class MessagesStreamTransducer:
                 attributes) produced by the wire layer's `SSEParser`.
 
         Returns:
-            The canonical chunks this event surfaced, `seq`-stamped.
+            The canonical chunks this event surfaced, `seq`-stamped, in
+            order — including, on `message_stop`, any synthesized slot
+            seals and the enriched terminal.
         """
-        chunk = self._codec.decode_event(getattr(event, "event", None), event.data)
-        if chunk is None:
-            return []
-        chunk.seq = self._seq
-        self._seq += 1
-        return [chunk]
+        out = self._codec.decode_frame(getattr(event, "event", None), event.data)
+        self._losses.extend(out.losses)
+        emitted: list[ChatChunk] = []
+        for chunk in out.value:
+            emitted.extend(self._admit(chunk))
+        return emitted
 
-    def flush(self) -> tuple[list[ChatChunk], EdgeReport]:
-        """Seal the stream and report this edge's accumulated fidelity.
+    def _admit(self, chunk: ChatChunk) -> list[ChatChunk]:
+        """Track one decoded chunk's stream state and stamp it.
+
+        Args:
+            chunk: The next decoded chunk, in event order.
 
         Returns:
-            The terminal chunks (a `STREAM_STOP` carrying `StreamEnd` once
-            the terminal contract is implemented) and the edge's report.
+            The chunk (seq-stamped); for the terminal `STREAM_STOP`, any
+            synthesized slot seals followed by the enriched terminal.
         """
-        # TODO: fold message_delta usage/finish into the terminal
-        # StreamEnd(usage, finish, report); seal open parts as incomplete;
-        # verify PART_STOP parts equal their delta accumulation (fold law).
+        if chunk.type == ChunkType.PART_START:
+            if chunk.index is not None and chunk.index not in self._open_slots:
+                self._open_slots.append(chunk.index)
+        elif chunk.type == ChunkType.PART_STOP:
+            if chunk.index in self._open_slots:
+                self._open_slots.remove(chunk.index)
+        elif chunk.type == ChunkType.USAGE and chunk.usage is not None:
+            # Cumulative snapshots merge per source: a later snapshot
+            # overrides exactly the sources it names, nothing else.
+            for consumption in chunk.usage.consumptions:
+                self._sources[consumption.source] = consumption
+        elif chunk.type == ChunkType.FINISH and chunk.finish is not None:
+            self._finish = chunk.finish
+        elif chunk.type == ChunkType.STREAM_STOP:
+            return self._terminal(chunk)
+        return [self._stamp(chunk)]
+
+    def _terminal(self, chunk: ChatChunk) -> list[ChatChunk]:
+        """Seal open slots and enrich the terminal with `StreamEnd`.
+
+        Args:
+            chunk: The decoded bare `STREAM_STOP` (from `message_stop`).
+
+        Returns:
+            The `PART_STOP` seals (slot order) plus the terminal carrying
+            `StreamEnd(usage, finish)`; empty if the terminal was already
+            emitted (a malformed double `message_stop`).
+        """
+        if self._done:
+            return []
+        self._done = True
+        emitted = [
+            self._stamp(
+                ChatChunk(type=ChunkType.PART_STOP, index=slot, raw_event=chunk.raw_event)
+            )
+            for slot in self._open_slots
+        ]
+        self._open_slots.clear()
+        chunk.end = StreamEnd(usage=self._settled_usage(), finish=self._finish)
+        emitted.append(self._stamp(chunk))
+        return emitted
+
+    def _settled_usage(self) -> Usage | None:
+        """Return the merged cumulative usage, or None when none was reported.
+
+        Returns:
+            One `Usage` whose consumptions are the last cumulative value per
+            source, in first-appearance order (matching the unary decoder's
+            bucket order).
+        """
+        if not self._sources:
+            return None
+        return Usage(consumptions=list(self._sources.values()))
+
+    def _stamp(self, chunk: ChatChunk) -> ChatChunk:
+        """Stamp the next monotonic `seq` onto `chunk` and return it.
+
+        Args:
+            chunk: The chunk to stamp.
+
+        Returns:
+            The same chunk, seq-stamped.
+        """
+        chunk.seq = self._seq
+        self._seq += 1
+        return chunk
+
+    def flush(self) -> tuple[list[ChatChunk], EdgeReport]:
+        """Seal the stream's accounting and report this edge's fidelity.
+
+        The terminal `STREAM_STOP` is emitted by `feed` when `message_stop`
+        arrives, so the tail here is always empty: a stream that never
+        reached its terminal event was aborted, and synthesizing a terminal
+        for it would pass accumulated content off as complete — the
+        accumulator's aborted-stream sealing owns that case.
+
+        Returns:
+            An empty tail and the edge's `EdgeReport` of accumulated
+            records (extension banks, dropped delta lanes).
+        """
         report = EdgeReport(
             src=MESSAGES_CHUNK,
             dst=CANONICAL_CHUNK,

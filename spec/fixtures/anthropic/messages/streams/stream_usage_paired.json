@@ -1,0 +1,216 @@
+{
+  "description": "Decode+fold, cumulative usage settled across message_start and message_delta: the opening snapshot itemizes the full dimensional picture (input plus both cache buckets and the running output), the message_delta snapshot names only the keys it updates (output_tokens), and the transducer merges per source so the terminal StreamEnd carries the settled totals — input keeps its message_start value, output takes the final cumulative one. PAIRED with ../response_plain_text.json — the same logical response answered over the blocking path (same model echo, message id, text, finish, and usage buckets) — so fold(chunks) must be semantic_equal to that fixture's unary canonical `expect`, the fold law on wire data (raw lanes excluded per canonical-json.md §8; response `info` excluded: stream identity has no canonical chunk lane and rides each event's raw_event verbatim). Synthetic, wire-accurate, hand-authored against MessageStartEvent/MessageDeltaEvent (wire.py).",
+  "node": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "event: message_start\ndata: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_01XFDUDYJgAACzvnptvVoYEL\", \"type\": \"message\", \"role\": \"assistant\", \"model\": \"claude-opus-4-8\", \"content\": [], \"stop_reason\": null, \"stop_sequence\": null, \"usage\": {\"input_tokens\": 12, \"output_tokens\": 1, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 0}}}",
+    "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"text_delta\", \"text\": \"Hello! How can\"}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"text_delta\", \"text\": \" I help you today?\"}}",
+    "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 0}",
+    "event: message_delta\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"end_turn\", \"stop_sequence\": null}, \"usage\": {\"output_tokens\": 9}}",
+    "event: message_stop\ndata: {\"type\": \"message_stop\"}"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 1,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 12,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 1,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          },
+          {
+            "value": 0,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "cached"
+          },
+          {
+            "value": 0,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "anthropic.cache_write"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 2,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 3,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "Hello! How can",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 4,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": " I help you today?",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 5,
+      "index": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 6,
+      "finish": {
+        "version": "2026-07",
+        "reason": "complete",
+        "native": "end_turn"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 7,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 9,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 8,
+      "end": {
+        "version": "2026-07",
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 12,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 9,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            },
+            {
+              "value": 0,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "cached"
+            },
+            {
+              "value": 0,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "anthropic.cache_write"
+            }
+          ]
+        },
+        "finish": {
+          "version": "2026-07",
+          "reason": "complete",
+          "native": "end_turn"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Hello! How can I help you today?",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "end_turn"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 12,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 9,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "anthropic.cache_write"
+        }
+      ]
+    }
+  }
+}

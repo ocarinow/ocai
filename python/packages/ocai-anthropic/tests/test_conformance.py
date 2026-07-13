@@ -1,4 +1,4 @@
-"""Anthropic messages unary certification (WU-13, the WU-06 pattern replay).
+"""Anthropic messages certification (WU-13 unary + WU-14b streaming).
 
 Drives the interface's two unary edges through the full conformance harness
 over the golden edge fixtures in `spec/fixtures/anthropic/messages/`:
@@ -22,6 +22,14 @@ over the golden edge fixtures in `spec/fixtures/anthropic/messages/`:
 The WU-05a seam applies throughout: the canonical request carries no model,
 the edge output has no `model` member, and the fixtures' wire bodies gain it
 through the codec's `bind_resource` — the facade injection, below the graph.
+
+The streaming half (WU-14b, the WU-10 pattern replay) drives the chunk-shape
+`StreamEdge` over the fold triples in `streams/`: the recorded SSE event log
+must decode through the real `MessagesStreamTransducer` to exactly the
+expected canonical chunks, `StreamAccumulator.fold` must reproduce each
+triple's response (the fold law, rule 7), the paired triple's fold must be
+`semantic_equal` to the unary `response_plain_text.json` canonical, and the
+transducer's flush accounting certifies against `DECODE_CHUNK_CONTRACT`.
 """
 
 from __future__ import annotations
@@ -36,20 +44,29 @@ import ocai.anthropic
 from ocai.anthropic.messages.codec import MESSAGES_REQUEST
 from ocai.anthropic.messages.codec import MESSAGES_RESPONSE
 from ocai.anthropic.messages.codec import MessagesCodec
+from ocai.anthropic.messages.codec import MessagesStreamTransducer
+from ocai.anthropic.messages.edges import DECODE_CHUNK_CONTRACT
 from ocai.anthropic.messages.edges import EDGES
 from ocai.anthropic.messages.edges import ENCODE_REQUEST_CONTRACT
 from ocai.chat import CANONICAL_CHAT_REQUEST
 from ocai.chat import CANONICAL_CHAT_RESPONSE
+from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatRequest
+from ocai.chat.types import ChunkType
+from ocai.chat.types import PartToolCall
+from ocai.chat.types import StreamAccumulator
 from ocai.convert.catalog import Catalog
 from ocai.convert.conformance import certify_edge
 from ocai.convert.conformance import check_edge
+from ocai.convert.conformance import check_fold_triples
 from ocai.convert.graph import Edge
 from ocai.convert.graph import EdgeOutput
 from ocai.core.canonjson import canonical
 from ocai.core.canonjson import semantic_equal
 from ocai.core.fidelity import Disposition
 from ocai.core.identity import NodeId
+from ocai.wire import SSEParser
+from ocai.wire import SSEvent
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -63,6 +80,7 @@ def _find_repo_root(start: Path) -> Path:
 REPO_ROOT = _find_repo_root(Path(__file__).resolve())
 FIXTURES_DIR = REPO_ROOT / "spec" / "fixtures" / "anthropic" / "messages"
 FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("*.json"))
+STREAMS_DIR = FIXTURES_DIR / "streams"
 
 _CODEC = MessagesCodec()
 ENCODE_EDGE = next(edge for edge in EDGES if edge.dst == MESSAGES_REQUEST)
@@ -281,4 +299,310 @@ def test_decode_never_raises_on_unknown_wire_material() -> None:
     assert response.extensions["anthropic.routing_tier"] == {"shard": 7}
     assert ("routing_tier", "extensions") in [
         (loss.path, loss.disposition.value) for loss in out.losses
+    ]
+
+
+# --- WU-14b: the streaming edge — fold triples over recorded SSE event logs ----
+#
+# The fold-triple fixtures in `streams/` pin the chunk-shape StreamEdge the
+# same way the edge fixtures pin the unary edges: the recorded SSE event log
+# must decode (through the real transducer) to exactly the expected canonical
+# chunks, and `StreamAccumulator.fold` over those chunks must reproduce the
+# response — `fold(stream(request)) == complete(request)` on wire data.
+
+
+def _strip_raw(value: Any) -> Any:
+    """Drop the verbatim `raw`/`raw_event` lanes at any depth (§8).
+
+    Fold-fixture equality excludes the untouched provider lanes
+    (`spec/canonical-json.md` §8): the transducer stamps every chunk's
+    `raw_event`, but the fixtures pin canonical content only.
+    """
+    if isinstance(value, dict):
+        return {k: _strip_raw(v) for k, v in value.items() if k not in ("raw", "raw_event")}
+    if isinstance(value, list):
+        return [_strip_raw(item) for item in value]
+    return value
+
+
+def _fold_dicts(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    """The dict-speaking fold the conformance harness is handed."""
+    return StreamAccumulator.fold(ChatChunk.from_dict(chunk) for chunk in chunks).to_dict()
+
+
+def _wire_decoder() -> Any:
+    """A dict-speaking `decode_event` over the REAL stream transducer.
+
+    Each fold triple's `wire_events` entry is one verbatim SSE event text;
+    it is parsed by the wire layer's `SSEParser` and fed to a
+    `MessagesStreamTransducer`. The transducer is per-stream state, so a
+    fresh one replaces it after each terminal `STREAM_STOP` — the walker
+    (`check_fold_triples`) reuses one decoder across every fixture in the
+    directory.
+    """
+    state = {"transducer": MessagesStreamTransducer()}
+
+    def decode(event_text: str) -> list[dict[str, Any]]:
+        decoded: list[dict[str, Any]] = []
+        for frame in SSEParser().feed(event_text + "\n\n"):
+            for chunk in state["transducer"].feed(frame):
+                decoded.append(_strip_raw(chunk.to_dict()))
+                if chunk.type == ChunkType.STREAM_STOP:
+                    state["transducer"] = MessagesStreamTransducer()
+        return decoded
+
+    return decode
+
+
+def test_fold_triples_over_recorded_streams() -> None:
+    checked = check_fold_triples(STREAMS_DIR, decode_event=_wire_decoder(), fold=_fold_dicts)
+    # WU-14b requires the three scenarios: plain text, tool-use args, and
+    # the cumulative-usage stream paired with the unary canonical.
+    assert len(checked) >= 3
+    names = {path.name for path in checked}
+    assert {
+        "stream_plain_text.json",
+        "stream_tool_use_args.json",
+        "stream_usage_paired.json",
+    } <= names
+
+
+def test_paired_stream_fold_matches_the_unary_canonical() -> None:
+    # The fold law on wire data: the cumulative-usage stream is PAIRED with
+    # the unary response_plain_text.json — the same logical response
+    # answered over both paths — so folding the stream's canonical chunks
+    # must be semantic_equal to the unary edge's canonical response. The
+    # verbatim `raw` lanes are excluded per canonical-json.md §8, and the
+    # response `info` is excluded because stream identity (id/model echo)
+    # has no canonical chunk lane — it rides each event's `raw_event`
+    # verbatim.
+    triple = _load(STREAMS_DIR / "stream_usage_paired.json")
+    unary = _load(FIXTURES_DIR / "response_plain_text.json")
+
+    folded = _fold_dicts(triple["chunks"])
+    expected = _strip_raw(unary["expect"])
+    assert expected.pop("info", None) is not None  # the unary side carries identity
+    assert semantic_equal(folded, expected), (
+        "fold(chunks) did not reproduce the paired unary canonical.\n"
+        f"  expected: {canonical(expected)}\n"
+        f"  actual:   {canonical(folded)}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", sorted(STREAMS_DIR.glob("*.json")), ids=lambda p: p.name
+)
+def test_chunk_edge_certifies_over_stream_fixtures(path: Path) -> None:
+    # Clause 3 for the streaming edge: the transducer's flush accounting
+    # over every fold triple's event log stays within DECODE_CHUNK_CONTRACT
+    # — an edge whose runtime loss exceeds its census cannot ship.
+    transducer = MessagesStreamTransducer()
+    for event_text in _load(path)["wire_events"]:
+        for frame in SSEParser().feed(event_text + "\n\n"):
+            transducer.feed(frame)
+    _, report = transducer.flush()
+    assert DECODE_CHUNK_CONTRACT.certify(report.losses, report.shifts) == []
+
+
+# --- WU-14b: transducer event handling — settlement, terminal, honesty ---------
+
+
+def _sse(payload: dict[str, Any]) -> SSEvent:
+    """Wrap one wire event body as the sans-io SSE event the driver feeds."""
+    return SSEvent(data=json.dumps(payload), event=payload.get("type"))
+
+
+def test_transducer_settles_cumulative_usage_into_the_terminal() -> None:
+    # message_start and message_delta report CUMULATIVE snapshots covering
+    # exactly the keys each names: the terminal StreamEnd merges per source
+    # — input/cached keep their message_start values, output takes the
+    # final cumulative one — and seq stays monotonic across the splits.
+    transducer = MessagesStreamTransducer()
+    fed: list[ChatChunk] = []
+    fed += transducer.feed(
+        _sse(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_01T",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-opus-4-8",
+                    "content": [],
+                    "usage": {"input_tokens": 14, "output_tokens": 1, "cache_read_input_tokens": 3},
+                },
+            }
+        )
+    )
+    fed += transducer.feed(
+        _sse(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": {"output_tokens": 9},
+            }
+        )
+    )
+    fed += transducer.feed(_sse({"type": "message_stop"}))
+
+    assert [c.type for c in fed] == [
+        ChunkType.STREAM_START,
+        ChunkType.USAGE,
+        ChunkType.FINISH,
+        ChunkType.USAGE,
+        ChunkType.STREAM_STOP,
+    ]
+    assert [c.seq for c in fed] == list(range(len(fed)))
+    usage_chunks = [c for c in fed if c.type == ChunkType.USAGE]
+    assert all(c.usage_cumulative is True for c in usage_chunks)
+    end = fed[-1].end
+    assert end is not None
+    assert end.finish is not None and end.finish.native == "end_turn"
+    assert end.usage is not None
+    assert [(c.source, c.value) for c in end.usage.consumptions] == [
+        ("input", 14),
+        ("output", 9),
+        ("cached", 3),
+    ]
+    # The tail is empty (the terminal rode message_stop) and lossless.
+    tail, report = transducer.flush()
+    assert tail == []
+    assert report.lossless
+
+
+def test_transducer_seals_open_slots_at_message_stop() -> None:
+    # A block whose content_block_stop never arrived is sealed at the
+    # terminal (PART_STOP before STREAM_STOP), advancing the fold to
+    # input_complete — the seal-on-end semantics of the WU-10 exemplar.
+    transducer = MessagesStreamTransducer()
+    fed: list[ChatChunk] = []
+    fed += transducer.feed(_sse({"type": "message_start", "message": {"role": "assistant"}}))
+    fed += transducer.feed(
+        _sse(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {
+                    "type": "tool_use",
+                    "id": "toolu_01Seal",
+                    "name": "get_weather",
+                    "input": {},
+                },
+            }
+        )
+    )
+    fed += transducer.feed(
+        _sse(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": '{"city": "Paris"}'},
+            }
+        )
+    )
+    terminal = transducer.feed(_sse({"type": "message_stop"}))
+
+    assert [c.type for c in terminal] == [ChunkType.PART_STOP, ChunkType.STREAM_STOP]
+    assert terminal[0].index == 0
+    response = StreamAccumulator.fold([*fed, *terminal])
+    (part,) = response.message.parts
+    assert isinstance(part, PartToolCall) and part.status == "input_complete"
+    assert part.args_json == '{"city": "Paris"}'
+    # The wire's placeholder `input: {}` never seeded the string lane.
+    assert part.args() == {"city": "Paris"}
+
+
+def test_transducer_emits_no_terminal_for_aborted_streams() -> None:
+    # A stream that dies before message_stop gets no synthesized
+    # STREAM_STOP — the accumulator's aborted-stream sealing is the honest
+    # downstream.
+    transducer = MessagesStreamTransducer()
+    fed: list[ChatChunk] = []
+    fed += transducer.feed(_sse({"type": "message_start", "message": {"role": "assistant"}}))
+    fed += transducer.feed(
+        _sse(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+        )
+    )
+
+    tail, report = transducer.flush()
+    assert tail == []
+    assert report.lossless
+    assert all(chunk.type != ChunkType.STREAM_STOP for chunk in fed)
+
+
+def test_transducer_suppresses_a_second_terminal() -> None:
+    # A malformed double message_stop mints no second terminal.
+    transducer = MessagesStreamTransducer()
+    first = transducer.feed(_sse({"type": "message_stop"}))
+    second = transducer.feed(_sse({"type": "message_stop"}))
+    assert [c.type for c in first] == [ChunkType.STREAM_STOP]
+    assert second == []
+
+
+def test_error_event_maps_to_the_wire_shaped_taxonomy_record() -> None:
+    # The in-band error envelope classifies through the SAME taxonomy table
+    # map_error uses (rule 8): canonical open code + verbatim native payload
+    # + retryability, as DATA on the stream — a recorded stream replays
+    # identically to a live one.
+    codec = MessagesCodec()
+    out = codec.decode_frame(
+        "error",
+        json.dumps(
+            {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}
+        ),
+    )
+    (chunk,) = out.value
+    assert chunk.type == ChunkType.ERROR
+    assert chunk.error is not None
+    assert chunk.error.code == "transient"
+    assert chunk.error.retryable is True
+    assert chunk.error.native == {"type": "overloaded_error", "message": "Overloaded"}
+
+    auth = codec.decode_frame(
+        "error",
+        json.dumps({"type": "error", "error": {"type": "authentication_error", "message": "x"}}),
+    ).value[0]
+    assert auth.error is not None
+    assert auth.error.code == "auth"
+    assert auth.error.retryable is False
+
+    # An unrecognized error type stays open: code "unknown", retryability
+    # unclaimed, native verbatim — never a raise (rule 6).
+    unknown = codec.decode_frame(
+        "error",
+        json.dumps({"type": "error", "error": {"type": "solar_flare_error", "message": "?"}}),
+    ).value[0]
+    assert unknown.error is not None
+    assert unknown.error.code == "unknown"
+    assert unknown.error.retryable is None
+    assert unknown.error.native == {"type": "solar_flare_error", "message": "?"}
+
+
+def test_stop_sequence_rides_the_finish_chunk_extensions() -> None:
+    # message_delta's matched stop sequence is preserved on the FINISH
+    # chunk's censused extension with an honest EXTENSIONS record —
+    # mirroring the unary edge, never silently dropped.
+    codec = MessagesCodec()
+    out = codec.decode_frame(
+        "message_delta",
+        json.dumps(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "stop_sequence", "stop_sequence": "###"},
+                "usage": {"output_tokens": 5},
+            }
+        ),
+    )
+    finish, usage = out.value
+    assert finish.type == ChunkType.FINISH
+    assert finish.finish is not None and finish.finish.reason == "stop_sequence"
+    assert finish.extensions["anthropic.stop_sequence"] == "###"
+    assert usage.type == ChunkType.USAGE and usage.usage_cumulative is True
+    assert [(loss.path, loss.disposition.value) for loss in out.losses] == [
+        ("message_delta.stop_sequence", "extensions")
     ]
