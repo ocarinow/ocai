@@ -150,13 +150,15 @@ def dialect_traits() -> DialectTraits:
     """Build the hosting traits the wire layer composes for this interface.
 
     OpenAI first-party auth is a plain `Bearer` token with no extra headers or
-    body fields, so the traits carry only the vendor tag. Consumed by
+    body fields, so the traits carry the vendor tag plus the first-party
+    origin (`OPENAI_BASE_URL`, riding the fragment so the §3.4 front door can
+    compose a `Direct` binding without importing this plugin). Consumed by
     `ocai.wire.hosting` hosts (`Direct`/`Custom`) at composition time.
 
     Returns:
         The interface's `DialectTraits`.
     """
-    return DialectTraits(vendor="openai")
+    return DialectTraits(vendor="openai", first_party_base_url=OPENAI_BASE_URL)
 
 
 def _usage(raw: dict[str, Any] | None) -> Usage | None:

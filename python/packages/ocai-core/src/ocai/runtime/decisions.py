@@ -15,9 +15,9 @@ no policy, cache, or log built on this vocabulary can ever see a secret.
 
 Effectful policies (a redis-backed cache, a distributed rate limiter) keep the
 decision pure but delegate their I/O to a *backend* that declares a sync
-and/or async face (`SyncBackend` / `AsyncBackend`). `Binding.validate` /
-`Workspace.validate` check those faces against the requested driver mode at
-composition time, so a sync call over an async-only backend fails with a
+and/or async face (`SyncBackend` / `AsyncBackend`). Composition-time
+validation (`Binding.validate`) checks the stack against the requested driver
+mode, so a sync call over an async-only backend fails with a
 `CompositionError` naming the offender — never a mid-request `TypeError`.
 """
 
@@ -182,12 +182,12 @@ class WirePolicy(Protocol):
 class SyncBackend(Protocol):
     """The blocking face an effectful policy backend declares.
 
-    A structural marker checked with `isinstance` by `Binding.validate` /
-    `Workspace.validate`: a component offering this face can run under
-    `SyncDriver`. The anchor method is `close` — mirroring the transport
-    convention (`SyncTransport.close`), so transports and policy backends are
-    validated by one rule. A *pure* policy (e.g. `RetryPolicy`) declares
-    neither face and passes validation in both modes.
+    A structural marker checked with `isinstance` at composition-time
+    validation: a component offering this face can run under `SyncDriver`.
+    The anchor method is `close` — mirroring the transport convention
+    (`SyncTransport.close`), so transports and policy backends are validated
+    by one rule. A *pure* policy (e.g. `RetryPolicy`) declares neither face
+    and passes validation in both modes.
     """
 
     def close(self) -> None:

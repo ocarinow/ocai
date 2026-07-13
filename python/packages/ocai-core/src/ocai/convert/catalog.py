@@ -284,6 +284,26 @@ def _channel_allows(channel: Status, status: Status) -> bool:
     return rank[status] <= rank[channel] and status is not Status.RETIRED
 
 
+def _literal_prefix_len(pattern: str) -> int:
+    """Return the length of a glob pattern's leading literal run.
+
+    The specificity key `Catalog.profiles_for` ranks profiles by: the number
+    of characters before the pattern's first wildcard metacharacter
+    (`*`, `?`, or `[`). A fully literal pattern is maximally specific;
+    `"*"` scores zero.
+
+    Args:
+        pattern: The glob-style `model_pattern` to measure.
+
+    Returns:
+        The count of leading non-wildcard characters.
+    """
+    for index, char in enumerate(pattern):
+        if char in "*?[":
+            return index
+    return len(pattern)
+
+
 class CatalogBuilder:
     """Accumulates admission-checked fragments and builds an immutable `Catalog`.
 
@@ -407,8 +427,10 @@ class Catalog:
     graph), `lock` (the audit lockfile) — and never changes.
 
     The wire-backed facade (`ocai.chat.facade.WireChatModel`) holds one and
-    drives resolve → convert(request) → send → convert(response); a
-    `Workspace` (`ocai.runtime.binding`) scopes one per tenancy unit.
+    drives resolve → convert(request) → send → convert(response); the §3.4
+    front door (`ocai.chat.model`) hands every model it builds the same
+    catalog, so per-tenant isolation is plain Python — several models built
+    from different credentials/catalogs, no container object above them.
     """
 
     def __init__(
@@ -659,14 +681,51 @@ class Catalog:
             raise ConversionError(f"no conversion edges registered for shape {src.shape}")
         return graph.stream_converter(src, dst)
 
-    def profile(self, provider: str, interface: str, model: str) -> CapabilityProfile | None:
-        """Return the most specific `CapabilityProfile` covering `model`.
+    def profiles_for(
+        self, provider: str, interface: str, model: str
+    ) -> tuple[CapabilityProfile, ...]:
+        """Return every `CapabilityProfile` covering `model`, ranked.
 
         The feature gate's lookup: consulted before payload conversion so an
         `ABSENT` feature can be refused (strict) or loss-recorded (annotate)
-        without building a doomed request. Specificity comes from the
-        profiles' `model_pattern`s — a `"claude-4*"` sheet beats a `"*"`
-        sheet for `"claude-4-opus"`.
+        without building a doomed request. Profiles are filtered to the
+        `(provider, interface)` pair and to those whose `model_pattern`
+        matches `model`, then ranked **most specific first**: specificity is
+        the length of the pattern's literal prefix (the run before its first
+        wildcard), so a `"claude-4*"` sheet beats a `"*"` sheet for
+        `"claude-4-opus"`. Ties keep admission order (stable sort). The gate
+        layers the result via `ocai.core.profile.resolve_support` — the
+        first profile declaring a feature key wins; a key no profile
+        declares defaults to `Support.NATIVE`.
+
+        Args:
+            provider: The provider the request targets.
+            interface: The interface within the provider.
+            model: The concrete model name from the request.
+
+        Returns:
+            The matching profiles, most specific first; empty when the
+            catalog holds no facts for the triple.
+        """
+        matched = [
+            profile
+            for profile in self._profiles
+            if profile.provider == provider
+            and profile.interface == interface
+            and profile.matches(model)
+        ]
+        matched.sort(
+            key=lambda profile: _literal_prefix_len(profile.model_pattern), reverse=True
+        )
+        return tuple(matched)
+
+    def profile(self, provider: str, interface: str, model: str) -> CapabilityProfile | None:
+        """Return the most specific `CapabilityProfile` covering `model`.
+
+        The single-sheet convenience over `profiles_for` — the head of the
+        specificity ranking. The feature gate itself consults the full
+        ranked stack (a specific sheet declares only its exceptions and must
+        not mask the interface-wide sheet beneath it).
 
         Args:
             provider: The provider the request targets.
@@ -677,10 +736,8 @@ class Catalog:
             The best-matching profile, or None when the catalog holds no
             facts for the triple.
         """
-        # TODO: filter self._profiles by provider/interface, keep those whose
-        # matches(model) is true (CapabilityProfile.matches is itself TODO),
-        # and rank by pattern specificity (longest literal prefix wins).
-        raise NotImplementedError
+        ranked = self.profiles_for(provider, interface, model)
+        return ranked[0] if ranked else None
 
     def component(self, provider: str, interface: str, capability: Capability) -> ComponentFactory:
         """Return the runtime factory registered for the resolved interface.
@@ -710,6 +767,28 @@ class Catalog:
                 f"installed, install it with:  pip install ocai-{provider}"
             )
         return component.factory
+
+    def components_for(self, provider: str, capability: Capability) -> tuple[Component, ...]:
+        """Return every component registered for `provider` serving `capability`.
+
+        The front doors' auto-selection seam (§3.4): a nodes-only stub
+        interface is resolvable when *pinned*, but only interfaces backed by
+        a registered component factory can actually be served, so the front
+        door restricts unpinned resolution to this set.
+
+        Args:
+            provider: The provider to list components for.
+            capability: The capability the built objects must implement.
+
+        Returns:
+            The matching components, in fragment admission order; empty when
+            no composed fragment registered any.
+        """
+        return tuple(
+            component
+            for (p, _, cap), component in self._components.items()
+            if p == provider and cap == capability
+        )
 
     def lock(self) -> CatalogLock:
         """Emit the diffable lockfile describing this composition, hashed.

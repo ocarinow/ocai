@@ -141,3 +141,47 @@ exactly one structural effect: graph augmentation. No framework containers.
   installed fragments; pytest green.
 - **Deps:** WU-07 (facade); pull EARLY — right after WU-07 — so examples and
   tests teach the real doors from the start.
+- **Decision (2026-07-13, WU-16):** first-party endpoint data rides
+  `DialectTraits` (new optional `first_party_base_url` field in
+  `core/traits.py`), NOT the `Component` descriptor — it is hosting-relevant
+  dialect data, exactly what traits carry; the module-level `*_BASE_URL`
+  constants stay the source and both codecs' `dialect_traits()` forward them.
+  No spec schema/census references traits, so no fixture change.
+- **Decision (2026-07-13, WU-16):** plugins register their codec as a
+  `Component(provider, interface, CHAT, factory=<Codec class>)` on their
+  interface `FRAGMENT` (zero-arg factory — the front door calls it bare);
+  added `Catalog.components_for(provider, capability)` as the public lookup.
+  Unpinned front-door resolution auto-selects only among component-backed
+  interfaces (then resolve's own newest-wins ordering): the nodes-only
+  `openai/responses` stub is newer-released than `chat_completions` and
+  would otherwise win resolution it cannot serve; it stays reachable by
+  explicit `interface=` pin (which fails at the component lookup with the
+  install-hint `LookupError`).
+- **Decision (2026-07-13, WU-16):** door 2 is literally door 1 —
+  `chat_model()` defers `from ocai.chat import model` to call time and calls
+  it with `catalog=Catalog.of(FRAGMENT)`; the thinnest truthful sugar, one
+  code path. Import contracts: lint-imports flagged the function-level
+  seams, so the layers contract gained `ocai.chat -> {convert.catalog,
+  runtime.binding, wire.hosting, wire.transport}`, the plugin contract
+  gained the two door-2 edges (`ocai.openai.chat_completions -> ocai.chat`,
+  `ocai.anthropic.messages -> ocai.chat`), and the httpx contract gained
+  `ocai.chat -> ocai.wire.transport` — all documented in pyproject comments.
+- **Decision (2026-07-13, WU-16):** `interceptors=` wraps the facade in
+  `InterceptedChatModel` (lives in `chat/facade.py`, the one sanctioned
+  composing module): `compose`/`acompose` folded once at construction;
+  `stream`/`astream` pass through UNintercepted (documented — the
+  `CallInterceptor` contract is unary `Call -> CallResult`; streaming
+  interception is a later explicit seam, never a silent partial one).
+- **Decision (2026-07-13, WU-16):** `dual.py` wrappers are generic
+  `__getattr__` proxies over the bare-name/`a`-prefix convention (thread
+  offload via `asyncio.to_thread`; `from_async` uses a lazy daemon portal
+  thread with a private loop, `run_coroutine_threadsafe` per call); sync
+  iterators bridge to async (and vice versa) one hop per item with
+  non-iterating attributes (`.end`) passing through. Caveat recorded in the
+  module docstring: `isinstance` against runtime_checkable protocols uses
+  `inspect.getattr_static` (3.12+) and cannot see the synthesized faces —
+  conformance is behavioral, asserted structurally in tests.
+- **Decision (2026-07-13, WU-16):** the one prose mention of "no
+  `Workspace`/container object" in `binding.py` stays — it mirrors
+  architecture §5's deliberate negative statement; the class, its exports,
+  and every load-bearing docstring reference are gone.

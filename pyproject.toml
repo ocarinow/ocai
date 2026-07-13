@@ -107,10 +107,10 @@ exclude_type_checking_imports = true
 # may import lower ones; the capability contracts are independent siblings
 # (`|`) — chat/embedding/vectorstore never import each other.
 #
-# ignore_imports carries the TWO sanctioned seams:
+# ignore_imports carries the THREE sanctioned seams:
 # 1. `ocai.chat.facade` — the ONE chat module allowed to import
 #    convert/runtime/wire (the wire-backed facade; §3.3; named `facade` so
-#    the future `ocai.chat.model()` factory is never shadowed by a module).
+#    the `ocai.chat.model()` factory is never shadowed by a module).
 #    WU-07 landed the real imports: only submodule (`.**`) entries exist,
 #    because the facade imports specific value modules, never the bare
 #    packages (a bare `ocai.wire` import would chain to httpx through its
@@ -119,6 +119,11 @@ exclude_type_checking_imports = true
 #    imports of `ocai.wire` VALUE modules (http/sse/transport): the package
 #    arrow points wire -> runtime, and runtime touches wire value classes
 #    only inside the pipeline, never at module import time (WU-01 decision).
+# 3. The §3.4 front door (WU-16): `ocai.chat.model()` in `ocai/chat/__init__`
+#    composes catalog/binding/host/transport via *function-level* imports
+#    only (grimp sees them; exclude_type_checking does not cover them), so
+#    the chat package stays import-light and the composition happens at call
+#    time through the same value modules the facade uses.
 # Every entry matches a real import; unmatched entries error (the default),
 # so a stale ignore is itself a build failure.
 [[tool.importlinter.contracts]]
@@ -135,6 +140,10 @@ ignore_imports = [
     "ocai.chat.facade -> ocai.convert.**",
     "ocai.chat.facade -> ocai.runtime.**",
     "ocai.chat.facade -> ocai.wire.**",
+    "ocai.chat -> ocai.convert.catalog",
+    "ocai.chat -> ocai.runtime.binding",
+    "ocai.chat -> ocai.wire.hosting",
+    "ocai.chat -> ocai.wire.transport",
     "ocai.runtime.drivers -> ocai.wire.http",
     "ocai.runtime.drivers -> ocai.wire.sse",
     "ocai.runtime.drivers -> ocai.wire.transport",
@@ -144,17 +153,27 @@ ignore_imports = [
 # §1 plugin rule: plugin distributions depend on core + capability contracts +
 # convert ONLY — never on wire/runtime/httpx — so an offline audit tool can
 # re-convert archived traffic without the ability to make network calls.
+# The two ignored imports are the sanctioned §3.4 door-2 seam (WU-16): each
+# plugin's `chat_model()` sugar defers `from ocai.chat import model` to call
+# time and composes through the core front door — the plugin itself still
+# never imports wire/runtime/httpx (importing the plugin stays inert); the
+# ignore cuts the call-time chain plugin -> ocai.chat -> (front-door seams).
 [[tool.importlinter.contracts]]
 name = "Plugins never import ocai.wire, ocai.runtime, or httpx"
 type = "forbidden"
 source_modules = ["ocai.openai", "ocai.anthropic"]
 forbidden_modules = ["ocai.wire", "ocai.runtime", "httpx"]
+ignore_imports = [
+    "ocai.openai.chat_completions -> ocai.chat",
+    "ocai.anthropic.messages -> ocai.chat",
+]
 
 # §1 core purity: httpx stays behind the `ocai.wire` extra; every other layer
 # is stdlib-only at runtime (rule 11). The ignored imports are the same
-# sanctioned deferred value-class seam as on the layered contract — runtime
-# reaches httpx only through `ocai.wire.transport`, lazily, inside the
-# pipeline; any OTHER chain to httpx (direct or indirect) still breaks it.
+# sanctioned deferred value-class seams as on the layered contract — runtime
+# and the §3.4 front door reach httpx only through `ocai.wire.transport`,
+# lazily, inside the pipeline/factory; any OTHER chain to httpx (direct or
+# indirect) still breaks it.
 [[tool.importlinter.contracts]]
 name = "Only ocai.wire may import httpx"
 type = "forbidden"
@@ -170,4 +189,5 @@ forbidden_modules = ["httpx"]
 ignore_imports = [
     "ocai.runtime.binding -> ocai.wire.transport",
     "ocai.runtime.drivers -> ocai.wire.transport",
+    "ocai.chat -> ocai.wire.transport",
 ]

@@ -49,4 +49,5 @@ FRAGMENT = CatalogFragment(
     transducers=chat_completions.FRAGMENT.transducers + responses.FRAGMENT.transducers,
     profiles=chat_completions.FRAGMENT.profiles + responses.FRAGMENT.profiles,
     traits=chat_completions.FRAGMENT.traits + responses.FRAGMENT.traits,
+    components=chat_completions.FRAGMENT.components + responses.FRAGMENT.components,
 )

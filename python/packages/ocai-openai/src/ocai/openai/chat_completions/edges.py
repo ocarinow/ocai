@@ -247,6 +247,20 @@ TRANSDUCERS: tuple[StreamEdge, ...] = (
 
 # Declared capability facts, consulted by the feature gate BEFORE payload
 # conversion (§2.5). Keys are namespaced open data, not a frozen taxonomy.
+#
+# The reasoning families (the `o*` series and `gpt-5*`) reject the classic
+# sampler knobs outright — sending `temperature`/`top_p` is a 400, not a
+# default — so they are declared plain ABSENT below interface level, while
+# `reasoning.effort` is the families' native dial. fnmatch has no
+# alternation, so the two family patterns share one fact sheet. A specific
+# sheet declares only its EXCEPTIONS: everything it is silent about layers
+# down to the `"*"` sheet (first declaration wins, undeclared is NATIVE).
+_REASONING_MODEL_FEATURES: dict[str, Support] = {
+    "chat.config.temperature": Support.ABSENT,
+    "chat.config.top_p": Support.ABSENT,
+    "chat.config.reasoning.effort": Support.NATIVE,
+}
+
 PROFILES: tuple[CapabilityProfile, ...] = (
     CapabilityProfile(
         provider=PROVIDER,
@@ -267,6 +281,16 @@ PROFILES: tuple[CapabilityProfile, ...] = (
             "chat.tools.parallel": Support.NATIVE,
         },
     ),
-    # TODO: reasoning-model profile (o*/gpt-5*): temperature/top_p rejected,
-    # reasoning_effort native — census the exact families before declaring.
+    CapabilityProfile(
+        provider=PROVIDER,
+        interface=INTERFACE,
+        model_pattern="o*",
+        features=dict(_REASONING_MODEL_FEATURES),
+    ),
+    CapabilityProfile(
+        provider=PROVIDER,
+        interface=INTERFACE,
+        model_pattern="gpt-5*",
+        features=dict(_REASONING_MODEL_FEATURES),
+    ),
 )

@@ -41,33 +41,46 @@ from typing import Protocol
 
 from ocai.chat.canonical import CANONICAL_CHAT_REQUEST
 from ocai.chat.canonical import CANONICAL_CHAT_RESPONSE
+from ocai.chat.types.config import OutputMode
+from ocai.chat.types.parts import PartType
 from ocai.chat.types.request import ChatRequest
 from ocai.chat.types.response import ChatResponse
 from ocai.chat.types.stream import AsyncChatStream
 from ocai.chat.types.stream import ChatStream
+from ocai.core.errors import UnsupportedFeatureError
+from ocai.core.fidelity import Disposition
+from ocai.core.fidelity import EdgeReport
+from ocai.core.fidelity import FidelityReport
+from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import CHAT
 from ocai.core.identity import CHAT_RESPONSE
+from ocai.core.profile import Support
+from ocai.core.profile import resolve_support
 from ocai.core.result import CallContext
 from ocai.core.result import CallResult
 from ocai.runtime.binding import CompositionError
 from ocai.runtime.drivers import AsyncDriver
 from ocai.runtime.drivers import SyncDriver
+from ocai.runtime.interceptors import Call
+from ocai.runtime.interceptors import acompose
+from ocai.runtime.interceptors import compose
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from ocai.chat.protocol import ChatModel
     from ocai.chat.types.stream import ChatChunk
     from ocai.convert.catalog import Catalog
     from ocai.convert.graph import EdgeOutput
     from ocai.core.errors import OcaiError
-    from ocai.core.fidelity import FidelityReport
     from ocai.core.fidelity import Route
     from ocai.core.identity import NodeId
     from ocai.core.traits import DialectTraits
     from ocai.runtime.binding import Binding
     from ocai.runtime.decisions import WirePolicy
+    from ocai.runtime.interceptors import CallInterceptor
 
 
 class ChatCodec(Protocol):
@@ -128,6 +141,90 @@ class ChatCodec(Protocol):
 _CHAT_OPERATION = Operation(name="chat", kind="generative")
 
 
+# --- The feature gate's request census (WU-12) ---------------------------------
+#
+# The namespaced feature keys a request can exhibit, aligned with the
+# vocabulary the plugins' PROFILES declare (`"chat.config.temperature"`,
+# `"chat.parts.audio"`, ...). Keys are open data (§2.5): a key derived here
+# that no profile declares resolves NATIVE — absence of a declared limitation
+# is not a limitation — so this census may name more than any profile does.
+
+# Scalar/config knobs: attribute on `ChatConfig` -> feature key.
+_CONFIG_FEATURES: tuple[tuple[str, str], ...] = (
+    ("temperature", "chat.config.temperature"),
+    ("top_p", "chat.config.top_p"),
+    ("max_output_tokens", "chat.config.max_output_tokens"),
+    ("stop_sequences", "chat.config.stop_sequences"),
+    ("seed", "chat.config.seed"),
+    ("frequency_penalty", "chat.config.frequency_penalty"),
+    ("presence_penalty", "chat.config.presence_penalty"),
+    ("top_k", "chat.config.top_k"),
+    ("logprobs", "chat.config.logprobs"),
+    ("modalities", "chat.config.modalities"),
+    ("audio", "chat.config.audio"),
+    ("cache", "chat.config.cache"),
+)
+
+# Gate-relevant part kinds: a media part needs a wire lane, and a reasoning
+# part in a *request* is a replay. Text/tool parts ride the universal lanes
+# and are not profile-gated.
+_PART_FEATURES: dict[PartType, str] = {
+    PartType.IMAGE: "chat.parts.image",
+    PartType.AUDIO: "chat.parts.audio",
+    PartType.VIDEO: "chat.parts.video",
+    PartType.DOCUMENT: "chat.parts.document",
+    PartType.REASONING: "chat.parts.reasoning.replay",
+}
+
+
+def _request_features(request: ChatRequest) -> tuple[tuple[str, str], ...]:
+    """Derive the feature keys a request exhibits, with their field paths.
+
+    The gate's census of one concrete request: every set config knob, the
+    structured-output mode, the reasoning dials, tool presence, and the
+    gate-relevant part kinds, each as a `(feature_key, path)` pair. Paths are
+    canonical-request paths (`"config.temperature"`,
+    `"messages[0].parts[1]"`) so annotate-mode `FieldLoss` records anchor to
+    the field the user actually set. Occurrences are not de-duplicated —
+    every gated part is its own field, reported individually.
+
+    Args:
+        request: The canonical request about to be gated.
+
+    Returns:
+        The `(feature_key, path)` pairs present, in stable order (config
+        knobs, then tools, then parts in conversation order).
+    """
+    found: list[tuple[str, str]] = []
+    config = request.config
+    if config is not None:
+        for attr, feature in _CONFIG_FEATURES:
+            if getattr(config, attr) is not None:
+                found.append((feature, f"config.{attr}"))
+        if config.parallel_tool_calls is not None:
+            found.append(("chat.tools.parallel", "config.parallel_tool_calls"))
+        if config.reasoning is not None:
+            if config.reasoning.effort is not None:
+                found.append(("chat.config.reasoning.effort", "config.reasoning.effort"))
+            if config.reasoning.budget_tokens is not None:
+                found.append(
+                    ("chat.config.reasoning.budget_tokens", "config.reasoning.budget_tokens")
+                )
+        if config.output is not None:
+            if config.output.mode == OutputMode.JSON_SCHEMA:
+                found.append(("chat.config.output.json_schema", "config.output"))
+            elif config.output.mode == OutputMode.JSON:
+                found.append(("chat.config.output.json", "config.output"))
+    if request.tools:
+        found.append(("chat.tools", "tools"))
+    for i, message in enumerate(request.messages):
+        for j, part in enumerate(message.parts):
+            feature = _PART_FEATURES.get(getattr(part, "type", PartType.UNDEFINED))
+            if feature is not None:
+                found.append((feature, f"messages[{i}].parts[{j}]"))
+    return tuple(found)
+
+
 @dataclass(frozen=True, slots=True)
 class _PreparedCall:
     """One call's sans-io preamble: everything computed before the send.
@@ -141,8 +238,9 @@ class _PreparedCall:
             hash.
         spec: The endpoint spec the driver executes against.
         payload: The encoded wire body with the bound model injected.
-        report: The request leg of the call's `FidelityReport`; the response
-            leg is merged onto it at assembly.
+        report: The request leg of the call's `FidelityReport` (led by the
+            feature gate's record when annotate mode found `ABSENT`
+            features); the response leg is merged onto it at assembly.
     """
 
     route: Route
@@ -177,6 +275,7 @@ class WireChatModel:
         interface: str | None = None,
         tag: str | None = None,
         policies: Sequence[WirePolicy] = (),
+        strict: bool = False,
     ) -> None:
         """Compose the facade from its three values and the bound resource.
 
@@ -204,6 +303,13 @@ class WireChatModel:
                 eligible.
             policies: The wire-tier hooks (retry, rate-limit, wiretap) the
                 drivers consult on every attempt, in order.
+            strict: The feature-gate mode (§2.5). False (annotate, the
+                default): a request feature the destination's
+                `CapabilityProfile` declares `ABSENT` is recorded as an
+                `UNSUPPORTED` field loss on the call's report and the call
+                proceeds, payload untouched. True (strict): the same fact
+                raises `UnsupportedFeatureError` before the request is
+                encoded — nothing reaches the wire.
         """
         self._codec = codec
         self._binding = binding
@@ -211,6 +317,7 @@ class WireChatModel:
         self._model_name = model_name
         self._interface = interface
         self._tag = tag
+        self._strict = strict
         self._sync_driver = SyncDriver(binding, policies=policies)
         self._async_driver = AsyncDriver(binding, policies=policies)
 
@@ -232,6 +339,81 @@ class WireChatModel:
         """
         return self._codec.map_error(err.status, err.raw)
 
+    def _gate(self, request: ChatRequest, route: Route) -> FidelityReport:
+        """Run the feature gate: profile facts checked BEFORE any encoding.
+
+        Derives the request's feature keys (`_request_features`), resolves
+        each against the catalog's specificity-ranked `CapabilityProfile`s
+        for the resolved `(provider, interface)` and the bound model
+        (`resolve_support` — first declaration wins, undeclared is NATIVE),
+        and acts on every `ABSENT` fact per the composed mode: strict raises
+        before a doomed payload is ever built; annotate returns the losses
+        as one gate `EdgeReport` to be merged ahead of the request leg. The
+        payload itself is never touched — values pass verbatim (the codec's
+        job is translation, not opinion), so annotate mode warns honestly
+        and lets the provider stay authoritative.
+
+        Args:
+            request: The canonical request about to be encoded.
+            route: The resolved route naming the destination interface.
+
+        Returns:
+            A report holding one gate `EdgeReport` when annotate mode found
+            `ABSENT` features; an empty report otherwise.
+
+        Raises:
+            UnsupportedFeatureError: In strict mode, when any feature on the
+                request is declared `ABSENT` for the bound model.
+        """
+        features = _request_features(request)
+        if not features:
+            return FidelityReport()
+        profiles = self._catalog.profiles_for(
+            route.node.provider, route.node.interface, self._model_name
+        )
+        if not profiles:
+            return FidelityReport()
+        absent = [
+            (feature, path)
+            for feature, path in features
+            if resolve_support(profiles, feature) is Support.ABSENT
+        ]
+        if not absent:
+            return FidelityReport()
+        if self._strict:
+            names = tuple(sorted({feature for feature, _ in absent}))
+            raise UnsupportedFeatureError(
+                f"{route.node.provider}/{route.node.interface} declares "
+                f"{', '.join(names)} absent for model {self._model_name!r}; "
+                "unset the feature(s), pick another model, or compose with "
+                "strict=False to record the loss instead",
+                features=names,
+                model=self._model_name,
+                provider=route.node.provider,
+            )
+        losses = tuple(
+            FieldLoss(
+                path=path,
+                disposition=Disposition.UNSUPPORTED,
+                note=(
+                    f"feature gate: {feature} is declared absent on "
+                    f"{route.node.provider}/{route.node.interface} "
+                    f"for model {self._model_name!r}"
+                ),
+            )
+            for feature, path in absent
+        )
+        return FidelityReport(
+            edges=[
+                EdgeReport(
+                    src=CANONICAL_CHAT_REQUEST,
+                    dst=route.node,
+                    losses=losses,
+                    note="feature gate (pre-encode)",
+                )
+            ]
+        )
+
     def _prepare(self, request: ChatRequest) -> _PreparedCall:
         """Run the pre-send lifecycle: resolve → encode → bind → spec.
 
@@ -252,6 +434,10 @@ class WireChatModel:
             CompositionError: If an explicitly pinned interface disagrees
                 with the composed codec's dialect.
             ResolutionError: If the catalog cannot resolve the pins.
+            UnsupportedFeatureError: In strict mode, when the feature gate
+                finds a request feature the destination's profile declares
+                `ABSENT` — raised before any encoding, nothing reaches the
+                wire.
             ConversionError: If no conversion path reaches the resolved
                 node.
         """
@@ -268,7 +454,12 @@ class WireChatModel:
                 f"composed with the {self._codec.provider}/{self._codec.interface} "
                 "codec; pin the codec's interface (or none) or compose the matching codec."
             )
+        # The feature gate runs BEFORE encode (§2.5): strict mode refuses a
+        # doomed request without ever building its payload; annotate mode
+        # collects the gate's UNSUPPORTED records to lead the request leg.
+        gate = self._gate(request, route)
         encoded = self._catalog.convert(request, CANONICAL_CHAT_REQUEST, route.node)
+        report = gate.merge(encoded.report) if gate.edges else encoded.report
         payload = self._codec.bind_resource(encoded.value, self._model_name)
         spec = EndpointSpec(
             dialect=route.node,
@@ -281,7 +472,7 @@ class WireChatModel:
         # physically going (the audit joint's `host` lane) after the spec
         # exists, so resolution itself never knows clouds exist.
         route = replace(route, host=self._binding.host.endpoint(spec))
-        return _PreparedCall(route=route, spec=spec, payload=payload, report=encoded.report)
+        return _PreparedCall(route=route, spec=spec, payload=payload, report=report)
 
     def _response_node(self, request_node: NodeId) -> NodeId:
         """Return the response-shape sibling of a resolved request node.
@@ -489,3 +680,122 @@ class WireChatModel:
             "model_name": self._model_name,
             "tag": self._tag,
         }
+
+
+class InterceptedChatModel:
+    """A `ChatModel` wrapped in a port-tier `CallInterceptor` chain.
+
+    What the §3.4 front door returns when `interceptors` are composed in: the
+    chain is folded over the inner port's own call exactly once, at
+    construction (`compose`/`acompose` from `ocai.runtime.interceptors`), and
+    every `chat`/`achat` travels the onion — outermost interceptor first. The
+    wrapper satisfies the `ChatModel` protocol structurally, so interceptors
+    stack: an `InterceptedChatModel` can wrap another.
+
+    `stream`/`astream` pass through to the inner port *unintercepted*:
+    `CallInterceptor` is a unary `Call -> CallResult` contract, and chunk
+    streams do not fit it — streaming interception is a later, explicit seam,
+    never a silent partial application.
+    """
+
+    def __init__(self, inner: ChatModel, interceptors: Sequence[CallInterceptor]) -> None:
+        """Fold `interceptors` over `inner`'s unary faces.
+
+        Args:
+            inner: The port to wrap — typically a `WireChatModel`, but any
+                `ChatModel` composes (local adapters included; that symmetry
+                is the interceptor tier's admission test).
+            interceptors: The chain, outermost first.
+        """
+        self._inner = inner
+        self._interceptors = tuple(interceptors)
+        self._handler = compose(self._interceptors, self._terminal)
+        self._ahandler = acompose(self._interceptors, self._aterminal)
+
+    def _terminal(self, call: Call) -> CallResult[ChatResponse]:
+        """The innermost sync handler: the wrapped port's own `chat`."""
+        return self._inner.chat(call.request, ctx=call.ctx)
+
+    async def _aterminal(self, call: Call) -> CallResult[ChatResponse]:
+        """The innermost async handler: the wrapped port's own `achat`."""
+        return await self._inner.achat(call.request, ctx=call.ctx)
+
+    def chat(
+        self,
+        request: ChatRequest,
+        *,
+        ctx: CallContext | None = None,
+    ) -> CallResult[ChatResponse]:
+        """Send a blocking chat request down the interceptor chain.
+
+        Args:
+            request: The canonical chat request.
+            ctx: The per-request governance context, visible to every
+                interceptor on the way down.
+
+        Returns:
+            The `CallResult` the chain hands back — the inner port's result,
+            or an interceptor's short-circuit.
+        """
+        return self._handler(Call(request=request, ctx=ctx))
+
+    async def achat(
+        self,
+        request: ChatRequest,
+        *,
+        ctx: CallContext | None = None,
+    ) -> CallResult[ChatResponse]:
+        """Send a blocking chat request down the async interceptor chain.
+
+        Args:
+            request: The canonical chat request.
+            ctx: The per-request governance context.
+
+        Returns:
+            The `CallResult` the chain hands back.
+        """
+        return await self._ahandler(Call(request=request, ctx=ctx))
+
+    def stream(
+        self,
+        request: ChatRequest,
+        *,
+        ctx: CallContext | None = None,
+    ) -> ChatStream:
+        """Delegate a streaming request to the inner port, unintercepted.
+
+        Args:
+            request: The canonical chat request.
+            ctx: The per-request governance context.
+
+        Returns:
+            The inner port's canonical chunk stream.
+        """
+        return self._inner.stream(request, ctx=ctx)
+
+    async def astream(
+        self,
+        request: ChatRequest,
+        *,
+        ctx: CallContext | None = None,
+    ) -> AsyncChatStream:
+        """Delegate an async streaming request to the inner port, unintercepted.
+
+        Args:
+            request: The canonical chat request.
+            ctx: The per-request governance context.
+
+        Returns:
+            The inner port's async canonical chunk stream.
+        """
+        return await self._inner.astream(request, ctx=ctx)
+
+    @property
+    def details(self) -> dict[str, Any]:
+        """Describe the wrapped composition.
+
+        Returns:
+            The inner port's details, unchanged — interceptors are transparent
+            to diagnostics that describe the destination.
+        """
+        return self._inner.details

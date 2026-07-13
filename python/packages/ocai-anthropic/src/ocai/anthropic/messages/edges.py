@@ -291,11 +291,18 @@ PROFILES: tuple[CapabilityProfile, ...] = (
     ),
     # The newest models reject `temperature` outright (a 400, not a warning):
     # strict mode refuses before conversion, annotate mode records the loss.
-    # TODO: census the exact rejecting model families as they ship.
+    # Census: the shipped rejecting families are the opus-4-6 through
+    # opus-4-8 lines, covered by one character-class pattern (extend the
+    # class as new rejecting families ship). `temperature` is a plain
+    # ABSENT; `top_p` stays NATIVE via the `"*"` sheet — the documented
+    # temperature/top_p mutual exclusion on older models is a cross-knob
+    # constraint the per-feature gate deliberately does not model (top_p
+    # alone is accepted, so declaring it ABSENT would refuse valid
+    # requests; the wire stays authoritative for the pairing rule).
     CapabilityProfile(
         provider=PROVIDER,
         interface=INTERFACE,
-        model_pattern="claude-opus-4-6*",
+        model_pattern="claude-opus-4-[678]*",
         features={"chat.config.temperature": Support.ABSENT},
     ),
 )

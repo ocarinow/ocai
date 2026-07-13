@@ -28,7 +28,10 @@ from ocai.anthropic.messages.edges import NODES
 from ocai.anthropic.messages.edges import ORIGIN
 from ocai.anthropic.messages.edges import PROFILES
 from ocai.anthropic.messages.edges import TRANSDUCERS
+from ocai.convert.catalog import Catalog
 from ocai.convert.catalog import CatalogFragment
+from ocai.convert.catalog import Component
+from ocai.core.identity import CHAT
 
 if TYPE_CHECKING:
     from ocai.chat.protocol import ChatModel
@@ -44,8 +47,10 @@ __all__ = [
 ]
 
 # The frozen declarative fragment this interface contributes to a Catalog:
-# its three nodes, its contract-censused edges, its chunk transducer, and its
-# capability profiles — stamped with this distribution's Origin.
+# its three nodes, its contract-censused edges, its chunk transducer, its
+# capability profiles, its hosting traits, and its codec factory (the
+# component the §3.4 front door builds the serving codec from) — stamped
+# with this distribution's Origin.
 FRAGMENT = CatalogFragment(
     origin=ORIGIN,
     nodes=NODES,
@@ -53,26 +58,35 @@ FRAGMENT = CatalogFragment(
     transducers=TRANSDUCERS,
     profiles=PROFILES,
     traits=(dialect_traits(),),
+    components=(
+        Component(
+            provider=MessagesCodec.provider,
+            interface=MessagesCodec.interface,
+            capability=CHAT,
+            factory=MessagesCodec,
+        ),
+    ),
 )
 
 
 def chat_model(
     model_name: str,
     *,
-    credentials: Credential | None = None,
+    credentials: Credential,
 ) -> ChatModel:
     """Sanctioned sugar (§3.4 door 2): a first-party Anthropic chat model.
 
     A THIN wrapper over the exact same fragment + facade machinery as the
-    core string door (`ocai.chat.model("anthropic", model_name, ...)`) —
-    never a separate code path: it composes `WireChatModel(MessagesCodec(),
-    binding, catalog, model_name=model_name)` with a `Direct` host at the
-    Anthropic origin (whose traits inject the `anthropic-version` header)
-    and a minimal catalog from this interface's `FRAGMENT`. The model name
-    binds to the returned model object here, at construction;
-    `ChatRequest`s stay pure conversation and never carry it. For
-    Vertex/Bedrock, compose the pieces directly with the appropriate host
-    and credential.
+    core string door — never a separate code path: it *is* a call to
+    `ocai.chat.model(f"anthropic/{model_name}", ...)` over a minimal catalog
+    built from this interface's `FRAGMENT` (so the front door composes a
+    `Direct` host at the Anthropic origin from the fragment's declared
+    traits — which inject the `anthropic-version` header — the
+    `MessagesCodec` from the fragment's component factory, and an
+    `HttpxTransport`). The model name binds to the returned model object
+    here, at construction; `ChatRequest`s stay pure conversation and never
+    carry it. For Vertex/Bedrock, compose the pieces directly with the
+    appropriate host and credential.
 
     Args:
         model_name: The Anthropic model name bound to the returned model
@@ -84,13 +98,14 @@ def chat_model(
 
     Returns:
         A `ChatModel` implementation backed by this interface.
-
-    Raises:
-        NotImplementedError: Always, until WU-16 wires the front doors.
     """
-    # TODO: WU-16 — build Catalog.of(FRAGMENT), Binding(Direct(ANTHROPIC_BASE_URL),
-    # credentials, HttpxTransport()), and return WireChatModel(...,
-    # model_name=model_name) via DEFERRED imports of ocai.chat.facade /
-    # ocai.runtime / ocai.wire (module level would break the plugin import
-    # contract; the facade is the sanctioned composition seam).
-    raise NotImplementedError
+    # Deferred import (the documented door-2 seam): the plugin stays inert at
+    # import time and reaches the wire only through the core front door, at
+    # call time — the same composition path, one frame deeper.
+    from ocai.chat import model
+
+    return model(
+        f"{MessagesCodec.provider}/{model_name}",
+        credentials=credentials,
+        catalog=Catalog.of(FRAGMENT),
+    )

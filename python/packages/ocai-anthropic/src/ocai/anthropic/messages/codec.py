@@ -198,7 +198,9 @@ def dialect_traits() -> DialectTraits:
     `anthropic-version` header; cloud hosts (Vertex) drop the header and
     require the `anthropic_version` body field instead. Declaring both here
     is what lets the one codec run first-party, on Vertex, or on Bedrock
-    with no codec change (rule 14).
+    with no codec change (rule 14). The first-party origin
+    (`ANTHROPIC_BASE_URL`) rides along so the §3.4 front door can compose a
+    `Direct` binding without importing this plugin.
 
     Returns:
         The interface's `DialectTraits`.
@@ -207,6 +209,7 @@ def dialect_traits() -> DialectTraits:
         vendor=PROVIDER,
         first_party_headers={"anthropic-version": ANTHROPIC_VERSION},
         cloud_body_version=("anthropic_version", ANTHROPIC_VERTEX_VERSION),
+        first_party_base_url=ANTHROPIC_BASE_URL,
     )
 
 

@@ -19,7 +19,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ocai.convert.catalog import Catalog
 from ocai.convert.catalog import CatalogFragment
+from ocai.convert.catalog import Component
+from ocai.core.identity import CHAT
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_CHUNK
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
@@ -45,8 +48,10 @@ __all__ = [
 ]
 
 # The frozen declarative fragment this interface contributes to a Catalog:
-# its three nodes, its contract-censused edges, its chunk transducer, and its
-# capability profile — all stamped with this distribution's Origin.
+# its three nodes, its contract-censused edges, its chunk transducer, its
+# capability profile, its hosting traits, and its codec factory (the
+# component the §3.4 front door builds the serving codec from) — all stamped
+# with this distribution's Origin.
 FRAGMENT = CatalogFragment(
     origin=ORIGIN,
     nodes=NODES,
@@ -54,25 +59,35 @@ FRAGMENT = CatalogFragment(
     transducers=TRANSDUCERS,
     profiles=PROFILES,
     traits=(dialect_traits(),),
+    components=(
+        Component(
+            provider=ChatCompletionsCodec.provider,
+            interface=ChatCompletionsCodec.interface,
+            capability=CHAT,
+            factory=ChatCompletionsCodec,
+        ),
+    ),
 )
 
 
 def chat_model(
     model_name: str,
     *,
-    credentials: Credential | None = None,
+    credentials: Credential,
 ) -> ChatModel:
     """Sanctioned sugar (§3.4 door 2): a first-party OpenAI chat model.
 
     A THIN wrapper over the exact same fragment + facade machinery as the
-    core string door (`ocai.chat.model("openai", model_name, ...)`) — never
-    a separate code path: it composes `WireChatModel(ChatCompletionsCodec(),
-    binding, catalog, model_name=model_name)` with a `Direct` host at the
-    OpenAI origin and a minimal catalog built from this interface's
-    `FRAGMENT`. The model name binds to the returned model object here, at
-    construction; `ChatRequest`s stay pure conversation and never carry it.
-    Power users compose the pieces themselves (any host, any transport,
-    richer catalogs); this factory adds nothing they cannot reach.
+    core string door — never a separate code path: it *is* a call to
+    `ocai.chat.model(f"openai/{model_name}", ...)` over a minimal catalog
+    built from this interface's `FRAGMENT` (so the front door composes a
+    `Direct` host at the OpenAI origin from the fragment's declared traits,
+    the `ChatCompletionsCodec` from the fragment's component factory, and an
+    `HttpxTransport`). The model name binds to the returned model object
+    here, at construction; `ChatRequest`s stay pure conversation and never
+    carry it. Power users compose the pieces themselves (any host, any
+    transport, richer catalogs); this factory adds nothing they cannot
+    reach.
 
     Args:
         model_name: The OpenAI model name bound to the returned model
@@ -82,13 +97,14 @@ def chat_model(
 
     Returns:
         A `ChatModel` implementation backed by this interface.
-
-    Raises:
-        NotImplementedError: Always, until WU-16 wires the front doors.
     """
-    # TODO: WU-16 — build Catalog.of(FRAGMENT), Binding(Direct(OPENAI_BASE_URL),
-    # credentials, HttpxTransport()), and return WireChatModel(...,
-    # model_name=model_name) via DEFERRED imports of ocai.chat.facade /
-    # ocai.runtime / ocai.wire (module level would break the plugin import
-    # contract; the facade is the sanctioned composition seam).
-    raise NotImplementedError
+    # Deferred import (the documented door-2 seam): the plugin stays inert at
+    # import time and reaches the wire only through the core front door, at
+    # call time — the same composition path, one frame deeper.
+    from ocai.chat import model
+
+    return model(
+        f"{ChatCompletionsCodec.provider}/{model_name}",
+        credentials=credentials,
+        catalog=Catalog.of(FRAGMENT),
+    )

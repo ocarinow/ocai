@@ -2,7 +2,7 @@
 
 The execution layer between the capability facades and the wire: sans-io
 policy vocabulary (`decisions`), the two thin pipeline executors (`drivers`),
-port-tier middleware (`interceptors`), the composition roots (`binding`),
+port-tier middleware (`interceptors`), the composition root (`binding`),
 visible sync/async bridging (`dual`), and passive observability (`observe`).
 
 Depends downward on `ocai.core` (and `ocai.convert` for stream transducer
@@ -17,7 +17,6 @@ from __future__ import annotations
 from ocai.runtime.binding import Binding
 from ocai.runtime.binding import CompositionError
 from ocai.runtime.binding import Mode
-from ocai.runtime.binding import Workspace
 from ocai.runtime.decisions import AsyncBackend
 from ocai.runtime.decisions import Decision
 from ocai.runtime.decisions import Fail
@@ -69,7 +68,6 @@ __all__ = [
     "SyncDriver",
     "WireExchanged",
     "WirePolicy",
-    "Workspace",
     "acompose",
     "compose",
     "from_async",

@@ -116,10 +116,11 @@ type ObserveEvent = CallStarted | CallFinished | WireExchanged
 class Observer(Protocol):
     """A passive sink for runtime events. [provisional]
 
-    Registered on a `Workspace`; called synchronously on the calling thread
-    by drivers and interceptor chains, so implementations must be fast and
-    non-blocking (buffer and export elsewhere). An observer can never alter a
-    call: it has no return channel and dispatchers isolate its exceptions.
+    Registered at composition time on the components that emit events;
+    called synchronously on the calling thread by drivers and interceptor
+    chains, so implementations must be fast and non-blocking (buffer and
+    export elsewhere). An observer can never alter a call: it has no return
+    channel and dispatchers isolate its exceptions.
     """
 
     def on_event(self, event: ObserveEvent) -> None:

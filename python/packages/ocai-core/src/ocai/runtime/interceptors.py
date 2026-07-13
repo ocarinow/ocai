@@ -17,8 +17,9 @@ every port returns the uniform `CallResult`, one interceptor implementation
 composes identically over every capability.
 
 `compose`/`acompose` fold a sequence of interceptors over a terminal handler
-(typically the facade's own call) into a single handler; the `Workspace`
-applies its interceptor chain to every model it builds.
+(typically the facade's own call) into a single handler; the §3.4 front door
+(`ocai.chat.model(..., interceptors=...)`) applies its chain to every model
+it builds.
 """
 
 from __future__ import annotations
@@ -69,7 +70,8 @@ class CallInterceptor(Protocol):
     runs. A pure interceptor implements both by sharing its logic; an
     interceptor bound to effectful backends declares the matching
     `SyncBackend`/`AsyncBackend` faces (`ocai.runtime.decisions`) so
-    `Workspace.validate` can reject an impossible composition up front.
+    composition-time validation can reject an impossible composition up
+    front.
     """
 
     def intercept(self, call: Call, next: NextHandler) -> CallResult[Any]:

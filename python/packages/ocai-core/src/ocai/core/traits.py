@@ -36,8 +36,15 @@ class DialectTraits:
             into the request body in place of a first-party version header
             (e.g. `("anthropic_version", "vertex-2023-10-16")`). `None` for
             dialects that need no such injection.
+        first_party_base_url: The dialect's first-party API origin (e.g.
+            `"https://api.openai.com"`, no trailing slash), or `None` for a
+            dialect with no public first-party endpoint. Hosting data riding
+            the fragment (§3.4/§7): the core front door composes a `Direct`
+            binding from it without ever importing the plugin; a cloud or
+            gateway host ignores it.
     """
 
     vendor: str
     first_party_headers: Mapping[str, str] = field(default_factory=dict)
     cloud_body_version: tuple[str, str] | None = None
+    first_party_base_url: str | None = None
