@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Protocol
 
+from ocai.chat.canonical import CANONICAL_CHAT_CHUNK
 from ocai.chat.canonical import CANONICAL_CHAT_REQUEST
 from ocai.chat.canonical import CANONICAL_CHAT_RESPONSE
 from ocai.chat.types.config import OutputMode
@@ -46,13 +47,17 @@ from ocai.chat.types.parts import PartType
 from ocai.chat.types.request import ChatRequest
 from ocai.chat.types.response import ChatResponse
 from ocai.chat.types.stream import AsyncChatStream
+from ocai.chat.types.stream import ChatChunk
 from ocai.chat.types.stream import ChatStream
+from ocai.chat.types.stream import ChunkType
+from ocai.chat.types.stream import StreamEnd
 from ocai.core.errors import UnsupportedFeatureError
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import CHAT
+from ocai.core.identity import CHAT_CHUNK
 from ocai.core.identity import CHAT_RESPONSE
 from ocai.core.profile import Support
 from ocai.core.profile import resolve_support
@@ -68,12 +73,14 @@ from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+    from collections.abc import Iterator
     from collections.abc import Sequence
 
     from ocai.chat.protocol import ChatModel
-    from ocai.chat.types.stream import ChatChunk
     from ocai.convert.catalog import Catalog
     from ocai.convert.graph import EdgeOutput
+    from ocai.convert.graph import StreamPipeline
     from ocai.core.errors import OcaiError
     from ocai.core.fidelity import Route
     from ocai.core.identity import NodeId
@@ -118,6 +125,10 @@ class ChatCodec(Protocol):
         """Inject the bound model name into an encoded wire payload."""
         ...
 
+    def bind_stream(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Mark an encoded wire payload as a streaming request."""
+        ...
+
     def encode_request(self, request: ChatRequest) -> EdgeOutput:
         """Encode a canonical `ChatRequest` into this dialect's wire body."""
         ...
@@ -137,8 +148,10 @@ class ChatCodec(Protocol):
 
 # The one chat operation, capability-fixed: hosts switch on `kind` (an
 # endpoint family), and chat rides the generative family everywhere. The
-# streaming twin (WU-11) derives from it with `streaming=True`.
+# streaming twin derives from it with `streaming=True` — same name, same
+# family, only the response mode differs.
 _CHAT_OPERATION = Operation(name="chat", kind="generative")
+_STREAM_OPERATION = replace(_CHAT_OPERATION, streaming=True)
 
 
 # --- The feature gate's request census (WU-12) ---------------------------------
@@ -414,17 +427,24 @@ class WireChatModel:
             ]
         )
 
-    def _prepare(self, request: ChatRequest) -> _PreparedCall:
+    def _prepare(self, request: ChatRequest, *, streaming: bool = False) -> _PreparedCall:
         """Run the pre-send lifecycle: resolve → encode → bind → spec.
 
-        The request leg of §8, entirely synchronous and shared between
-        `chat` and `achat`. The bound-model injection happens HERE, owned by
-        the facade: graph edges stay model-agnostic (the encoded payload has
-        no model member), and only the codec knows where its wire carries
-        the name (`bind_resource`, the WU-05a seam).
+        The request leg of §8, entirely synchronous and shared between all
+        four port methods (the sans-io rule). The bound-model injection
+        happens HERE, owned by the facade: graph edges stay model-agnostic
+        (the encoded payload has no model member), and only the codec knows
+        where its wire carries the name (`bind_resource`, the WU-05a seam).
+        The streaming marking follows the same principle: graph edges never
+        see it (a `ChatRequest` is pure conversation; how a dialect asks for
+        a stream is wire hygiene), so the codec's `bind_stream` injects it
+        after `bind_resource` and the spec carries the streaming operation.
 
         Args:
             request: The canonical chat request — pure conversation.
+            streaming: Whether this call streams its response — selects the
+                streaming `Operation` and applies the codec's `bind_stream`
+                to the bound payload.
 
         Returns:
             The prepared call: host-stamped route, endpoint spec, bound
@@ -461,10 +481,12 @@ class WireChatModel:
         encoded = self._catalog.convert(request, CANONICAL_CHAT_REQUEST, route.node)
         report = gate.merge(encoded.report) if gate.edges else encoded.report
         payload = self._codec.bind_resource(encoded.value, self._model_name)
+        if streaming:
+            payload = self._codec.bind_stream(payload)
         spec = EndpointSpec(
             dialect=route.node,
             traits=self._codec.dialect_traits(),
-            op=_CHAT_OPERATION,
+            op=_STREAM_OPERATION if streaming else _CHAT_OPERATION,
             resource=self._model_name,
             native_path=self._codec.native_path(self._model_name),
         )
@@ -508,6 +530,43 @@ class WireChatModel:
             "the serving fragment must publish the response shape it decodes"
         )
 
+    def _chunk_node(self, request_node: NodeId) -> NodeId:
+        """Return the chunk-shape sibling of a resolved request node.
+
+        The streaming twin of `_response_node`: the stream's decode leg
+        needs the same interface revision's chunk shape — the source node of
+        the `StreamPipeline` the driver pumps wire frames through. Resolved
+        from the catalog (not read off the codec) so the resolved revision
+        stays authoritative for every leg of the call.
+
+        Args:
+            request_node: The resolved request-shape node from the `Route`.
+
+        Returns:
+            The published chunk-shape node with the same
+            provider/interface/tag coordinates.
+
+        Raises:
+            ResolutionError: If the composed catalog publishes no chunk
+                shape for the revision — a malformed fragment for a
+                streaming call.
+        """
+        from ocai.convert.catalog import ResolutionError
+
+        for node in self._catalog.nodes:
+            if (
+                node.provider == request_node.provider
+                and node.interface == request_node.interface
+                and node.tag == request_node.tag
+                and node.shape == CHAT_CHUNK
+            ):
+                return node
+        raise ResolutionError(
+            f"the composed catalog publishes no chat.chunk node for "
+            f"{request_node.provider}/{request_node.interface}@{request_node.tag}; "
+            "the serving fragment must publish the chunk shape it streams"
+        )
+
     def _assemble(self, prepared: _PreparedCall, raw: dict[str, Any]) -> CallResult[ChatResponse]:
         """Run the post-send lifecycle: decode → merge reports → envelope.
 
@@ -538,6 +597,99 @@ class WireChatModel:
             usage=response.usage,
             raw=raw,
         )
+
+    def _stamp_stream_report(
+        self, terminal: ChatChunk, prepared: _PreparedCall, pipeline: StreamPipeline
+    ) -> None:
+        """Stamp the stream's two-leg `FidelityReport` onto its terminal chunk.
+
+        The facade's half of the WU-09 seam, the streaming mirror of
+        `_assemble`'s report merge: the request leg (gate + encode edges)
+        is folded with the pipeline's per-edge flush accounting
+        (`StreamPipeline.reports`, populated once the driver flushed at
+        end-of-stream) and lands on `StreamEnd.report` — the streaming
+        path's one report home. A codec that already stamped records onto
+        the terminal's own report keeps them, appended after the two legs.
+
+        Args:
+            terminal: The stream's terminal `STREAM_STOP` chunk; its
+                `StreamEnd` is enriched in place (or created bare when a
+                dialect emitted a terminal without one).
+            prepared: The call's pre-send preamble carrying the request-leg
+                report.
+            pipeline: The flushed stream pipeline whose `reports` carry the
+                decode leg, one `EdgeReport` per traversed stream edge.
+        """
+        merged = prepared.report.merge(FidelityReport(edges=list(pipeline.reports or ())))
+        end = terminal.end
+        if end is None:
+            terminal.end = StreamEnd(report=merged)
+        elif end.report is None:
+            end.report = merged
+        else:
+            end.report = merged.merge(end.report)
+
+    def _pump(
+        self, events: Iterator[Any], prepared: _PreparedCall, pipeline: StreamPipeline
+    ) -> Iterator[ChatChunk]:
+        """Relay the driver's converted chunks, enriching the terminal.
+
+        Every chunk is yielded the moment the driver surfaces it — no
+        lookahead, no buffering — except the terminal `STREAM_STOP`, which
+        is held until the driver's generator is exhausted: only then has the
+        driver flushed the pipeline (yielding any tail, which passes through
+        here first), so only then does `pipeline.reports` carry the decode
+        leg to stamp into `StreamEnd.report`. A stream that ends without a
+        terminal (an abort) gets none synthesized — the codec's honesty
+        stance — and a mid-stream error raises through untouched (already
+        refined by the driver), after the driver flushed for accounting.
+
+        Args:
+            events: The driver's converted event stream for this call.
+            prepared: The call's pre-send preamble.
+            pipeline: The stream pipeline the driver is pumping.
+
+        Yields:
+            The canonical chunks in stream order, the terminal last with
+            the two-leg report stamped.
+        """
+        terminal: ChatChunk | None = None
+        for chunk in events:
+            if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
+                if terminal is not None:  # malformed double terminal: keep both,
+                    yield terminal  # only the last carries the report
+                terminal = chunk
+                continue
+            yield chunk
+        if terminal is not None:
+            self._stamp_stream_report(terminal, prepared, pipeline)
+            yield terminal
+
+    async def _apump(
+        self, events: AsyncIterator[Any], prepared: _PreparedCall, pipeline: StreamPipeline
+    ) -> AsyncIterator[ChatChunk]:
+        """Relay converted chunks asynchronously — the `a`-twin of `_pump`.
+
+        Args:
+            events: The async driver's converted event stream.
+            prepared: The call's pre-send preamble.
+            pipeline: The stream pipeline the driver is pumping.
+
+        Yields:
+            The canonical chunks in stream order, the terminal last with
+            the two-leg report stamped.
+        """
+        terminal: ChatChunk | None = None
+        async for chunk in events:
+            if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
+                if terminal is not None:
+                    yield terminal
+                terminal = chunk
+                continue
+            yield chunk
+        if terminal is not None:
+            self._stamp_stream_report(terminal, prepared, pipeline)
+            yield terminal
 
     # --- The port methods ---------------------------------------------------
 
@@ -625,24 +777,48 @@ class WireChatModel:
 
         Same request purity as `chat`: the bound `model_name` is injected
         into the encoded payload via `bind_resource` before the stream
-        opens — the request never carries it.
+        opens — the request never carries it — and the codec's
+        `bind_stream` marks the payload for its dialect's streaming mode.
+        The whole sans-io preamble (`_prepare`: resolve, gate, encode, bind)
+        runs eagerly HERE, so a doomed request fails at the call site like
+        `chat` does; only the wire attempt is lazy, opening on the first
+        chunk pulled. The driver pumps SSE frames through a fresh
+        `StreamPipeline` (`catalog.stream_converter`, wire chunk node →
+        canonical — conversion joins the graph, §4.1) and flushes it exactly
+        once at end-of-stream; the facade folds the flush accounting into
+        the terminal chunk's `StreamEnd.report` beside the request leg —
+        honesty parity with the blocking path. Mid-stream wire errors raise
+        the refined taxonomy error (`map_error`, like unary), after the
+        driver flushed the pipeline for accounting.
 
         Args:
             request: The canonical chat request.
-            ctx: The per-request governance context.
+            ctx: The per-request governance context. Accepted per the port
+                contract; threading it into the wire policy hooks is a later
+                WU's seam.
 
         Returns:
             The canonical chunk stream; its terminal chunk carries
-            `StreamEnd(usage, finish, report)`.
+            `StreamEnd(usage, finish, report)`, exposed as `.end` after
+            exhaustion.
+
+        Raises:
+            OcaiError: The refined taxonomy error when the wire attempt
+                fails — raised from the iteration, where the wire is
+                touched.
+            CompositionError: If the composed stack cannot serve the call.
         """
-        # TODO: §8 streaming (WU-11) — reuse _prepare (with a streaming
-        # Operation derived from _CHAT_OPERATION), then build the pipeline via
-        # catalog.stream_converter(codec.chunk_node -> canonical chunk node)
-        # (fresh per stream) and pass it to SyncDriver.stream, which yields
-        # the converted chunks and flushes at end-of-stream (WU-09 seam);
-        # wrap in ChatStream, then read pipeline.reports after iteration and
-        # stamp StreamEnd.report = request-leg report + those flush reports.
-        raise NotImplementedError
+        prepared = self._prepare(request, streaming=True)
+        pipeline = self._catalog.stream_converter(
+            self._chunk_node(prepared.route.node), CANONICAL_CHAT_CHUNK
+        )
+        events = self._sync_driver.stream(
+            spec=prepared.spec,
+            payload=prepared.payload,
+            refine_error=self._refine_error,
+            pipeline=pipeline,
+        )
+        return ChatStream(self._pump(events, prepared, pipeline))
 
     async def astream(
         self,
@@ -652,19 +828,39 @@ class WireChatModel:
     ) -> AsyncChatStream:
         """Send a streaming chat request, asynchronously.
 
-        The `a`-twin of `stream`, with the same bound-model injection.
+        The `a`-twin of `stream`: identical eager preamble, pipeline
+        construction, and terminal-report stamping (all synchronous and
+        shared, per the sans-io rule) — only the physical pump goes through
+        `AsyncDriver`.
 
         Args:
             request: The canonical chat request.
-            ctx: The per-request governance context.
+            ctx: The per-request governance context. Accepted per the port
+                contract; threading it into the wire policy hooks is a later
+                WU's seam.
 
         Returns:
-            The async canonical chunk stream.
+            The async canonical chunk stream; its terminal chunk carries
+            `StreamEnd(usage, finish, report)`, exposed as `.end` after
+            exhaustion.
+
+        Raises:
+            OcaiError: The refined taxonomy error when the wire attempt
+                fails — raised from the iteration, where the wire is
+                touched.
+            CompositionError: If the composed stack cannot serve the call.
         """
-        # TODO: same streaming pipeline over AsyncDriver, wrapped in
-        # AsyncChatStream — the same WU-09 seam: the driver yields converted
-        # chunks; StreamEnd.report is stamped from pipeline.reports.
-        raise NotImplementedError
+        prepared = self._prepare(request, streaming=True)
+        pipeline = self._catalog.stream_converter(
+            self._chunk_node(prepared.route.node), CANONICAL_CHAT_CHUNK
+        )
+        events = self._async_driver.stream(
+            spec=prepared.spec,
+            payload=prepared.payload,
+            refine_error=self._refine_error,
+            pipeline=pipeline,
+        )
+        return AsyncChatStream(self._apump(events, prepared, pipeline))
 
     @property
     def details(self) -> dict[str, Any]:

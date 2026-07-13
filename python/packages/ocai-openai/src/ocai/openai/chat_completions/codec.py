@@ -369,6 +369,29 @@ class ChatCompletionsCodec:
         """
         return {**payload, "model": resource}
 
+    def bind_stream(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Mark an encoded wire payload as a streaming request.
+
+        The streaming half of the bind seam (WU-11): how a dialect asks for
+        a stream is wire hygiene, not conversation, so graph edges never
+        emit it — the facade calls this after `bind_resource` when serving
+        `stream`/`astream`. On this wire that means `stream: true` plus
+        `stream_options.include_usage` **defaulted on**, so every stream
+        ends with the authoritative usage the terminal `StreamEnd` promises
+        (M2 honesty parity) — a caller's own `stream_options` (via the
+        `provider_options` lane) is respected untouched.
+
+        Args:
+            payload: The encoded wire request body, model already bound.
+
+        Returns:
+            A new payload dict with the streaming members set; the input is
+            not mutated.
+        """
+        out = {**payload, "stream": True}
+        out.setdefault("stream_options", {"include_usage": True})
+        return out
+
     def encode_request(self, request: ChatRequest) -> EdgeOutput:
         """Encode a canonical `ChatRequest` into a chat-completions body.
 

@@ -428,6 +428,24 @@ class MessagesCodec:
         """
         return {**payload, "model": resource}
 
+    def bind_stream(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Mark an encoded wire payload as a streaming request.
+
+        The streaming half of the bind seam (WU-11): how a dialect asks for
+        a stream is wire hygiene, not conversation, so graph edges never
+        emit it — the facade calls this after `bind_resource` when serving
+        `stream`/`astream`. On this wire that is the single `stream: true`
+        body member; usage needs no opt-in (`message_start`/`message_delta`
+        carry it natively).
+
+        Args:
+            payload: The encoded wire request body, model already bound.
+
+        Returns:
+            A new payload dict with `stream` set; the input is not mutated.
+        """
+        return {**payload, "stream": True}
+
     def encode_request(self, request: ChatRequest) -> EdgeOutput:
         """Encode a canonical `ChatRequest` into a Messages body.
 

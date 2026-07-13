@@ -1,0 +1,53 @@
+{
+  "description": "Recorded OpenAI /v1/chat/completions request/response pair (WU-11): the blocking twin of openai_chat_completion_stream.json \u2014 the same logical request, answered unary with the body of spec/fixtures/openai/chat_completions/response_plain_text.json, so fold(stream(req)) can be asserted semantic_equal to chat(req).value at the port. Replayed via respx so tests need no live key and no provider SDK mock (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "gpt-4o"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz",
+      "object": "chat.completion",
+      "created": 1767225600,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Hello! How can I help you today?",
+            "refusal": null,
+            "annotations": []
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 12,
+        "completion_tokens": 9,
+        "total_tokens": 21,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  }
+}

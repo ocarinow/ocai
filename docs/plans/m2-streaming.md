@@ -170,6 +170,40 @@ in parallel sessions/branches; WU-11 joins the tracks.
   port**; `astream` twin; a recorded mid-stream error maps to the taxonomy
   with wire shape (rule 8); pytest green.
 - **Deps:** WU-07, WU-09, WU-10.
+- **Decision:** the streaming marking is wire hygiene owned by the codec —
+  a new `ChatCodec.bind_stream(payload)` member, applied by `_prepare`
+  after `bind_resource` only for the streaming op
+  (`_STREAM_OPERATION = replace(_CHAT_OPERATION, streaming=True)`); graph
+  edges never see it (a `ChatRequest` is pure conversation). OpenAI sets
+  `stream: true` and DEFAULTS `stream_options.include_usage: true` via
+  `setdefault` — every stream ends with the authoritative usage the
+  terminal `StreamEnd` promises, and a caller's own `stream_options` (via
+  the `provider_options` lane) wins untouched; Anthropic sets `stream:
+  true` alone (usage rides `message_start`/`message_delta` natively).
+- **Decision:** the facade pump yields every chunk the moment the driver
+  surfaces it and holds back ONLY the terminal `STREAM_STOP` until the
+  driver generator is exhausted — only then has the flush run and
+  `pipeline.reports` carries the decode leg — then ENRICHES the codec's
+  `StreamEnd` in place: `report` = request-leg report merged with the flush
+  `EdgeReport`s (codec-carried report edges, if any, keep their records
+  appended after). No second terminal is minted, and a stream that ends
+  with no terminal gets none synthesized (WU-10's honesty stance — the
+  accumulator's aborted-stream sealing is the downstream); on this wire
+  the hold costs nothing (`[DONE]` is the last frame). The pipeline's
+  source is resolved from the catalog (`_chunk_node`, the chunk-shape
+  sibling of the resolved revision, mirroring `_response_node`), not read
+  off `codec.chunk_node` — resolution stays authoritative for every leg.
+- **Decision:** mid-stream wire death now maps to the taxonomy at the
+  leaf: `HttpxTransport.stream`/`stream_sync` wrap iteration in
+  `httpx.TransportError → TransientError` (matching the unary send), so
+  the driver's error path flushes the pipeline for accounting and the
+  codec's `map_error` refinement applies on the streaming path exactly
+  like unary — proven over a recorded exchange that dies mid-body
+  (`tests/http/openai_chat_completion_stream_abort.json`) and a recorded
+  400 overflow refined to `ContextLengthError` on the stream open. The
+  port-level fold-law assertion carries WU-10's exact carve-out (verbatim
+  `raw` lanes and response `info` excluded) over the new paired recordings
+  `tests/http/openai_chat_completion_stream{,_paired}.json`.
 
 ## WU-12 — Profile gate
 

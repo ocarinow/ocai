@@ -1,0 +1,31 @@
+{
+  "description": "Recorded OpenAI /v1/chat/completions streaming exchange that DIED mid-body (WU-11): the first three frames of openai_chat_completion_stream.json arrived, then the connection reset before finish/usage/[DONE]. The replay raises a read error after the recorded bytes; the facade must surface the taxonomy TransientError (rule 8) after the driver flushed the pipeline for accounting, with no synthesized terminal. Replayed via respx so tests need no live key and no provider SDK mock (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "gpt-4o",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"Hello! How can\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" I help you today?\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}"
+    ]
+  }
+}

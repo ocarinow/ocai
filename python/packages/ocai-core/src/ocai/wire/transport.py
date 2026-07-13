@@ -311,18 +311,26 @@ class HttpxTransport:
             Raw body chunks as they arrive.
 
         Raises:
+            TransientError: On connect/read/timeout failures — at open or
+                mid-stream (a wire that dies mid-body maps to the taxonomy
+                like any other wire failure, rule 8).
             OcaiError: The taxonomy classification of a non-2xx status.
         """
-        async with self._async_client().stream(
-            request.method,
-            request.url,
-            headers=request.headers,
-            content=request.body,
-        ) as resp:
-            if not resp.is_success:
-                raise self._error(resp.status_code, await resp.aread(), resp.headers)
-            async for chunk in resp.aiter_bytes():
-                yield chunk
+        import httpx
+
+        try:
+            async with self._async_client().stream(
+                request.method,
+                request.url,
+                headers=request.headers,
+                content=request.body,
+            ) as resp:
+                if not resp.is_success:
+                    raise self._error(resp.status_code, await resp.aread(), resp.headers)
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+        except httpx.TransportError as exc:  # connect/read/timeout → transient
+            raise TransientError(str(exc), provider=self._provider) from exc
 
     def stream_sync(self, request: HttpRequest) -> Iterator[bytes]:
         """Stream the response body as raw byte chunks, synchronously.
@@ -334,17 +342,25 @@ class HttpxTransport:
             Raw body chunks as they arrive.
 
         Raises:
+            TransientError: On connect/read/timeout failures — at open or
+                mid-stream (a wire that dies mid-body maps to the taxonomy
+                like any other wire failure, rule 8).
             OcaiError: The taxonomy classification of a non-2xx status.
         """
-        with self._sync_client().stream(
-            request.method,
-            request.url,
-            headers=request.headers,
-            content=request.body,
-        ) as resp:
-            if not resp.is_success:
-                raise self._error(resp.status_code, resp.read(), resp.headers)
-            yield from resp.iter_bytes()
+        import httpx
+
+        try:
+            with self._sync_client().stream(
+                request.method,
+                request.url,
+                headers=request.headers,
+                content=request.body,
+            ) as resp:
+                if not resp.is_success:
+                    raise self._error(resp.status_code, resp.read(), resp.headers)
+                yield from resp.iter_bytes()
+        except httpx.TransportError as exc:  # connect/read/timeout → transient
+            raise TransientError(str(exc), provider=self._provider) from exc
 
 
 def _safe_json(text: str) -> dict[str, Any] | None:
