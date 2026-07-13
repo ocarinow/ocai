@@ -1,0 +1,109 @@
+{
+  "description": "Decode+fold, plain text stream: a recorded-shape chat.completion.chunk SSE log crosses openai/chat_completions -> canonical chat.chunk. The opening multi-signal frame (role+content) splits into ordered chunks — STREAM_START, then the transducer-synthesized partStart carrying the PartText skeleton before the first delta — text fragments append as DeltaText (including the wire's verbatim empty first fragment), finish_reason `stop` becomes the two-lane FinishInfo, and the [DONE] sentinel emits the terminal streamStop whose StreamEnd carries the accumulated finish (no usage: stream_options was not requested). No partStop is emitted for the text slot — this wire never signals text part boundaries — so the ratchet's strip-and-refold clause is vacuous and the fold's implicit-accumulation half carries the law. Synthetic, wire-accurate, hand-authored against ChatCompletionChunk (wire.py).",
+  "node": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "data: {\"id\": \"chatcmpl-B7Qstream0textAAAAAAAAAAAAA01\", \"object\": \"chat.completion.chunk\", \"created\": 1767225601, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"logprobs\": null, \"finish_reason\": null}]}",
+    "data: {\"id\": \"chatcmpl-B7Qstream0textAAAAAAAAAAAAA01\", \"object\": \"chat.completion.chunk\", \"created\": 1767225601, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"Purr\"}, \"logprobs\": null, \"finish_reason\": null}]}",
+    "data: {\"id\": \"chatcmpl-B7Qstream0textAAAAAAAAAAAAA01\", \"object\": \"chat.completion.chunk\", \"created\": 1767225601, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" fect.\"}, \"logprobs\": null, \"finish_reason\": null}]}",
+    "data: {\"id\": \"chatcmpl-B7Qstream0textAAAAAAAAAAAAA01\", \"object\": \"chat.completion.chunk\", \"created\": 1767225601, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"stop\"}]}",
+    "data: [DONE]"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 1,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 2,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 3,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "Purr",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 4,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": " fect.",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 5,
+      "finish": {
+        "version": "2026-07",
+        "reason": "complete",
+        "native": "stop"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 6,
+      "end": {
+        "version": "2026-07",
+        "finish": {
+          "version": "2026-07",
+          "reason": "complete",
+          "native": "stop"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Purr fect.",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "stop"
+    }
+  }
+}

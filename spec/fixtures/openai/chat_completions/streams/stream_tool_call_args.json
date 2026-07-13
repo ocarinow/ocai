@@ -1,0 +1,112 @@
+{
+  "description": "Decode+fold, tool-call argument stream: the id frame carries the whole call identity (id+name, arguments still empty) and becomes partStart with the PartToolCall skeleton (status input_streaming) on slot 1 — the stateless slot mapping keeps message text on slot 0 and the tool_calls entry at wire index t on slot t+1, mirroring the unary decoder's part order. Argument fragments append verbatim as DeltaToolArgs raw strings (parsed once at PART_STOP, never per fragment), finish_reason `tool_calls` maps to the canonical `tool_call`, and [DONE] seals the open tool slot (partStop, advancing the fold to input_complete) before the terminal streamStop. The partStop carries no authoritative final part — the accumulation is the only carrier — so the strip-and-refold clause is vacuous. Synthetic, wire-accurate, hand-authored against ChatCompletionChunk/ChoiceDeltaToolCall (wire.py).",
+  "node": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": null, \"tool_calls\": [{\"index\": 0, \"id\": \"call_9c3d1e\", \"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"arguments\": \"\"}}]}, \"logprobs\": null, \"finish_reason\": null}]}",
+    "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"{\\\"ci\"}}]}, \"logprobs\": null, \"finish_reason\": null}]}",
+    "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"ty\\\": \\\"Paris\\\"}\"}}]}, \"logprobs\": null, \"finish_reason\": null}]}",
+    "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"tool_calls\"}]}",
+    "data: [DONE]"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 1,
+      "index": 1,
+      "part": {
+        "version": "2026-07",
+        "call_id": "call_9c3d1e",
+        "name": "get_weather",
+        "args_json": "",
+        "status": "input_streaming",
+        "executed_by": "client",
+        "type": "tool_call"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 2,
+      "index": 1,
+      "delta": {
+        "version": "2026-07",
+        "fragment": "{\"ci",
+        "type": "tool_args"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 3,
+      "index": 1,
+      "delta": {
+        "version": "2026-07",
+        "fragment": "ty\": \"Paris\"}",
+        "type": "tool_args"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 4,
+      "finish": {
+        "version": "2026-07",
+        "reason": "tool_call",
+        "native": "tool_calls"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 5,
+      "index": 1
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 6,
+      "end": {
+        "version": "2026-07",
+        "finish": {
+          "version": "2026-07",
+          "reason": "tool_call",
+          "native": "tool_calls"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "call_id": "call_9c3d1e",
+          "name": "get_weather",
+          "args_json": "{\"city\": \"Paris\"}",
+          "status": "input_complete",
+          "executed_by": "client",
+          "type": "tool_call"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_calls"
+    }
+  }
+}

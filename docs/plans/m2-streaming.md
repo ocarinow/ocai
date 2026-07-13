@@ -115,6 +115,46 @@ in parallel sessions/branches; WU-11 joins the tracks.
 - **Deps:** WU-08 (harness + chunk schemas). Independent of WU-09.
 - **Split flag:** if recording + frame-splitting both overrun, split (a) codec
   frame handling with unit tests, (b) the fixture set.
+- **Decision:** the total frame decoder is a NEW codec method
+  `decode_frame(event, data) -> EdgeOutput` (value: the frame's ordered
+  `ChatChunk`s; losses attached) — one wire frame may carry several signals
+  and each becomes its own chunk in wire order. `decode_event` keeps the
+  `ChatCodec`-protocol shape (`ChatChunk | None`) as a thin first-chunk
+  face delegating to `decode_frame`; the transducer consumes `decode_frame`
+  and no longer loses the trailing signals of a multi-signal frame.
+- **Decision:** streamed part slots follow a **stateless** mapping that
+  reproduces the unary decoder's part order (so a fold matches the blocking
+  decode structurally): message text/refusal ride slot 0; the `tool_calls`
+  entry at wire index `t` rides slot `t + 1`. The transducer synthesizes
+  `PART_START` (PartText/PartRefusal skeleton) before the first delta into
+  an unopened text/refusal slot — the wire opens tool parts explicitly (the
+  id frame) but never text parts; a `DeltaToolArgs` with no prior id frame
+  mints nothing (the accumulator's honesty channel reports the mismatch).
+- **Decision:** the terminal contract rides `[DONE]` through `feed`, not
+  `flush`: the sentinel seals still-open tool slots (`PART_STOP`, advancing
+  the fold to `input_complete`) and emits `STREAM_STOP` carrying
+  `StreamEnd(usage, finish)` (usage from the `stream_options` final chunk
+  when present; finish from the accumulated `finish_reason`). A stream that
+  dies before `[DONE]` gets NO synthesized terminal — the accumulator's
+  aborted-stream sealing (`ocai.incomplete`) is the honest downstream —
+  and `flush`'s tail is therefore always empty.
+- **Decision:** n>1 stream stance is **drop-with-report**: only choice 0 is
+  decoded; a frame interleaving foreign choices drops them with a
+  `FieldLoss(path="choices[1:]", DROPPED)` per occurrence on the
+  transducer's flush report (census row added to `DECODE_CHUNK_CONTRACT`).
+  Refusing mid-stream would kill recoverable in-flight content, and a
+  chunk stream has no coherent extensions home for interleaved foreign
+  deltas (unlike the unary edge's bag) — the frames stay recoverable
+  verbatim on `raw_event`. Admission-time rejection of `n>1` remains the
+  request gate's job.
+- **Decision:** the paired fold-equals-unary assertion compares
+  `fold(chunks)` to the unary fixture's canonical `expect` with the
+  verbatim `raw` lanes excluded (canonical-json.md §8) **and the response
+  `info` excluded**: stream identity (id/model echo/created) has no
+  canonical chunk lane — it rides every frame's `raw_event` verbatim — so
+  a fold cannot reproduce `ResponseInfo`. WU-11's port-level fold-law
+  comparison will need the same carve-out (or an info lane on the terminal
+  chunk, which would be an additive IR change out of WU-10's scope).
 
 ## WU-11 — Facade streaming: `stream/astream` — **MILESTONE M2**
 

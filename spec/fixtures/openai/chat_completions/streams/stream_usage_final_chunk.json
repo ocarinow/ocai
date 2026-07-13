@@ -1,0 +1,203 @@
+{
+  "description": "Decode+fold, usage in the final chunk via stream_options include_usage: every content frame carries `usage: null` and the choices-empty final frame reports the whole request's consumption, decoded as a cumulative USAGE chunk and carried into the terminal StreamEnd beside the accumulated finish. PAIRED with ../response_plain_text.json — the same logical request answered over the blocking path (same model echo, message, finish, and usage buckets) — so fold(chunks) must be semantic_equal to that fixture's unary canonical `expect`, the fold law on wire data (raw lanes excluded per canonical-json.md §8; response `info` excluded: stream identity has no canonical chunk lane and rides each frame's raw_event verbatim). Synthetic, wire-accurate, hand-authored against ChatCompletionChunk/CompletionUsage (wire.py).",
+  "node": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+    "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"Hello! How can\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+    "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" I help you today?\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+    "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"stop\"}], \"usage\": null}",
+    "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [], \"usage\": {\"prompt_tokens\": 12, \"completion_tokens\": 9, \"total_tokens\": 21, \"prompt_tokens_details\": {\"cached_tokens\": 0, \"audio_tokens\": 0}, \"completion_tokens_details\": {\"reasoning_tokens\": 0, \"audio_tokens\": 0, \"accepted_prediction_tokens\": 0, \"rejected_prediction_tokens\": 0}}}",
+    "data: [DONE]"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 1,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 2,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 3,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": "Hello! How can",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 4,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "text": " I help you today?",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 5,
+      "finish": {
+        "version": "2026-07",
+        "reason": "complete",
+        "native": "stop"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 6,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 12,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 9,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          },
+          {
+            "value": 0,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "cached"
+          },
+          {
+            "value": 0,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "reasoning"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 7,
+      "end": {
+        "version": "2026-07",
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 12,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 9,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            },
+            {
+              "value": 0,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "cached"
+            },
+            {
+              "value": 0,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "reasoning"
+            }
+          ]
+        },
+        "finish": {
+          "version": "2026-07",
+          "reason": "complete",
+          "native": "stop"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Hello! How can I help you today?",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "stop"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 12,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 9,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    }
+  }
+}

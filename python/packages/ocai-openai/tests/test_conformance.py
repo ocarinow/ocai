@@ -35,19 +35,29 @@ import pytest
 import ocai.openai
 from ocai.chat import CANONICAL_CHAT_REQUEST
 from ocai.chat import CANONICAL_CHAT_RESPONSE
+from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatRequest
+from ocai.chat.types import ChunkType
+from ocai.chat.types import PartText
+from ocai.chat.types import PartToolCall
+from ocai.chat.types import StreamAccumulator
 from ocai.convert.catalog import Catalog
 from ocai.convert.conformance import certify_edge
 from ocai.convert.conformance import check_edge
+from ocai.convert.conformance import check_fold_triples
 from ocai.convert.graph import Edge
 from ocai.convert.graph import EdgeOutput
 from ocai.core.canonjson import canonical
 from ocai.core.canonjson import semantic_equal
+from ocai.core.fidelity import Disposition
 from ocai.core.identity import NodeId
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
 from ocai.openai.chat_completions.codec import ChatCompletionsCodec
+from ocai.openai.chat_completions.codec import ChatCompletionsStreamTransducer
 from ocai.openai.chat_completions.edges import EDGES
+from ocai.wire import SSEParser
+from ocai.wire import SSEvent
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -61,6 +71,7 @@ def _find_repo_root(start: Path) -> Path:
 REPO_ROOT = _find_repo_root(Path(__file__).resolve())
 FIXTURES_DIR = REPO_ROOT / "spec" / "fixtures" / "openai" / "chat_completions"
 FIXTURE_PATHS = sorted(FIXTURES_DIR.glob("*.json"))
+STREAMS_DIR = FIXTURES_DIR / "streams"
 
 _CODEC = ChatCompletionsCodec()
 ENCODE_EDGE = next(edge for edge in EDGES if edge.dst == CHAT_COMPLETIONS_REQUEST)
@@ -251,3 +262,287 @@ def test_decode_never_raises_on_unknown_wire_material() -> None:
     assert ("routing_tier", "extensions") in [
         (loss.path, loss.disposition.value) for loss in out.losses
     ]
+
+
+# --- WU-10: the streaming edge — fold triples over recorded SSE wire logs ------
+#
+# The fold-triple fixtures in `streams/` pin the chunk-shape StreamEdge the
+# same way the edge fixtures pin the unary edges: the recorded SSE event log
+# must decode (through the real transducer) to exactly the expected canonical
+# chunks, and `StreamAccumulator.fold` over those chunks must reproduce the
+# response — `fold(stream(request)) == complete(request)` on wire data.
+
+
+def _strip_raw(value: Any) -> Any:
+    """Drop the verbatim `raw`/`raw_event` lanes at any depth (§8).
+
+    Fold-fixture equality excludes the untouched provider lanes
+    (`spec/canonical-json.md` §8): the transducer stamps every chunk's
+    `raw_event`, but the fixtures pin canonical content only.
+    """
+    if isinstance(value, dict):
+        return {k: _strip_raw(v) for k, v in value.items() if k not in ("raw", "raw_event")}
+    if isinstance(value, list):
+        return [_strip_raw(item) for item in value]
+    return value
+
+
+def _fold_dicts(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    """The dict-speaking fold the conformance harness is handed."""
+    return StreamAccumulator.fold(ChatChunk.from_dict(chunk) for chunk in chunks).to_dict()
+
+
+def _wire_decoder() -> Any:
+    """A dict-speaking `decode_event` over the REAL stream transducer.
+
+    Each fold triple's `wire_events` entry is one verbatim SSE event text;
+    it is parsed by the wire layer's `SSEParser` and fed to a
+    `ChatCompletionsStreamTransducer`. The transducer is per-stream state,
+    so a fresh one replaces it after each terminal `STREAM_STOP` — the
+    walker (`check_fold_triples`) reuses one decoder across every fixture
+    in the directory.
+    """
+    state = {"transducer": ChatCompletionsStreamTransducer()}
+
+    def decode(event_text: str) -> list[dict[str, Any]]:
+        decoded: list[dict[str, Any]] = []
+        for frame in SSEParser().feed(event_text + "\n\n"):
+            for chunk in state["transducer"].feed(frame):
+                decoded.append(_strip_raw(chunk.to_dict()))
+                if chunk.type == ChunkType.STREAM_STOP:
+                    state["transducer"] = ChatCompletionsStreamTransducer()
+        return decoded
+
+    return decode
+
+
+def test_fold_triples_over_recorded_streams() -> None:
+    checked = check_fold_triples(STREAMS_DIR, decode_event=_wire_decoder(), fold=_fold_dicts)
+    # WU-10 requires the three scenarios: plain text, tool-call args, and
+    # usage-in-final-chunk via stream_options.
+    assert len(checked) >= 3
+    names = {path.name for path in checked}
+    assert {
+        "stream_plain_text.json",
+        "stream_tool_call_args.json",
+        "stream_usage_final_chunk.json",
+    } <= names
+
+
+def test_paired_stream_fold_matches_the_unary_canonical() -> None:
+    # The fold law on wire data: the usage-in-final-chunk stream is PAIRED
+    # with the unary response_plain_text.json — the same logical request
+    # answered over both paths — so folding the stream's canonical chunks
+    # must be semantic_equal to the unary edge's canonical response. The
+    # verbatim `raw` lanes are excluded per canonical-json.md §8, and the
+    # response `info` is excluded because stream identity (id/model echo/
+    # created) has no canonical chunk lane — it rides each frame's
+    # `raw_event` verbatim.
+    triple = _load(STREAMS_DIR / "stream_usage_final_chunk.json")
+    unary = _load(FIXTURES_DIR / "response_plain_text.json")
+
+    folded = _fold_dicts(triple["chunks"])
+    expected = _strip_raw(unary["expect"])
+    assert expected.pop("info", None) is not None  # the unary side carries identity
+    assert semantic_equal(folded, expected), (
+        "fold(chunks) did not reproduce the paired unary canonical.\n"
+        f"  expected: {canonical(expected)}\n"
+        f"  actual:   {canonical(folded)}"
+    )
+
+
+# --- WU-10: transducer frame handling — multi-signal splits, terminal, n>1 -----
+
+
+def _sse(payload: dict[str, Any]) -> SSEvent:
+    """Wrap one wire chunk body as the sans-io SSE event the driver feeds."""
+    return SSEvent(data=json.dumps(payload))
+
+
+def _chunk_frame(*choices: dict[str, Any], usage: dict[str, Any] | None = None) -> SSEvent:
+    """Build a wire-accurate `chat.completion.chunk` frame around `choices`."""
+    body: dict[str, Any] = {
+        "id": "chatcmpl-test",
+        "object": "chat.completion.chunk",
+        "created": 1767225600,
+        "model": "gpt-4o-2024-08-06",
+        "choices": list(choices),
+    }
+    if usage is not None:
+        body["usage"] = usage
+    return _sse(body)
+
+
+def test_transducer_splits_role_and_content_frame() -> None:
+    # One frame, two signals: the opening role and the first text fragment.
+    # The split emits ordered chunks, with the synthesized PART_START
+    # carrying the PartText skeleton before the first delta.
+    transducer = ChatCompletionsStreamTransducer()
+    chunks = transducer.feed(
+        _chunk_frame({"index": 0, "delta": {"role": "assistant", "content": "Hi"}})
+    )
+
+    assert [c.type for c in chunks] == [
+        ChunkType.STREAM_START,
+        ChunkType.PART_START,
+        ChunkType.PART_DELTA,
+    ]
+    assert [c.seq for c in chunks] == [0, 1, 2]
+    start, delta = chunks[1], chunks[2]
+    assert isinstance(start.part, PartText) and start.part.text == ""
+    assert start.index == delta.index == 0
+    assert delta.delta is not None and delta.delta.text == "Hi"  # type: ignore[union-attr]
+
+
+def test_transducer_splits_id_and_arguments_frame() -> None:
+    # One tool_calls entry carrying id AND a non-empty argument fragment:
+    # the PART_START skeleton must precede the first DeltaToolArgs.
+    transducer = ChatCompletionsStreamTransducer()
+    chunks = transducer.feed(
+        _chunk_frame(
+            {
+                "index": 0,
+                "delta": {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": '{"ci'},
+                        }
+                    ]
+                },
+            }
+        )
+    )
+
+    assert [c.type for c in chunks] == [ChunkType.PART_START, ChunkType.PART_DELTA]
+    start, delta = chunks
+    assert isinstance(start.part, PartToolCall)
+    assert start.part.call_id == "call_1"
+    assert start.part.name == "get_weather"
+    assert start.part.status == "input_streaming"
+    # The stateless slot mapping: tool_calls wire index 0 rides slot 1
+    # (slot 0 is the message text lane), mirroring the unary part order.
+    assert start.index == delta.index == 1
+    assert delta.delta is not None and delta.delta.fragment == '{"ci'  # type: ignore[union-attr]
+
+
+def test_transducer_splits_several_tool_call_entries_in_one_frame() -> None:
+    transducer = ChatCompletionsStreamTransducer()
+    chunks = transducer.feed(
+        _chunk_frame(
+            {
+                "index": 0,
+                "delta": {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_a",
+                            "type": "function",
+                            "function": {"name": "alpha", "arguments": ""},
+                        },
+                        {
+                            "index": 1,
+                            "id": "call_b",
+                            "type": "function",
+                            "function": {"name": "beta", "arguments": ""},
+                        },
+                    ]
+                },
+            }
+        )
+    )
+
+    assert [c.type for c in chunks] == [ChunkType.PART_START, ChunkType.PART_START]
+    assert [c.index for c in chunks] == [1, 2]
+    assert [c.seq for c in chunks] == [0, 1]
+
+
+def test_transducer_emits_terminal_stream_stop_on_done() -> None:
+    # [DONE] seals the open tool slot (PART_STOP -> input_complete in the
+    # fold) and emits STREAM_STOP carrying StreamEnd(usage, finish): usage
+    # from the stream_options final chunk, finish from the accumulated
+    # finish_reason.
+    transducer = ChatCompletionsStreamTransducer()
+    fed: list[ChatChunk] = []
+    fed += transducer.feed(
+        _chunk_frame(
+            {
+                "index": 0,
+                "delta": {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                        }
+                    ],
+                },
+            }
+        )
+    )
+    fed += transducer.feed(_chunk_frame({"index": 0, "delta": {}, "finish_reason": "tool_calls"}))
+    fed += transducer.feed(
+        _chunk_frame(usage={"prompt_tokens": 12, "completion_tokens": 9, "total_tokens": 21})
+    )
+    terminal = transducer.feed(SSEvent(data="[DONE]"))
+
+    assert [c.type for c in terminal] == [ChunkType.PART_STOP, ChunkType.STREAM_STOP]
+    seal, stop = terminal
+    assert seal.index == 1  # the tool slot opened by the id frame
+    assert stop.end is not None
+    assert stop.end.finish is not None and stop.end.finish.native == "tool_calls"
+    assert stop.end.usage is not None and stop.end.usage.output_tokens == 9
+    # seq stays monotonic across the whole stream, splits included.
+    assert [c.seq for c in [*fed, *terminal]] == list(range(len(fed) + len(terminal)))
+
+    # The tail is empty (the terminal was emitted at [DONE]) and lossless.
+    tail, report = transducer.flush()
+    assert tail == []
+    assert report.lossless
+
+    # The stream folds to the blocking shape: the sealed tool call is
+    # input_complete, the terminal usage/finish are authoritative.
+    response = StreamAccumulator.fold([*fed, *terminal])
+    (part,) = response.message.parts
+    assert isinstance(part, PartToolCall) and part.status == "input_complete"
+    assert part.args_json == '{"city": "Paris"}'
+
+
+def test_transducer_emits_no_terminal_for_aborted_streams() -> None:
+    # A stream that dies before [DONE] gets no synthesized STREAM_STOP —
+    # the accumulator's aborted-stream sealing is the honest downstream.
+    transducer = ChatCompletionsStreamTransducer()
+    fed = transducer.feed(
+        _chunk_frame({"index": 0, "delta": {"role": "assistant", "content": "cut"}})
+    )
+
+    tail, report = transducer.flush()
+    assert tail == []
+    assert report.lossless
+    assert all(chunk.type != ChunkType.STREAM_STOP for chunk in fed)
+
+
+def test_transducer_drops_foreign_choices_with_report() -> None:
+    # The WU-10 admission stance for n>1 streams: choice 0 is the message,
+    # foreign choices are dropped per frame with a reported FieldLoss
+    # (recoverable verbatim from raw_event) — never surfaced, never silent.
+    transducer = ChatCompletionsStreamTransducer()
+    chunks = transducer.feed(
+        _chunk_frame(
+            {"index": 0, "delta": {"role": "assistant", "content": "a"}},
+            {"index": 1, "delta": {"role": "assistant", "content": "b"}},
+        )
+    )
+    transducer.feed(SSEvent(data="[DONE]"))
+
+    deltas = [c for c in chunks if c.type == ChunkType.PART_DELTA]
+    assert [d.delta.text for d in deltas] == ["a"]  # type: ignore[union-attr]
+    _, report = transducer.flush()
+    assert not report.lossless
+    (loss,) = report.losses
+    assert loss.path == "choices[1:]"
+    assert loss.disposition is Disposition.DROPPED

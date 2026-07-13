@@ -381,16 +381,20 @@ def test_sync_driver_pumps_sse_through_real_transducers_into_chunks() -> None:
 
     chunks = list(driver.stream(spec=_spec(), payload={"model": "gpt-test"}, pipeline=pipeline))
 
-    # Converted events, not raw frames: canonical chunks with seq stamped.
+    # Converted events, not raw frames: canonical chunks with seq stamped
+    # (the transducer synthesizes the PART_START skeleton before the first
+    # text delta and emits the terminal STREAM_STOP when [DONE] arrives).
     assert all(isinstance(c, ChatChunk) for c in chunks)
     assert [c.type for c in chunks] == [
         ChunkType.STREAM_START,
+        ChunkType.PART_START,
         ChunkType.PART_DELTA,
         ChunkType.PART_DELTA,
         ChunkType.FINISH,
+        ChunkType.STREAM_STOP,
     ]
     assert "".join(c.delta.text for c in chunks if c.type == ChunkType.PART_DELTA) == "Hello world"
-    assert [c.seq for c in chunks] == [0, 1, 2, 3]
+    assert [c.seq for c in chunks] == [0, 1, 2, 3, 4, 5]
 
     # The seam: the driver flushed exactly once; the facade reads the
     # accounting off the pipeline and stamps StreamEnd.report with it.
@@ -431,9 +435,11 @@ async def test_async_driver_pump_matches_sync() -> None:
 
     assert [c.type for c in chunks] == [
         ChunkType.STREAM_START,
+        ChunkType.PART_START,
         ChunkType.PART_DELTA,
         ChunkType.PART_DELTA,
         ChunkType.FINISH,
+        ChunkType.STREAM_STOP,
     ]
     assert "".join(c.delta.text for c in chunks if c.type == ChunkType.PART_DELTA) == "Hello world"
     assert pipeline.reports is not None

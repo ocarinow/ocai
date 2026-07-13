@@ -80,14 +80,29 @@ def test_openai_sse_decodes_to_canonical_chunks() -> None:
 
 
 def test_openai_transducer_stamps_seq_and_reports() -> None:
-    # The StreamEdge factory product: same decode, plus seq stamping and the
-    # per-traversal EdgeReport handed back at flush (honesty parity, §4.1).
+    # The StreamEdge factory product: the total frame decode plus the
+    # stream's statefulness (WU-10) — the synthesized PART_START skeleton
+    # before the first text delta, the terminal STREAM_STOP emitted when
+    # [DONE] arrives, seq stamping, and the per-traversal EdgeReport handed
+    # back at flush (honesty parity, §4.1).
     transducer = ChatCompletionsStreamTransducer()
     chunks = [chunk for frame in SSEParser().feed(OPENAI_SSE) for chunk in transducer.feed(frame)]
     tail, report = transducer.flush()
 
-    assert [c.seq for c in chunks] == [0, 1, 2, 3]
-    assert tail == []  # terminal StreamEnd chunk is TODO in the skeleton
+    assert [c.type for c in chunks] == [
+        ChunkType.STREAM_START,
+        ChunkType.PART_START,  # synthesized skeleton before the first delta
+        ChunkType.PART_DELTA,
+        ChunkType.PART_DELTA,
+        ChunkType.FINISH,
+        ChunkType.STREAM_STOP,  # emitted when [DONE] arrived
+    ]
+    assert [c.seq for c in chunks] == [0, 1, 2, 3, 4, 5]
+    end = chunks[-1].end
+    assert end is not None
+    assert end.finish is not None and end.finish.native == "stop"
+    assert end.usage is None  # no stream_options usage on this recording
+    assert tail == []  # the terminal rode the [DONE] frame, not the flush
     assert report.lossless
 
 
