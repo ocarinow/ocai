@@ -1,0 +1,57 @@
+{
+  "description": "Anthropic /v1/messages tool-call request/response pair. Synthetic, wire-accurate, hand-authored against the Messages wire structs; replayed via respx so facade tests need no live key and no provider SDK mock (rule 10). The assistant answers with a single tool_use block (stop_reason tool_use); usage itemizes both cache dimensions (cache_read_input_tokens -> the canonical cached bucket, cache_creation_input_tokens -> the open anthropic.cache_write consumption source, disjoint from input_tokens per the WU-13 decision).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [{ "type": "text", "text": "What is the weather in Paris?" }]
+        }
+      ],
+      "tools": [
+        {
+          "type": "custom",
+          "name": "get_weather",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "city": { "type": "string", "description": "City name." }
+            },
+            "required": ["city"]
+          },
+          "description": "Get the current weather for a city."
+        }
+      ],
+      "tool_choice": { "type": "auto" },
+      "max_tokens": 1024
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01TOOL",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-6",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01A2B3C4",
+          "name": "get_weather",
+          "input": { "city": "Paris" }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 55,
+        "output_tokens": 17,
+        "cache_creation_input_tokens": 4,
+        "cache_read_input_tokens": 10
+      }
+    }
+  }
+}

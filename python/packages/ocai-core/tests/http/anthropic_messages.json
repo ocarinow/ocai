@@ -1,4 +1,20 @@
 {
+  "description": "Recorded Anthropic /v1/messages request/response pair. Synthetic, wire-accurate against the Messages wire structs; replayed via respx so facade tests need no live key and no provider SDK mock (rule 10). The leading system turn rides the top-level `system` field (the declared RELOCATION shift) and the required `max_tokens` carries the injected default (the declared EMULATION shift).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [{ "type": "text", "text": "Hello, who are you?" }]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024
+    }
+  },
   "response": {
     "status": 200,
     "json": {

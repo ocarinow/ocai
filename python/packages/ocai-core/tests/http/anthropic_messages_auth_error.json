@@ -1,0 +1,28 @@
+{
+  "description": "Anthropic /v1/messages 401 failure. Synthetic, wire-accurate (the uniform Anthropic error envelope, error.type authentication_error); replayed via respx to prove the facade surfaces AuthError through the two-layer mapping (status layer 1, then the codec's map_error refining from error.type) with no live key (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [{ "type": "text", "text": "Hello, who are you?" }]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024
+    }
+  },
+  "response": {
+    "status": 401,
+    "json": {
+      "type": "error",
+      "error": {
+        "type": "authentication_error",
+        "message": "invalid x-api-key"
+      }
+    }
+  }
+}

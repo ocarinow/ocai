@@ -79,6 +79,35 @@ pattern-replay claim, tested), plus the cross-conversion fidelity report demo
   `ocai/chat/facade.py`** — assert the pattern holds; this is the "adding
   providers follows the same pattern" proof. pytest green.
 - **Deps:** WU-07, WU-13.
+- **Decision (the pattern held):** `tests/test_facade_unary_anthropic.py`
+  landed with **no edit to `ocai/chat/facade.py`, the openai plugin, or the
+  anthropic codec/edges** — the facade recipe replays with only the VALUES
+  swapped (fragment catalog + `Direct(ANTHROPIC_BASE_URL)` +
+  `ApiKey(key, header="x-api-key", scheme="")` + `MessagesCodec`). Pytest
+  cannot assert a zero-diff; the module docstring states the guarantee and
+  the integrator verifies via
+  `git diff -- python/packages/ocai-core/src/ocai/chat/facade.py`.
+- **Decision (recordings):** the response-only plain pair gained its request
+  half (exactly what `encode_request` + `bind_resource` emit: system hoisted,
+  `max_tokens: 1024` injected, `model` bound below the graph); the bound
+  model is `claude-opus-4-6` everywhere, matching the existing recording's
+  echo, so the front-door spec string (`"anthropic/claude-opus-4-6"`) sends
+  byte-identical wire bodies over the same recording. New pairs: a tool
+  round (`tool_use` block, `stop_reason: tool_use`) whose usage itemizes
+  BOTH cache dimensions (cache_read → canonical `cached`, cache_creation →
+  the open `anthropic.cache_write` source, total a plain sum) and TWO error
+  envelopes — 529 `overloaded_error` → `TransientError` and 401
+  `authentication_error` → `AuthError`. Anthropic's statuses already
+  classify correctly at the coarse layer, so the layer-2 proof is
+  `err.code` carrying the wire's `error.type` (the coarse error has no
+  code) plus the `__cause__` chain — unlike openai, where the proof was a
+  class upgrade (400 → `ContextLengthError`).
+- **Decision (shift assertions):** the suite pins the request leg's declared
+  shifts in order — system RELOCATION at `messages[0]` plus the required
+  `max_tokens` EMULATION on the plain pair; EMULATION plus the decode leg's
+  `anthropic.args_serialized` at `content[0].input` on the tool pair — with
+  `report.lossless` true and `losses == []` on both: honestly lossless AND
+  honestly shifted, the WU-13 asymmetry surfaced end-to-end.
 
 ## WU-14b — Anthropic streaming end-to-end — **MILESTONE M3**
 

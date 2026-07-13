@@ -1,0 +1,28 @@
+{
+  "description": "Anthropic /v1/messages 529 overloaded failure. Synthetic, wire-accurate (the uniform Anthropic error envelope, error.type overloaded_error); replayed via respx to prove the facade surfaces TransientError through the two-layer mapping with the codec's map_error naming the wire condition (the coarse status layer alone carries no code), no live key (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [{ "type": "text", "text": "Hello, who are you?" }]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024
+    }
+  },
+  "response": {
+    "status": 529,
+    "json": {
+      "type": "error",
+      "error": {
+        "type": "overloaded_error",
+        "message": "Overloaded"
+      }
+    }
+  }
+}
