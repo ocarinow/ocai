@@ -1,0 +1,73 @@
+{
+  "description": "OpenAI /v1/chat/completions tool-call request/response pair. Synthetic, wire-accurate, hand-authored against the ChatCompletion wire structs and .claude/providers research; replayed via respx so facade tests need no live key and no provider SDK mock (rule 10). The assistant answers with a single function tool call (content null, finish_reason tool_calls).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "What is the weather in Paris?" }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get the current weather for a city.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": { "type": "string", "description": "City name." }
+              },
+              "required": ["city"]
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "chatcmpl-tool123",
+      "object": "chat.completion",
+      "created": 1700000060,
+      "model": "gpt-4o",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_u7Xw1QyLp0",
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"city\":\"Paris\"}"
+                }
+              }
+            ],
+            "refusal": null
+          },
+          "logprobs": null,
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 55,
+        "completion_tokens": 17,
+        "total_tokens": 72,
+        "prompt_tokens_details": { "cached_tokens": 0, "audio_tokens": 0 },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  }
+}

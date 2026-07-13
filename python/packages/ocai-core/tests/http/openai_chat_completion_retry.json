@@ -1,0 +1,45 @@
+{
+  "description": "OpenAI /v1/chat/completions 429-then-200 attempt sequence. Synthetic, wire-accurate (OpenAI rate-limit error envelope + Retry-After header, then the plain success body); replayed via respx in order so a RetryPolicy can be exercised end-to-end through the facade with no live key (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "system", "content": "You are concise." },
+        { "role": "user", "content": "Hello, who are you?" }
+      ]
+    }
+  },
+  "responses": [
+    {
+      "status": 429,
+      "headers": { "retry-after": "0" },
+      "json": {
+        "error": {
+          "message": "Rate limit reached for gpt-4o: please try again shortly.",
+          "type": "tokens",
+          "param": null,
+          "code": "rate_limit_exceeded"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "json": {
+        "id": "chatcmpl-abc123",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "gpt-4o",
+        "choices": [
+          {
+            "index": 0,
+            "message": { "role": "assistant", "content": "I am an AI assistant." },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": { "prompt_tokens": 18, "completion_tokens": 6, "total_tokens": 24 }
+      }
+    }
+  ]
+}

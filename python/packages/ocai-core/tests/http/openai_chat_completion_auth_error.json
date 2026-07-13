@@ -1,0 +1,24 @@
+{
+  "description": "OpenAI /v1/chat/completions 401 failure. Synthetic, wire-accurate (OpenAI invalid_api_key error envelope); replayed via respx to prove the facade surfaces AuthError through the two-layer error mapping (status layer 1, codec map_error layer 2 deferring) with no live key (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "Hello, who are you?" }
+      ]
+    }
+  },
+  "response": {
+    "status": 401,
+    "json": {
+      "error": {
+        "message": "Incorrect API key provided: sk-XXXX. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+      }
+    }
+  }
+}

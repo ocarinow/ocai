@@ -224,6 +224,19 @@ class ChatCompletionsCodec:
         """
         return CHAT_COMPLETIONS_PATH
 
+    def dialect_traits(self) -> DialectTraits:
+        """Return this interface's hosting traits (the module `dialect_traits`).
+
+        The codec-attached face of the facade seam (WU-07): `WireChatModel`
+        builds each call's `EndpointSpec.traits` from the codec it was
+        composed with, so the wire layer reads the dialect's hosting facts
+        as data without the facade ever reaching into plugin modules.
+
+        Returns:
+            The interface's `DialectTraits`.
+        """
+        return dialect_traits()
+
     def bind_resource(self, payload: dict[str, Any], resource: str) -> dict[str, Any]:
         """Inject the bound model name as this wire's `model` member.
 

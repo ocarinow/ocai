@@ -1,0 +1,24 @@
+{
+  "description": "OpenAI /v1/chat/completions 400 context-length overflow. Synthetic, wire-accurate (OpenAI context_length_exceeded error envelope — a 400, NOT a 413, so only the codec's body-aware map_error can classify it); replayed via respx to prove the facade wires layer-2 refinement end-to-end with no live key (rule 10).",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "Hello, who are you?" }
+      ]
+    }
+  },
+  "response": {
+    "status": 400,
+    "json": {
+      "error": {
+        "message": "This model's maximum context length is 128000 tokens. However, your messages resulted in 131072 tokens. Please reduce the length of the messages.",
+        "type": "invalid_request_error",
+        "param": "messages",
+        "code": "context_length_exceeded"
+      }
+    }
+  }
+}
