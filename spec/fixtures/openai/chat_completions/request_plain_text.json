@@ -1,0 +1,42 @@
+{
+  "description": "Encode edge, plain text: a single user turn crosses canonical chat.request -> openai/chat_completions losslessly. Synthetic, wire-accurate, hand-authored against the CompletionCreateParams struct (ocai-openai chat_completions/wire.py). The wire `model` member is NOT edge output: the canonical request carries no model (WU-05a, architecture §3.4) and the harness injects the bound resource via the codec's bind_resource seam, below the edge — ports must do the same before comparing.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Say hello.",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello."
+      }
+    ]
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

@@ -1,0 +1,162 @@
+{
+  "description": "Decode edge, extensions sweep: envelope keys the decoder does not map first-class (`service_tier`, `system_fingerprint`) sweep VERBATIM into the response's namespaced extensions bag (extensions['openai.service_tier'], extensions['openai.system_fingerprint']) with an EXTENSIONS FieldLoss each — preserved and reported, never silenced, never pretending to be portable (three-lane law, lane 2; both keys are census-registered in spec/extensions/). The tolerant reader is what makes a future wire key decode instead of crash (rule 6). Synthetic, wire-accurate, hand-authored against ChatCompletion (wire.py).",
+  "src": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "chatcmpl-BUKUXPrN0KaiPU4HpST2fPBcLBOnE",
+    "object": "chat.completion",
+    "created": 1767226444,
+    "model": "gpt-4o-2024-08-06",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "The capital of Australia is Canberra.",
+          "refusal": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 14,
+      "completion_tokens": 8,
+      "total_tokens": 22,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "service_tier": "default",
+    "system_fingerprint": "fp_44709d6fcb"
+  },
+  "expect": {
+    "version": "2026-07",
+    "extensions": {
+      "openai.service_tier": "default",
+      "openai.system_fingerprint": "fp_44709d6fcb"
+    },
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "The capital of Australia is Canberra.",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "stop"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 14,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 8,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "openai",
+        "interface": "chat_completions",
+        "kind": "response_id",
+        "id": "chatcmpl-BUKUXPrN0KaiPU4HpST2fPBcLBOnE",
+        "replay": "optional"
+      },
+      "model": "gpt-4o-2024-08-06",
+      "created": "2026-01-01T00:14:04+00:00"
+    },
+    "raw": {
+      "id": "chatcmpl-BUKUXPrN0KaiPU4HpST2fPBcLBOnE",
+      "object": "chat.completion",
+      "created": 1767226444,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The capital of Australia is Canberra.",
+            "refusal": null
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 14,
+        "completion_tokens": 8,
+        "total_tokens": 22,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "service_tier": "default",
+      "system_fingerprint": "fp_44709d6fcb"
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "service_tier",
+      "disposition": "extensions",
+      "note": "unmapped envelope key preserved in extensions['openai.service_tier']"
+    },
+    {
+      "path": "system_fingerprint",
+      "disposition": "extensions",
+      "note": "unmapped envelope key preserved in extensions['openai.system_fingerprint']"
+    }
+  ],
+  "expect_shifts": []
+}

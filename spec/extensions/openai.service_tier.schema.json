@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "openai.service_tier",
+  "description": "The service tier that actually processed the request, echoed on openai/chat_completions (and /responses) response envelopes: one of auto, default, flex, scale, priority — kept open here because the tier vocabulary is provider-operational and grows without notice. Provider-unique latency/throughput routing metadata with no canonical home; rides ChatResponse.extensions with an EXTENSIONS FieldLoss so it is preserved and reported, never portable-by-pretense.",
+  "x-ocai-origin": "ocai-openai",
+  "x-ocai-promotion": "promote if a second provider ships a congruent response-side tier echo",
+  "type": "string"
+}

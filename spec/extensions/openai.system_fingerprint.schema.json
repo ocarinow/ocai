@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "openai.system_fingerprint",
+  "description": "OpenAI's backend-configuration fingerprint echoed on chat_completions response envelopes — pairs with the request `seed` to detect determinism-breaking backend changes. Provider-unique infrastructure metadata with no canonical home; rides ChatResponse.extensions with an EXTENSIONS FieldLoss so it is preserved and reported, never portable-by-pretense.",
+  "x-ocai-origin": "ocai-openai",
+  "x-ocai-promotion": "none expected (OpenAI has deprecated the field on newer model families)",
+  "type": "string"
+}

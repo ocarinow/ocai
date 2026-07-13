@@ -1,0 +1,162 @@
+{
+  "description": "Encode edge, full tool round: a PartToolCall becomes the assistant message's tool_calls entry (args_json verbatim), and the tool turn's PartToolResult relocates to a sibling `role: tool` wire message correlated by tool_call_id — a declared SemanticShift (relocation), data-exact, with NO empty husk message left behind for the emptied turn. The result's is_error=true has no chat_completions field and is honestly reported DROPPED (a censused convention is out of WU-06 scope). Also exercises tools (nested {type:function, function:{...}} wire shape) and the canonical ToolChoice mode `auto` passing through as the wire string. Synthetic, wire-accurate, hand-authored against CompletionCreateParams / ChatCompletionMessageFunctionToolCallParam / ChatCompletionToolMessageParam (wire.py). The wire `model` member is the harness's bind_resource injection, below the edge (WU-05a).",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "What is the weather in Paris right now?",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "call_9c3d1e",
+            "name": "get_weather",
+            "args_json": "{\"city\": \"Paris\"}",
+            "status": "input_complete",
+            "executed_by": "client",
+            "type": "tool_call"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "tool",
+        "parts": [
+          {
+            "version": "2026-07",
+            "call_id": "call_9c3d1e",
+            "parts": [
+              {
+                "version": "2026-07",
+                "text": "Service unavailable: upstream weather API timed out.",
+                "type": "text"
+              }
+            ],
+            "is_error": true,
+            "type": "tool_result"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "I could not reach the weather service for Paris just now.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "get_weather",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "City to look up."
+            }
+          },
+          "required": ["city"]
+        },
+        "description": "Look up current weather for a city."
+      }
+    ],
+    "tool_choice": {
+      "version": "2026-07",
+      "mode": "auto"
+    }
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the weather in Paris right now?"
+      },
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_9c3d1e",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\": \"Paris\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_9c3d1e",
+        "content": "Service unavailable: upstream weather API timed out."
+      },
+      {
+        "role": "assistant",
+        "content": "I could not reach the weather service for Paris just now."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Look up current weather for a city.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "City to look up."
+              }
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto"
+  },
+  "expect_losses": [
+    {
+      "path": "messages[2].parts[0].is_error",
+      "disposition": "dropped",
+      "note": "tool-result error flag has no chat_completions field"
+    }
+  ],
+  "expect_shifts": [
+    {
+      "kind": "relocation",
+      "path": "messages[2].parts[0]",
+      "note": "tool result relocated to a sibling `role: tool` wire message"
+    }
+  ]
+}

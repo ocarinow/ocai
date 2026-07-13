@@ -28,6 +28,8 @@ from ocai.convert.graph import Edge
 from ocai.convert.graph import EdgeOutput
 from ocai.convert.graph import StreamEdge
 from ocai.core.fidelity import Disposition
+from ocai.core.fidelity import SemanticShift
+from ocai.core.fidelity import ShiftKind
 from ocai.core.identity import NodeId
 from ocai.core.identity import Origin
 from ocai.core.profile import CapabilityProfile
@@ -53,6 +55,14 @@ _CODEC = ChatCompletionsCodec()
 
 # --- Contracts (the per-field disposition census, §4.2) ----------------------
 
+# Census upper-bound decision (WU-06): a census entry bounds EVERY payload the
+# edge may see, so range-limited knobs (temperature, top_p, the penalties)
+# declare APPROXIMATED — the runtime emits APPROXIMATED only for out-of-range
+# values (passed verbatim, never clamped) and stays silent (EXACT) in range,
+# which certification accepts because EXACT sits in a strictly lower severity
+# band. The declared grade is honestly worse for it: this edge pays four
+# APPROXIMATED slots in `loss_grade()` rather than advertising an exactness
+# it cannot promise for every payload.
 ENCODE_REQUEST_CONTRACT = EdgeContract(
     # No `model` row: the canonical request carries no model (WU-05a, §3.4) —
     # the wire member is injected by the facade from the bound resource via
@@ -64,9 +74,16 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         # Relocated to a sibling `role: tool` wire message — a SemanticShift,
         # data-exact.
         "messages[].parts[tool_result]": DeclaredDisposition(Disposition.EXACT),
-        "messages[].parts[tool_result].is_error": DeclaredDisposition(Disposition.DROPPED),
+        "messages[].parts[tool_result].is_error": DeclaredDisposition(
+            Disposition.DROPPED,
+            "OpenAI has no error flag on `role: tool` messages; scope guard: a "
+            "censused convention stays out of WU-06",
+        ),
+        # Nested non-text result content (images, documents) has no wire lane.
+        "messages[].parts[tool_result].parts[]": DeclaredDisposition(Disposition.DROPPED),
         "messages[].parts[refusal]": DeclaredDisposition(Disposition.EXACT),
-        # TODO: tighten to EXACT once Source-union media encode lands.
+        # TODO: tighten to EXACT once Source-union media encode lands (kept
+        # OUT of WU-06 by scope guard — DROPPED is the certifiable truth).
         "messages[].parts[image]": DeclaredDisposition(Disposition.DROPPED),
         "messages[].parts[audio]": DeclaredDisposition(Disposition.DROPPED),
         "messages[].parts[document]": DeclaredDisposition(Disposition.DROPPED),
@@ -74,13 +91,21 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "messages[].parts[reasoning]": DeclaredDisposition(Disposition.DROPPED),
         "tools": DeclaredDisposition(Disposition.EXACT),
         "tool_choice": DeclaredDisposition(Disposition.EXACT),
-        "config.temperature": DeclaredDisposition(Disposition.EXACT),
-        "config.top_p": DeclaredDisposition(Disposition.EXACT),
+        "config.temperature": DeclaredDisposition(
+            Disposition.APPROXIMATED, "range-limited (0..2): out-of-range passes verbatim"
+        ),
+        "config.top_p": DeclaredDisposition(
+            Disposition.APPROXIMATED, "range-limited (0..1): out-of-range passes verbatim"
+        ),
         "config.max_output_tokens": DeclaredDisposition(Disposition.RENAMED),
         "config.stop_sequences": DeclaredDisposition(Disposition.RENAMED),
         "config.seed": DeclaredDisposition(Disposition.EXACT),
-        "config.frequency_penalty": DeclaredDisposition(Disposition.EXACT),
-        "config.presence_penalty": DeclaredDisposition(Disposition.EXACT),
+        "config.frequency_penalty": DeclaredDisposition(
+            Disposition.APPROXIMATED, "range-limited (-2..2): out-of-range passes verbatim"
+        ),
+        "config.presence_penalty": DeclaredDisposition(
+            Disposition.APPROXIMATED, "range-limited (-2..2): out-of-range passes verbatim"
+        ),
         "config.parallel_tool_calls": DeclaredDisposition(Disposition.EXACT),
         "config.top_k": DeclaredDisposition(Disposition.UNSUPPORTED),
         "config.logprobs": DeclaredDisposition(Disposition.EXACT),
@@ -92,13 +117,20 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "config.audio": DeclaredDisposition(Disposition.DROPPED),
         "config.cache": DeclaredDisposition(Disposition.DROPPED),
     },
+    semantic_shifts=(
+        SemanticShift(
+            kind=ShiftKind.RELOCATION,
+            path="messages[].parts[]",
+            note="tool results relocate to sibling `role: tool` wire messages",
+        ),
+    ),
     note="canonical chat.request -> openai/chat_completions",
 )
 
 DECODE_RESPONSE_CONTRACT = EdgeContract(
     census={
         "choices[0].message.content": DeclaredDisposition(Disposition.EXACT),
-        "choices[0].message.tool_calls": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].message.tool_calls[]": DeclaredDisposition(Disposition.EXACT),
         "choices[0].message.refusal": DeclaredDisposition(Disposition.EXACT),
         # TODO: re-anchor to PartText.annotations after span validation.
         "choices[0].message.annotations": DeclaredDisposition(Disposition.EXTENSIONS),
@@ -112,7 +144,9 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
         "usage": DeclaredDisposition(Disposition.RENAMED),
         "id": DeclaredDisposition(Disposition.EXACT),
         "model": DeclaredDisposition(Disposition.EXACT),
-        "created": DeclaredDisposition(Disposition.EXTENSIONS),
+        # Unix seconds -> the typed `info.created` UTC timestamp: an exact,
+        # reversible rename, recorded here rather than re-reported per call.
+        "created": DeclaredDisposition(Disposition.RENAMED),
         "system_fingerprint": DeclaredDisposition(Disposition.EXTENSIONS),
         "service_tier": DeclaredDisposition(Disposition.EXTENSIONS),
     },

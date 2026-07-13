@@ -8,8 +8,13 @@ under any test runner (or none) and raises plain `AssertionError` on
 mismatch. Every equality assertion is `ocai.core.canonjson.semantic_equal`
 — the one normative predicate — never `==` on raw dicts.
 
-Four kinds of check, mirroring the four promises an edge makes:
+Five kinds of check, mirroring the promises an edge makes:
 
+- **Edge fixtures** (`check_edge`): the per-edge golden contract of
+  `spec/README.md` — running the edge on the fixture's `input` yields a
+  value `semantic_equal` to `expect`, and the runtime
+  `FieldLoss`/`SemanticShift` records match `expect_losses`/`expect_shifts`
+  exactly.
 - **Codec round-trips** (`assert_fixture_roundtrip` / `check_codec`):
   `decode(raw)` matches the fixture's canonical form and
   `encode(canonical)` matches the raw wire payload.
@@ -44,16 +49,18 @@ from typing import Any
 from ocai.convert.catalog import Catalog
 from ocai.convert.contract import ContractViolation
 from ocai.convert.graph import Edge
+from ocai.convert.graph import EdgeOutput
 from ocai.core.canonjson import canonical
 from ocai.core.canonjson import semantic_equal
 from ocai.core.fidelity import FidelityReport
 from ocai.core.identity import NodeId
 
-# A golden fixture: the JSON object documented in `spec/README.md` —
-# `{description, source: {provider, interface, tag}, raw, canonical}` for
-# conversion fixtures; fold triples carry `{node, chunks, response}` plus an
-# optional `wire_events` (absent on canonical-node triples, whose chunks are
-# already canonical and need no decode leg).
+# A golden fixture: one of the JSON shapes documented in `spec/README.md` —
+# edge fixtures carry `{description, src, dst, input, expect, expect_losses,
+# expect_shifts}`; legacy conversion fixtures carry `{raw, canonical}`; fold
+# triples carry `{node, chunks, response}` plus an optional `wire_events`
+# (absent on canonical-node triples, whose chunks are already canonical and
+# need no decode leg).
 type Fixture = dict[str, Any]
 
 # `raw` provider payload -> `canonical` IR dict (as produced by `to_dict()`).
@@ -89,6 +96,113 @@ def iter_fixtures(
     """
     for path in sorted(Path(directory).glob(pattern)):
         yield path, load_fixture(path)
+
+
+def _expected_loss_keys(entries: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Extract the comparable `(path, disposition)` keys from `expect_losses`.
+
+    Args:
+        entries: The fixture's `expect_losses` entries.
+
+    Returns:
+        The sorted comparison keys.
+    """
+    return sorted((str(entry["path"]), str(entry["disposition"])) for entry in entries)
+
+
+def _expected_shift_keys(entries: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Extract the comparable `(kind, path)` keys from `expect_shifts`.
+
+    Args:
+        entries: The fixture's `expect_shifts` entries.
+
+    Returns:
+        The sorted comparison keys.
+    """
+    return sorted((str(entry["kind"]), str(entry.get("path", ""))) for entry in entries)
+
+
+def check_edge(
+    edge: Edge,
+    fixture: Fixture,
+    *,
+    decode_input: Callable[[dict[str, Any]], Any] | None = None,
+    bind: Callable[[Any], Any] | None = None,
+) -> EdgeOutput:
+    """Assert one edge fixture: output equality plus exact loss/shift match.
+
+    The executable form of the edge-fixture contract in `spec/README.md`
+    (clauses 1 and 2; clause 3 — runtime loss never exceeding the declared
+    census — is `certify_edge`'s job, fed with the same fixture payloads):
+
+    1. Running `edge.fn` on the fixture's `input` yields a value
+       `semantic_equal` to `expect`.
+    2. The runtime `FieldLoss` records match `expect_losses` and the runtime
+       `SemanticShift` records match `expect_shifts` **exactly** — same
+       multiset, nothing extra, nothing missing. Records compare on
+       `(path, disposition)` / `(kind, path)`; notes and severities are
+       prose/diagnostics and are never compared (mirroring
+       `EdgeContract.certify`). `expect_losses` must be present even when
+       empty — the honest part of a fixture is never absent by accident;
+       `expect_shifts` defaults to empty.
+
+    The harness stays capability-neutral: fixtures store payloads as plain
+    JSON, so a canonical-source fixture supplies `decode_input` (typically a
+    `from_dict`) to lift `input` into the IR object the edge function takes,
+    and an output exposing `to_dict` is rendered through it for comparison.
+
+    Args:
+        edge: The contracted edge under test; the fixture's `src`/`dst`
+            coordinates must name its endpoints (the caller selects the
+            edge; this helper does not resolve catalogs).
+        fixture: An edge fixture carrying `input`, `expect`, and
+            `expect_losses` (plus optional `expect_shifts`).
+        decode_input: Lifts the fixture's `input` payload into the edge's
+            source representation; None when the input is already the raw
+            payload the edge function takes (wire-source fixtures).
+        bind: A post-edge finisher applied to the output value before
+            comparison — the facade seam below the graph (e.g. injecting the
+            bound model via a codec's `bind_resource`); None for edges whose
+            output is already the complete `expect` payload.
+
+    Returns:
+        The `EdgeOutput` of the run, so callers can feed the same payload
+        set to `certify_edge` or inspect the records further.
+
+    Raises:
+        AssertionError: If the output diverges from `expect`, the records
+            diverge from the expectations, or `expect_losses` is missing.
+    """
+    payload: Any = fixture["input"]
+    if decode_input is not None:
+        payload = decode_input(payload)
+    out = edge.fn(payload)
+    value = bind(out.value) if bind is not None else out.value
+    rendered = value.to_dict() if hasattr(value, "to_dict") else value
+    assert semantic_equal(rendered, fixture["expect"]), (
+        "running the edge on `input` did not match the fixture's `expect`.\n"
+        f"  expected: {canonical(fixture['expect'])}\n"
+        f"  actual:   {canonical(rendered)}"
+    )
+    assert "expect_losses" in fixture, (
+        "edge fixture carries no `expect_losses` — the block may be empty, "
+        "never absent-by-accident (spec/README.md)"
+    )
+    actual_losses = sorted((loss.path, loss.disposition.value) for loss in out.losses)
+    expected_losses = _expected_loss_keys(fixture["expect_losses"])
+    assert actual_losses == expected_losses, (
+        "runtime FieldLoss records do not match expect_losses exactly.\n"
+        f"  expected: {expected_losses}\n"
+        f"  actual:   {actual_losses}"
+    )
+    actual_shifts = sorted((shift.kind, shift.path) for shift in out.shifts)
+    expected_shifts = _expected_shift_keys(fixture.get("expect_shifts") or [])
+    assert actual_shifts == expected_shifts, (
+        "runtime SemanticShift records do not match expect_shifts exactly.\n"
+        f"  expected: {expected_shifts}\n"
+        f"  actual:   {actual_shifts}"
+    )
+    return out
 
 
 def assert_fixture_roundtrip(fixture: Fixture, *, decode: DecodeFn, encode: EncodeFn) -> None:

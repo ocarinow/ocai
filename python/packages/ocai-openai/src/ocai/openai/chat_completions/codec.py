@@ -24,7 +24,9 @@ below the graph at send time by `ocai.wire.hosting`.
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from datetime import date
+from datetime import datetime
 from typing import Any
 
 from ocai.chat.types import ChatChunk
@@ -61,6 +63,7 @@ from ocai.core.identity import CHAT_RESPONSE
 from ocai.core.identity import NodeId
 from ocai.core.identity import Status
 from ocai.core.identity import canonical_node
+from ocai.core.refs import ProviderRef
 from ocai.core.traits import DialectTraits
 
 # Interface coordinates. `TAG` is an opaque dated revision token — the GA wire
@@ -130,6 +133,17 @@ _ROLE_FROM_CANONICAL = {"model": "assistant"}
 # Response envelope keys the decoder maps explicitly; every other key is swept
 # into namespaced `extensions` (tolerant reader, rule 6).
 _KNOWN_RESPONSE_KEYS = frozenset({"id", "object", "created", "model", "choices", "usage"})
+
+# OpenAI's documented inclusive ranges for the range-limited sampling knobs
+# (https://developers.openai.com/api/reference — chat.completions create).
+# Out-of-range values pass VERBATIM with an APPROXIMATED FieldLoss — never
+# rescaled, never clamped, never silent (§3.1 honesty rule).
+_KNOB_RANGES: dict[str, tuple[float, float]] = {
+    "temperature": (0.0, 2.0),
+    "top_p": (0.0, 1.0),
+    "frequency_penalty": (-2.0, 2.0),
+    "presence_penalty": (-2.0, 2.0),
+}
 
 
 def dialect_traits() -> DialectTraits:
@@ -349,12 +363,17 @@ class ChatCompletionsCodec:
                     )
                 )
         wire_message: dict[str, Any] = {"role": role}
-        if texts or not (tool_calls or refusal):
+        if texts or not (tool_calls or refusal is not None or tool_results):
             wire_message["content"] = "".join(texts)
         if tool_calls:
             wire_message["tool_calls"] = tool_calls
         if refusal is not None:
             wire_message["refusal"] = refusal
+        if len(wire_message) == 1:
+            # The turn carried only tool results: every part became a sibling
+            # `role: tool` message and an empty husk would be wire-invalid
+            # (a `tool` role message REQUIRES tool_call_id on this interface).
+            return tool_results
         return [wire_message, *tool_results]
 
     def _encode_tool_result(
@@ -423,10 +442,13 @@ class ChatCompletionsCodec:
     def _encode_tool_choice(
         self, request: ChatRequest, payload: dict[str, Any], losses: list[FieldLoss]
     ) -> None:
-        """Encode the canonical `tool_choice` onto the payload.
+        """Encode the canonical `ToolChoice` onto the payload.
 
-        The canonical open modes (`auto`/`required`/`none`) pass through
-        exactly; a forced named tool becomes the named-tool-choice object.
+        The canonical open modes map onto this wire's idiom: `auto`, `none`,
+        and `required` are the same string codes; `named` becomes the
+        named-tool-choice object around `ToolChoice.name`. A mode this
+        interface cannot express (an unknown open code, or `named` without a
+        name) is reported `DROPPED`, never silenced.
 
         Args:
             request: The canonical request carrying `tool_choice`.
@@ -436,20 +458,20 @@ class ChatCompletionsCodec:
         choice = request.tool_choice
         if choice is None:
             return
-        if isinstance(choice, str):
-            payload["tool_choice"] = choice
+        mode = getattr(choice, "mode", None)
+        if mode in ("auto", "none", "required"):
+            payload["tool_choice"] = mode
             return
         name = getattr(choice, "name", None)
-        if name:
+        if mode == "named" and name:
             payload["tool_choice"] = {"type": "function", "function": {"name": name}}
             return
-        # TODO: align with the canonical ToolChoice shape once it lands.
         losses.append(
             FieldLoss(
                 path="tool_choice",
                 disposition=Disposition.DROPPED,
                 severity=1.0,
-                note=f"unrecognized tool_choice shape {type(choice).__name__!r}",
+                note=f"tool_choice mode {mode!r} has no chat_completions expression",
             )
         )
 
@@ -458,11 +480,12 @@ class ChatCompletionsCodec:
     ) -> None:
         """Encode `ChatConfig` knobs onto the payload, censused per field.
 
-        Values pass **verbatim** — never rescaled, never clamped; out-of-range
-        values are the provider's to reject and ours to report
-        `APPROXIMATED` (TODO below). Renames (`max_output_tokens` →
-        `max_completion_tokens`, `stop_sequences` → `stop`) are recorded on
-        the edge contract, not re-reported per call.
+        Values pass **verbatim** — never rescaled, never clamped; a value
+        outside a documented range (`_KNOB_RANGES`) is the provider's to
+        reject and ours to report with an `APPROXIMATED` `FieldLoss`.
+        Renames (`max_output_tokens` → `max_completion_tokens`,
+        `stop_sequences` → `stop`) are recorded on the edge contract, not
+        re-reported per call.
 
         Args:
             request: The canonical request carrying `config`.
@@ -472,8 +495,6 @@ class ChatCompletionsCodec:
         config = request.config
         if config is None:
             return
-        # TODO: emit APPROXIMATED FieldLoss for values outside OpenAI's
-        # documented ranges (temperature > 2.0, …) — verbatim pass-through.
         exact = {
             "temperature": config.temperature,
             "top_p": config.top_p,
@@ -483,6 +504,21 @@ class ChatCompletionsCodec:
             "parallel_tool_calls": config.parallel_tool_calls,
         }
         payload.update({key: value for key, value in exact.items() if value is not None})
+        for name, (low, high) in _KNOB_RANGES.items():
+            value = exact[name]
+            if value is not None and not low <= value <= high:
+                losses.append(
+                    FieldLoss(
+                        path=f"config.{name}",
+                        disposition=Disposition.APPROXIMATED,
+                        severity=0.5,
+                        note=(
+                            f"config.{name}={value} is outside OpenAI's documented "
+                            f"{low}..{high} range; passed verbatim, never clamped — "
+                            "the provider may reject it"
+                        ),
+                    )
+                )
         if config.max_output_tokens is not None:
             payload["max_completion_tokens"] = config.max_output_tokens
         if config.stop_sequences:
@@ -539,8 +575,11 @@ class ChatCompletionsCodec:
         """
         if output.mode == "json_schema":
             json_schema: dict[str, Any] = {"name": output.name or "response"}
-            if output.schema is not None:
-                json_schema["schema"] = output.schema
+            schema = output.schema
+            if schema is not None:
+                # `Schema` is `JsonSchema | bool`: render the typed form to
+                # its plain wire dict; a boolean schema passes through.
+                json_schema["schema"] = schema.to_dict() if hasattr(schema, "to_dict") else schema
             if output.strict is not None:
                 json_schema["strict"] = output.strict
             return {"type": "json_schema", "json_schema": json_schema}
@@ -582,7 +621,7 @@ class ChatCompletionsCodec:
         message = self._decode_message(choice.get("message") or {}, losses, extensions)
         finish = self._decode_finish(choice, extensions, losses)
         usage = _usage(payload.get("usage"))
-        info = ResponseInfo(id=payload.get("id"), model=payload.get("model"))
+        info = self._decode_info(payload)
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
             extensions[f"openai.{key}"] = payload[key]
             losses.append(
@@ -601,6 +640,43 @@ class ChatCompletionsCodec:
             extensions=extensions,
         )
         return EdgeOutput(response, tuple(losses))
+
+    def _decode_info(self, payload: dict[str, Any]) -> ResponseInfo:
+        """Decode the response envelope's identity keys into `ResponseInfo`.
+
+        `id` becomes an interface-scoped `ProviderRef` (kind
+        `"response_id"`) — the scoped-crossing rule then reports it
+        `UNSUPPORTED` if it ever leaves `openai/chat_completions`; `model`
+        is the provider's echo, verbatim; `created` (Unix seconds) maps to
+        the typed UTC timestamp (an exact, reversible rename recorded on
+        the edge contract, not re-reported per call).
+
+        Args:
+            payload: The raw response body, already JSON-parsed.
+
+        Returns:
+            The canonical `ResponseInfo`.
+        """
+        raw_id = payload.get("id")
+        raw_created = payload.get("created")
+        return ResponseInfo(
+            id=(
+                ProviderRef(
+                    provider=PROVIDER,
+                    interface=INTERFACE,
+                    kind="response_id",
+                    id=raw_id,
+                )
+                if isinstance(raw_id, str)
+                else None
+            ),
+            model=payload.get("model"),
+            created=(
+                datetime.fromtimestamp(raw_created, tz=UTC)
+                if isinstance(raw_created, (int, float)) and not isinstance(raw_created, bool)
+                else None
+            ),
+        )
 
     def _decode_message(
         self,
@@ -641,7 +717,7 @@ class ChatCompletionsCodec:
             )
             losses.append(
                 FieldLoss(
-                    path=f"message.tool_calls[{i}]",
+                    path=f"choices[0].message.tool_calls[{i}]",
                     disposition=Disposition.EXACT,
                     note="typed PartToolCall; arguments kept verbatim as args_json",
                 )
@@ -656,7 +732,7 @@ class ChatCompletionsCodec:
             extensions["openai.annotations"] = wire_msg["annotations"]
             losses.append(
                 FieldLoss(
-                    path="message.annotations",
+                    path="choices[0].message.annotations",
                     disposition=Disposition.EXTENSIONS,
                     note="citations preserved verbatim pending span validation",
                 )
@@ -666,7 +742,7 @@ class ChatCompletionsCodec:
             extensions["openai.audio"] = wire_msg["audio"]
             losses.append(
                 FieldLoss(
-                    path="message.audio",
+                    path="choices[0].message.audio",
                     disposition=Disposition.EXTENSIONS,
                     note="audio output preserved verbatim pending PartAudio decode",
                 )
@@ -675,7 +751,7 @@ class ChatCompletionsCodec:
             extensions["openai.function_call"] = wire_msg["function_call"]
             losses.append(
                 FieldLoss(
-                    path="message.function_call",
+                    path="choices[0].message.function_call",
                     disposition=Disposition.EXTENSIONS,
                     note="deprecated wire lane preserved; superseded by tool_calls",
                 )

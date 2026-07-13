@@ -1,0 +1,173 @@
+{
+  "description": "Decode edge, tool call: the model's tool_calls entry becomes a typed PartToolCall — call_id/name verbatim, `arguments` kept as the authoritative args_json wire string (parsed on read, never re-serialized), status input_complete, executed_by client — recorded with an informational EXACT FieldLoss so the mapping is visible in the report; finish_reason `tool_calls` becomes reason `tool_call` with the native lane verbatim; a wire `content: null` surfaces no text part. Synthetic, wire-accurate, hand-authored against ChatCompletionMessageFunctionToolCall (wire.py).",
+  "src": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "chatcmpl-BUKUW0GkYyaG6cGqCcWA1FDDDrM4E",
+    "object": "chat.completion",
+    "created": 1767226002,
+    "model": "gpt-4o-2024-08-06",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "tool_calls": [
+            {
+              "id": "call_9c3d1e",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\": \"Paris\"}"
+              }
+            }
+          ]
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 58,
+      "completion_tokens": 15,
+      "total_tokens": 73,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "call_id": "call_9c3d1e",
+          "name": "get_weather",
+          "args_json": "{\"city\": \"Paris\"}",
+          "status": "input_complete",
+          "executed_by": "client",
+          "type": "tool_call"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_calls"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 58,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 15,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "openai",
+        "interface": "chat_completions",
+        "kind": "response_id",
+        "id": "chatcmpl-BUKUW0GkYyaG6cGqCcWA1FDDDrM4E",
+        "replay": "optional"
+      },
+      "model": "gpt-4o-2024-08-06",
+      "created": "2026-01-01T00:06:42+00:00"
+    },
+    "raw": {
+      "id": "chatcmpl-BUKUW0GkYyaG6cGqCcWA1FDDDrM4E",
+      "object": "chat.completion",
+      "created": 1767226002,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "refusal": null,
+            "tool_calls": [
+              {
+                "id": "call_9c3d1e",
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"city\": \"Paris\"}"
+                }
+              }
+            ]
+          },
+          "logprobs": null,
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 58,
+        "completion_tokens": 15,
+        "total_tokens": 73,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "choices[0].message.tool_calls[0]",
+      "disposition": "exact",
+      "note": "typed PartToolCall; arguments kept verbatim as args_json"
+    }
+  ],
+  "expect_shifts": []
+}

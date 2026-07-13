@@ -68,8 +68,13 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.pytest.ini_options]
-testpaths = ["python/packages/ocai-core/tests"]
-addopts = "-q"
+testpaths = [
+    "python/packages/ocai-core/tests",
+    "python/packages/ocai-openai/tests",
+]
+# importlib mode lets sibling distributions ship same-named test modules
+# (ocai-core and ocai-openai both carry a test_conformance.py).
+addopts = "-q --import-mode=importlib"
 asyncio_mode = "auto"
 
 # ---------------------------------------------------------------------------

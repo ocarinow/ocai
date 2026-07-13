@@ -1,0 +1,121 @@
+{
+  "description": "Encode edge, config knobs: in-range knobs cross exactly; the renames land on the contract (max_output_tokens -> max_completion_tokens, stop_sequences -> stop, reasoning.effort -> reasoning_effort, output -> response_format); temperature=3.5 is OUTSIDE OpenAI's documented 0..2 range and passes VERBATIM with an APPROXIMATED FieldLoss — never rescaled, never clamped, never silent (§3.1 honesty rule); top_k and reasoning.budget_tokens are UNSUPPORTED on this interface and reported; the request's own provider_options namespace (openai.chat_completions) expands onto the payload (three-lane law, lane 3 — not a loss). Synthetic, wire-accurate, hand-authored against CompletionCreateParams / ResponseFormatJSONSchema (wire.py). The wire `model` member is the harness's bind_resource injection, below the edge (WU-05a).",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "provider_options": {
+      "openai.chat_completions": {
+        "user": "user-1234"
+      }
+    },
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Classify this review: 'great battery'.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "temperature": 3.5,
+      "top_p": 0.9,
+      "max_output_tokens": 512,
+      "stop_sequences": ["<END>"],
+      "seed": 7,
+      "frequency_penalty": 0.25,
+      "presence_penalty": -0.5,
+      "parallel_tool_calls": false,
+      "top_k": 40,
+      "reasoning": {
+        "version": "2026-07",
+        "effort": "high",
+        "budget_tokens": 2048
+      },
+      "output": {
+        "version": "2026-07",
+        "mode": "json_schema",
+        "name": "verdict",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "sentiment": {
+              "type": "string"
+            }
+          },
+          "required": ["sentiment"]
+        },
+        "strict": true
+      }
+    }
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Classify this review: 'great battery'."
+      }
+    ],
+    "temperature": 3.5,
+    "top_p": 0.9,
+    "seed": 7,
+    "frequency_penalty": 0.25,
+    "presence_penalty": -0.5,
+    "parallel_tool_calls": false,
+    "max_completion_tokens": 512,
+    "stop": ["<END>"],
+    "reasoning_effort": "high",
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "name": "verdict",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "sentiment": {
+              "type": "string"
+            }
+          },
+          "required": ["sentiment"]
+        },
+        "strict": true
+      }
+    },
+    "user": "user-1234"
+  },
+  "expect_losses": [
+    {
+      "path": "config.temperature",
+      "disposition": "approximated",
+      "note": "3.5 is outside OpenAI's documented 0..2 range; passed verbatim, the provider may reject it"
+    },
+    {
+      "path": "config.top_k",
+      "disposition": "unsupported",
+      "note": "chat_completions exposes no top_k"
+    },
+    {
+      "path": "config.reasoning.budget_tokens",
+      "disposition": "unsupported",
+      "note": "chat_completions takes effort levels, not token budgets"
+    }
+  ],
+  "expect_shifts": []
+}

@@ -23,7 +23,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-05 | Unknown-X fixture vocabulary | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-05b | Backbone corrections from the capability stress-test (vocab hoist, ProviderRef.scope, SourceRef.mime_type, census token, facade rename, §11) | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-05a | API shape correction: `model` off `ChatRequest`; two front doors (§3.4) | M1 | [m1](m1-foundations.md) | ✅ |
-| WU-06 | OpenAI chat_completions unary certification | M1 | [m1](m1-foundations.md) | ⬜ |
+| WU-06 | OpenAI chat_completions unary certification | M1 | [m1](m1-foundations.md) | ✅ |
 | WU-07 | Facade unary lifecycle — **M1** | M1 | [m1](m1-foundations.md) | ⬜ |
 | WU-08 | Fold law hardening + streaming spec shapes | M2 | [m2](m2-streaming.md) | ✅ |
 | WU-09 | Stream conversion joins the graph | M2 | [m2](m2-streaming.md) | ✅ |

@@ -219,6 +219,53 @@ door.
 - **Scope guard:** media Source-union encode stays OUT (census honestly
   declares DROPPED — that is certifiable); citations stay EXTENSIONS. If
   still heavy, split request-side vs response-side fixtures.
+- **Decision (census upper bound):** range-limited knobs (`temperature`
+  0..2, `top_p` 0..1, both penalties -2..2) declare **APPROXIMATED** in the
+  encode census. The runtime emits APPROXIMATED only for an out-of-range
+  value (passed verbatim, never clamped) and stays silent (EXACT) in range —
+  certification accepts that because EXACT sits in a strictly lower severity
+  band — but a census entry bounds *every* payload the edge may see, so the
+  edge's `LossGrade` honestly pays four approximated slots rather than
+  advertising an exactness it cannot promise. Recorded as a comment above
+  `ENCODE_REQUEST_CONTRACT` in `edges.py`.
+- **Decision (the implicit harness dependency):** the edge-fixture runner did
+  not exist; implemented `check_edge` in `ocai/convert/conformance.py` (the
+  name `docs/writing-a-plugin.md` already advertised). It asserts output
+  equality under `semantic_equal` plus **exact** loss/shift match — records
+  compare on `(path, disposition)` / `(kind, path)` as multisets; notes and
+  severities are prose/diagnostics and are never compared, mirroring
+  `EdgeContract.certify`. Two seams keep it capability-neutral:
+  `decode_input` lifts a canonical-source fixture's `input` into the IR
+  object, and `bind` is the below-the-graph facade seam where the fixtures'
+  wire `model` member is injected via `bind_resource` (WU-05a: the edge
+  output carries no `model`; the wire bodies do).
+- **Decision (no graph round trip yet):** `assert_graph_roundtrip` needs both
+  directions registered and only `encode_request` / `decode_response` exist
+  (the `decode_request` audit edge is still a TODO; an encode-response edge
+  does not exist). The suite instead converts every fixture through
+  `Catalog.of(ocai.openai.FRAGMENT)` in its edge's registered direction and
+  asserts value **and** report records — proving the planner routes through
+  the certified edges. The true round trip lands with the reverse edges.
+- **Decision (unary closures the fixtures forced):** canonical `ToolChoice`
+  now maps by `mode` (`auto`/`none`/`required` pass as wire strings, `named`
+  becomes the named-tool object, anything else is DROPPED-reported — the old
+  code silently mis-handled `auto`); a turn whose parts were all tool results
+  no longer emits an empty `{role, content:""}` husk (wire-invalid beside the
+  relocated `role: tool` siblings); `OutputFormat.schema` renders through
+  `to_dict()` at encode (it was embedding the `JsonSchema` object into the
+  payload); response `info` decodes typed — `id` becomes an interface-scoped
+  `ProviderRef(kind="response_id")`, `created` (Unix seconds) becomes the UTC
+  `info.created` timestamp (census row `created`: EXTENSIONS → RENAMED); and
+  decode-side loss paths were normalized to the wire-true census grammar
+  (`choices[0].message.…`).
+- **Decision (extension census):** `openai.service_tier` and
+  `openai.system_fingerprint` are census-registered in `spec/extensions/` —
+  they now appear in a shipped fixture's `extensions` bag, and an
+  unregistered key there is a CI failure by the census law.
+- **Decision (collection):** root `testpaths` gained the plugin tests dir and
+  `addopts` gained `--import-mode=importlib` so sibling distributions can
+  ship same-named test modules (core and openai both carry a
+  `test_conformance.py`).
 
 ## WU-07 — Facade unary lifecycle: `WireChatModel.chat/achat` — **MILESTONE M1**
 

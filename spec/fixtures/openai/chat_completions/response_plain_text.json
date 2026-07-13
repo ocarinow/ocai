@@ -1,0 +1,145 @@
+{
+  "description": "Decode edge, plain text: a standard chat.completion body crosses openai/chat_completions -> canonical chat.response losslessly — content becomes a PartText on a `model`-role turn (wire `assistant`, normalized once), finish_reason `stop` becomes the two-lane FinishInfo (reason `complete`, native verbatim), usage maps onto the four disjoint Consumption buckets (input/output/cached/reasoning — the detail subsets are documented on the edge contract), and the envelope identity decodes typed: `id` as an interface-scoped ProviderRef (kind response_id), `model` as the echo, `created` (Unix seconds) as the ISO UTC timestamp (a rename on the contract). The `raw` lane is the untouched wire body, verbatim. A wire `content: null`/`refusal: null` and an empty annotations array surface nothing — nothing to lose. Synthetic, wire-accurate, hand-authored against ChatCompletion/Choice/CompletionUsage (wire.py).",
+  "src": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz",
+    "object": "chat.completion",
+    "created": 1767225600,
+    "model": "gpt-4o-2024-08-06",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Hello! How can I help you today?",
+          "refusal": null,
+          "annotations": []
+        },
+        "logprobs": null,
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 12,
+      "completion_tokens": 9,
+      "total_tokens": 21,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "text": "Hello! How can I help you today?",
+          "type": "text"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "stop"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 12,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 9,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "openai",
+        "interface": "chat_completions",
+        "kind": "response_id",
+        "id": "chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz",
+        "replay": "optional"
+      },
+      "model": "gpt-4o-2024-08-06",
+      "created": "2026-01-01T00:00:00+00:00"
+    },
+    "raw": {
+      "id": "chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz",
+      "object": "chat.completion",
+      "created": 1767225600,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Hello! How can I help you today?",
+            "refusal": null,
+            "annotations": []
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 12,
+        "completion_tokens": 9,
+        "total_tokens": 21,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}
