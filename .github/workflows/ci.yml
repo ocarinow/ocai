@@ -69,9 +69,9 @@ jobs:
       - name: Independently installed community plugin
         if: steps.changes.outputs.run == 'true'
         run: >-
-          uv run --isolated --no-project --python 3.13
+          uv run --no-cache --isolated --no-project --python 3.13
           --with ./python/packages/ocai-core
-          --with ./examples/ocai-contrib-echo --with pytest
+          --with ./examples/ocai-contrib-echo --with pytest --with jsonschema
           python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib
           examples/ocai-contrib-echo/tests -q
 

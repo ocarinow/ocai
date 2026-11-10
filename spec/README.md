@@ -84,6 +84,12 @@ unbounded filter trees — and must not appear in a census today (the current
 grammar would read it as an ordinary one-level selector); its implementation
 lands with the vectorstore capability.
 
+External plugins can package this same edge-fixture format through
+`CatalogFragment.conformance`. `check_fragment` enforces coordinate matching,
+coverage of every payload edge, independent expected output/records, and
+contract bounds. Resources are explicitly loaded from installed package data;
+no repository checkout is required. A manifest is not proof of certification.
+
 ### Fold triple (one per streaming edge)
 
 The stream-first law `fold(stream(request)) == complete(request)` is asserted

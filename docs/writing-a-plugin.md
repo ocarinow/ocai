@@ -80,10 +80,41 @@ returns typed canonical requests. Provider output normally decodes to a typed
 canonical response. Preserve unknown tags/data and report unsupported mappings.
 Use destination-scoped `provider_options` only for the matching interface.
 
-First-party extension schemas live in `spec/extensions/`. External authors
-should ship their own schemas and validate fixtures locally; catalog discovery
-does not yet ingest or certify those schemas. A common external extension-schema
-integration is tracked in WU-20, not an implemented requirement to modify core.
+First-party extension schemas live in `spec/extensions/`. External plugins
+package their own schemas and fixtures, declaring their locations on the fragment:
+
+```python
+from ocai.convert import ConformanceResources
+
+resources = ConformanceResources(
+    package="ocai.contrib.example",
+    fixtures="conformance/fixtures",
+    extensions="conformance/extensions",  # omit when no schemas are needed
+)
+# Pass conformance=resources when constructing CatalogFragment.
+```
+
+Use the census annotations: namespaced `title`, `description`, `x-ocai-origin`
+matching the distribution, and `x-ocai-promotion`. The echo package demonstrates
+Hatch `force-include`; no monorepo change or online registry is required.
+
+```python
+from ocai.convert.resources import load_conformance_resources
+from ocai.convert.conformance import check_fragment
+
+bundle = load_conformance_resources(FRAGMENT)
+check_fragment(FRAGMENT, bundle.fixtures.values(), decode_inputs=typed_decoders)
+bundle.check_extension_bag(canonical_object.extensions, validate=validate_schema)
+```
+
+`typed_decoders` maps source nodes to decoders. Your test suite supplies
+`validate_schema(schema, value)`, which must raise for invalid values, for
+example with `jsonschema` and a local reference registry. Validate each schema
+itself too. The helper validates the supplied bag; tests must select every
+canonical bag exercised, rather than recursively treating arbitrary raw JSON
+as canonical data. Missing resources, conflicting schemas, uncovered payload
+edges, and incorrect output/reports fail. Streaming edges still require fold
+triples. Catalog discovery records locations but never runs conformance tests.
 
 ## Application-owned composition
 
@@ -102,6 +133,13 @@ Ownership is self-declared. Admission does not authenticate a publisher, verify
 artifact hashes, or sandbox imports. Entry-point loading executes Python.
 Applications with governance requirements should explicitly compose reviewed
 packages. The default model factory otherwise uses a cached discovered catalog.
+
+Composition rejects competing directed edges, contradictory node metadata,
+same-pattern profile conflicts, and conflicting component factories. Identical
+registrations remain idempotent. Multiple eligible sibling interfaces require
+`interface=`; dates are not an API preference. Equal-specificity profile patterns
+sort lexically. Lock format 2 fingerprints full declarations and resource
+locations; it does not hash executable code, package artifacts, or resource contents.
 
 ## Serving live calls
 

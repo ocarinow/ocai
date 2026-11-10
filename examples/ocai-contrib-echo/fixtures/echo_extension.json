@@ -1,0 +1,35 @@
+{
+  "description": "Synthetic canonical-format extension value, authored independently of the codec.",
+  "src": {
+    "provider": "echo",
+    "interface": "chat",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [],
+    "extensions": {
+      "contrib.echo.trace": {
+        "request_id": "example-1"
+      }
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "messages": [],
+    "extensions": {
+      "contrib.echo.trace": {
+        "request_id": "example-1"
+      }
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

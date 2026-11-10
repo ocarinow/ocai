@@ -15,16 +15,16 @@ From the repository root, build and install ordinary wheels in an isolated
 environment, then run the plugin's tests:
 
 ```bash
-uv run --isolated --no-project --python 3.13 \
+uv run --no-cache --isolated --no-project --python 3.13 \
   --with ./python/packages/ocai-core \
-  --with ./examples/ocai-contrib-echo --with pytest \
+  --with ./examples/ocai-contrib-echo --with pytest --with jsonschema \
   python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib \
   examples/ocai-contrib-echo/tests -q
 ```
 
 CI runs this command. It checks real distribution metadata, namespace files,
-entry-point discovery, all three conversion edges, and an unknown-part round
-trip. No source-path injection or skipped missing imports are used. Local core
+entry-point discovery, all three conversion edges, an unknown-part round
+trip, and schemas/fixtures loaded from the installed wheel. No source-path injection or skipped missing imports are used. Local core
 is supplied explicitly because this checkout need not be published.
 
 ## Compose and convert
@@ -58,3 +58,9 @@ Copy the package into your own repository to develop a provider. Keep the
 `ocai.contrib.<name>` namespace, distribution entry point, compatible core
 range, and tests. See [the plugin guide](../../docs/writing-a-plugin.md) for
 the additional contracts required to serve live calls.
+
+The source `fixtures/` and `extensions/` directories are included as package data
+under `ocai/contrib/echo/conformance/`. Tests load them via the fragment's
+`ConformanceResources` manifest, not paths relative to this repository. The
+synthetic `contrib.echo.trace` extension demonstrates validation with a test-only
+`jsonschema` dependency; neither core nor the plugin imports it at runtime.

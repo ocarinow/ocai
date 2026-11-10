@@ -9,10 +9,9 @@ can only be "cheaper" by declaring less loss. The old float `HOP_PENALTY`
 survives as the grade's trailing hops component: equal-loss paths still
 prefer fewer hops, with no magic constant.
 
-The canonical IR nodes (`ocai/ocai@rev`) are the guaranteed backbone: every
-registered interface connects to them, so every pair is reachable in <= 2
-hops even with no direct edge. Direct edges are higher-fidelity shortcuts the
-planner prefers when their contracts grade lower.
+Canonical IR nodes (`ocai/ocai@rev`) form the intended backbone. Reachability
+depends on registered directions and shapes; admission does not guarantee a
+path for every pair. Direct edges can provide higher-fidelity shortcuts.
 
 **Two-tier loss.** Dijkstra plans *before* seeing a payload, on the declared
 census. The **actual** field-level loss is produced when an edge function
@@ -39,6 +38,8 @@ from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dataclasses import replace
+from types import MappingProxyType
 from typing import Any
 from typing import Protocol
 
@@ -50,6 +51,7 @@ from ocai.core.fidelity import FieldLoss
 from ocai.core.fidelity import SemanticShift
 from ocai.core.identity import NodeId
 from ocai.core.identity import Origin
+from ocai.core.identity import Shape
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,7 +330,7 @@ def _dijkstra[E: (Edge, StreamEdge)](
     determinism, so the two planners can never drift. Path cost is the
     elementwise sum of contract-derived edge grades: the comparison prefers
     less breakage, then less approximation, then less emulation, then fewer
-    hops. Deterministic: outgoing edges are traversed in `(grade, str(dst))`
+    hops. Deterministic: outgoing edges are traversed in grade then destination-coordinate
     order and a monotonic counter breaks heap ties, so nodes and paths are
     never compared directly.
 
@@ -354,7 +356,14 @@ def _dijkstra[E: (Edge, StreamEdge)](
             continue
         for edge in sorted(
             adjacency.get(node, []),
-            key=lambda e: (e.contract.loss_grade(), str(e.dst)),
+            key=lambda e: (
+                e.contract.loss_grade(),
+                e.dst.provider,
+                e.dst.interface,
+                e.dst.tag,
+                e.dst.shape.capability.name,
+                e.dst.shape.role,
+            ),
         ):
             nd = _grade_sum(grade, edge.contract.loss_grade())
             dst_best = best.get(edge.dst)
@@ -378,6 +387,8 @@ class ConversionGraph:
 
     def __init__(self) -> None:
         """Construct an empty graph with no edges and empty plan caches."""
+        self._shape: Shape | None = None
+        self._nodes: dict[tuple[str, str, str, Shape], NodeId] = {}
         self._edges: dict[NodeId, list[Edge]] = {}
         self._stream_edges: dict[NodeId, list[StreamEdge]] = {}
         # Caches of planned paths keyed by (src, dst) — one per adjacency,
@@ -386,6 +397,24 @@ class ConversionGraph:
         self._stream_plan_cache: dict[tuple[NodeId, NodeId], list[StreamEdge]] = {}
         # Monotonic tiebreaker so heap entries never compare NodeId/path.
         self._counter = itertools.count()
+
+    def _validate_registration(self, edge: Edge | StreamEdge) -> None:
+        """Reject mixed shapes and contradictory metadata before mutation."""
+        if edge.src.shape != edge.dst.shape or (
+            self._shape is not None and edge.src.shape != self._shape
+        ):
+            raise ValueError("conversion graph cannot mix shapes")
+        pending = dict(self._nodes)
+        for node in (edge.src, edge.dst):
+            key = (node.provider, node.interface, node.tag, node.shape)
+            if key in pending and pending[key] != node:
+                raise ValueError(f"conflicting node metadata for {node}")
+            pending[key] = node
+
+    def _remember_nodes(self, edge: Edge | StreamEdge) -> None:
+        self._shape = edge.src.shape
+        for node in (edge.src, edge.dst):
+            self._nodes[(node.provider, node.interface, node.tag, node.shape)] = node
 
     def register(self, edge: Edge) -> None:
         """Register a directed conversion edge. Idempotent.
@@ -400,16 +429,23 @@ class ConversionGraph:
 
         Raises:
             ValueError: If the edge's endpoints have different `Shape`s —
-                graphs never mix shapes.
+                graphs never mix shapes; conflicting directed edges or node metadata are rejected.
         """
-        if edge.src.shape != edge.dst.shape:
-            raise ValueError(
-                f"conversion edge crosses shapes: {edge.src.shape} -> {edge.dst.shape}"
-            )
-        edges = self._edges.setdefault(edge.src, [])
+        self._validate_registration(edge)
+        edges = self._edges.get(edge.src, [])
         if edge in edges:
             return  # idempotent: identical edge already registered
-        edges.append(edge)
+        if any(existing.dst == edge.dst for existing in edges):
+            raise ValueError(f"conflicting conversion edge {edge.src} -> {edge.dst}")
+        self._remember_nodes(edge)
+        self._edges.setdefault(edge.src, []).append(
+            replace(
+                edge,
+                contract=replace(
+                    edge.contract, census=MappingProxyType(dict(edge.contract.census))
+                ),
+            )
+        )
         self._plan_cache.clear()  # any new edge may create a cheaper path
 
     def register_stream(self, edge: StreamEdge) -> None:
@@ -419,16 +455,23 @@ class ConversionGraph:
             edge: The transducer-factory edge to add.
 
         Raises:
-            ValueError: If the edge's endpoints have different `Shape`s.
+            ValueError: If shapes differ or a directed edge/node declaration conflicts.
         """
-        if edge.src.shape != edge.dst.shape:
-            raise ValueError(
-                f"stream edge crosses shapes: {edge.src.shape} -> {edge.dst.shape}"
-            )
-        edges = self._stream_edges.setdefault(edge.src, [])
+        self._validate_registration(edge)
+        edges = self._stream_edges.get(edge.src, [])
         if edge in edges:
             return  # idempotent: identical edge already registered
-        edges.append(edge)
+        if any(existing.dst == edge.dst for existing in edges):
+            raise ValueError(f"conflicting stream edge {edge.src} -> {edge.dst}")
+        self._remember_nodes(edge)
+        self._stream_edges.setdefault(edge.src, []).append(
+            replace(
+                edge,
+                contract=replace(
+                    edge.contract, census=MappingProxyType(dict(edge.contract.census))
+                ),
+            )
+        )
         self._stream_plan_cache.clear()  # any new edge may create a cheaper path
 
     def _plan(self, src: NodeId, dst: NodeId) -> list[Edge]:

@@ -7,10 +7,12 @@ APIs fail collection rather than skipping.
 from __future__ import annotations
 
 from importlib.metadata import distribution
-from pathlib import Path
 from typing import Any
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+from jsonschema.protocols import Validator
 
 import ocai.contrib.echo as echo
 from ocai.chat.types import ChatRequest
@@ -19,16 +21,17 @@ from ocai.chat.types import PartUnknown
 from ocai.convert.catalog import Catalog
 from ocai.convert.conformance import certify_edge
 from ocai.convert.conformance import check_edge
-from ocai.convert.conformance import load_fixture
+from ocai.convert.conformance import check_fragment
 from ocai.convert.graph import Edge
+from ocai.convert.resources import load_conformance_resources
 from ocai.core.canonjson import semantic_equal
 from ocai.core.identity import CHAT
 from ocai.core.identity import CHAT_REQUEST
 from ocai.core.identity import NodeId
 from ocai.core.identity import canonical_node
 
-FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
-PATHS = sorted(FIXTURES.glob("*.json"))
+BUNDLE = load_conformance_resources(echo.FRAGMENT)
+FIXTURES = {name.rsplit("/", 1)[-1]: fixture for name, fixture in BUNDLE.fixtures.items()}
 
 
 def _matches(node: NodeId, coordinate: dict[str, str]) -> bool:
@@ -50,9 +53,9 @@ def _edge_for(fixture: dict[str, Any]) -> Edge:
     )
 
 
-@pytest.mark.parametrize("path", PATHS, ids=lambda path: path.stem)
-def test_edge_output_and_contract(path: Path) -> None:
-    fixture = load_fixture(path)
+@pytest.mark.parametrize("name", sorted(FIXTURES))
+def test_edge_output_and_contract(name: str) -> None:
+    fixture = FIXTURES[name]
     edge = _edge_for(fixture)
     decode = ChatRequest.from_dict if edge.src.provider == "ocai" else None
     check_edge(edge, fixture, decode_input=decode)
@@ -61,11 +64,11 @@ def test_edge_output_and_contract(path: Path) -> None:
 
 
 def test_every_edge_has_a_fixture() -> None:
-    assert PATHS, "the plugin must ship fixtures"
-    covered = [
-        (_edge_for(load_fixture(path)).src, _edge_for(load_fixture(path)).dst) for path in PATHS
-    ]
-    assert set(covered) == {(edge.src, edge.dst) for edge in echo.FRAGMENT.edges}
+    assert check_fragment(
+        echo.FRAGMENT,
+        BUNDLE.fixtures.values(),
+        decode_inputs={canonical_node(CHAT_REQUEST): ChatRequest.from_dict},
+    ) == len(FIXTURES)
 
 
 def test_installed_entry_point_discovers_a_working_conversion() -> None:
@@ -76,10 +79,12 @@ def test_installed_entry_point_discovers_a_working_conversion() -> None:
     assert echo.ECHO_ORIGIN.version == dist.version
     files = [str(path) for path in dist.files or ()]
     assert "ocai/contrib/echo/py.typed" in files
+    assert "ocai/contrib/echo/conformance/fixtures/echo_extension.json" in files
+    assert "ocai/contrib/echo/conformance/extensions/contrib.echo.trace.schema.json" in files
     assert "ocai/__init__.py" not in files
     assert "ocai/contrib/__init__.py" not in files
     catalog = Catalog.discover()
-    fixture = load_fixture(FIXTURES / "echo_chat_request.json")
+    fixture = FIXTURES["echo_chat_request.json"]
     converted = catalog.convert(
         fixture["input"],
         echo.ECHO_CHAT_REQUEST,
@@ -93,7 +98,7 @@ def test_installed_entry_point_discovers_a_working_conversion() -> None:
 
 def test_request_roundtrip_and_unknown_content_preservation() -> None:
     catalog = Catalog.of(echo.FRAGMENT)
-    fixture = load_fixture(FIXTURES / "echo_unknown_part.json")
+    fixture = FIXTURES["echo_unknown_part.json"]
     decoded = catalog.convert(
         fixture["input"],
         echo.ECHO_CHAT_REQUEST,
@@ -105,7 +110,7 @@ def test_request_roundtrip_and_unknown_content_preservation() -> None:
 
 
 def test_response_decode_returns_a_typed_response() -> None:
-    fixture = load_fixture(FIXTURES / "echo_chat_response.json")
+    fixture = FIXTURES["echo_chat_response.json"]
     result = Catalog.of(echo.FRAGMENT).convert(
         fixture["input"],
         echo.ECHO_CHAT_RESPONSE,
@@ -113,3 +118,28 @@ def test_response_decode_returns_a_typed_response() -> None:
     )
     assert isinstance(result.value, ChatResponse)
     assert result.value.message.text == "Hello!"
+
+
+def _validator(schema: dict[str, Any]) -> Validator:
+    return Draft202012Validator(schema)
+
+
+def test_installed_extension_schema_checks_preserved_value() -> None:
+    schema = BUNDLE.extensions["contrib.echo.trace"]
+    Draft202012Validator.check_schema(schema)
+
+    def validate(schema: dict[str, Any], value: Any) -> None:
+        _validator(schema).validate(value)
+
+    fixture = FIXTURES["echo_extension.json"]
+    result = Catalog.discover().convert(
+        fixture["input"],
+        echo.ECHO_CHAT_REQUEST,
+        canonical_node(CHAT_REQUEST),
+    )
+    assert result.value.extensions == fixture["expect"]["extensions"]
+    BUNDLE.check_extension_bag(result.value.extensions, validate=validate)
+    with pytest.raises(ValidationError):
+        BUNDLE.check_extension_bag({"contrib.echo.trace": {"request_id": 12}}, validate=validate)
+    with pytest.raises(AssertionError, match="unregistered"):
+        BUNDLE.check_extension_bag({"contrib.echo.missing": {}}, validate=validate)

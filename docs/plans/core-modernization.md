@@ -17,7 +17,7 @@ milestones are split into small work units when reached.
 | WU-17 | Refresh status, record platform boundaries and revised freeze gates, publish the feature matrix | ✅ Complete |
 | WU-18 | Repair the independent conversion plugin; test wheel installation, discovery, every edge, and unknown content in CI | ✅ Complete |
 | WU-19 | Draft item schemas and provenance-labelled design fixtures, schema-tested without changing runtime revision | ✅ Complete |
-| WU-20 | Harden catalog composition and external plugin conformance integration | Next |
+| WU-20 | [Harden catalog composition and external plugin conformance](wu-20-catalog-conformance.md) | ✅ Complete |
 
 WU-19 is a design checkpoint, not an adapter or canonical migration release.
 Acceptance requires schema validity, preservation requirements, negative

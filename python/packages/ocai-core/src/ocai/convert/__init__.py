@@ -54,6 +54,7 @@ from ocai.convert.graph import StreamConverterFactory
 from ocai.convert.graph import StreamEdge
 from ocai.convert.graph import StreamPipeline
 from ocai.convert.migrate import register_revision_migration
+from ocai.convert.resources import ConformanceResources
 
 __all__ = [
     "ENTRY_POINT_GROUP",
@@ -64,6 +65,7 @@ __all__ = [
     "CatalogLock",
     "Component",
     "ComponentFactory",
+    "ConformanceResources",
     "ContractViolation",
     "Converted",
     "ConversionError",

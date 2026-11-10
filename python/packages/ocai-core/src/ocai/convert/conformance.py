@@ -43,10 +43,12 @@ import json
 from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from ocai.convert.catalog import Catalog
+from ocai.convert.catalog import CatalogFragment
 from ocai.convert.contract import ContractViolation
 from ocai.convert.graph import Edge
 from ocai.convert.graph import EdgeOutput
@@ -63,6 +65,69 @@ from ocai.core.ir import is_json_object
 # (absent on canonical-node triples, whose chunks are already canonical and
 # need no decode leg).
 type Fixture = dict[str, Any]
+
+
+def _matches(node: NodeId, coordinate: dict[str, Any]) -> bool:
+    """Match fixture coordinates, including optional release metadata."""
+    return (
+        (node.provider, node.interface, node.tag, str(node.shape))
+        == tuple(coordinate.get(key) for key in ("provider", "interface", "tag", "shape"))
+        and coordinate.get("released", node.released.isoformat()) == node.released.isoformat()
+        and coordinate.get("status", node.status.value) == node.status.value
+    )
+
+
+def check_fragment(
+    fragment: CatalogFragment,
+    fixtures: Iterable[Fixture],
+    *,
+    decode_inputs: Mapping[NodeId, Callable[[dict[str, Any]], Any]] | None = None,
+    bind_outputs: Mapping[NodeId, Callable[[Any], Any]] | None = None,
+) -> int:
+    """Check every payload edge against independently authored fixtures.
+
+    Args:
+        fragment: The fragment to admit and check. Streaming edges still
+            require their dedicated fold triples.
+        fixtures: Edge fixtures, such as a loaded resource bundle's values.
+        decode_inputs: Optional typed decoders keyed by source node.
+        bind_outputs: Optional post-conversion finishers keyed by destination.
+
+    Returns:
+        The number of checked fixtures.
+
+    Raises:
+        AssertionError: If a fixture names no unique edge, an edge has no
+            fixture, expected output/records differ, or a declaration is exceeded.
+    """
+    Catalog.of(fragment)
+    covered: set[tuple[NodeId, NodeId]] = set()
+    count = 0
+    for fixture in fixtures:
+        matches = [
+            edge
+            for edge in fragment.edges
+            if _matches(edge.src, fixture.get("src", {}))
+            and _matches(edge.dst, fixture.get("dst", {}))
+        ]
+        # Catalog admission already rejects competing definitions; identical
+        # duplicate registrations describe the same directed edge.
+        assert matches, "fixture must identify exactly one fragment edge"
+        edge = matches[0]
+        out = check_edge(
+            edge,
+            fixture,
+            decode_input=(decode_inputs or {}).get(edge.src),
+            bind=(bind_outputs or {}).get(edge.dst),
+        )
+        violations = edge.contract.certify(out.losses, out.shifts)
+        assert not violations, f"edge exceeds its declared contract: {violations}"
+        covered.add((edge.src, edge.dst))
+        count += 1
+    missing = {(edge.src, edge.dst) for edge in fragment.edges} - covered
+    assert not missing, f"fragment edges without fixtures: {missing}"
+    return count
+
 
 # `raw` provider payload -> `canonical` IR dict (as produced by `to_dict()`).
 type DecodeFn = Callable[[dict[str, Any]], dict[str, Any]]
@@ -175,6 +240,8 @@ def check_edge(
         AssertionError: If the output diverges from `expect`, the records
             diverge from the expectations, or `expect_losses` is missing.
     """
+    assert _matches(edge.src, fixture.get("src", {})), "fixture src does not match edge"
+    assert _matches(edge.dst, fixture.get("dst", {})), "fixture dst does not match edge"
     payload: Any = fixture["input"]
     if decode_input is not None:
         payload = decode_input(payload)
@@ -573,8 +640,7 @@ def _walk(root: Any, segments: list[str | int]) -> Any:
                 resolved = getattr(resolved, segment)
         except (KeyError, IndexError, AttributeError, TypeError) as exc:
             raise AssertionError(
-                f"path segment {segment!r} cannot be resolved on "
-                f"{type(resolved).__name__}: {exc}"
+                f"path segment {segment!r} cannot be resolved on {type(resolved).__name__}: {exc}"
             ) from exc
     return resolved
 

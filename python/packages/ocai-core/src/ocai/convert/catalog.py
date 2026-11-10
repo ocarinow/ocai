@@ -29,7 +29,10 @@ import hashlib
 import json
 from collections.abc import Callable
 from collections.abc import Iterable
+from copy import deepcopy
+from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import replace
 from enum import Enum
 from functools import cache
 from importlib.metadata import entry_points
@@ -42,9 +45,11 @@ from ocai.convert.graph import Converted
 from ocai.convert.graph import Edge
 from ocai.convert.graph import StreamEdge
 from ocai.convert.graph import StreamPipeline
+from ocai.convert.resources import ConformanceResources
 from ocai.core.canonjson import canonical
 from ocai.core.errors import OcaiError
 from ocai.core.fidelity import Route
+from ocai.core.identity import CANONICAL_INTERFACE
 from ocai.core.identity import CANONICAL_PROVIDER
 from ocai.core.identity import Capability
 from ocai.core.identity import NodeId
@@ -122,9 +127,9 @@ class CatalogFragment:
     """Everything one distribution contributes to a catalog — as frozen data.
 
     The plugin ABI (freezes at v1.0). A plugin module exposes exactly one
-    `FRAGMENT` constant; building it must not mutate any shared state, so
-    importing a plugin is always side-effect free. The `CatalogBuilder`
-    admission-checks a fragment against the composing application's
+    `FRAGMENT` constant; building it must not mutate shared catalog state.
+    Entry-point imports still execute arbitrary Python, not sandboxed code.
+    The `CatalogBuilder` admission-checks a fragment against the composing application's
     `TrustPolicy` before any of its contents become reachable.
 
     Attributes:
@@ -145,6 +150,8 @@ class CatalogFragment:
             interprets them.
         components: The runtime factories (codec/adapter builders) keyed by
             `(provider, interface, capability)`.
+        conformance: Optional package-relative fixture/schema locations. Only
+            the explicit test harness reads resources; admission does not.
     """
 
     origin: Origin
@@ -154,6 +161,28 @@ class CatalogFragment:
     profiles: tuple[CapabilityProfile, ...] = ()
     traits: tuple[DialectTraits, ...] = ()
     components: tuple[Component, ...] = ()
+    conformance: ConformanceResources | None = None
+
+
+def _snapshot(fragment: CatalogFragment) -> CatalogFragment:
+    """Copy declaration mappings without copying executable callables."""
+
+    def edge_copy[E: (Edge, StreamEdge)](edge: E) -> E:
+        return replace(edge, contract=replace(edge.contract, census=dict(edge.contract.census)))
+
+    return replace(
+        fragment,
+        edges=tuple(edge_copy(edge) for edge in fragment.edges),
+        transducers=tuple(edge_copy(edge) for edge in fragment.transducers),
+        profiles=tuple(replace(p, features=dict(p.features)) for p in fragment.profiles),
+        traits=tuple(
+            replace(t, first_party_headers=dict(t.first_party_headers)) for t in fragment.traits
+        ),
+    )
+
+
+def _canonical(node: NodeId) -> bool:
+    return node.provider == CANONICAL_PROVIDER and node.interface == CANONICAL_INTERFACE
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,10 +191,10 @@ class CatalogLock:
 
     Emitted by `Catalog.lock()`. The `hash` lands in every `Route` the
     catalog resolves, so a stored `Route` plus a stored lockfile
-    reconstructs exactly which conversion logic — down to plugin
-    distribution versions and per-edge declared loss grades — served a
-    call. Committing the lockfile and diffing it across dependency bumps is
-    the intended change-review workflow.
+    identifies declared plugin versions, contracts, and routing metadata. It
+    does not hash executable code or resource file contents and cannot prove
+    which artifact served a call. Committing the lockfile and diffing it across
+    dependency bumps is the intended change-review workflow.
 
     Attributes:
         hash: The SHA-256 hex digest of the payload's canonical JSON
@@ -173,8 +202,8 @@ class CatalogLock:
             catalogs hash equal regardless of composition order artifacts.
         payload: The JSON-shaped lockfile content: trust policy, and per
             fragment its origin, nodes (with released/status), edges (with
-            derived loss grades and origins), stream edges, profiles, and
-            components.
+            full contracts, derived grades and origins), stream edges, profiles,
+            components, traits, and conformance resource locations.
     """
 
     hash: str
@@ -233,7 +262,7 @@ def _admit(fragment: CatalogFragment, trust: TrustPolicy, allow: frozenset[str])
     if not exempt:
         for edge in every_edge:
             for endpoint in (edge.src, edge.dst):
-                if endpoint.provider == CANONICAL_PROVIDER:
+                if _canonical(endpoint):
                     continue
                 if (endpoint.provider, endpoint.interface) not in owned:
                     raise AdmissionError(
@@ -251,7 +280,7 @@ def _admit(fragment: CatalogFragment, trust: TrustPolicy, allow: frozenset[str])
         for endpoint, other in ((edge.src, edge.dst), (edge.dst, edge.src)):
             key = (endpoint.provider, endpoint.interface)
             if key in published:
-                touches_canonical = other.provider == CANONICAL_PROVIDER
+                touches_canonical = _canonical(other)
                 connected[key] = connected.get(key, False) or touches_canonical
     for key in sorted(connected):
         if not connected[key]:
@@ -370,8 +399,9 @@ class CatalogBuilder:
         Raises:
             AdmissionError: If the fragment violates the trust policy.
         """
-        _admit(fragment, self._trust, self._allow)
-        self._fragments.append(fragment)
+        candidate = _snapshot(fragment)
+        Catalog((*self._fragments, candidate), trust=self._trust, allow=self._allow)
+        self._fragments.append(candidate)
         return self
 
     def discover(self, *, group: str = ENTRY_POINT_GROUP) -> Self:
@@ -454,31 +484,53 @@ class Catalog:
 
         Raises:
             AdmissionError: If any fragment violates the trust policy, or
-                two fragments register conflicting components for one
-                `(provider, interface, capability)`.
-            ValueError: If any edge crosses shapes.
+                node metadata, directed edges, profiles, or components conflict,
+                or an edge crosses shapes.
         """
-        self._fragments = tuple(fragments)
+        self._fragments = tuple(_snapshot(fragment) for fragment in fragments)
         self._trust = trust
         self._allow = allow
         self._graphs: dict[Shape, ConversionGraph] = {}
         node_index: dict[NodeId, None] = {}  # insertion-ordered de-dup
         components: dict[tuple[str, str, Capability], Component] = {}
         profiles: list[CapabilityProfile] = []
+        coordinates: dict[tuple[str, str, str, Shape], NodeId] = {}
+        profile_index: dict[tuple[str, str, str], CapabilityProfile] = {}
         for fragment in self._fragments:
             _admit(fragment, trust, allow)
+            all_edges: tuple[Edge | StreamEdge, ...] = (*fragment.edges, *fragment.transducers)
+            endpoints = (
+                node for conversion in all_edges for node in (conversion.src, conversion.dst)
+            )
+            for node in (*fragment.nodes, *endpoints):
+                node_key = (node.provider, node.interface, node.tag, node.shape)
+                if node_key in coordinates and coordinates[node_key] != node:
+                    raise AdmissionError(f"conflicting node metadata for {node}")
+                coordinates[node_key] = node
             for node in fragment.nodes:
                 node_index.setdefault(node, None)
             for edge in fragment.edges:
-                self._graphs.setdefault(edge.src.shape, ConversionGraph()).register(edge)
+                try:
+                    self._graphs.setdefault(edge.src.shape, ConversionGraph()).register(edge)
+                except ValueError as exc:
+                    raise AdmissionError(f"{fragment.origin}: {exc}") from exc
             for stream_edge in fragment.transducers:
-                self._graphs.setdefault(
-                    stream_edge.src.shape, ConversionGraph()
-                ).register_stream(stream_edge)
-            profiles.extend(fragment.profiles)
+                try:
+                    self._graphs.setdefault(
+                        stream_edge.src.shape, ConversionGraph()
+                    ).register_stream(stream_edge)
+                except ValueError as exc:
+                    raise AdmissionError(f"{fragment.origin}: {exc}") from exc
+            for profile in fragment.profiles:
+                profile_key = (profile.provider, profile.interface, profile.model_pattern)
+                if profile_key in profile_index and profile_index[profile_key] != profile:
+                    raise AdmissionError(f"conflicting capability profile {profile_key}")
+                if profile_key not in profile_index:
+                    profiles.append(profile)
+                    profile_index[profile_key] = profile
             for component in fragment.components:
-                key = (component.provider, component.interface, component.capability)
-                existing = components.get(key)
+                component_key = (component.provider, component.interface, component.capability)
+                existing = components.get(component_key)
                 if existing is not None and existing.factory is not component.factory:
                     raise AdmissionError(
                         f"fragment {fragment.origin} registers a component for "
@@ -486,7 +538,7 @@ class Catalog:
                         f"({component.capability}) already provided by another "
                         f"fragment; refusing to shadow it"
                     )
-                components[key] = component
+                components[component_key] = component
         self._nodes = tuple(node_index)
         self._profiles = tuple(profiles)
         self._components = components
@@ -543,7 +595,7 @@ class Catalog:
     @property
     def fragments(self) -> tuple[CatalogFragment, ...]:
         """Return the composed fragments, in admission order."""
-        return self._fragments
+        return tuple(_snapshot(fragment) for fragment in self._fragments)
 
     @property
     def nodes(self) -> tuple[NodeId, ...]:
@@ -565,9 +617,11 @@ class Catalog:
         for `capability`. With pins, they are honored exactly (a pinned tag
         may select `PREVIEW`/`DEPRECATED`/`RETIRED` revisions — pinning is
         the explicit escape hatch). Without pins, the newest eligible
-        revision wins: latest `STABLE` by `released` under the default
-        channel, never parsing the opaque tag. The returned `Route` carries
-        the reason and this catalog's lock hash — the audit joint.
+        revision within one interface wins: latest `STABLE` by `released`
+        under the default channel, never parsing the opaque tag. The returned `Route` carries
+        the reason and this catalog's lock hash — the audit joint. Multiple eligible
+        sibling interfaces require an explicit interface pin; their dates are
+        not comparable API preferences.
 
         Args:
             capability: The capability being called (e.g. `CHAT`).
@@ -606,6 +660,7 @@ class Catalog:
                 raise ResolutionError(
                     f"{provider}/{capability} has no revision {tag!r}; known: {known}"
                 )
+            _require_one_interface(pinned)
             chosen = max(pinned, key=lambda n: (n.released, str(n)))
             reason = "pinned"
         else:
@@ -614,9 +669,7 @@ class Catalog:
                 raise ResolutionError(
                     f"no {channel.value} revision for {provider}/{capability} in this catalog"
                 )
-            # TODO: interface-preference policy when several sibling
-            # interfaces are eligible (newest `released` currently wins);
-            # needs settling before the /responses migration flagship WU.
+            _require_one_interface(eligible)
             chosen = max(eligible, key=lambda n: (n.released, str(n)))
             reason = f"latest {chosen.status.value}, released {chosen.released.isoformat()}"
         return Route(
@@ -693,8 +746,8 @@ class Catalog:
         matches `model`, then ranked **most specific first**: specificity is
         the length of the pattern's literal prefix (the run before its first
         wildcard), so a `"claude-4*"` sheet beats a `"*"` sheet for
-        `"claude-4-opus"`. Ties keep admission order (stable sort). The gate
-        layers the result via `ocai.core.profile.resolve_support` — the
+        `"claude-4-opus"`. Ties sort lexically by pattern, independent of
+        admission order. The gate layers the result via `ocai.core.profile.resolve_support` — the
         first profile declaring a feature key wins; a key no profile
         declares defaults to `Support.NATIVE`.
 
@@ -714,10 +767,8 @@ class Catalog:
             and profile.interface == interface
             and profile.matches(model)
         ]
-        matched.sort(
-            key=lambda profile: _literal_prefix_len(profile.model_pattern), reverse=True
-        )
-        return tuple(matched)
+        matched.sort(key=lambda p: (-_literal_prefix_len(p.model_pattern), p.model_pattern))
+        return tuple(replace(profile, features=dict(profile.features)) for profile in matched)
 
     def profile(self, provider: str, interface: str, model: str) -> CapabilityProfile | None:
         """Return the most specific `CapabilityProfile` covering `model`.
@@ -802,19 +853,13 @@ class Catalog:
         """
         if self._lock is None:
             payload: dict[str, Any] = {
+                "format": "ocai.catalog-lock/2",
                 "trust": self._trust.value,
                 "allow": sorted(self._allow),
                 "fragments": [
                     {
                         "origin": str(fragment.origin),
-                        "nodes": [
-                            {
-                                "id": str(node),
-                                "released": node.released.isoformat(),
-                                "status": node.status.value,
-                            }
-                            for node in fragment.nodes
-                        ],
+                        "nodes": [_lock_node(node) for node in fragment.nodes],
                         "edges": [_lock_edge(edge) for edge in fragment.edges],
                         "transducers": [_lock_edge(edge) for edge in fragment.transducers],
                         "profiles": [
@@ -837,21 +882,43 @@ class Catalog:
                             }
                             for component in fragment.components
                         ],
+                        "traits": [asdict(trait) for trait in fragment.traits],
+                        "conformance": (
+                            asdict(fragment.conformance)
+                            if fragment.conformance is not None
+                            else None
+                        ),
                     }
                     for fragment in self._fragments
                 ],
             }
+            for fragment in payload["fragments"]:
+                for key in ("nodes", "edges", "transducers", "profiles", "components", "traits"):
+                    fragment[key] = sorted(fragment[key], key=canonical)
+            payload["fragments"].sort(key=canonical)
             digest = hashlib.sha256(canonical(payload).encode("utf-8")).hexdigest()
             self._lock = CatalogLock(hash=digest, payload=payload)
-        return self._lock
+        return CatalogLock(hash=self._lock.hash, payload=deepcopy(self._lock.payload))
+
+
+def _lock_node(node: NodeId) -> dict[str, Any]:
+    """Record coordinates structurally as well as their display spelling."""
+    return {
+        "id": str(node),
+        "provider": node.provider,
+        "interface": node.interface,
+        "tag": node.tag,
+        "shape": {"capability": node.capability.name, "role": node.shape.role},
+        "released": node.released.isoformat(),
+        "status": node.status.value,
+    }
 
 
 def _lock_edge(edge: Edge | StreamEdge) -> dict[str, Any]:
     """Render one edge's lockfile entry: endpoints, grade, provenance.
 
-    The declared census is summarized by its derived `loss_grade` (the
-    planner-visible cost); the full census stays reviewable in code, where
-    the conformance harness certifies it.
+    Includes full contract declarations and endpoint metadata. Callable code
+    and external resource contents are deliberately not fingerprinted.
 
     Args:
         edge: The payload or stream edge to describe.
@@ -862,10 +929,29 @@ def _lock_edge(edge: Edge | StreamEdge) -> dict[str, Any]:
     return {
         "src": str(edge.src),
         "dst": str(edge.dst),
+        "src_metadata": _lock_node(edge.src),
+        "dst_metadata": _lock_node(edge.dst),
         "grade": list(edge.contract.loss_grade()),
         "origin": str(edge.origin),
         "note": edge.note,
+        "contract": {
+            "census": {
+                path: {"disposition": declaration.disposition.value, "note": declaration.note}
+                for path, declaration in sorted(edge.contract.census.items())
+            },
+            "semantic_shifts": [shift.to_dict() for shift in edge.contract.semantic_shifts],
+            "note": edge.contract.note,
+        },
     }
+
+
+def _require_one_interface(nodes: list[NodeId]) -> None:
+    """Require an explicit pin rather than compare unrelated interface dates."""
+    interfaces = sorted({node.interface for node in nodes})
+    if len(interfaces) > 1:
+        raise ResolutionError(
+            f"ambiguous interfaces {', '.join(interfaces)}; pass interface= explicitly"
+        )
 
 
 @cache

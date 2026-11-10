@@ -1,6 +1,6 @@
 # `spec/extensions/` — the extension census
 
-**Status: placeholder — format normative, census population pending.**
+**Status: populated first-party census; external package resources supported.**
 
 This directory is lane 2 of the three-lane knob law
 ([`docs/architecture.md`](../../docs/architecture.md) §3.4): a
@@ -62,3 +62,13 @@ value and the loss record.
   goes through the lane-1 checklist instead.
 - CI validates every `extensions` bag appearing in `spec/fixtures/` against
   this directory.
+
+## Independent packages
+
+Third-party distributions may ship schemas inside their own wheels using
+`CatalogFragment.conformance: ConformanceResources`. The same annotations apply;
+`x-ocai-origin` must match the declaring distribution. Load resources explicitly
+with `ocai.convert.resources.load_conformance_resources`, then validate schema
+syntax and canonical bag values in the plugin test suite. Conflicting definitions
+of one extension key fail bundle loading. Discovery records manifests without
+reading resources or claiming certification. See [the author guide](../../docs/writing-a-plugin.md).
