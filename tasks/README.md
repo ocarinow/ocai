@@ -72,7 +72,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | Task | Does |
 |---|---|
 | `task pr:checks` | Watch the checks of a PR until they finish (task pr:checks -- NN) |
-| `task pr:draft` | Push and open a DRAFT PR for the current branch (task pr:draft -- "WU-NN: title" ISSUE) |
+| `task pr:draft` | Push and open a DRAFT PR for the current branch (task pr:draft -- "WU-NN: title"); the board card follows the title |
 | `task pr:open` | Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE) |
 | `task pr:post-review` | Post a review file as a comment review after the privacy scan (task pr:post-review -- NN FILE) |
 | `task pr:ready` | Mark the current branch's draft PR ready for review |
@@ -86,13 +86,13 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
-| `task board:blocked` | What is waiting on the maintainer |
-| `task board:card` | Create the board card for a WU (task board:card -- "WU-NN: title" BODYFILE) |
-| `task board:cards` | Open WU cards |
-| `task board:decision` | File a decision-needed issue for the maintainer (task board:decision -- "Decision: question" BODYFILE); see maintainer-handoff |
-| `task board:gap` | File a kernel-gap issue mirroring a gaps.md row (task board:gap -- "Gap: what" BODYFILE) |
-| `task board:sync` | Report plan ↔ cards ↔ board differences (exit 1 when out of sync) |
-| `task board:sync:apply` | Create missing cards and set statuses from the facts (needs a token with the project scope) |
+| `task board:card` | Add a WU card now (task board:card -- "WU-NN: title"); the sync would create it anyway |
+| `task board:decision` | Add a decision card in Blocked on maintainer (task board:decision -- "Decision: question" BODYFILE); see maintainer-handoff |
+| `task board:gap` | Add a kernel-gap card mirroring a gaps.md row (task board:gap -- "Gap: what" BODYFILE) |
+| `task board:open` | Open the board in the browser |
+| `task board:set` | Set Owner and/or Tier on a WU card (task board:set -- WU-NN --owner Claude --tier "1 chat completeness and hosts") |
+| `task board:sync` | Report plan ↔ PRs ↔ cards differences (exit 1 when out of sync) |
+| `task board:sync:apply` | Create missing cards and set statuses from the facts |
 
 ## spec/ — schema and fixture validation
 

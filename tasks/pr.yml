@@ -29,11 +29,11 @@ tasks:
       - git push --force-with-lease
 
   draft:
-    desc: "Push and open a DRAFT PR for the current branch (task pr:draft -- \"WU-NN: title\" ISSUE)"
+    desc: "Push and open a DRAFT PR for the current branch (task pr:draft -- \"WU-NN: title\"); the board card follows the title"
     cmds:
       - uv run python scripts/privacy_check.py --no-files
       - git push -u origin HEAD
-      - gh pr create --draft --title "{{index (splitArgs .CLI_ARGS) 0}}" --body "Closes #{{index (splitArgs .CLI_ARGS) 1}}"
+      - gh pr create --draft --title "{{.CLI_ARGS}}" --body "Work in progress. The WU entry in docs/plans/ is the definition."
 
   open:
     desc: Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE)

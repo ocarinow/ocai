@@ -1,8 +1,6 @@
 ## Work unit
 
-WU-__ — <title from docs/plans/>. One WU per PR (rule 17).
-
-Closes #__ (the WU's board card; the board moves on merge)
+WU-__ — <title from docs/plans/>. One WU per PR (rule 17). The PR title starts with the WU id; the board card follows it.
 
 ## What changed
 
