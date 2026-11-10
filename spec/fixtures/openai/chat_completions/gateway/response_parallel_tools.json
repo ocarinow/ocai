@@ -1,0 +1,120 @@
+{
+  "description": "Synthetic WU-31 parallel tool identities and order, paired with streams/stream_parallel_tools.json.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.response"
+  },
+  "input": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "tool_call",
+          "call_id": "call_a",
+          "name": "weather",
+          "args_json": "{\"city\":\"Paris\"}",
+          "status": "input_complete",
+          "executed_by": "client"
+        },
+        {
+          "version": "2026-07",
+          "type": "tool_call",
+          "call_id": "call_b",
+          "name": "clock",
+          "args_json": "{}",
+          "status": "input_complete",
+          "executed_by": "client"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_calls"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 8,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 6,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 3,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_a",
+              "type": "function",
+              "function": {
+                "name": "weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            },
+            {
+              "id": "call_b",
+              "type": "function",
+              "function": {
+                "name": "clock",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 12,
+      "completion_tokens": 9,
+      "total_tokens": 21,
+      "prompt_tokens_details": {
+        "cached_tokens": 4
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 3
+      }
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

@@ -35,6 +35,7 @@ from ocai.core.identity import Origin
 from ocai.core.profile import CapabilityProfile
 from ocai.core.profile import Support
 from ocai.openai.chat_completions.client import encode_response
+from ocai.openai.chat_completions.client_stream import ClientStreamTransducer
 from ocai.openai.chat_completions.codec import CANONICAL_CHUNK
 from ocai.openai.chat_completions.codec import CANONICAL_REQUEST
 from ocai.openai.chat_completions.codec import CANONICAL_RESPONSE
@@ -267,6 +268,17 @@ ENCODE_RESPONSE_CONTRACT = EdgeContract(
 )
 
 
+ENCODE_CHUNK_CONTRACT = EdgeContract(
+    census={**ENCODE_RESPONSE_CONTRACT.census,
+            "chunk.extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
+            "chunk.type": DeclaredDisposition(Disposition.UNSUPPORTED),
+            "chunk.delta": DeclaredDisposition(Disposition.UNSUPPORTED),
+            "termination": DeclaredDisposition(Disposition.UNSUPPORTED)},
+    semantic_shifts=ENCODE_RESPONSE_CONTRACT.semantic_shifts,
+    note="canonical chunks to client JSON events; gateway owns metadata and framing",
+)
+
+
 # --- Edge functions (thin, pure wrappers over the codec) ---------------------
 
 
@@ -345,6 +357,8 @@ EDGES: tuple[Edge, ...] = (
 )
 
 TRANSDUCERS: tuple[StreamEdge, ...] = (
+    StreamEdge(src=CANONICAL_CHUNK, dst=CHAT_COMPLETIONS_CHUNK,
+               factory=ClientStreamTransducer, contract=ENCODE_CHUNK_CONTRACT, origin=ORIGIN),
     StreamEdge(
         src=CHAT_COMPLETIONS_CHUNK,
         dst=CANONICAL_CHUNK,
