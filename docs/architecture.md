@@ -654,6 +654,17 @@ emit DONE only after accepting upstream outcome and egress report. Streaming
 refusal has its own sparse decode slot after text/tools, preventing text/refusal
 collisions; reverse fold triples qualify the mixed-content case.
 
+WU-32 qualifies the complete client → canonical → provider → canonical → client
+path with recorded OpenAI and Anthropic text/tool HTTP/SSE pairs on all four call
+faces. `examples/governed_gateway.py` and `docs/gateway-integration.md` demonstrate
+public preparation, admission, policy enforcement, serving metadata and ownership.
+The combined ledger contains ingress + execution's two legs + egress exactly once.
+Client egress policy may fail after the kernel invocation succeeds; gateway
+serving outcome is distinct from kernel lifecycle and retains its own evidence.
+Authentication, compartments, deployment selection, budgets, persistence and HTTP
+serving remain satellite responsibilities. Qualification does not promote a new
+canonical revision or alter the ADR 0005 freeze gate.
+
 ## 8. Request lifecycle (how it all interacts)
 
 The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),

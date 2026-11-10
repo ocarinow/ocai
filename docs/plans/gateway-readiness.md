@@ -191,7 +191,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-32 — Prove governed gateway paths
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Qualification.
 - **Scope:** Exercise public APIs over recorded OpenAI and Anthropic HTTP/SSE pairs through all conversion legs, admission, policy, closure and observations; publish a gateway integration example. Owns tests/, examples/, docs/gateway-integration.md. Other WU outcomes are out of scope.
 - **Done:** The combined gateway completion target passes for unary and streaming with separate per-leg reports, zero credential exposure and no private-method dependencies.
