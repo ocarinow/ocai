@@ -644,6 +644,16 @@ identity. A foreign response id is not laundered into an OpenAI reference.
 OpenAI decode subtracts cache/reasoning subsets from prompt/completion totals;
 client encode adds them back. Missing measurements remain absent, never zero.
 
+WU-31 registers canonical chunks → client JSON events. A fresh transducer keeps
+part identities, rolling checksums, usage and finish, without accumulating text or
+arguments. Final-part mismatches fail; part starts must follow canonical order.
+Successful finish/usage events require StreamEnd; errors and incomplete flushes
+never synthesize completion. Flush yields a separate egress report, without
+merging upstream StreamEnd.report. Gateways bind ClientMetadata, frame SSE, and
+emit DONE only after accepting upstream outcome and egress report. Streaming
+refusal has its own sparse decode slot after text/tools, preventing text/refusal
+collisions; reverse fold triples qualify the mixed-content case.
+
 ## 8. Request lifecycle (how it all interacts)
 
 The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),

@@ -134,6 +134,9 @@ _DONE = "[DONE]"
 # calls) makes folding a stream reproduce the blocking decode structurally:
 # text/refusal ride slot 0; the tool_calls entry at wire index `t` rides
 # slot `t + 1`.
+# Refusal is a separate lane after text/tools in unary decode. Reserve a sparse
+# final slot so mixed text/refusal streams cannot overwrite the text accumulator.
+_REFUSAL_SLOT = (1 << 63) - 1
 _TEXT_SLOT = 0
 _TOOL_SLOT_OFFSET = 1
 
@@ -1551,7 +1554,7 @@ class ChatCompletionsCodec:
             chunks.append(
                 ChatChunk(
                     type=ChunkType.PART_DELTA,
-                    index=_TEXT_SLOT,
+                    index=_REFUSAL_SLOT,
                     delta=DeltaRefusal(text=delta["refusal"]),
                     raw_event=raw,
                 )

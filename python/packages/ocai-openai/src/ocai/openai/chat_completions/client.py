@@ -53,7 +53,8 @@ def _ref_valid(ref: ProviderRef) -> bool:
             and (ref.interface == "chat_completions" or ref.scope == RefScope.PROVIDER))
 
 
-def part_evidence(part: Part, path: str, losses: list[FieldLoss]) -> None:
+def part_evidence(part: Part, path: str, losses: list[FieldLoss],
+                  *, streaming: bool = False) -> None:
     """Report part metadata with no client lane, including scoped anchors."""
     _extras(part, path, losses)
     if part.anchor is not None:
@@ -66,7 +67,7 @@ def part_evidence(part: Part, path: str, losses: list[FieldLoss]) -> None:
     if isinstance(part, PartText) and part.annotations:
         _loss(losses, f"{path}.annotations")
     if isinstance(part, PartToolCall):
-        if part.status != "input_complete":
+        if part.status != "input_complete" and not (streaming and part.status == "input_streaming"):
             _loss(losses, f"{path}.status", Disposition.UNSUPPORTED)
         if part.executed_by != "client":
             _loss(losses, f"{path}.executed_by", Disposition.UNSUPPORTED)

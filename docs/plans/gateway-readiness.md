@@ -178,7 +178,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-31 — Encode canonical client stream events
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Conversion.
 - **Scope:** Register canonical chunk to OpenAI Chat Completions chunk transducer; gateway supplies SSE framing, plugin supplies semantic event mapping. Owns ocai-openai/chat_completions/, spec/fixtures/, plugin tests. Other WU outcomes are out of scope.
 - **Done:** Fold triples prove unary/stream equivalence for supported text/tools/finish/usage; aborts never produce successful terminal output.

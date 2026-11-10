@@ -1,0 +1,317 @@
+{
+  "description": "Synthetic WU-31 reverse fold triple paired with ../response_tools_usage.json; semantic events only, explicit gateway metadata and SSE framing applied by test.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.chunk"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.chunk"
+  },
+  "node": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.chunk"
+  },
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart"
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "type": "tool_call",
+        "call_id": "call_a",
+        "name": "weather",
+        "args_json": "",
+        "status": "input_streaming",
+        "executed_by": "client"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "tool_args",
+        "fragment": "{\"city\":\"Paris\"}"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "type": "tool_call",
+        "call_id": "call_a",
+        "name": "weather",
+        "args_json": "{\"city\":\"Paris\"}",
+        "status": "input_complete",
+        "executed_by": "client"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "finish": {
+        "version": "2026-07",
+        "reason": "tool_call",
+        "native": "tool_calls"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 8,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 6,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          },
+          {
+            "value": 4,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "cached"
+          },
+          {
+            "value": 3,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "reasoning"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "end": {
+        "version": "2026-07",
+        "finish": {
+          "version": "2026-07",
+          "reason": "tool_call",
+          "native": "tool_calls"
+        },
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 8,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 6,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            },
+            {
+              "value": 4,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "cached"
+            },
+            {
+              "value": 3,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "reasoning"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "object": "chat.completion.chunk",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {
+            "role": "assistant"
+          },
+          "finish_reason": null
+        }
+      ]
+    },
+    {
+      "object": "chat.completion.chunk",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {
+            "tool_calls": [
+              {
+                "index": 0,
+                "id": "call_a",
+                "type": "function",
+                "function": {
+                  "name": "weather",
+                  "arguments": ""
+                }
+              }
+            ]
+          },
+          "finish_reason": null
+        }
+      ]
+    },
+    {
+      "object": "chat.completion.chunk",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {
+            "tool_calls": [
+              {
+                "index": 0,
+                "function": {
+                  "arguments": "{\"city\":\"Paris\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": null
+        }
+      ]
+    },
+    {
+      "object": "chat.completion.chunk",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {},
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    {
+      "object": "chat.completion.chunk",
+      "choices": [],
+      "usage": {
+        "prompt_tokens": 12,
+        "completion_tokens": 9,
+        "total_tokens": 21,
+        "prompt_tokens_details": {
+          "cached_tokens": 4
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 3
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "tool_call",
+          "call_id": "call_a",
+          "name": "weather",
+          "args_json": "{\"city\":\"Paris\"}",
+          "status": "input_complete",
+          "executed_by": "client"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_calls"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 8,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 6,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 3,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    }
+  },
+  "client_response": {
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_a",
+              "type": "function",
+              "function": {
+                "name": "weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 12,
+      "completion_tokens": 9,
+      "total_tokens": 21,
+      "prompt_tokens_details": {
+        "cached_tokens": 4
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 3
+      }
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}
