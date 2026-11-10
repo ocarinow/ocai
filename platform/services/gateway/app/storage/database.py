@@ -60,6 +60,7 @@ class Database:
                     text("""
                     SELECT NOT (rolsuper OR rolcreaterole OR rolcreatedb OR rolbypassrls)
                       AND NOT has_schema_privilege(current_user, 'platform', 'CREATE')
+                      AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
                       AND NOT has_database_privilege(current_user, current_database(), 'CREATE')
                       AND NOT pg_has_role(current_user,
                         (SELECT nspowner FROM pg_namespace WHERE nspname = 'platform'), 'MEMBER')
@@ -67,6 +68,12 @@ class Database:
                         'platform.audit_events', 'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
                       AND has_table_privilege(current_user, 'platform.audit_events', 'INSERT')
                       AND has_table_privilege(current_user, 'platform.audit_events', 'SELECT')
+                      AND (SELECT bool_and(
+                        has_table_privilege(current_user, 'platform.' || name, 'SELECT')
+                        AND has_table_privilege(current_user, 'platform.' || name, 'INSERT')
+                        AND has_table_privilege(current_user, 'platform.' || name, 'UPDATE')
+                      ) FROM (VALUES ('principals'), ('identity_bindings'), ('organizations'),
+                        ('memberships'), ('authorization_outbox')) AS required(name))
                     FROM pg_roles WHERE rolname = current_user
                 """)
                 )

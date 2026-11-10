@@ -71,8 +71,18 @@ class Postgres:
     def wait(self) -> None:
         for _ in range(60):
             ready = subprocess.run(
-                ["docker", "exec", self.name, "pg_isready", "-h", "127.0.0.1",
-                 "-U", "postgres", "-d", "ocai"],
+                [
+                    "docker",
+                    "exec",
+                    self.name,
+                    "pg_isready",
+                    "-h",
+                    "127.0.0.1",
+                    "-U",
+                    "postgres",
+                    "-d",
+                    "ocai",
+                ],
                 capture_output=True,
                 timeout=5,
                 check=False,
@@ -361,6 +371,13 @@ async def test_privilege_and_schema_checks_fail_closed(postgres: Postgres) -> No
             await runtime.open()
     finally:
         postgres.sql("REVOKE UPDATE ON platform.audit_events FROM ocai_gateway")
+        await runtime.close()
+    postgres.sql("REVOKE INSERT ON platform.memberships FROM ocai_gateway")
+    try:
+        with pytest.raises(StorageError):
+            await runtime.open()
+    finally:
+        postgres.sql("GRANT INSERT ON platform.memberships TO ocai_gateway")
         await runtime.close()
     postgres.sql("UPDATE platform.alembic_version SET version_num = 'future'")
     try:
