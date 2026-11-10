@@ -950,20 +950,16 @@ class _StreamState:
         if chunk.usage is not None:
             self.usage = deepcopy(chunk.usage)
         if chunk.type == ChunkType.ERROR:
-            self.error = StreamProtocolError(
-                "stream reported an error", code=(chunk.error.code if chunk.error else None)
-            )
+            self.error = StreamProtocolError("stream reported an error", code=(
+                chunk.error.code if chunk.error else None))
         if chunk.type == ChunkType.STREAM_STOP:
             if chunk.end is None:
                 raise StreamProtocolError("terminal stream record has no StreamEnd")
             self.end = chunk.end
             self.usage = deepcopy(chunk.end.usage) if chunk.end.usage else self.usage
 
-    def finish(
-        self,
-        status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
-        error: BaseException | None = None,
-    ) -> None:
+    def finish(self, status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
+               error: BaseException | None = None) -> None:
         if self.outcome is not None:
             return
         report = self.report() if self.report is not None else None
@@ -999,12 +995,8 @@ class ChatStream:
     Garbage collection is not a lifecycle or durable-audit guarantee.
     """
 
-    def __init__(
-        self,
-        chunks: Iterator[ChatChunk],
-        *,
-        report: Callable[[], FidelityReport | None] | None = None,
-    ) -> None:
+    def __init__(self, chunks: Iterator[ChatChunk], *,
+                 report: Callable[[], FidelityReport | None] | None = None) -> None:
         """Wrap chunks and an optional snapshot of conversion evidence."""
         self._chunks = chunks
         self._state = _StreamState(report)
@@ -1049,17 +1041,12 @@ class ChatStream:
             self._finish("completed")
             raise
         except BaseException as error:
-            self._finish(
-                "cancelled" if isinstance(error, (GeneratorExit, KeyboardInterrupt)) else "failed",
-                error,
-            )
+            self._finish("cancelled" if isinstance(error, (GeneratorExit, KeyboardInterrupt))
+                         else "failed", error)
             raise
 
-    def _finish(
-        self,
-        status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
-        error: BaseException | None = None,
-    ) -> None:
+    def _finish(self, status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
+                error: BaseException | None = None) -> None:
         if self.outcome is not None:
             return
         try:
@@ -1086,10 +1073,8 @@ class ChatStream:
         if exc is None:
             self.close()
         else:
-            self._finish(
-                "cancelled" if isinstance(exc, (GeneratorExit, KeyboardInterrupt)) else "failed",
-                exc,
-            )
+            self._finish("cancelled" if isinstance(exc, (GeneratorExit, KeyboardInterrupt))
+                         else "failed", exc)
 
     def fold(self) -> ChatResponse:
         """Drain and fold the remaining chunks; failed streams still raise."""
@@ -1099,12 +1084,8 @@ class ChatStream:
 class AsyncChatStream:
     """Owned async stream; `async with` guarantees close on consumer cancellation."""
 
-    def __init__(
-        self,
-        chunks: AsyncIterator[ChatChunk],
-        *,
-        report: Callable[[], FidelityReport | None] | None = None,
-    ) -> None:
+    def __init__(self, chunks: AsyncIterator[ChatChunk], *,
+                 report: Callable[[], FidelityReport | None] | None = None) -> None:
         """Wrap async chunks and optional conversion evidence without buffering."""
         self._chunks = chunks
         self._state = _StreamState(report)
@@ -1149,17 +1130,13 @@ class AsyncChatStream:
             await self._finish("completed")
             raise
         except BaseException as error:
-            await self._finish(
-                "cancelled"
-                if isinstance(error, (asyncio.CancelledError, GeneratorExit, KeyboardInterrupt))
-                else "failed",
-                error,
-            )
+            await self._finish("cancelled" if isinstance(error, (asyncio.CancelledError,
+                                                               GeneratorExit, KeyboardInterrupt))
+                               else "failed", error)
             raise
 
     async def _finish(
-        self,
-        status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
+        self, status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
         error: BaseException | None = None,
     ) -> None:
         if self.outcome is not None:
@@ -1188,12 +1165,9 @@ class AsyncChatStream:
         if exc is None:
             await self.aclose()
         else:
-            await self._finish(
-                "cancelled"
-                if isinstance(exc, (asyncio.CancelledError, GeneratorExit, KeyboardInterrupt))
-                else "failed",
-                exc,
-            )
+            await self._finish("cancelled" if isinstance(exc, (asyncio.CancelledError,
+                                                             GeneratorExit, KeyboardInterrupt))
+                               else "failed", exc)
 
     async def fold(self) -> ChatResponse:
         """Drain and fold the remaining chunks without hiding stream failure."""
