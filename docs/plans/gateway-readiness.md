@@ -100,7 +100,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-25 — Govern streaming through port middleware
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Streaming.
 - **Scope:** Add explicit stream continuations and composable stream interception for local and remote ports; reject unary-only middleware on streaming rather than bypass it. Owns runtime/interceptors.py, chat/facade.py, chat/__init__.py, tests. Other WU outcomes are out of scope.
 - **Done:** Admission denial performs no I/O on all four call faces; wrappers observe completion/failure/cancellation without buffering or generation restart.

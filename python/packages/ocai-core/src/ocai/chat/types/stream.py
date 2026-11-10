@@ -59,6 +59,7 @@ from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
 from ocai.core.ir import is_json_object
+from ocai.core.result import StreamOutcome as StreamOutcome
 
 # The censused extension key sealed onto every part an aborted stream left
 # open (no terminal STREAM_STOP arrived): the part's content is whatever had
@@ -922,21 +923,6 @@ class StreamAccumulator:
         for chunk in chunks:
             accumulator.feed(chunk)
         return accumulator.finalize()
-
-
-@dataclass(frozen=True)
-class StreamOutcome:
-    """Execution evidence, separate from the successful canonical StreamEnd.
-
-    Missing usage means unknown, never zero. An incomplete or failed outcome
-    may retain usage and conversion findings without claiming completion.
-    This is a local execution contract, not a new canonical chunk or revision.
-    """
-
-    status: Literal["completed", "closed", "cancelled", "failed", "incomplete"]
-    usage: Usage | None = None
-    report: FidelityReport | None = None
-    error: BaseException | None = None
 
 
 class _StreamState:

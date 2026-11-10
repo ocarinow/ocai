@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from typing import Any
+from typing import Literal
 
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import Route
@@ -117,3 +118,20 @@ class CallContext:
         if self.extensions:
             out["extensions"] = dict(self.extensions)
         return out
+
+
+@dataclass(frozen=True)
+class StreamOutcome:
+    """Execution evidence, separate from the successful canonical StreamEnd.
+
+    Missing usage means unknown, never zero. An incomplete or failed outcome
+    may retain usage and conversion findings without claiming completion.
+    This is a local execution contract, not a new canonical chunk or revision.
+    """
+
+    status: Literal["completed", "closed", "cancelled", "failed", "incomplete"]
+    usage: Usage | None = None
+    report: FidelityReport | None = None
+    error: BaseException | None = None
+
+
