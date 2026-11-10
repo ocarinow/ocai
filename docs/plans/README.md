@@ -1,5 +1,12 @@
 # ocai roadmap
 
+**Current direction (November 2026):** implement the Python
+[core modernization program](core-modernization.md), beginning with WU-17–19.
+The platform vision includes agent execution/management, telemetry, auditing,
+evaluation, and typed registries. Other language implementations are deferred.
+The July table below preserves completed M1–M3 history; its original horizon
+ordering is superseded by the new program.
+
 The implementation roadmap for the July 2026 re-architecture. The structural
 contract every WU implements is [`docs/architecture.md`](../architecture.md);
 the rules are [`AGENTS.md`](../../AGENTS.md). **One WU = one session = one PR**
@@ -7,7 +14,7 @@ the rules are [`AGENTS.md`](../../AGENTS.md). **One WU = one session = one PR**
 paragraph each and get detailed only when reached — no pretend-detail a year
 out.
 
-Priorities (set by the maintainer): core machinery first; then **one provider
+Historical July priorities: core machinery first; then **one provider
 end-to-end**; providers after the first are pattern replays; the `/responses`
 interface and Gemini are horizon items, not the near-term goal.
 
@@ -35,7 +42,11 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-14b | Anthropic streaming e2e — **M3** | M3 | [m3](m3-second-provider.md) | ✅ **M3** |
 | WU-15 | Cross-conversion fidelity proof (flagship demo #1) | M3 | [m3](m3-second-provider.md) | ✅ |
 | WU-16 | Front doors wired end-to-end: `ocai.chat.model()` + plugin helper + discovery; Workspace removed | M3 | [m3](m3-second-provider.md) | ✅ |
-| H1–H5 | Horizon milestones | — | [horizon](horizon.md) | ⬜ |
+| WU-17 | Architecture/status refresh and release gates | Modernization | [modernization](core-modernization.md) | ✅ complete |
+| WU-18 | Independent conversion-plugin repair | Modernization | [modernization](core-modernization.md) | Planned |
+| WU-19 | Ordered-item schema proposal (no runtime migration) | Modernization | [modernization](core-modernization.md) | Planned |
+| WU-20 | Catalog composition and external conformance | Modernization | [modernization](core-modernization.md) | ⬜ next |
+| H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
 

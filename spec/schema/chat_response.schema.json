@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ocai.dev/spec/schema/chat_response.schema.json",
   "title": "ChatResponse",
-  "$comment": "Role: the canonical non-streaming chat result (docs/architecture.md §3.1; ocai/chat/types/response.py ChatResponse) in omit-absent wire form — the shape `chat.response` payload the conversion graph decodes from a provider node to the canonical node, and the value StreamAccumulator.fold must reproduce (the fold law, compared with the raw lane excluded per spec/canonical-json.md §8). A pure graph payload: NO report member — the FidelityReport lives on CallResult.report and only there. Single message forever: decoded provider choices[1:] land in a censused extension with reported loss, never in this shape.",
+  "$comment": "Role: the canonical non-streaming chat result (docs/architecture.md §3.1; ocai/chat/types/response.py ChatResponse) in omit-absent wire form — the shape `chat.response` payload the conversion graph decodes from a provider node to the canonical node, and the value StreamAccumulator.fold must reproduce (the fold law, compared with the raw lane excluded per spec/canonical-json.md §8). A pure graph payload: NO report member — the FidelityReport lives on CallResult.report and only there. Single message in revision 2026-07: decoded provider choices[1:] land in a censused extension with reported loss, never in this shape.",
   "description": "A provider-neutral chat result: the model's reply turn, why generation stopped, what the call consumed, the provider anchors identifying the response, and the untouched provider body for power users.",
   "type": "object",
   "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
