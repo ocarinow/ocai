@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.request_unparsed_anchors",
+  "description": "Unparsed continuation refs, preserving original array indexes and values without granting replay authority.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "index": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "value": {}
+    },
+    "required": [
+      "value"
+    ]
+  },
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected"
+}

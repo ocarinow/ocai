@@ -170,6 +170,13 @@ resource. `replay ∈ {OPTIONAL, REQUIRED}`: REQUIRED anchors (Gemini
 `thoughtSignature`, Anthropic thinking signatures) are weighted as *breakage*
 in planning, not mere loss — dropping them produces a 400, not degraded output.
 
+`ChatRequest.anchors` carries optional request-side continuation refs. Scope
+validity is necessary, not proof of an executable wire lane: Chat Completions
+and Messages report each request anchor unsupported until a codec qualifies it.
+Malformed/future request refs retain indexed raw evidence in
+`ocai.request_unparsed_anchors`, with no inferred replay authority. Core
+`ProviderRef` constructors and serialization are unchanged (ADR 0008, WU-42).
+
 ### 2.5 `profile.py` — declared capability facts [provisional]
 
 `CapabilityProfile` maps feature keys → `Support.NATIVE | EMULATED | ABSENT`,
@@ -305,6 +312,11 @@ kind is open; unknown tags and non-object entries never become function tools.
 empty domain lists remain explicit intent; codecs qualify their semantics rather
 than inferring a policy. Unparsed locations retain registered extension evidence.
 No tool definition executes code, fetches a URL, or implies an MCP registry.
+
+Request continuation uses `ChatRequest.anchors`; part replay state stays on
+`Part.anchor` and `Annotation.opaque`. A canonical response can be serialized and
+reused in request history without rewriting those opaque tokens. No automatic
+history persistence or continuation selection enters the kernel.
 
 **`types/config.py` — `ChatConfig`, shipped FULL** (the empty-scaffold failure
 is over). First-class by the three-lane law (§3.4): `temperature`, `top_p`,
@@ -460,6 +472,9 @@ options. Invalid position evidence is preserved in registered canonical
 extensions rather than represented as a valid attribution. Server-tool kinds,
 domain intent and approximate location are first-class; provider max-uses,
 context-size and dynamic-search controls stay in registered/scoped lanes.
+Request/part/citation replay refs do not become portable strings or generic
+provider options. An unqualified wire lane is explicitly unsupported even when
+the ref is within scope.
 
 ### Stream ownership and incomplete execution (WU-24)
 
@@ -612,7 +627,10 @@ same honest machinery.
 Pure-stdlib harness plugins import: golden-fixture runner, EdgeContract-vs-
 runtime-loss certifier, **fold triple** fixtures (wire event log → canonical
 chunks → folded response, asserted with `canonjson.semantic_equal`), and
-normative unknown-X fixtures every language port must pass. Canonical citation
+normative unknown-X fixtures every language port must pass. Canonical transcript
+evidence may add `history` documents to a document fixture; WU-42 compares each
+history response and replay request through JSON serialization with exact token
+values. That proves carrier preservation, not a provider search mapping. Canonical citation
 triples additionally assert exact decoded Unicode text and offsets, including
 combining sequences, malformed bounds and annotations arriving before text;
 semantic JSON equality alone cannot establish position correctness.
@@ -766,6 +784,15 @@ until its provider-specific WU qualifies mappings and replay. Request census and
 golden fixtures cover these exclusions; recorded unary/SSE pairs preserve the
 existing response fold law with the supported function lane intact.
 
+WU-42 qualifies existing Anthropic thinking-signature replay after canonical
+JSON serialization. Missing, empty, foreign-interface, wrong-kind and unqualified
+model-scoped tokens produce unsupported findings; no foreign or fabricated
+signature is sent. Universal part anchors and citation opaque refs have explicit
+unsupported findings on unqualified request lanes. `FidelityPolicy` can deny
+these findings before every physical attempt, including streaming. Canonical
+server-tool transcript preservation does not qualify provider search replay;
+that remains WU-43.
+
 
 ```
 ocai-openai/src/ocai/openai/
@@ -901,7 +928,9 @@ citation triples and registered invalid-evidence extensions under ADR 0008;
 these qualify the existing canonical revision without registering a new node.
 WU-41 extends the request schema with a tool union and location definition, plus
 canonical round-trip and provider fallback fixtures; legacy function schemas
-remain valid and no canonical revision is registered.
+remain valid and no canonical revision is registered. WU-42 adds continuation
+carrier/schema evidence and canonical transcript history alongside recorded
+thinking replay pairs. No existing canonical fixture is rewritten.
 
 ## 11. Adding a capability (normative recipe)
 

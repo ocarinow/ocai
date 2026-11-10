@@ -1,0 +1,97 @@
+{
+  "description": "WU-42: required Anthropic signature cannot cross to Chat Completions; opaque identity is reported before the absent reasoning lane.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "First question"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "reasoning",
+            "text": "Reasoned answer",
+            "signature": {
+              "provider": "anthropic",
+              "interface": "messages",
+              "kind": "thought_signature",
+              "id": "sig-test+/==",
+              "replay": "required"
+            }
+          },
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Answer"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Continue"
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "user",
+        "content": "First question"
+      },
+      {
+        "role": "assistant",
+        "content": "Answer"
+      },
+      {
+        "role": "user",
+        "content": "Continue"
+      }
+    ]
+  },
+  "expect_losses": [
+    {
+      "path": "messages[1].parts[0].signature",
+      "disposition": "unsupported",
+      "severity": 2.0,
+      "note": "interface-scoped ref anthropic/messages:thought_signature:sig-test+/== is not valid on openai/chat_completions; reported, never silently dropped (§2.4)"
+    },
+    {
+      "path": "messages[1].parts[0]",
+      "disposition": "dropped",
+      "severity": 1.0,
+      "note": "chat_completions has no reasoning replay lane (use openai/responses)"
+    }
+  ],
+  "expect_shifts": []
+}

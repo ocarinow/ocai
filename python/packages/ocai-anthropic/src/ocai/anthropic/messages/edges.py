@@ -64,6 +64,9 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
     # the wire member is injected by the facade from the bound resource via
     # `MessagesCodec.bind_resource`, below this edge.
     census={
+        "anchors[]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "extensions[ocai.request_unparsed_anchors]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "messages[].parts[].annotations[].opaque": DeclaredDisposition(Disposition.UNSUPPORTED),
         "messages[].role": DeclaredDisposition(Disposition.EXACT),
         # Leading system turns relocate to the top-level `system` field — a
         # declared SemanticShift, data-exact.
@@ -129,6 +132,8 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
             "a SourceRef file handle outside its validity scope is reported (§2.4)",
         ),
         # Foreign thinking anchors refuse replay (see codec._encode_reasoning).
+        "messages[].parts[].text": DeclaredDisposition(Disposition.DROPPED),
+        "messages[].parts[].opaque": DeclaredDisposition(Disposition.UNSUPPORTED),
         "messages[].parts[].signature": DeclaredDisposition(
             Disposition.UNSUPPORTED, "thinking replay requires this interface's anchor (§2.4)"
         ),

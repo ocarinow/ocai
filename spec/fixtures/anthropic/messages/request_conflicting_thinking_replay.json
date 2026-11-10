@@ -1,0 +1,138 @@
+{
+  "description": "WU-42: redacted thinking cannot also replay a visible signature or text; both otherwise-lost lanes are reported.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "First question"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "reasoning",
+            "text": "Reasoned answer",
+            "signature": {
+              "provider": "anthropic",
+              "interface": "messages",
+              "kind": "thought_signature",
+              "id": "sig-test+/==",
+              "replay": "required"
+            },
+            "opaque": {
+              "provider": "anthropic",
+              "interface": "messages",
+              "kind": "redacted_thinking",
+              "id": "redacted-test+/==",
+              "replay": "required"
+            }
+          },
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Answer"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Continue"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 1024
+    },
+    "provider_options": {
+      "anthropic.messages": {
+        "thinking": {
+          "type": "adaptive"
+        }
+      }
+    }
+  },
+  "expect": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "First question"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "redacted_thinking",
+            "data": "redacted-test+/=="
+          },
+          {
+            "type": "text",
+            "text": "Answer"
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Continue"
+          }
+        ]
+      }
+    ],
+    "thinking": {
+      "type": "adaptive"
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "messages[1].parts[0].signature",
+      "disposition": "unsupported",
+      "severity": 2.0,
+      "note": "redacted thinking cannot also replay a visible thinking signature"
+    },
+    {
+      "path": "messages[1].parts[0].text",
+      "disposition": "dropped",
+      "severity": 1.0,
+      "note": "redacted thinking has no visible text lane"
+    }
+  ],
+  "expect_shifts": []
+}

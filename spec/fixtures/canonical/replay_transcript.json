@@ -1,0 +1,110 @@
+{
+  "description": "WU-42 canonical transcript: original opaque server/citation tokens remain byte-identical through response, request history and continuation carriers. This is data preservation, not provider search qualification.",
+  "shape": "chat.request",
+  "document": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "server_tool_result",
+            "kind": "web_search",
+            "call_id": "search-test",
+            "payload": {
+              "result": "synthetic"
+            },
+            "anchor": {
+              "provider": "anthropic",
+              "interface": "messages",
+              "kind": "search_replay",
+              "id": "encrypted-test+/==",
+              "replay": "required"
+            },
+            "status": "output_available"
+          },
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Answer",
+            "annotations": [
+              {
+                "version": "2026-07",
+                "kind": "url_citation",
+                "url": "https://example.test/source",
+                "opaque": {
+                  "provider": "anthropic",
+                  "interface": "messages",
+                  "kind": "citation_replay",
+                  "id": "citation-test+/==",
+                  "replay": "required"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "anchors": [
+      {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "response-test",
+        "replay": "required"
+      }
+    ]
+  },
+  "history": [
+    {
+      "shape": "chat.response",
+      "document": {
+        "version": "2026-07",
+        "message": {
+          "version": "2026-07",
+          "role": "model",
+          "parts": [
+            {
+              "version": "2026-07",
+              "type": "server_tool_result",
+              "kind": "web_search",
+              "call_id": "search-test",
+              "payload": {
+                "result": "synthetic"
+              },
+              "anchor": {
+                "provider": "anthropic",
+                "interface": "messages",
+                "kind": "search_replay",
+                "id": "encrypted-test+/==",
+                "replay": "required"
+              },
+              "status": "output_available"
+            },
+            {
+              "version": "2026-07",
+              "type": "text",
+              "text": "Answer",
+              "annotations": [
+                {
+                  "version": "2026-07",
+                  "kind": "url_citation",
+                  "url": "https://example.test/source",
+                  "opaque": {
+                    "provider": "anthropic",
+                    "interface": "messages",
+                    "kind": "citation_replay",
+                    "id": "citation-test+/==",
+                    "replay": "required"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

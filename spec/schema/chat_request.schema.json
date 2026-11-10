@@ -12,6 +12,11 @@
       "description": "The conversation so far, in order.",
       "items": { "$ref": "message.schema.json" }
     },
+    "anchors": {
+      "type": "array",
+      "description": "Scoped continuation references; a matching scope does not imply a qualified wire replay lane.",
+      "items": { "$ref": "parts.schema.json#/$defs/providerRef" }
+    },
     "tools": {
       "type": "array",
       "description": "The tools the model may call; omitted when none.",

@@ -270,7 +270,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-42 — Preserve required server-tool replay anchors
 
-- [ ] **Status:** in progress; stacked on WU-41 (PR #80).
+- [x] **Status:** implemented; stacked PR #83, pending review.
 - **Goal:** Requests preserve scoped continuation data and expose replay failures
   through the conversion ledger before a governed call reaches the provider.
 - **Scope:** Existing PartServerToolResult/Annotation reference lanes, request

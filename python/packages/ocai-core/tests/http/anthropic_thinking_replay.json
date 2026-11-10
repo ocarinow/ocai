@@ -1,0 +1,68 @@
+{
+  "description": "WU-42 synthetic Messages thinking replay exchange. The request replays anthropic_thinking_seed.json signature bytes. Paired with anthropic_thinking_replay_stream.json; response reuses streams/stream_usage_paired.json fold evidence.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "First question"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Reasoned answer",
+              "signature": "sig-test+/=="
+            },
+            {
+              "type": "text",
+              "text": "Answer"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Continue"
+            }
+          ]
+        }
+      ],
+      "thinking": {
+        "type": "adaptive"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01XYZ",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-6",
+      "content": [
+        {
+          "type": "text",
+          "text": "I am Claude, an AI assistant."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 14,
+        "output_tokens": 9
+      }
+    }
+  }
+}

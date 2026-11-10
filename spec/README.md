@@ -294,3 +294,14 @@ request fixtures report `tools[index]` as unsupported until mapping is qualified
 `ocai.server_tool_unparsed_location` preserves uninterpreted location evidence.
 The accompanying recorded unary/SSE pairs reuse the existing response fold
 fixtures; this request-only change registers no streaming conversion edge.
+
+### Replay transcript evidence
+
+`fixtures/canonical/replay_transcript.json` uses the canonical document format
+with a `history` list of preceding shape/document pairs. Its dedicated conformance
+test round-trips history responses and the final request through canonical IR
+serialization and compares opaque token values exactly. This is carrier evidence,
+not a provider-search compatibility claim. Recorded Anthropic thinking replay
+pairs separately prove the qualified wire path and existing response fold law.
+`ocai.request_unparsed_anchors` retains indexed unknown/malformed continuation
+input without turning unknown replay obligations into optional ones.

@@ -1,0 +1,75 @@
+{
+  "description": "WU-42 synthetic request: opaque citation and universal part replay state remain unqualified on this request encoder, even within the minting scope.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Say hello.",
+            "type": "text",
+            "anchor": {
+              "provider": "openai",
+              "interface": "chat_completions",
+              "kind": "search_replay",
+              "id": "encrypted-test",
+              "replay": "required"
+            },
+            "annotations": [
+              {
+                "version": "2026-07",
+                "url": "https://example.test/source",
+                "opaque": {
+                  "provider": "openai",
+                  "interface": "chat_completions",
+                  "kind": "citation_replay",
+                  "id": "citation-test",
+                  "replay": "required"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello."
+      }
+    ]
+  },
+  "expect_losses": [
+    {
+      "path": "messages[0].parts[0].anchor",
+      "disposition": "unsupported",
+      "severity": 2.0,
+      "note": "part replay anchor has no qualified wire lane on this interface"
+    },
+    {
+      "path": "messages[0].parts[0].annotations[0].opaque",
+      "disposition": "unsupported",
+      "severity": 2.0,
+      "note": "citation replay anchor has no qualified wire lane on this interface"
+    }
+  ],
+  "expect_shifts": []
+}

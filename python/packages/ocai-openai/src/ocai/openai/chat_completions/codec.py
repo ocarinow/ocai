@@ -395,9 +395,34 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
         every ref (if any) is valid here.
     """
     losses: list[FieldLoss] = []
-    anchor_loss = _foreign_ref_loss(f"{path}.anchor", getattr(part, "anchor", None))
+    anchor = getattr(part, "anchor", None)
+    anchor_loss = _foreign_ref_loss(f"{path}.anchor", anchor)
+    if anchor is not None and anchor_loss is None:
+        anchor_loss = FieldLoss(
+            path=f"{path}.anchor", disposition=Disposition.UNSUPPORTED,
+            severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
+            note="part replay anchor has no qualified wire lane on this interface",
+        )
     if anchor_loss is not None:
         losses.append(anchor_loss)
+    if isinstance(part, PartText):
+        for index, annotation in enumerate(part.annotations):
+            if annotation.opaque is not None:
+                citation_path = f"{path}.annotations[{index}].opaque"
+                losses.append(_foreign_ref_loss(citation_path, annotation.opaque) or FieldLoss(
+                    path=citation_path, disposition=Disposition.UNSUPPORTED,
+                    severity=2.0 if annotation.opaque.replay is Replay.REQUIRED else 1.0,
+                    note="citation replay anchor has no qualified wire lane on this interface",
+                ))
+    if isinstance(part, PartReasoning):
+        for field, ref in (("signature", part.signature), ("opaque", part.opaque)):
+            if ref is not None:
+                replay_path = f"{path}.{field}"
+                losses.append(_foreign_ref_loss(replay_path, ref) or FieldLoss(
+                    path=replay_path, disposition=Disposition.UNSUPPORTED,
+                    severity=2.0 if ref.replay is Replay.REQUIRED else 1.0,
+                    note="reasoning replay anchor has no qualified wire lane on this interface",
+                ))
     source = getattr(part, "source", None)
     if isinstance(source, SourceRef):
         source_loss = _foreign_ref_loss(f"{path}.source", source.ref)
@@ -538,6 +563,12 @@ class ChatCompletionsCodec:
                     ))
             if encoded_tools:
                 payload["tools"] = encoded_tools
+        for index, anchor in enumerate(request.anchors or []):
+            losses.append(_foreign_ref_loss(f"anchors[{index}]", anchor) or FieldLoss(
+                path=f"anchors[{index}]", disposition=Disposition.UNSUPPORTED,
+                severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
+                note="request continuation anchor has no qualified wire lane on this interface",
+            ))
         self._encode_tool_choice(request, payload, losses)
         self._encode_config(request, payload, losses)
         # Lane 3: expand only OUR destination namespace; foreign namespaces are
@@ -553,7 +584,8 @@ class ChatCompletionsCodec:
         losses.extend(
             FieldLoss(
                 path=f"extensions[{key}]",
-                disposition=Disposition.DROPPED,
+                disposition=(Disposition.UNSUPPORTED
+                             if key == "ocai.request_unparsed_anchors" else Disposition.DROPPED),
                 severity=0.5,
                 note=f"extensions[{key!r}] has no {PROVIDER}/{INTERFACE} encode lane yet",
             )
