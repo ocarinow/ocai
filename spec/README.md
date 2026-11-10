@@ -225,6 +225,16 @@ The harness fails loudly when a fixture matches none of the three kinds, or
 when a payload maps to a schema file that does not exist — a fixture that
 cannot be validated is a spec bug, never a skip.
 
+### Reverse client fold triples
+
+`openai/chat_completions/gateway/streams/` uses the same `node`, `chunks`,
+`response` fold-triple core plus `src`/`dst`, expected client JSON `events`,
+and `client_response`. These qualify the reverse edge without prescribing SSE
+framing or inventing serving metadata. The harness compares source fold, exact
+client events and report records, certifies the edge, then applies explicit
+metadata/framing and proves decoded client stream equals decoded client unary.
+Unknown/incomplete streams never gain successful finish frames during flush.
+
 ## Three version axes — never conflate
 
 - **interface tag** — a provider interface's opaque dated wire revision

@@ -20,9 +20,12 @@ recorded stream replays identically to a live one.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
+from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -47,14 +50,17 @@ from ocai.chat.types.parts import cast_part
 from ocai.chat.types.response import ChatResponse
 from ocai.chat.types.role import Role
 from ocai.chat.types.usage import Usage
+from ocai.core.errors import StreamProtocolError
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
+from ocai.core.fidelity import FidelityPolicyError
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
 from ocai.core.ir import is_json_object
+from ocai.core.result import StreamOutcome as StreamOutcome
 
 # The censused extension key sealed onto every part an aborted stream left
 # open (no terminal STREAM_STOP arrived): the part's content is whatever had
@@ -920,105 +926,244 @@ class StreamAccumulator:
         return accumulator.finalize()
 
 
+class _StreamState:
+    """Shared constant-content-space lifecycle for both stream faces."""
+
+    def __init__(self, report: Callable[[], FidelityReport | None] | None) -> None:
+        self.end: StreamEnd | None = None
+        self.outcome: StreamOutcome | None = None
+        self.usage: Usage | None = None
+        self.error: StreamProtocolError | None = None
+        self.report = report
+        self.callbacks: list[Callable[[StreamOutcome], None]] = []
+
+    def feed(self, chunk: ChatChunk) -> None:
+        if self.end is not None:
+            raise StreamProtocolError("content after terminal stream record")
+        if chunk.usage is not None:
+            self.usage = deepcopy(chunk.usage)
+        if chunk.type == ChunkType.ERROR:
+            self.error = StreamProtocolError("stream reported an error", code=(
+                chunk.error.code if chunk.error else None))
+        if chunk.type == ChunkType.STREAM_STOP:
+            if chunk.end is None:
+                raise StreamProtocolError("terminal stream record has no StreamEnd")
+            self.end = chunk.end
+            self.usage = deepcopy(chunk.end.usage) if chunk.end.usage else self.usage
+
+    def finish(self, status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
+               error: BaseException | None = None) -> None:
+        if self.outcome is not None:
+            return
+        report = self.report() if self.report is not None else None
+        if self.end is not None and self.end.report is not None:
+            report = self.end.report
+        if self.error is not None:
+            status, error = "failed", self.error
+        if isinstance(error, FidelityPolicyError):
+            self.usage = deepcopy(error.usage) if error.usage is not None else self.usage
+            report = error.report
+        self.outcome = StreamOutcome(status, self.usage, deepcopy(report), error)
+        if status != "completed":
+            self.end = None
+        for callback in self.callbacks:
+            self.notify(callback)
+        self.callbacks.clear()
+
+    def notify(self, callback: Callable[[StreamOutcome], None]) -> None:
+        if self.outcome is not None:
+            try:
+                callback(self.outcome)
+            except Exception:
+                # Passive lifetime notifications cannot change execution.
+                pass
+
+
 class ChatStream:
-    """The synchronous stream a `ChatModel.stream` call returns.
+    """An owned synchronous stream; use `with` or close explicitly on early exit.
 
-    A thin iterator wrapper over canonical chunks that watches for the
-    terminal `STREAM_STOP` and exposes its `StreamEnd` as `.end` once the
-    stream is exhausted — so callers iterate naturally and still get the
-    authoritative usage/finish/report without re-buffering the stream.
-
-    Attributes:
-        end: The terminal record, available after exhaustion; None while
-            streaming or if the stream aborted without a terminal chunk.
+    Normal exhaustion preserves `.end`. `.outcome` also records aborted
+    execution and known accounting; it never synthesizes successful StreamEnd.
+    A stream created but never consumed is pending until explicitly closed.
+    Garbage collection is not a lifecycle or durable-audit guarantee.
     """
 
-    def __init__(self, chunks: Iterator[ChatChunk]) -> None:
-        """Wrap an iterator of canonical chunks.
-
-        Args:
-            chunks: The underlying chunk iterator (typically the driver's
-                decoded SSE pump).
-        """
+    def __init__(self, chunks: Iterator[ChatChunk], *,
+                 report: Callable[[], FidelityReport | None] | None = None) -> None:
+        """Wrap chunks and an optional snapshot of conversion evidence."""
         self._chunks = chunks
-        self.end: StreamEnd | None = None
+        self._state = _StreamState(report)
+
+    @property
+    def end(self) -> StreamEnd | None:
+        """The successful terminal record, or None for pending/aborted streams."""
+        return self._state.end
+
+    @property
+    def outcome(self) -> StreamOutcome | None:
+        """The single execution outcome once exhaustion or close finalizes it."""
+        return self._state.outcome
+
+    def on_termination(self, callback: Callable[[StreamOutcome], None]) -> None:
+        """Register a passive notification; failures are isolated, never admission."""
+        if self.outcome is None:
+            self._state.callbacks.append(callback)
+        else:
+            self._state.notify(callback)
 
     def __iter__(self) -> Iterator[ChatChunk]:
-        """Return the stream itself as its iterator."""
+        """Return this stream as its iterator."""
         return self
 
     def __next__(self) -> ChatChunk:
-        """Yield the next chunk, capturing the terminal `StreamEnd`.
+        """Pull one chunk, release upstream on every terminal path."""
+        if self.outcome is not None:
+            raise StopIteration
+        if self._state.error is not None:
+            self._finish("failed", self._state.error)
+            raise StopIteration
+        try:
+            chunk = next(self._chunks)
+            self._state.feed(chunk)
+            return chunk
+        except StopIteration:
+            if self.end is None:
+                error = StreamProtocolError("stream exhausted without a terminal record")
+                self._finish("incomplete", error)
+                raise error from None
+            self._finish("completed")
+            raise
+        except BaseException as error:
+            self._finish("cancelled" if isinstance(error, (GeneratorExit, KeyboardInterrupt))
+                         else "failed", error)
+            raise
 
-        Returns:
-            The next canonical chunk.
+    def _finish(self, status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
+                error: BaseException | None = None) -> None:
+        if self.outcome is not None:
+            return
+        try:
+            close = getattr(self._chunks, "close", None)
+            if close is not None:
+                close()
+        except BaseException as cleanup_error:
+            self._state.finish("failed", error or cleanup_error)
+            if error is None:
+                raise
+        else:
+            self._state.finish(status, error)
 
-        Raises:
-            StopIteration: When the underlying stream is exhausted.
-        """
-        chunk = next(self._chunks)
-        if chunk.type == ChunkType.STREAM_STOP:
-            self.end = chunk.end
-        return chunk
+    def close(self) -> None:
+        """Release upstream promptly and finalize once; repeated closes are inert."""
+        self._finish("completed" if self.end is not None else "closed")
+
+    def __enter__(self) -> Self:
+        """Take ownership of this stream for a `with` block."""
+        return self
+
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> None:
+        """Release upstream on normal exit or consumer failure."""
+        if exc is None:
+            self.close()
+        else:
+            self._finish("cancelled" if isinstance(exc, (GeneratorExit, KeyboardInterrupt))
+                         else "failed", exc)
 
     def fold(self) -> ChatResponse:
-        """Drain the remaining chunks and fold them into a response.
-
-        Convenience over `StreamAccumulator.fold` for callers who started
-        streaming and decided they want the blocking shape after all.
-
-        Returns:
-            The folded `ChatResponse` of the *remaining* stream.
-        """
+        """Drain and fold the remaining chunks; failed streams still raise."""
         return StreamAccumulator.fold(self)
 
 
 class AsyncChatStream:
-    """The asynchronous stream a `ChatModel.astream` call returns.
+    """Owned async stream; `async with` guarantees close on consumer cancellation."""
 
-    The `a`-twin of `ChatStream`, with identical semantics over an async
-    iterator: iterate chunks with `async for`, read `.end` after
-    exhaustion.
-
-    Attributes:
-        end: The terminal record, available after exhaustion; None while
-            streaming or if the stream aborted without a terminal chunk.
-    """
-
-    def __init__(self, chunks: AsyncIterator[ChatChunk]) -> None:
-        """Wrap an async iterator of canonical chunks.
-
-        Args:
-            chunks: The underlying chunk iterator (typically the driver's
-                decoded SSE pump).
-        """
+    def __init__(self, chunks: AsyncIterator[ChatChunk], *,
+                 report: Callable[[], FidelityReport | None] | None = None) -> None:
+        """Wrap async chunks and optional conversion evidence without buffering."""
         self._chunks = chunks
-        self.end: StreamEnd | None = None
+        self._state = _StreamState(report)
+
+    @property
+    def end(self) -> StreamEnd | None:
+        """The successful terminal record, or None for pending/aborted streams."""
+        return self._state.end
+
+    @property
+    def outcome(self) -> StreamOutcome | None:
+        """The single execution outcome once exhaustion or close finalizes it."""
+        return self._state.outcome
+
+    def on_termination(self, callback: Callable[[StreamOutcome], None]) -> None:
+        """Register a passive notification; required audit must use middleware."""
+        if self.outcome is None:
+            self._state.callbacks.append(callback)
+        else:
+            self._state.notify(callback)
 
     def __aiter__(self) -> AsyncIterator[ChatChunk]:
-        """Return the stream itself as its async iterator."""
+        """Return this stream as its async iterator."""
         return self
 
     async def __anext__(self) -> ChatChunk:
-        """Yield the next chunk, capturing the terminal `StreamEnd`.
+        """Pull one chunk and release upstream on exhaustion, error or cancellation."""
+        if self.outcome is not None:
+            raise StopAsyncIteration
+        if self._state.error is not None:
+            await self._finish("failed", self._state.error)
+            raise StopAsyncIteration
+        try:
+            chunk = await anext(self._chunks)
+            self._state.feed(chunk)
+            return chunk
+        except StopAsyncIteration:
+            if self.end is None:
+                error = StreamProtocolError("stream exhausted without a terminal record")
+                await self._finish("incomplete", error)
+                raise error from None
+            await self._finish("completed")
+            raise
+        except BaseException as error:
+            await self._finish("cancelled" if isinstance(error, (asyncio.CancelledError,
+                                                               GeneratorExit, KeyboardInterrupt))
+                               else "failed", error)
+            raise
 
-        Returns:
-            The next canonical chunk.
+    async def _finish(
+        self, status: Literal["completed", "closed", "cancelled", "failed", "incomplete"],
+        error: BaseException | None = None,
+    ) -> None:
+        if self.outcome is not None:
+            return
+        try:
+            close = getattr(self._chunks, "aclose", None)
+            if close is not None:
+                await close()
+        except BaseException as cleanup_error:
+            self._state.finish("failed", error or cleanup_error)
+            if error is None:
+                raise
+        else:
+            self._state.finish(status, error)
 
-        Raises:
-            StopAsyncIteration: When the underlying stream is exhausted.
-        """
-        chunk = await self._chunks.__anext__()
-        if chunk.type == ChunkType.STREAM_STOP:
-            self.end = chunk.end
-        return chunk
+    async def aclose(self) -> None:
+        """Release upstream promptly and finalize once; repeated closes are inert."""
+        await self._finish("completed" if self.end is not None else "closed")
+
+    async def __aenter__(self) -> Self:
+        """Take ownership for an `async with` block."""
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: BaseException | None, tb: object) -> None:
+        """Release upstream even when cancellation occurs in consumer code."""
+        if exc is None:
+            await self.aclose()
+        else:
+            await self._finish("cancelled" if isinstance(exc, (asyncio.CancelledError,
+                                                             GeneratorExit, KeyboardInterrupt))
+                               else "failed", exc)
 
     async def fold(self) -> ChatResponse:
-        """Drain the remaining chunks and fold them into a response.
-
-        Returns:
-            The folded `ChatResponse` of the *remaining* stream.
-        """
+        """Drain and fold the remaining chunks without hiding stream failure."""
         accumulator = StreamAccumulator()
         async for chunk in self:
             accumulator.feed(chunk)

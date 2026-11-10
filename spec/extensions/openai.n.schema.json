@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "openai.n",
+  "description": "Requested number of choices; values other than one are unsupported by the canonical request.",
+  "x-ocai-origin": "ocai-openai",
+  "x-ocai-promotion": "none expected",
+  "type": "integer"
+}

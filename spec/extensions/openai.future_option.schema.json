@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "openai.future_option",
+  "description": "Synthetic future request field used to qualify total unknown-envelope decode.",
+  "x-ocai-origin": "ocai-openai",
+  "x-ocai-promotion": "none expected",
+  "type": "object"
+}

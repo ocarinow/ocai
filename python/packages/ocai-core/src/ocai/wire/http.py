@@ -31,6 +31,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 
+from ocai.core.result import CallContext
+
 _JSON_CONTENT_TYPE = "application/json"
 
 
@@ -40,10 +42,10 @@ class HttpRequest:
 
     Built by the drivers (`ocai.runtime.drivers`) from the host's endpoint,
     envelope-wrapped body, and merged headers; judged by every
-    `WirePolicy.on_request` while still unauthenticated; then mutated once
-    per attempt by `Credential.apply` at the driver leaf — the only step that
-    ever writes a secret into `headers`, and the reason archived/observed
-    copies must be taken *before* it.
+    `WirePolicy.on_request` while still unauthenticated; then copied with independent headers for
+    `Credential.apply` at the driver leaf. Only this transport-only copy
+    acquires authentication; the original remains safe for retained references
+    and outcome hooks.
 
     `body` is the encoded payload (or `None`). Build a JSON request with
     `from_json`, which serializes the payload and sets `Content-Type`.
@@ -55,6 +57,9 @@ class HttpRequest:
     body: bytes | None = None
     stream: bool = False
     timeout: float | None = None
+    ctx: CallContext | None = None
+    attempt: int = 0
+    admission: int = 0
 
     @classmethod
     def from_json(

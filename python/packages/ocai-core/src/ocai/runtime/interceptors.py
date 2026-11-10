@@ -24,8 +24,10 @@ it builds.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from collections.abc import Awaitable
 from collections.abc import Callable
+from collections.abc import Iterator
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +36,7 @@ from typing import runtime_checkable
 
 from ocai.core.result import CallContext
 from ocai.core.result import CallResult
+from ocai.core.result import StreamOutcome
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,4 +165,138 @@ def _abind(interceptor: CallInterceptor, next: AsyncNextHandler) -> AsyncNextHan
     async def handler(call: Call) -> CallResult[Any]:
         return await interceptor.aintercept(call, next)
 
+    return handler
+
+
+@runtime_checkable
+class SyncStream(Protocol):
+    """Capability-neutral owned iterator returned by streaming middleware."""
+
+    def __iter__(self) -> Iterator[Any]:
+        """Return the iterator without consuming or buffering it."""
+        ...
+
+    def __next__(self) -> Any:
+        """Pull one capability event."""
+        ...
+
+    def close(self) -> None:
+        """Close upstream, including when no event has been consumed."""
+        ...
+
+    @property
+    def outcome(self) -> StreamOutcome | None:
+        """Available terminal execution evidence, or None while pending."""
+        ...
+
+
+@runtime_checkable
+class AsyncStream(Protocol):
+    """Async twin of the capability-neutral owned stream."""
+
+    def __aiter__(self) -> AsyncIterator[Any]:
+        """Return the async iterator without pulling events."""
+        ...
+
+    async def __anext__(self) -> Any:
+        """Pull one capability event asynchronously."""
+        ...
+
+    async def aclose(self) -> None:
+        """Close upstream, including an unconsumed stream."""
+        ...
+
+    @property
+    def outcome(self) -> StreamOutcome | None:
+        """Available terminal execution evidence, or None while pending."""
+        ...
+
+
+type NextStreamHandler = Callable[[Call], SyncStream]
+type AsyncNextStreamHandler = Callable[[Call], Awaitable[AsyncStream]]
+
+
+@runtime_checkable
+class StreamInterceptor(Protocol):
+    """Explicit stream admission/wrapping contract, distinct from unary results.
+
+    Admission runs eagerly before delegating. Wrappers own and close their
+    continuation's stream, preserve terminal accounting, and must not buffer
+    the full response. Never restart generation after exposing an event.
+    Implement alongside CallInterceptor to govern all four capability faces.
+    """
+
+    def intercept_stream(self, call: Call, next: NextStreamHandler) -> SyncStream:
+        """Admit, reject or wrap the owned synchronous continuation stream."""
+        ...
+
+    async def aintercept_stream(self, call: Call, next: AsyncNextStreamHandler) -> AsyncStream:
+        """Admit, reject or wrap the owned asynchronous continuation stream."""
+        ...
+
+
+def compose_stream(interceptors: Sequence[StreamInterceptor],
+                   terminal: NextStreamHandler) -> NextStreamHandler:
+    """Compose a streaming onion, outermost first, without pulling any events."""
+    handler = terminal
+    for interceptor in reversed(interceptors):
+        handler = _bind_stream(interceptor, handler)
+    return handler
+
+
+def _bind_stream(interceptor: StreamInterceptor, next: NextStreamHandler) -> NextStreamHandler:
+    def handler(call: Call) -> SyncStream:
+        acquired: SyncStream | None = None
+        used = False
+
+        def once(inner: Call) -> SyncStream:
+            nonlocal acquired, used
+            if used:
+                raise RuntimeError(
+                    "a streaming continuation is single-use; generation cannot restart"
+                )
+            used = True
+            acquired = next(inner)
+            return acquired
+
+        try:
+            return interceptor.intercept_stream(call, once)
+        except BaseException:
+            if acquired is not None:
+                acquired.close()
+            raise
+    return handler
+
+
+def acompose_stream(interceptors: Sequence[StreamInterceptor],
+                    terminal: AsyncNextStreamHandler) -> AsyncNextStreamHandler:
+    """Compose the async streaming onion with the same admission order."""
+    handler = terminal
+    for interceptor in reversed(interceptors):
+        handler = _abind_stream(interceptor, handler)
+    return handler
+
+
+def _abind_stream(interceptor: StreamInterceptor,
+                  next: AsyncNextStreamHandler) -> AsyncNextStreamHandler:
+    async def handler(call: Call) -> AsyncStream:
+        acquired: AsyncStream | None = None
+        used = False
+
+        async def once(inner: Call) -> AsyncStream:
+            nonlocal acquired, used
+            if used:
+                raise RuntimeError(
+                    "a streaming continuation is single-use; generation cannot restart"
+                )
+            used = True
+            acquired = await next(inner)
+            return acquired
+
+        try:
+            return await interceptor.aintercept_stream(call, once)
+        except BaseException:
+            if acquired is not None:
+                await acquired.aclose()
+            raise
     return handler

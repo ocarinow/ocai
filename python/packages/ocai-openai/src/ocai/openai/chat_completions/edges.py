@@ -34,6 +34,8 @@ from ocai.core.identity import NodeId
 from ocai.core.identity import Origin
 from ocai.core.profile import CapabilityProfile
 from ocai.core.profile import Support
+from ocai.openai.chat_completions.client import encode_response
+from ocai.openai.chat_completions.client_stream import ClientStreamTransducer
 from ocai.openai.chat_completions.codec import CANONICAL_CHUNK
 from ocai.openai.chat_completions.codec import CANONICAL_REQUEST
 from ocai.openai.chat_completions.codec import CANONICAL_RESPONSE
@@ -179,6 +181,9 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
 # no per-call records.
 DECODE_REQUEST_CONTRACT = EdgeContract(
     census={
+        "unmapped": DeclaredDisposition(Disposition.EXTENSIONS),
+        "n": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "future_option": DeclaredDisposition(Disposition.EXTENSIONS),
         "model": DeclaredDisposition(
             Disposition.EXTENSIONS,
             "routing data, not canonical content; echo preserved in "
@@ -234,6 +239,46 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
     note="openai/chat_completions -> canonical chat.chunk (per event)",
 )
 
+ENCODE_RESPONSE_CONTRACT = EdgeContract(
+    census={
+        "message.role": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "message.parts[]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "message.parts[].anchor": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "message.parts[].id": DeclaredDisposition(Disposition.DROPPED),
+        "message.parts[].cache_hint": DeclaredDisposition(Disposition.DROPPED),
+        "message.parts[].annotations": DeclaredDisposition(Disposition.DROPPED),
+        "message.parts[].extensions": DeclaredDisposition(Disposition.DROPPED),
+        "message.parts[].status": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "message.parts[].executed_by": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "message.extensions": DeclaredDisposition(Disposition.DROPPED),
+        "response.extensions": DeclaredDisposition(Disposition.DROPPED),
+        "finish.reason": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "finish.native": DeclaredDisposition(Disposition.RENAMED),
+        "finish.detail": DeclaredDisposition(Disposition.DROPPED),
+        "finish.extensions": DeclaredDisposition(Disposition.DROPPED),
+        "usage.consumptions[]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "usage.extensions": DeclaredDisposition(Disposition.DROPPED),
+        "info.id": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "info.created": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "info.extensions": DeclaredDisposition(Disposition.DROPPED),
+    },
+    semantic_shifts=(SemanticShift(kind="relocation", path="message.parts",
+                                  note="ordered parts grouped into client message lanes"),),
+    note="canonical response to client semantics; gateway binds serving metadata",
+)
+
+
+ENCODE_CHUNK_CONTRACT = EdgeContract(
+    census={**ENCODE_RESPONSE_CONTRACT.census,
+            "chunk.extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
+            "chunk.type": DeclaredDisposition(Disposition.UNSUPPORTED),
+            "chunk.delta": DeclaredDisposition(Disposition.UNSUPPORTED),
+            "termination": DeclaredDisposition(Disposition.UNSUPPORTED)},
+    semantic_shifts=ENCODE_RESPONSE_CONTRACT.semantic_shifts,
+    note="canonical chunks to client JSON events; gateway owns metadata and framing",
+)
+
+
 # --- Edge functions (thin, pure wrappers over the codec) ---------------------
 
 
@@ -286,6 +331,8 @@ NODES: tuple[NodeId, ...] = (
 )
 
 EDGES: tuple[Edge, ...] = (
+    Edge(src=CANONICAL_RESPONSE, dst=CHAT_COMPLETIONS_RESPONSE, fn=encode_response,
+         contract=ENCODE_RESPONSE_CONTRACT, origin=ORIGIN),
     Edge(
         src=CANONICAL_REQUEST,
         dst=CHAT_COMPLETIONS_REQUEST,
@@ -310,6 +357,8 @@ EDGES: tuple[Edge, ...] = (
 )
 
 TRANSDUCERS: tuple[StreamEdge, ...] = (
+    StreamEdge(src=CANONICAL_CHUNK, dst=CHAT_COMPLETIONS_CHUNK,
+               factory=ClientStreamTransducer, contract=ENCODE_CHUNK_CONTRACT, origin=ORIGIN),
     StreamEdge(
         src=CHAT_COMPLETIONS_CHUNK,
         dst=CANONICAL_CHUNK,
