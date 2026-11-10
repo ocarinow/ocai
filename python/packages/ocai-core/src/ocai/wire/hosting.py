@@ -35,12 +35,19 @@ dedicated cloud-hosting plugin, never here.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import asdict
 from dataclasses import dataclass
-from dataclasses import field
+from string import Formatter
 from typing import Any
 from typing import Protocol
 from typing import runtime_checkable
+from urllib.parse import quote
+from urllib.parse import urlencode
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
+from ocai.convert.hosts import HostDescriptor
+from ocai.core._headers import merge_headers
 from ocai.core.identity import NodeId
 from ocai.core.traits import DialectTraits
 
@@ -220,7 +227,7 @@ class Direct:
 
 
 @dataclass(frozen=True)
-class Custom:
+class Custom(HostDescriptor):
     """A self-hosted or gateway target speaking a known dialect's wire.
 
     Covers OpenAI-compatible servers (vLLM, Ollama, LiteLLM), internal proxies,
@@ -234,10 +241,36 @@ class Custom:
         base_url: The origin to send to, e.g. `"https://vllm.internal"`.
         paths: Optional map of `Operation.kind` → path template. A template may
             contain `{resource}`. Defaults to empty (fall back to `native_path`).
+
+    Remaining fields are declared by `HostDescriptor`: explicit path prefix,
+    streaming paths, non-secret static headers/query, and profile aliases/suffixes.
+    All declaration maps are detached from caller-owned inputs.
     """
 
-    base_url: str
-    paths: Mapping[str, str] = field(default_factory=dict[str, str])
+    def __post_init__(self) -> None:
+        """Validate explicit endpoints and detach all declaration maps."""
+        super().__post_init__()
+        _path(urlsplit(self.base_url).path)
+        _path(self.path_prefix)
+        for path in (*self.paths.values(), *self.streaming_paths.values()):
+            _path(path)
+            for _, name, spec, conversion in Formatter().parse(path):
+                if name is not None and (name != "resource" or spec or conversion):
+                    raise ValueError("host paths support only the {resource} placeholder")
+
+    @classmethod
+    def from_descriptor(cls, descriptor: HostDescriptor) -> Custom:
+        """Compose a wire host from detached catalog data."""
+        return cls(**asdict(descriptor))
+
+    def profile_key(self, resource: str) -> str:
+        """Resolve declared aliases/suffixes without changing the wire resource."""
+        if resource in self.profile_aliases:
+            return self.profile_aliases[resource]
+        for suffix in sorted(self.profile_suffixes, key=lambda value: (-len(value), value)):
+            if resource.endswith(suffix) and len(resource) > len(suffix):
+                return resource[: -len(suffix)]
+        return resource
 
     def envelope(self, spec: EndpointSpec) -> EnvelopeTransform:
         """Return the identity envelope: a gateway speaks the dialect verbatim.
@@ -261,7 +294,23 @@ class Custom:
             The fully-qualified URL.
         """
         template = self.paths.get(spec.op.kind, spec.native_path)
-        return f"{self.base_url}{template.format(resource=spec.resource)}"
+        if spec.op.streaming:
+            template = self.streaming_paths.get(spec.op.kind, template)
+        _path(template)
+        resource = quote(spec.resource, safe="")
+        # urllib leaves literal dots unescaped; a whole dot segment is traversal.
+        if resource in {".", ".."}:
+            resource = resource.replace(".", "%2E")
+        base = urlsplit(self.base_url)
+        prefix = "/".join(
+            part.strip("/") for part in (base.path, self.path_prefix) if part.strip("/")
+        )
+        path = (
+            "/" + (prefix + "/" if prefix else "") + template.format(resource=resource).lstrip("/")
+        )
+        return urlunsplit(
+            (base.scheme, base.netloc, path, urlencode(sorted(self.query.items())), "")
+        )
 
     def headers(self, spec: EndpointSpec) -> Mapping[str, str]:
         """Return the dialect's first-party headers (a gateway mimics first-party).
@@ -272,7 +321,35 @@ class Custom:
         Returns:
             Detached dialect headers with explicit version/feature groups resolved.
         """
-        return spec.traits.request_headers()
+        return merge_headers(spec.traits.request_headers(), self.static_headers)
+
+
+def _path(value: str) -> None:
+    """Reject paths that smuggle another URL, query or fragment into composition."""
+    if (
+        value.startswith("//")
+        or "://" in value
+        or "?" in value
+        or "#" in value
+        or "\\" in value
+        or any(c in value for c in "\r\n")
+        or any(segment in {".", ".."} for segment in value.split("/"))
+    ):
+        raise ValueError("host paths must be local paths without query/fragment or dot segments")
+
+
+@runtime_checkable
+class ProfileHost(Protocol):
+    """Optional profile-lookup normalization; legacy Host implementations need no change."""
+
+    def profile_key(self, resource: str) -> str:
+        """Return the catalog profile lookup key, leaving execution resource untouched."""
+        ...
+
+
+def profile_key(host: Host, resource: str) -> str:
+    """Resolve an optional host alias, otherwise use the exact execution resource."""
+    return host.profile_key(resource) if isinstance(host, ProfileHost) else resource
 
 
 class _RawPredictEnvelope:
@@ -306,9 +383,8 @@ class _RawPredictEnvelope:
         """
         body = {k: v for k, v in payload.items() if k not in ("model", "stream")}
         fields = self._traits.body_fields("vertex")
-        explicit = (
-            "vertex" in self._traits.host_body_versions
-            or bool(self._traits.host_feature_body_mappings.get("vertex"))
+        explicit = "vertex" in self._traits.host_body_versions or bool(
+            self._traits.host_feature_body_mappings.get("vertex")
         )
         for field_name, value in fields.items():
             if explicit and field_name in body and body[field_name] != value:
@@ -394,9 +470,7 @@ class Vertex:
         Returns:
             Explicit feature headers not relocated by the Vertex envelope.
         """
-        mapped = {
-            rule.header for rule in spec.traits.host_feature_body_mappings.get("vertex", ())
-        }
+        mapped = {rule.header for rule in spec.traits.host_feature_body_mappings.get("vertex", ())}
         return {
             key: value for key, value in spec.traits.feature_headers.items() if key not in mapped
         }

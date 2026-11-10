@@ -49,6 +49,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 from typing import Any
 
+from ocai.core._headers import merge_headers
 from ocai.core.errors import DeadlineExceededError
 from ocai.core.errors import OcaiError
 from ocai.core.result import CallContext
@@ -113,7 +114,7 @@ def build_request(
     envelope = host.envelope(spec)
     body = envelope.wrap(payload)
     # Host headers first, then caller overrides from the binding.
-    headers = {**host.headers(spec), **binding.extra_headers}
+    headers = merge_headers(host.headers(spec), binding.extra_headers)
     request = HttpRequest.from_json(
         spec.op.method,
         host.endpoint(spec),

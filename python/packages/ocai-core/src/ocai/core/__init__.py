@@ -44,6 +44,7 @@ from ocai.core.canonjson import semantic_equal
 from ocai.core.credentials import ApiKey
 from ocai.core.credentials import Credential
 from ocai.core.credentials import CredentialError
+from ocai.core.credentials import NoCredential
 from ocai.core.credentials import require_credential
 from ocai.core.errors import AuthError
 from ocai.core.errors import ContentFilterError
@@ -150,6 +151,7 @@ __all__ = [
     "DialectTraits",
     "HeaderBodyMapping",
     "CredentialError",
+    "NoCredential",
     "DataClassProto",
     "DetailOpaque",
     "DetailType",

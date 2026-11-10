@@ -24,12 +24,16 @@ Dependencies identify technical prerequisites in addition to that serial rule.
 No TypeScript/Go implementation, gateway HTTP serving, identity administration,
 budget enforcement, persistence, agent orchestration, or other platform MVP work
 is included. The first satellites here are independently packaged libraries.
+For any generic capability interface beyond chat, the maintainer must first review
+and explicitly approve its design, public API, schemas and architecture. Roadmap
+approval is not that design approval; implementation waits for that separate review.
 
 [ADR 0005](../decisions/0005-revised-freeze-gate.md) remains the release gate.
 [ADR 0007](../decisions/0007-governed-execution.md) remains the execution boundary.
 [The proposed integration ADR](../decisions/0008-integration-contract-additions.md)
 must have the relevant portion accepted before a WU changes a frozen-candidate
-surface; the maintainer authorized the WU-37 host declarations after PR #27 merged. All additions
+surface; the maintainer authorized WU-37 after PR #27 and WU-38 after PR #30
+merged. The remaining proposals still await acceptance. All additions
 remain optional/open and preserve existing serialized forms and constructors.
 There is no canonical-node promotion or ordered-item migration in this program.
 The stale semver-based freeze wording in procedure templates does not override
@@ -116,7 +120,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-37 — Declare host-specific dialect versions
 
-- [x] **Status:** complete; awaiting implementation PR review/merge.
+- [x] **Status:** complete; merged in PR #30.
 - **Scope:** `core/traits.py`, catalog trait snapshots/lock serialization, existing
   Anthropic trait declarations and Vertex envelope; 12–20 files. Add host-keyed
   body versions, distinguish version/feature headers and declarative feature-body
@@ -136,7 +140,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-38 — Compose explicit host endpoints and profiles
 
-- [ ] **Status:** not started.
+- [x] **Status:** complete; awaiting implementation PR review/merge.
 - **Scope:** `wire/hosting.py`, `runtime/binding.py`, facade preparation, credential
   vocabulary and catalog host data; 20–30 files. Implement inventory 4–11 with
   immutable/snapshotted maps, explicit precedence and prepared-handle identity.
@@ -145,12 +149,14 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Done:** A recorded-host composition matrix passes for path/query/header and
   variant inputs, including escaped ARN segments, unchanged legacy bindings,
   uncertain undeclared profile coverage, safe credentials and stale-preflight rejection.
-- **Deps:** WU-37; accepted integration ADR.
+- **Deps:** WU-37 (merged in PR #30); accepted WU-38 portion of ADR 0008.
 - **Architecture:** §2.5, §2.9, §3.3–3.4, §4.3, §5–6.
 - **Freeze:** additive explicit credential value in `ocai.core.credentials`;
   preserve `Credential`/`ApiKey` signatures; no chat IR changes (integration ADR).
 - **Decision:** Hosts are composed values with data-driven profiles and no copied
   codec ([Hosting, Mapping (a)](../capabilities/hosting-and-aggregators.md));
+  Concrete endpoint/header/profile precedence is recorded in the accepted WU-38
+  portion of [ADR 0008](../decisions/0008-integration-contract-additions.md);
   query/version handling follows [Azure §13](../providers/azure-openai.md#13-mapping-to-ocai).
 - **Open:** None for the supported composition surface; automatic deployment-to-model
   discovery and secret-bearing static headers are excluded.

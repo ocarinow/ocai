@@ -1,0 +1,53 @@
+{
+  "description": "Synthetic WU-38 HTTP recording of an ARN-shaped resource through an OpenAI-compatible test gateway. Tests escaping and verbatim body binding only, not a Bedrock codec or endpoint.",
+  "request": {
+    "method": "POST",
+    "url": "https://gateway.example.test/proxy/models/arn%3Aaws%3Abedrock%3Aus-east-1%3A000000000000%3Ainference-profile%2Ftest/chat?api-version=preview&region=test+region",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "arn:aws:bedrock:us-east-1:000000000000:inference-profile/test"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "chatcmpl-host-composition-test",
+      "object": "chat.completion",
+      "created": 1767225600,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Hello! How can I help you today?",
+            "refusal": null,
+            "annotations": []
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 12,
+        "completion_tokens": 9,
+        "total_tokens": 21,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  }
+}

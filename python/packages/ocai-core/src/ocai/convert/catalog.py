@@ -29,9 +29,11 @@ import hashlib
 import json
 from collections.abc import Callable
 from collections.abc import Iterable
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import field
 from dataclasses import replace
 from enum import Enum
 from functools import cache
@@ -45,6 +47,7 @@ from ocai.convert.graph import Converted
 from ocai.convert.graph import Edge
 from ocai.convert.graph import StreamEdge
 from ocai.convert.graph import StreamPipeline
+from ocai.convert.hosts import HostDescriptor
 from ocai.convert.inspection import ConversionInspection
 from ocai.convert.resources import ConformanceResources
 from ocai.core.canonjson import canonical
@@ -153,6 +156,8 @@ class CatalogFragment:
             `(provider, interface, capability)`.
         conformance: Optional package-relative fixture/schema locations. Only
             the explicit test harness reads resources; admission does not.
+        hosts: Explicitly named host data; selecting a host never changes codecs.
+            Names must agree across fragments; admission/readback detach maps.
     """
 
     origin: Origin
@@ -163,6 +168,7 @@ class CatalogFragment:
     traits: tuple[DialectTraits, ...] = ()
     components: tuple[Component, ...] = ()
     conformance: ConformanceResources | None = None
+    hosts: Mapping[str, HostDescriptor] = field(default_factory=dict[str, HostDescriptor])
 
 
 def _snapshot(fragment: CatalogFragment) -> CatalogFragment:
@@ -177,6 +183,7 @@ def _snapshot(fragment: CatalogFragment) -> CatalogFragment:
         transducers=tuple(edge_copy(edge) for edge in fragment.transducers),
         profiles=tuple(replace(p, features=dict(p.features)) for p in fragment.profiles),
         traits=tuple(replace(t) for t in fragment.traits),
+        hosts={name: replace(host) for name, host in fragment.hosts.items()},
     )
 
 
@@ -490,6 +497,7 @@ class Catalog:
         self._trust = trust
         self._allow = allow
         self._graphs: dict[Shape, ConversionGraph] = {}
+        self._hosts: dict[str, HostDescriptor] = {}
         node_index: dict[NodeId, None] = {}  # insertion-ordered de-dup
         components: dict[tuple[str, str, Capability], Component] = {}
         profiles: list[CapabilityProfile] = []
@@ -497,6 +505,10 @@ class Catalog:
         profile_index: dict[tuple[str, str, str], CapabilityProfile] = {}
         for fragment in self._fragments:
             _admit(fragment, trust, allow)
+            for name, host in fragment.hosts.items():
+                if name in self._hosts and self._hosts[name] != host:
+                    raise AdmissionError(f"conflicting host declaration: {name}")
+                self._hosts[name] = host
             all_edges: tuple[Edge | StreamEdge, ...] = (*fragment.edges, *fragment.transducers)
             endpoints = (
                 node for conversion in all_edges for node in (conversion.src, conversion.dst)
@@ -854,6 +866,17 @@ class Catalog:
             if p == provider and cap == capability
         )
 
+    def host(self, name: str) -> HostDescriptor:
+        """Return detached, explicitly selected host data from this catalog.
+
+        Raises:
+            ResolutionError: No host is declared under the requested name.
+        """
+        try:
+            return replace(self._hosts[name])
+        except KeyError:
+            raise ResolutionError(f"no host declaration: {name}") from None
+
     def lock(self) -> CatalogLock:
         """Emit the diffable lockfile describing this composition, hashed.
 
@@ -896,6 +919,8 @@ class Catalog:
                             for component in fragment.components
                         ],
                         "traits": [_lock_traits(trait) for trait in fragment.traits],
+                        **({"hosts": {name: asdict(host) for name, host in fragment.hosts.items()}}
+                           if fragment.hosts else {}),
                         "conformance": (
                             asdict(fragment.conformance)
                             if fragment.conformance is not None

@@ -174,6 +174,10 @@ because support varies below interface level (Anthropic's newest models reject
 `temperature`). Consulted by the feature gate *before* payload conversion:
 strict mode refuses with a typed error; annotate mode records the loss.
 Feature keys are namespaced open data, not a frozen taxonomy.
+Hosts may supply an optional `profile_key(resource)` lookup alias (§6). The gate
+and public inspection use the same key; codecs still bind the original resource.
+Aliases do not establish qualification: undeclared feature coverage remains
+unknown in inspection.
 
 ### 2.6 `ir.py` — the IR envelope and total decode [frozen-candidate]
 
@@ -226,10 +230,14 @@ An absent host entry falls back to `cloud_body_version`; explicit `None` disable
 that fallback. Header role collisions, duplicate mapping sources/destinations and
 version/feature body collisions fail at construction. Maps are copied on input;
 returned headers/body values are detached. These declarations contain no secrets.
-Binding-level header overrides and new hosts remain WU-38/later work.
+WU-38 composes non-secret headers in order: dialect, host, then binding, with
+case-insensitive replacement; conflicting case aliases within one group fail.
+Host-specific body relocation still resolves trait declarations, not later binding
+overrides; concrete cloud hosts must qualify their relocation separately.
 Plus the survivors: `errors.py` (the taxonomy — unchanged),
-`credentials.py` (`Credential` protocol + `ApiKey`, explicit-only, redacted —
-unchanged; *application* moved to the driver leaf, §5), `jsonschema.py`,
+`credentials.py` (`Credential` protocol + `ApiKey`, explicit-only, redacted,
+and additive `NoCredential()` for intentionally unauthenticated endpoints;
+*application* stays at the driver leaf, §5), `jsonschema.py`,
 `sources.py` (gains `SourceRef(ProviderRef)` for provider file handles),
 `primitives.py`.
 
@@ -343,7 +351,9 @@ becomes `EndpointSpec.resource`, never a request field). The one chat module
 that imports convert/runtime/wire. Encode via graph → inject the bound model
 via the codec's `bind_resource` (edges stay model-agnostic; only the codec
 knows where its wire carries the name) → driver executes → decode via graph →
-assemble `CallResult`.
+assemble `CallResult`. Host profile aliases affect capability lookup only; the
+configuration fingerprint includes the effective profile key as well as approved
+wire fields, so changing an alias cannot silently reuse a prepared approval.
 
 ### 3.4 The front doors — simple facade, switchable by data
 
@@ -374,7 +384,9 @@ Two equivalent doors, neither forced:
    default catalog (or an explicit one), builds the codec from the fragment's
    registered component factory, composes the `Binding` internally (`Direct`
    host from the fragment's first-party endpoint data unless a host is
-   passed). The whole provider+model choice is ONE config value:
+   passed). `host="name"` explicitly selects a `HostDescriptor` from that catalog
+   and composes a `Custom` wire host. It never auto-selects a host or switches a
+   conversion interface. The whole provider+model choice is ONE config value:
    `ocai.chat.model(os.environ["OCAI_MODEL"], ...)` — switching providers is
    a deployment change, zero code.
 2. **The plugin helper** — a provider package MAY ship convenience sugar
@@ -502,7 +514,7 @@ ship.**
 ### 4.3 `catalog.py` — scoped, governed registries
 The old process-global `GRAPHS/SCHEMAS/COMPONENTS` are gone. Plugins export a
 frozen declarative `CatalogFragment` (nodes, edges, transducers, profiles,
-traits) with **no import-time mutation**. Applications compose
+traits, named host descriptors) with **no import-time mutation**. Applications compose
 `Catalog.of(openai.FRAGMENT, ...)` — immutable, provenance-stamped;
 `Catalog.discover()` (entry points) is an opt-in convenience. `TrustPolicy.
 OWNED_ENDPOINTS` by default: a fragment may only register edges touching
@@ -515,13 +527,21 @@ failed additions leave the builder usable. Profiles sort by literal-prefix
 specificity, then lexical pattern. Dates rank revisions within one interface;
 multiple eligible sibling interfaces require an explicit `interface=` pin.
 The chat front door applies this to serveable interfaces, excluding stubs.
+WU-38 adds provisional `HostDescriptor` data in `ocai.convert.hosts`; plugins can
+publish it through `CatalogFragment.hosts` without importing wire. Conflicting
+same-name hosts fail admission; equal declarations are idempotent. `Catalog.host`
+returns a detached descriptor. Hosts neither register graph nodes nor alter
+interface identity. Descriptors contain only explicit, non-secret configuration.
 
 Lock format `ocai.catalog-lock/2` includes structured node/endpoint metadata,
 full contracts, traits, and optional conformance-resource locations. WU-37
 snapshots every trait map at admission and on readback, and fingerprints all
 host-specific versions, header groups and feature-body rules. Empty new trait
 maps are omitted from lock serialization, preserving legacy-only hashes; adding
-explicit declarations changes the fingerprint. Reordering
+explicit declarations changes the fingerprint. Nonempty host declarations and
+all their endpoint/profile/header/query data are included; an empty hosts map is
+omitted to preserve existing hashes. Host maps are copied on input, admission and
+readback. Reordering
 the same declarations does not change the hash. The new format changes hashes
 from the old format. Code, package artifacts, fixture contents, and schema
 contents are not hashed: this is a declaration fingerprint, not proof of binary
@@ -565,6 +585,12 @@ attempt. Its mutable headers are copied, not shared with the safe post-hook
 request. `Outcome.request` and references retained by admission hooks stay
 unauthenticated for the lifetime of the call, including failures and retries
 (ADR 0007, WU-22). This boundary applies to unary and streaming in both modes.
+`Binding.extra_headers` snapshots caller data and overrides host/dialect headers
+case-insensitively before hooks. Known authentication header names are rejected
+in static maps; custom names remain the caller's responsibility to keep non-secret.
+Use `ApiKey(header=..., scheme=...)` for custom authentication, or explicitly use
+`NoCredential()` for a no-auth endpoint. Passing None still fails; nothing performs
+ambient credential discovery.
 
 Port middleware implements both `CallInterceptor` and `StreamInterceptor` to
 govern all four call faces. Stream continuations return owned `SyncStream` or
@@ -618,6 +644,26 @@ with a payload field fail before I/O rather than silently selecting a value.
 Vertex forwards explicit feature headers unless a Vertex trait mapping relocates
 them into the body; version headers are omitted. Its default Anthropic wire body
 is unchanged. This is not a Bedrock host implementation.
+
+WU-38 extends `Custom(base_url, paths, ...)` without changing its first two
+constructor arguments. `streaming_paths` overrides `paths` for streaming; absent
+entries use the codec's native path. The base path, explicit `path_prefix`, and
+selected local path compose deterministically, preserving a terminal slash.
+Only `{resource}` interpolation is supported; resources are encoded as a single
+path segment, including slashes, ARN punctuation, percent signs and whole dot
+segments. Templates cannot inject another origin, query, fragment or dot segments.
+Query values come from the separate `query` map and are sorted/URL-encoded.
+Base URLs cannot carry userinfo, query or fragment; known secret query keys and
+static authentication headers fail composition. These checks are guardrails,
+not automatic secret detection; all descriptor values must be non-secret.
+
+`static_headers` overrides dialect defaults, then binding headers override it.
+`profile_aliases` uses exact resource matches first; otherwise `profile_suffixes`
+removes the longest explicitly declared suffix once. Unknown suffixes are retained.
+No wire model name changes. `ProfileHost` is an optional structural protocol;
+existing `Host` implementations without it retain exact-resource lookup. Input
+maps are detached; changing effective configuration invalidates prepared calls.
+These generic recordings qualify composition, not any named cloud provider.
 
 ## 7. Plugins — one subpackage per interface
 

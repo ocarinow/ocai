@@ -1,9 +1,9 @@
 # 0008 — Additive integration contracts before the qualification gate
 
-- **Status:** WU-37 host declarations accepted; remaining proposals pending
+- **Status:** WU-37–38 host declarations and composition accepted; remaining proposals pending
 - **Date:** 2026-11-10
-- **Deciders:** maintainer authorized WU-37 implementation after merging PR #27;
-  later contract proposals remain pending
+- **Deciders:** maintainer authorized WU-37 after PR #27 and WU-38 after PR #30
+  merged; later contract proposals remain pending
 
 ## Context
 
@@ -15,8 +15,8 @@ contracts before provider plugins or satellites can use them honestly.
 
 This proposal accompanies WU-36 in the [integration program](../plans/integration-program.md).
 The plan did not implement or accept its own decisions. The maintainer
-subsequently authorized WU-37; acceptance below is limited to its host-declaration
-surface. ADR 0005
+subsequently authorized WU-37 and WU-38; acceptance below is limited to their
+host-declaration, composition and explicit no-auth surfaces. ADR 0005
 remains the freeze gate; neither a library semver nor merging this plan earns
 qualification. The active canonical revision stays 2026-07. ADR 0003's
 ordered-item candidate and the required Responses migration remain separate work.
@@ -29,7 +29,7 @@ constructor behavior and serialized payloads when the new feature is absent.
 Each implementation includes schema/unknown-input evidence and the affected
 edge contracts; a plan cannot authorize removing a legacy field.
 
-### Host declarations (WU-37 accepted) and credentials (WU-38 proposed)
+### Host declarations and composition (WU-37–38 accepted)
 
 Add host-keyed body-version declarations and separate version-header versus
 feature-header handling to DialectTraits. Keep cloud_body_version and
@@ -60,7 +60,7 @@ without enabling any beta or implementing a Bedrock host. The fixture qualifies
 existing Vertex unary execution through both driver faces. No conversion edge,
 canonical schema or credentials protocol changes in WU-37.
 
-The following WU-38 credential and binding composition additions remain proposed:
+The following WU-38 credential and binding composition additions are accepted:
 
 Add an explicit NoCredential implementation. Preserve Credential and ApiKey's
 existing protocol/signatures and configurable header/scheme. Absence of a
@@ -68,6 +68,30 @@ credential never triggers environment, filesystem, IMDS, STS or OAuth discovery.
 SigV4 is an external stdlib credential implementation; token acquisition remains
 outside this kernel change. Hosts remain wire values; conversion plugins import
 only core/convert. No provider SDK or signing dependency enters core.
+
+WU-38 represents catalog host data as provisional `convert.HostDescriptor` values
+in `CatalogFragment.hosts`. Explicit string host selection composes a wire `Custom`;
+there is no automatic host routing or new graph node. Conflicting named declarations
+fail admission. Maps are copied on construction, admission and readback; nonempty
+host declarations enter the catalog lock, while empty additions preserve old hashes.
+
+A stream path overrides its unary operation path, which otherwise falls back to
+the codec native path. Base path and explicit prefix precede that path; resource
+interpolation encodes a single segment and query parameters are separate sorted
+data. Static header precedence is dialect, host, then binding, case-insensitively.
+Conflicting case aliases within one group fail. Known authentication carriers are
+rejected in static headers/query and URLs cannot contain credentials. Callers must
+still keep arbitrary custom fields non-secret; validation is not secret detection.
+Binding headers do not participate in trait-to-body relocation; concrete cloud
+hosts qualify that behavior in their own WUs.
+
+Exact profile aliases win; otherwise the longest declared suffix is removed once
+for lookup only. Unknown suffixes remain intact. Both gating and inspection use
+that key, and prepared identity includes it even when the wire request is unchanged.
+Existing hosts need no new required method. Unknown profile coverage stays unknown.
+Recordings cover all four call faces, existing fold parity, escaped resources,
+credential isolation, detached maps and stale approval. They do not qualify a vendor
+endpoint, and no conversion edge or canonical schema changes in WU-38.
 
 Sources: [Hosting, Mapping (a)](../capabilities/hosting-and-aggregators.md),
 [Bedrock §13(a–b)](../providers/amazon-bedrock.md),
