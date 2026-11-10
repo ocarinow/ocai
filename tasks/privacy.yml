@@ -1,0 +1,20 @@
+# The privacy guard (AGENTS.md "Never publish session or tool metadata"). The
+# repository is public; nothing that leaves the machine may carry an AI
+# session link, footer, trailer, agent id, or home-directory path.
+version: "3"
+
+tasks:
+  check:
+    desc: Scan commits ahead of origin/main and all tracked/untracked text files
+    cmds:
+      - uv run python scripts/privacy_check.py {{.CLI_ARGS}}
+
+  text:
+    desc: Scan a file holding a PR body, review, or message before posting it (task privacy:text -- FILE)
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{.CLI_ARGS}}
+
+  range:
+    desc: Scan an explicit commit range (task privacy:range -- A..B)
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range {{.CLI_ARGS}}

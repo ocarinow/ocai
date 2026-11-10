@@ -1,0 +1,78 @@
+# Branches, worktrees, and pull requests — the one-WU-per-PR workflow from
+# AGENTS.md and the wu-session skill. Every task that publishes runs the
+# privacy guard first.
+version: "3"
+
+vars:
+  SCRATCH: '{{.SCRATCH | default "../ocai-worktrees"}}'
+
+tasks:
+  worktree:
+    desc: New worktree + branch from origin/main (task pr:worktree -- wu-NN-slug)
+    cmds:
+      - git fetch -q origin
+      - git worktree add -b {{.CLI_ARGS}} {{.SCRATCH}}/{{.CLI_ARGS}} origin/main
+      - echo "cd {{.SCRATCH}}/{{.CLI_ARGS}} && uv sync"
+
+  worktree:rm:
+    desc: Remove a worktree and its local branch after merge (task pr:worktree:rm -- wu-NN-slug)
+    cmds:
+      - git worktree remove --force {{.SCRATCH}}/{{.CLI_ARGS}}
+      - git branch -D {{.CLI_ARGS}}
+      - git fetch -p -q origin
+
+  rebase:
+    desc: Rebase the current branch onto origin/main and force-push with lease
+    cmds:
+      - git fetch -q origin
+      - git rebase origin/main
+      - git push --force-with-lease
+
+  draft:
+    desc: "Push and open a DRAFT PR for the current branch (task pr:draft -- \"WU-NN: title\" ISSUE)"
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files
+      - git push -u origin HEAD
+      - gh pr create --draft --title "{{index (splitArgs .CLI_ARGS) 0}}" --body "Closes #{{index (splitArgs .CLI_ARGS) 1}}"
+
+  open:
+    desc: Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE)
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{index (splitArgs .CLI_ARGS) 1}}
+      - uv run python scripts/privacy_check.py --no-files
+      - git push -u origin HEAD
+      - gh pr create --base main --head "$(git branch --show-current)" --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}
+
+  ready:
+    desc: Mark the current branch's draft PR ready for review
+    cmds:
+      - gh pr ready
+
+  checks:
+    desc: Watch the checks of a PR until they finish (task pr:checks -- NN)
+    cmds:
+      - gh pr checks {{.CLI_ARGS}} --watch --interval 10
+
+  status:
+    desc: Open PRs with merge state and the required checks
+    silent: true
+    cmds:
+      - gh pr list --state open --json number,title,mergeStateStatus,isDraft,statusCheckRollup --jq '.[] | "#\(.number)  \(.mergeStateStatus)\(if .isDraft then " draft" else "" end)  " + ([.statusCheckRollup[]? | select(.name=="python" or .name=="privacy") | .name + ":" + (.conclusion // .status)] | join(",")) + "  \(.title)"'
+
+  review:
+    desc: Review a PR in a scratch worktree with the full gate (task pr:review -- NN); see the review-pr skill
+    cmds:
+      - git fetch -q origin
+      - |
+        head=$(gh pr view {{.CLI_ARGS}} --json headRefName -q .headRefName)
+        dir={{.SCRATCH}}/review-pr-{{.CLI_ARGS}}
+        git worktree add --detach "$dir" "origin/$head"
+        echo "review worktree: $dir"
+        (cd "$dir" && uv sync -q && git diff origin/main...HEAD --stat && uv run python scripts/check.py) || true
+        echo "when done: git worktree remove --force $dir"
+
+  post-review:
+    desc: Post a review file as a comment review after the privacy scan (task pr:post-review -- NN FILE)
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{index (splitArgs .CLI_ARGS) 1}}
+      - gh pr review {{index (splitArgs .CLI_ARGS) 0}} --comment --body-file {{index (splitArgs .CLI_ARGS) 1}}

@@ -59,7 +59,9 @@ Read [`AGENTS.md`](./AGENTS.md) — it holds the cross-cutting rules every chang
 must follow (coding agents read the same file). In particular:
 
 - **One work unit per PR.** Keep diffs small and reviewable.
-- `uv run python scripts/check.py` exits 0 (ruff, import contracts, pytest).
+- `uv run python scripts/check.py` exits 0 (privacy guard, ruff, import contracts,
+  pyright, mypy, pytest) — or `task check` with [Task](https://taskfile.dev)
+  installed; `task` lists every development command.
 - The gate also verifies the platform. Install its separate dependencies and
   browser runtime as described in [platform development](platform/README.md).
 - Tests use **recorded HTTP request/response pairs** (respx/VCR-style), never

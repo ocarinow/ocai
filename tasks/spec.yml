@@ -1,0 +1,30 @@
+# spec/ is the language-neutral source of truth; these tasks run the Python
+# conformance checks that validate it (every language port mirrors them).
+version: "3"
+
+tasks:
+  validate:
+    desc: Validate every fixture under spec/fixtures against spec/schema
+    cmds:
+      - uv run pytest python/packages/ocai-core/tests/test_spec_schemas.py -q
+
+  conformance:
+    desc: Schema conformance of the dataclasses plus every plugin certification suite
+    cmds:
+      - uv run pytest python/packages/ocai-core/tests/test_schema_conformance.py python/packages/ocai-core/tests/test_conformance.py python/packages/ocai-openai/tests python/packages/ocai-anthropic/tests -q
+
+  unknown:
+    desc: The total-decode vectors (rule 6)
+    cmds:
+      - uv run pytest python/packages/ocai-core/tests/test_unknown_inputs.py -q
+
+  fold:
+    desc: The fold law and streaming suites (rule 7)
+    cmds:
+      - uv run pytest python/packages/ocai-core/tests/test_fold_law.py python/packages/ocai-core/tests/test_streaming.py python/packages/ocai-core/tests/test_facade_stream.py python/packages/ocai-core/tests/test_facade_stream_anthropic.py -q
+
+  fixtures:
+    desc: Count fixtures per edge directory
+    silent: true
+    cmds:
+      - find spec/fixtures -type f -name '*.json' | sed 's|/[^/]*$||' | sort | uniq -c

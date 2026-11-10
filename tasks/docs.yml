@@ -1,0 +1,35 @@
+# Zensical documentation site. The docs dependency group holds zensical; the
+# published site is deployed by .github/workflows/docs.yml on pushes to main.
+version: "3"
+
+tasks:
+  serve:
+    desc: Live preview at http://127.0.0.1:8000 (rebuilds on save)
+    cmds:
+      - uv run --group docs zensical serve {{.CLI_ARGS}}
+
+  build:
+    desc: Render the static site into ./site (gitignored), exactly as the deploy job does
+    cmds:
+      - uv run --group docs zensical build --clean
+
+  check:
+    desc: Build and fail on any warning (missing nav page, broken link)
+    cmds:
+      - |
+        out=$(uv run --group docs zensical build --clean 2>&1); echo "$out"
+        echo "$out" | grep -q "No issues found"
+
+  orphans:
+    desc: List docs pages that are not in the zensical.toml nav
+    silent: true
+    cmds:
+      - |
+        for f in $(find docs -name '*.md' -not -path 'docs/plans/archive/*'); do
+          b=${f#docs/}; grep -q "\"$b\"" zensical.toml || echo "$b"
+        done
+
+  clean:
+    desc: Remove the built site
+    cmds:
+      - rm -rf site

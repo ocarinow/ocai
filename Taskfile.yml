@@ -1,0 +1,50 @@
+# ocai task runner (https://taskfile.dev). Domain-scoped taskfiles live in
+# tasks/; this root file only includes them and keeps a few aliases.
+#
+# The Taskfiles are a convenience layer over the canonical commands in
+# AGENTS.md. CI calls those commands directly, so the gate has one definition
+# (scripts/check.py); a task never adds a check that CI does not run.
+#
+#   task                 # list every task
+#   task check           # the full gate: privacy, ruff, import contracts, pyright, mypy, pytest
+#   task py:test         # one domain, one verb
+version: "3"
+
+includes:
+  py:
+    taskfile: ./tasks/python.yml
+    desc: Python workspace — sync, lint, types, tests, the gate
+  docs:
+    taskfile: ./tasks/docs.yml
+    desc: Zensical site — serve, build, check
+  privacy:
+    taskfile: ./tasks/privacy.yml
+    desc: Privacy guard — nothing from a session goes public
+  pr:
+    taskfile: ./tasks/pr.yml
+    desc: Branches, worktrees, pull requests, reviews
+  board:
+    taskfile: ./tasks/board.yml
+    desc: The GitHub Project board — cards, sync, handoffs
+  spec:
+    taskfile: ./tasks/spec.yml
+    desc: spec/ — schemas and fixtures validation
+
+tasks:
+  default:
+    desc: List every task
+    silent: true
+    cmds:
+      - task --list
+
+  check:
+    desc: The full gate, identical to CI (alias of py:check)
+    cmds:
+      - task: py:check
+
+  setup:
+    desc: One-time setup for a fresh clone — environment, docs group, gh auth check
+    cmds:
+      - task: py:sync
+      - uv sync --group docs
+      - gh auth status

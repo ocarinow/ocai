@@ -1,0 +1,79 @@
+# Python workspace: the canonical commands from AGENTS.md "Commands", one verb each.
+version: "3"
+
+tasks:
+  sync:
+    desc: Create the environment and install the workspace distributions
+    cmds:
+      - uv sync
+
+  check:
+    desc: The full gate — privacy guard, ruff, import contracts, pyright strict, mypy strict, pytest
+    cmds:
+      - uv run python scripts/check.py {{.CLI_ARGS}}
+
+  check:fast:
+    desc: The gate without tests (lint, contracts, types)
+    cmds:
+      - uv run python scripts/check.py --no-tests
+
+  lint:
+    desc: Ruff lint (includes the Google-convention docstring rules)
+    cmds:
+      - uv run ruff check {{.CLI_ARGS}}
+
+  fmt:
+    desc: Ruff format the tree (not enforced in CI yet — see ADR 0001)
+    cmds:
+      - uv run ruff format {{.CLI_ARGS}}
+
+  fmt:check:
+    desc: Report files ruff would reformat
+    cmds:
+      - uv run ruff format --check
+
+  imports:
+    desc: Architecture §1 layer contracts (import-linter)
+    cmds:
+      - uv run lint-imports
+
+  types:
+    desc: Strict typing — pyright then mypy (nothing may resolve to Unknown)
+    cmds:
+      - uv run pyright {{.CLI_ARGS}}
+      - uv run mypy
+
+  pyright:
+    desc: Pyright strict only
+    cmds:
+      - uv run pyright {{.CLI_ARGS}}
+
+  mypy:
+    desc: Mypy strict only
+    cmds:
+      - uv run mypy
+
+  test:
+    desc: Pytest — invariants and conformance (pass -- -k expr to filter)
+    cmds:
+      - uv run pytest {{.CLI_ARGS}}
+
+  test:core:
+    desc: Only the ocai-core suite
+    cmds:
+      - uv run pytest python/packages/ocai-core/tests {{.CLI_ARGS}}
+
+  test:plugins:
+    desc: Only the provider plugin suites (OpenAI, Anthropic)
+    cmds:
+      - uv run pytest python/packages/ocai-openai/tests python/packages/ocai-anthropic/tests {{.CLI_ARGS}}
+
+  demo:
+    desc: "Flagship demo 1 — the cross-conversion fidelity report (no network)"
+    cmds:
+      - uv run python examples/cross_conversion_demo.py
+
+  echo:
+    desc: Run the community plugin template's own suite in isolation
+    cmds:
+      - uv run --isolated --no-project --with ./python/packages/ocai-core --with ./examples/ocai-contrib-echo pytest examples/ocai-contrib-echo/tests -q

@@ -33,6 +33,7 @@ The program that moves the kernel forward is in [`docs/plans/`](docs/plans/READM
 | `docs/` | The constitution (`architecture.md`), roadmap and work units (`plans/`), decisions (`decisions/`), provider wire research (`providers/`), guides | [docs/architecture.md](docs/architecture.md) |
 | `examples/` | The cross-conversion fidelity demo and `ocai-contrib-echo`, the plugin template | [examples/ocai-contrib-echo/README.md](examples/ocai-contrib-echo/README.md) |
 | `scripts/` | `check.py`, the one verification command (lint, import contracts, strict typing, tests) | [scripts/check.py](scripts/check.py) |
+| `Taskfile.yml`, `tasks/` | Domain-scoped development commands over the canonical ones (`task` lists them, `task check` is the gate) | [Taskfile.yml](Taskfile.yml) |
 | `.agents/` | Procedures and role bodies for coding agents, shared by every tool; `.claude/` and `.codex/` hold only pointers | [.agents/skills/README.md](.agents/skills/README.md) |
 
 ## Start here

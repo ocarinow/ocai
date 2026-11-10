@@ -123,6 +123,14 @@ uv run python examples/cross_conversion_demo.py   # flagship demo #1
 A change is not done until `scripts/check.py` exits 0. Report its output,
 never a paraphrase of it.
 
+[Task](https://taskfile.dev) wraps these as domain-scoped verbs — `task`
+lists them; `task check` is the gate; `task py:test`, `task docs:serve`,
+`task privacy:text -- FILE`, `task pr:draft -- "WU-NN: title" ISSUE`,
+`task board:sync`, `task spec:validate`. The Taskfiles (`Taskfile.yml`,
+`tasks/*.yml`) are a convenience layer: they call the canonical commands
+above and never add a check CI does not run. Every task that publishes
+(`pr:*`, `board:*`) runs the privacy guard first.
+
 ## Cross-cutting rules (apply to every change)
 
 1. **PEP 420 namespace:** never create `ocai/__init__.py` at the namespace
