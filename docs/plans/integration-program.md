@@ -141,6 +141,8 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 ## WU-38 — Compose explicit host endpoints and profiles
 
 - [x] **Status:** complete; awaiting implementation PR review/merge.
+- **Goal:** Applications compose explicit host endpoints and profile lookup without
+  copying provider codecs or exposing credentials to policies.
 - **Scope:** `wire/hosting.py`, `runtime/binding.py`, facade preparation, credential
   vocabulary and catalog host data; 20–30 files. Implement inventory 4–11 with
   immutable/snapshotted maps, explicit precedence and prepared-handle identity.
@@ -151,6 +153,11 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   uncertain undeclared profile coverage, safe credentials and stale-preflight rejection.
 - **Deps:** WU-37 (merged in PR #30); accepted WU-38 portion of ADR 0008.
 - **Architecture:** §2.5, §2.9, §3.3–3.4, §4.3, §5–6.
+- **Integration:** Wire host values consume pure catalog descriptors; runtime builds
+  safe requests, then applies credentials at the transport leaf. Facade preparation
+  fingerprints the effective endpoint, headers, query and profile lookup key.
+  Modules: `convert/hosts.py`, `wire/hosting.py`, `runtime/binding.py`,
+  `runtime/drivers.py`, `chat/facade.py`, and `core/credentials.py`.
 - **Freeze:** additive explicit credential value in `ocai.core.credentials`;
   preserve `Credential`/`ApiKey` signatures; no chat IR changes (integration ADR).
 - **Decision:** Hosts are composed values with data-driven profiles and no copied
@@ -160,6 +167,10 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   query/version handling follows [Azure §13](../providers/azure-openai.md#13-mapping-to-ocai).
 - **Open:** None for the supported composition surface; automatic deployment-to-model
   discovery and secret-bearing static headers are excluded.
+- **Area:** wire
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-39 — Select framing independently of semantic conversion
 
