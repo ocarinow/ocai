@@ -219,6 +219,72 @@ def _is_array(value: object) -> TypeIs[list[Any]]:
     return isinstance(value, list)
 
 
+def _request_unmapped(payload: dict[str, Any]) -> dict[str, Any]:
+    """Preserve unknown nested input and malformed containers by source path.
+
+    This evidence is never replayed into a different provider. Known JSON
+    Schema objects are open schema data and retain their own unknown keywords.
+    """
+    out: dict[str, Any] = {}
+
+    def extra(value: Any, path: str, known: set[str]) -> None:
+        if not _is_object(value):
+            out[path] = value
+            return
+        for key in sorted(set(value) - known):
+            out[f"{path}.{key}"] = value[key]
+
+    def array(value: Any, path: str) -> list[Any]:
+        if value is None:
+            return []
+        if _is_array(value):
+            return value
+        out[path] = value
+        return []
+
+    for i, message in enumerate(array(payload.get("messages"), "messages")):
+        path = f"messages[{i}]"
+        extra(message, path, {"role", "content", "tool_calls", "tool_call_id", "refusal"})
+        if not _is_object(message):
+            continue
+        content = message.get("content")
+        if _is_array(content):
+            for j, item in enumerate(content):
+                if not _is_object(item) or item.get("type") == "text":
+                    extra(item, f"{path}.content[{j}]", {"type", "text"})
+        elif content is not None and not isinstance(content, str):
+            out[f"{path}.content"] = content
+        for j, call in enumerate(array(message.get("tool_calls"), f"{path}.tool_calls")):
+            call_path = f"{path}.tool_calls[{j}]"
+            extra(call, call_path, {"id", "type", "function"})
+            if _is_object(call):
+                if call.get("type", "function") != "function":
+                    out[call_path] = call
+                else:
+                    extra(call.get("function"), f"{call_path}.function", {"name", "arguments"})
+    for i, tool in enumerate(array(payload.get("tools"), "tools")):
+        if _is_object(tool) and tool.get("type") == "function":
+            extra(tool, f"tools[{i}]", {"type", "function"})
+            extra(tool.get("function"), f"tools[{i}].function",
+                  {"name", "parameters", "description"})
+    choice = payload.get("tool_choice")
+    if _is_object(choice):
+        extra(choice, "tool_choice", {"type", "function"})
+        if choice.get("type") == "function":
+            extra(choice.get("function"), "tool_choice.function", {"name"})
+    fmt = payload.get("response_format")
+    if _is_object(fmt):
+        extra(fmt, "response_format", {"type", "json_schema"})
+        if fmt.get("type") == "json_schema":
+            extra(fmt.get("json_schema"), "response_format.json_schema",
+                  {"name", "schema", "strict"})
+    elif fmt is not None:
+        out["response_format"] = fmt
+    if "max_completion_tokens" in payload and "max_tokens" in payload:
+        out["max_tokens"] = payload["max_tokens"]
+    return out
+
+
 def dialect_traits() -> DialectTraits:
     """Build the hosting traits the wire layer composes for this interface.
 
@@ -808,7 +874,8 @@ class ChatCompletionsCodec:
         shifts: list[SemanticShift] = []
         extensions: dict[str, Any] = {}
         messages: list[Message] = []
-        wire_messages: list[Any] = payload.get("messages") or []
+        wire_messages = payload.get("messages")
+        wire_messages = wire_messages if _is_array(wire_messages) else []
         for index, wire_msg in enumerate(wire_messages):
             if not _is_object(wire_msg):
                 continue
@@ -838,6 +905,14 @@ class ChatCompletionsCodec:
                     note=f"unmapped envelope key preserved in extensions['{PROVIDER}.{key}']",
                 )
             )
+        unmapped = _request_unmapped(payload)
+        if unmapped:
+            extensions["openai.request_unmapped"] = unmapped
+            losses.append(FieldLoss(path="unmapped", disposition=Disposition.EXTENSIONS,
+                                    note="nested fields preserved by source path"))
+        if payload.get("n", 1) != 1:
+            losses.append(FieldLoss(path="n", disposition=Disposition.UNSUPPORTED,
+                                    note="canonical chat represents one choice"))
         request = ChatRequest(
             messages=messages,
             tools=tools or None,
@@ -892,9 +967,14 @@ class ChatCompletionsCodec:
                 ],
             )
         parts = self._decode_request_content(index, wire_msg, losses)
-        tool_calls: list[Any] = wire_msg.get("tool_calls") or []
+        tool_calls = wire_msg.get("tool_calls")
+        tool_calls = tool_calls if _is_array(tool_calls) else []
         for call in tool_calls:
-            function: dict[str, Any] = call.get("function") or {}
+            if not _is_object(call) or call.get("type", "function") != "function":
+                continue
+            function = call.get("function")
+            if not _is_object(function):
+                continue
             parts.append(
                 PartToolCall(
                     call_id=call.get("id", ""),
@@ -977,7 +1057,8 @@ class ChatCompletionsCodec:
             The decoded tools, possibly empty.
         """
         tools: list[Tool] = []
-        wire_tools: list[Any] = payload.get("tools") or []
+        wire_tools = payload.get("tools")
+        wire_tools = wire_tools if _is_array(wire_tools) else []
         for i, entry in enumerate(wire_tools):
             function = entry.get("function") if _is_object(entry) else None
             if _is_object(function) and entry.get("type") == "function":
@@ -1028,7 +1109,8 @@ class ChatCompletionsCodec:
         if choice in ("auto", "none", "required"):
             return ToolChoice(mode=choice)
         if _is_object(choice) and choice.get("type") == "function":
-            function: dict[str, Any] = choice.get("function") or {}
+            function = choice.get("function")
+            function = function if _is_object(function) else {}
             name = function.get("name")
             if name:
                 return ToolChoice(mode="named", name=name)
@@ -1118,7 +1200,8 @@ class ChatCompletionsCodec:
         if ftype == "json_object":
             return OutputFormat(mode="json")
         if ftype == "json_schema":
-            selector: dict[str, Any] = fmt.get("json_schema") or {}
+            selector = fmt.get("json_schema")
+            selector = selector if _is_object(selector) else {}
             schema = selector.get("schema")
             return OutputFormat(
                 mode="json_schema",

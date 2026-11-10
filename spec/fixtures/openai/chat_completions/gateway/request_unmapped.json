@@ -1,0 +1,90 @@
+{
+  "description": "Synthetic WU-29 client decode qualification: request_unmapped.json",
+  "src": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "weather",
+        "name": "speaker"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "weather",
+          "parameters": {},
+          "strict": true
+        }
+      }
+    ],
+    "n": 2,
+    "future_option": {
+      "enabled": true
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "extensions": {
+      "openai.n": 2,
+      "openai.future_option": {
+        "enabled": true
+      },
+      "openai.request_unmapped": {
+        "messages[0].name": "speaker",
+        "tools[0].function.strict": true
+      }
+    },
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "weather"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "weather",
+        "parameters": {}
+      }
+    ]
+  },
+  "expect_losses": [
+    {
+      "path": "future_option",
+      "disposition": "extensions"
+    },
+    {
+      "path": "n",
+      "disposition": "extensions"
+    },
+    {
+      "path": "unmapped",
+      "disposition": "extensions"
+    },
+    {
+      "path": "n",
+      "disposition": "unsupported"
+    }
+  ],
+  "expect_shifts": []
+}

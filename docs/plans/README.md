@@ -55,7 +55,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-26 | Emit correlated passive lifecycle events | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-27 | Expose immutable execution inspection | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-28 | Enforce request and response fidelity policy | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
-| WU-29 | Qualify client request decoding | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-29 | Qualify client request decoding | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-30 | Encode canonical client responses | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-31 | Encode canonical client stream events | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |

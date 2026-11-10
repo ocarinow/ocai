@@ -179,6 +179,9 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
 # no per-call records.
 DECODE_REQUEST_CONTRACT = EdgeContract(
     census={
+        "unmapped": DeclaredDisposition(Disposition.EXTENSIONS),
+        "n": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "future_option": DeclaredDisposition(Disposition.EXTENSIONS),
         "model": DeclaredDisposition(
             Disposition.EXTENSIONS,
             "routing data, not canonical content; echo preserved in "

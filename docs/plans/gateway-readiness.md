@@ -152,7 +152,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-29 — Qualify client request decoding
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Conversion.
 - **Scope:** Audit OpenAI Chat Completions request decoding against the matrix below; record unsupported multi-choice/provider references and unknown fields with edge contracts and golden examples. Owns ocai-openai/chat_completions/, spec/fixtures/, spec/extensions/, plugin tests. Other WU outcomes are out of scope.
 - **Done:** Supported tools and structured-output requests survive client-to-canonical-to-provider fixtures; unknown data is preserved and unsupported semantics are reported.
