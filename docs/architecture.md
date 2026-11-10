@@ -880,3 +880,20 @@ Only non-sensitive health and foundation status are served. Readiness returns
 and accounting are not implemented in this slice. Root verification includes
 platform typing, API drift, boundary/HTTP tests, production build, and a browser
 integration test against the real service.
+
+### 12.2 Identity boundaries [direction; not implemented]
+
+[ADR 0010](decisions/0010-platform-identity.md) records the next identity boundary.
+Keycloak is the reference separately deployed provider for local accounts and
+OIDC/SAML federation; qualified customer OIDC providers remain possible. Nuxt's
+server layer owns console sessions and keeps tokens server-side. FastAPI validates
+API credentials and enforces resource permissions using trusted platform context
+and OpenFGA decisions. Platform principal IDs, memberships, service accounts,
+credential scopes and audit semantics remain provider-independent.
+
+Identity integration stays in modular gateway application code until another
+backend consumer warrants extraction. Future services validate their own audience
+and permissions; machine authority and human-delegated authority stay distinct.
+These requirements do not change §12.1's implemented public status surface.
+See [identity and access](platform/identity.md) for protocol boundaries, frontend
+reuse, non-human identities, qualification gates and operational responsibilities.

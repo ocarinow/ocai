@@ -103,6 +103,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-68 | Execute Anthropic prompt-cache intent honestly | Integration | [integration](integration-program.md) | ⬜ |
 | WU-69 | Price measured usage in a cost satellite | Integration | [integration](integration-program.md) | ⬜ |
 | WU-70 | Pace requests from measured rate-limit signals | Integration | [integration](integration-program.md) | ⬜ |
+| WU-71 | Record platform identity and access design | Platform MVP | [MVP](platform-mvp.md) | ✅ Complete (documentation; review pending) |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones

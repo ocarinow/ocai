@@ -23,11 +23,13 @@ Table does not require adopting Query or another router. The
 [shadcn-vue data table guide](https://www.shadcn-vue.com/docs/components/data-table)
 provides the table composition pattern.
 
-Exact versions, migration tooling, session implementation, and the reference
-identity provider must be selected and qualified in implementation WUs. OIDC is
-the proposed first federation protocol; Keycloak is a candidate reference
-integration, not a required customer identity provider. Anticipate SAML brokering
-and later SCIM provisioning without implementing our own federation protocols.
+Keycloak is the selected reference bundled identity provider; customers may use
+a qualified external OIDC provider. Nuxt's server layer owns browser sessions,
+with tokens stored server-side; FastAPI validates API credentials and enforces
+resource permissions. SAML terminates at an identity broker; SCIM is a separate
+later provisioning integration. Exact versions, libraries, session persistence
+and revocation bounds require implementation qualification. See
+[identity and access](identity.md) and [ADR 0010](../decisions/0010-platform-identity.md).
 
 ## Shared frontend structure
 

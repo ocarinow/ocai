@@ -26,6 +26,11 @@ roles. No storage control substitutes for resource authorization in the service.
 
 ## Authentication, authorization, and secrets
 
+The [identity design](identity.md) and [ADR 0010](../decisions/0010-platform-identity.md)
+record Keycloak selection, local and federated login, Nuxt server sessions,
+FastAPI enforcement, non-human identities and inter-service delegation. These
+are architectural requirements; the foundation has no authentication yet.
+
 Integrate established identity providers and federation implementations. Proposed
 baseline: OIDC, privileged MFA through the identity provider, secure browser
 sessions, CSRF protection where applicable, expiration, and revocation. Identify
