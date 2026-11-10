@@ -12,9 +12,12 @@ monitoring) so your code never imports a provider SDK.
 
     Python provides unary and streaming chat through OpenAI Chat Completions
     and Anthropic Messages, conversion graphs, and fidelity reports. The active
-    canonical revision is `2026-07`. Responses is a stub; Gemini is not yet
-    implemented. See the [feature matrix](provider-feature-matrix.md) and
-    [modernization plan](plans/core-modernization.md).
+    canonical revision is `2026-07`. WU-17–20 are merged: the
+    [modernization plan](plans/core-modernization.md), the independently
+    installed conversion plugin, the ordered-item proposal (under
+    `spec/proposals/`), and catalog-composition hardening. Responses is a
+    stub; Gemini is not yet implemented; TypeScript and Go ports are deferred.
+    See the [feature matrix](provider-feature-matrix.md).
 
 The differentiator is **honest, version-resilient conversion**: switching
 provider, provider *interface* (OpenAI `/chat/completions` → `/responses`),
@@ -82,14 +85,24 @@ uv add "ocai[openai]"  # core + the OpenAI plugin
 
 ## Where to next
 
-- [Architecture](architecture.md) — **the structural contract**: every layer,
-  object, and interaction. When code and this document disagree, one gets
-  fixed in the same PR.
-- [Writing a plugin](writing-a-plugin.md) — the community-plugin guide, with
-  the `ocai-contrib-echo` template.
-- [Roadmap](plans/README.md) — milestones and work units.
-- `spec/` in the repository — the language-neutral truth every port
-  implements, starting with `spec/canonical-json.md`.
+The site is organised as tabs, one per information space:
+
+- [Libraries](libraries/README.md) — the public implementations:
+  [Python](libraries/python/README.md) (implemented), TypeScript and Go
+  (deferred), and the [plugin author guide](writing-a-plugin.md).
+- [Platform](platform/README.md) — the enterprise platform modules built on
+  the kernel (gateway, telemetry, audit, eval, registries, agent runtime),
+  each with its own status.
+- [Spec](spec/README.md) — the language-neutral truth every port
+  implements, plus the [provider wire research](providers/README.md) and the
+  shipped [feature matrix](provider-feature-matrix.md).
+- [Architecture](architecture.md) — **the structural contract**: every
+  layer, object, and interaction. When code and this document disagree, one
+  gets fixed in the same PR.
+- [Roadmap](plans/README.md) — milestones, work units, and the core
+  modernization program.
+- [Decisions](decisions/README.md) — the ADRs: why each contract shape was
+  chosen over the alternatives.
 
 ## Local docs workflow
 
@@ -97,9 +110,15 @@ These docs are built with [Zensical](https://zensical.org). It lives in the
 `docs` dependency group, so run it through uv:
 
 ``` bash
-uv run --group docs zensical serve   # live preview at http://127.0.0.1:8000
-uv run --group docs zensical build   # render the static site into ./site
+uv run --group docs zensical serve           # live preview at http://127.0.0.1:8000
+uv run --group docs zensical build --clean   # render the static site into ./site
 ```
+
+`site/` is a build artifact and is gitignored. The published site at
+<https://ocarinow.github.io/ocai/> is deployed by
+[`.github/workflows/docs.yml`](https://github.com/ocarinow/ocai/blob/main/.github/workflows/docs.yml):
+pull requests that touch `docs/**` or `zensical.toml` build the site as a
+check; a push to `main` builds it again and deploys it to GitHub Pages.
 
 !!! info "Source-available, not open source"
 

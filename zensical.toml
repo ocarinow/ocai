@@ -14,21 +14,76 @@ site_name = "ocai"
 site_description = "One Common interface for AI — a single, stable, provider-neutral API in front of every AI provider."
 site_author = "The ocai authors"
 
-# Canonical URL. Set this once the docs have a home; several features (instant
+# Canonical URL: the site is published to GitHub Pages by
+# .github/workflows/docs.yml on every push to main. Several features (instant
 # navigation, custom error pages) rely on it.
-# site_url = "https://example.com/"
+site_url = "https://ocarinow.github.io/ocai/"
+repo_url = "https://github.com/ocarinow/ocai"
+repo_name = "ocarinow/ocai"
 
 copyright = """
 ocai is source-available under the Functional Source License (FSL-1.1-ALv2).
 """
 
-# Explicit navigation. Internal material that also lives under docs/ (the
-# roadmap in plans/, writing-a-plugin.md) is intentionally left out of the
-# published nav.
+# Explicit navigation. Top-level entries render as header TABS
+# (navigation.tabs): the libraries, the platform, the spec, and the
+# constitution are separate information spaces on one site. Section index
+# pages (navigation.indexes) are the README.md of each directory. docs/plans/archive/ (pre-rearchitecture plans)
+# is intentionally left out of the nav; it still builds and is reachable from
+# the roadmap page.
 nav = [
-  { "Get started" = "index.md" },
-  { "Markdown reference" = "markdown.md" },
+  { "Home" = "index.md" },
+  { "Libraries" = [
+    "libraries/README.md",
+    { "Python" = [
+      "libraries/python/README.md",
+      { "Writing a plugin" = "writing-a-plugin.md" },
+    ] },
+    { "TypeScript" = "libraries/typescript.md" },
+    { "Go" = "libraries/go.md" },
+  ] },
+  { "Platform" = [
+    "platform/README.md",
+  ] },
+  { "Spec" = [
+    "spec/README.md",
+    { "Providers" = [
+      "providers/README.md",
+      { "Feature matrix" = "provider-feature-matrix.md" },
+      { "OpenAI" = "providers/openai.md" },
+      { "Anthropic" = "providers/anthropic.md" },
+      { "Google Gemini" = "providers/google-gemini.md" },
+      { "Mistral" = "providers/mistral.md" },
+      { "Research: feature matrix" = "providers/feature-matrix.md" },
+      { "Research: common interface" = "providers/common-interface.md" },
+    ] },
+  ] },
+  { "Architecture" = "architecture.md" },
+  { "Roadmap" = [
+    "plans/README.md",
+    { "Core modernization" = "plans/core-modernization.md" },
+    { "WU-20 — Catalog conformance" = "plans/wu-20-catalog-conformance.md" },
+    { "Horizon milestones" = "plans/horizon.md" },
+    { "Kernel gaps" = "plans/gaps.md" },
+    { "M1 — Foundations" = "plans/m1-foundations.md" },
+    { "M2 — Streaming" = "plans/m2-streaming.md" },
+    { "M3 — Second provider" = "plans/m3-second-provider.md" },
+  ] },
+  { "Decisions" = [
+    "decisions/README.md",
+    { "0001 — Agent-neutral repo layout" = "decisions/0001-agent-neutral-repo-layout.md" },
+    { "0002 — Branch protection and typing gate" = "decisions/0002-branch-protection-and-typing-gate.md" },
+    { "0003 — Ordered-item modernization" = "decisions/0003-ordered-item-modernization.md" },
+    { "0004 — Catalog composition and evidence" = "decisions/0004-catalog-composition-and-evidence.md" },
+  ] },
 ]
+
+# Link validation. architecture.md (and pages quoting it) use bracketed status
+# badges — [frozen-candidate], [provisional], [stub] — which Markdown would
+# otherwise flag as unresolved reference-style links. Everything else (missing
+# pages, bad anchors, unused definitions) stays a build warning.
+[project.validation]
+unresolved_references = false
 
 # ----------------------------------------------------------------------------
 # Theme
@@ -51,6 +106,8 @@ features = [
     "navigation.instant.prefetch",
     "navigation.path",
     "navigation.sections",
+    "navigation.tabs",
+    "navigation.tabs.sticky",
     "navigation.top",
     "navigation.tracking",
     "search.highlight",

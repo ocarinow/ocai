@@ -1,0 +1,79 @@
+name: Docs
+
+# Builds the Zensical documentation site. Pull requests that touch the docs
+# get a build check; a push to main builds again and deploys the result to
+# GitHub Pages at https://ocarinow.github.io/ocai/ . No caching on CI, per
+# Zensical's publishing guide.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deployment at a time; never cancel an in-flight deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Sync docs group
+        run: uv sync --group docs
+
+      - name: Build site
+        run: uv run --group docs zensical build --clean
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: deploy
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # enablement: true asks GitHub to turn Pages on for the repo (source:
+      # GitHub Actions) if it is not yet enabled. If this step fails with a
+      # permissions error, enable it once by hand: Settings → Pages → Source:
+      # GitHub Actions.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
