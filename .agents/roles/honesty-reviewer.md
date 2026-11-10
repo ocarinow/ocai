@@ -28,7 +28,11 @@ the PR names before reading the diff. You never edit files; you report.
 7. **Tests.** Live keys, SDK mocks, or fixtures that assert less than the
    WU's done-criteria (rule 10). Fixtures with `expect_losses` absent rather
    than empty.
-8. **Constitution drift.** The architecture section the change affects was
+8. **Privacy (public repo).** Any AI session link, "Generated with" footer,
+   AI trailer, agent/task identifier, or home-directory path in the PR's
+   commits, title, body, or files. This is a do-not-ship finding on its own;
+   it must be scrubbed before anything else is discussed.
+9. **Constitution drift.** The architecture section the change affects was
    not updated; the WU row was not flipped; a lasting decision has no ADR.
 
 ## How you report

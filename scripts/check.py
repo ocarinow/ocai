@@ -1,4 +1,4 @@
-"""The one verification command: lint, import contracts, types, tests.
+"""The one verification command: privacy guard, lint, import contracts, types, tests.
 
 Every agent and every human runs the same gate before calling a change done,
 and CI runs the same steps. Usage (from the repo root)::
@@ -92,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--format", action="store_true", help="also run `ruff format --check`")
     args = parser.parse_args(argv)
 
-    steps = [Step("ruff", ("ruff", "check"))]
+    steps = [
+        Step("privacy guard", ("python", "scripts/privacy_check.py")),
+        Step("ruff", ("ruff", "check")),
+    ]
     if args.format:
         steps.append(Step("format", ("ruff", "format", "--check")))
     steps.append(Step("import contracts", ("lint-imports",)))

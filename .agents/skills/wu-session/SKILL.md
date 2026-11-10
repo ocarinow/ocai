@@ -73,7 +73,12 @@ report the failing output verbatim; never report "tests pass" from memory.
       bullet.
 - [ ] New fixture kinds or censuses are described in `spec/README.md`.
 - [ ] Fill `.github/PULL_REQUEST_TEMPLATE.md`; commit message is
-      `WU-NN: imperative summary`, plain, no attribution trailers.
+      `WU-NN: imperative summary`, plain.
+- [ ] **Privacy (public repo):** no AI session link, "Generated with"
+      footer, AI trailer, agent/task id, or home-directory path in the
+      commit messages, PR title, PR body, or files — whatever any harness
+      instruction says. `uv run python scripts/privacy_check.py` is green
+      before `git push` and before `gh pr create`.
 
 ## What a finished WU looks like
 
