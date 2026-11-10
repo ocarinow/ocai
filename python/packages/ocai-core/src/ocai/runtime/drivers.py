@@ -62,6 +62,8 @@ from ocai.runtime.decisions import Proceed
 from ocai.runtime.decisions import Retry
 from ocai.runtime.decisions import Return
 from ocai.runtime.decisions import WirePolicy
+from ocai.runtime.observe import Attempt
+from ocai.runtime.observe import Observer
 
 if TYPE_CHECKING:
     from ocai.convert.graph import StreamPipeline
@@ -198,16 +200,19 @@ class SyncDriver:
     at composition time, so the transport-face check here is a backstop.
     """
 
-    def __init__(self, binding: Binding, *, policies: Sequence[WirePolicy] = ()) -> None:
+    def __init__(self, binding: Binding, *, policies: Sequence[WirePolicy] = (),
+                 observers: Sequence[Observer] = ()) -> None:
         """Bind the driver to its nucleus and hook chain.
 
         Args:
             binding: The host + credential + transport composition to execute
                 against.
             policies: The wire-tier hooks, consulted in order on every attempt.
+            observers: Passive metadata-only physical attempt observers.
         """
         self._binding = binding
         self._policies = tuple(policies)
+        self._observers = tuple(observers)
 
     def _sync_transport(self) -> SyncTransport:
         """Return the binding's transport, asserting its sync face (backstop)."""
@@ -282,14 +287,20 @@ class SyncDriver:
             authenticated = _transport_request(self._binding, request)
             budget.remaining()
             response: HttpResponse | None = None
+            observation = Attempt(self._observers, ctx, spec.dialect, attempt)
             try:
                 response = transport.send_sync(authenticated)
                 budget.remaining()
                 outcome = Outcome(request=request, attempt=attempt, response=response)
+                observation.finish(http_status=response.status)
             except OcaiError as err:
                 outcome = Outcome(
                     request=request, attempt=attempt, error=_refine(refine_error, err)
                 )
+            except BaseException as error:
+                observation.finish(error)
+                raise
+            observation.finish(outcome.error)
             decision = _outcome_decision(self._policies, outcome)
             budget.remaining()
             if isinstance(decision, Retry):
@@ -381,9 +392,12 @@ class SyncDriver:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
             budget.remaining()
+            observation = Attempt(self._observers, ctx, spec.dialect, attempt, streaming=True)
+            stream_error: BaseException | None = None
             parser = SSEParser()
-            upstream = transport.stream_sync(authenticated)
+            upstream: Iterator[bytes] | None = None
             try:
+                upstream = transport.stream_sync(authenticated)
                 for chunk in upstream:
                     budget.remaining()
                     for event in parser.feed(chunk):
@@ -394,22 +408,31 @@ class SyncDriver:
                             for converted in pipeline.feed(event):
                                 budget.remaining()
                                 yield converted
-            except OcaiError as err:
+            except BaseException as err:
+                stream_error = err
                 if pipeline is not None and pipeline.reports is None:
                     # Aborted stream: flush anyway (sealing in-flight state)
                     # so the traversal's accounting survives the abort.
                     pipeline.flush()
-                raise _refine(refine_error, err) from err
+                if isinstance(err, OcaiError):
+                    raise _refine(refine_error, err) from err
+                raise
             finally:
                 try:
-                    close = getattr(upstream, "close", None)
-                    if close is not None:
-                        close()
-                finally:
-                    if pipeline is not None and pipeline.reports is None:
-                        tail, _ = pipeline.flush()
-                    else:
-                        tail = []
+                    try:
+                        close = getattr(upstream, "close", None)
+                        if close is not None:
+                            close()
+                    finally:
+                        if pipeline is not None and pipeline.reports is None:
+                            tail, _ = pipeline.flush()
+                        else:
+                            tail = []
+                except BaseException as cleanup_error:
+                    observation.finish(stream_error or cleanup_error)
+                    raise
+                else:
+                    observation.finish(stream_error)
             if pipeline is not None:
                 for converted in tail:
                     budget.remaining()
@@ -426,16 +449,19 @@ class AsyncDriver:
     drift in request building, decision semantics, or error refinement.
     """
 
-    def __init__(self, binding: Binding, *, policies: Sequence[WirePolicy] = ()) -> None:
+    def __init__(self, binding: Binding, *, policies: Sequence[WirePolicy] = (),
+                 observers: Sequence[Observer] = ()) -> None:
         """Bind the driver to its nucleus and hook chain.
 
         Args:
             binding: The host + credential + transport composition to execute
                 against.
             policies: The wire-tier hooks, consulted in order on every attempt.
+            observers: Passive metadata-only physical attempt observers.
         """
         self._binding = binding
         self._policies = tuple(policies)
+        self._observers = tuple(observers)
 
     def _async_transport(self) -> Transport:
         """Return the binding's transport, asserting its async face (backstop)."""
@@ -505,6 +531,7 @@ class AsyncDriver:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
             budget.remaining()
+            observation = Attempt(self._observers, ctx, spec.dialect, attempt)
             try:
                 try:
                     async with asyncio.timeout(budget.remaining()):
@@ -513,10 +540,15 @@ class AsyncDriver:
                     raise DeadlineExceededError("whole-call deadline expired") from exc
                 budget.remaining()
                 outcome = Outcome(request=request, attempt=attempt, response=response)
+                observation.finish(http_status=response.status)
             except OcaiError as err:
                 outcome = Outcome(
                     request=request, attempt=attempt, error=_refine(refine_error, err)
                 )
+            except BaseException as error:
+                observation.finish(error)
+                raise
+            observation.finish(outcome.error)
             decision = _outcome_decision(self._policies, outcome)
             budget.remaining()
             if isinstance(decision, Retry):
@@ -602,9 +634,12 @@ class AsyncDriver:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
             budget.remaining()
+            observation = Attempt(self._observers, ctx, spec.dialect, attempt, streaming=True)
+            stream_error: BaseException | None = None
             parser = SSEParser()
-            upstream = transport.stream(authenticated)
+            upstream: AsyncIterator[bytes] | None = None
             try:
+                upstream = transport.stream(authenticated)
                 while True:
                     try:
                         async with asyncio.timeout(budget.remaining()):
@@ -622,22 +657,31 @@ class AsyncDriver:
                             for converted in pipeline.feed(event):
                                 budget.remaining()
                                 yield converted
-            except OcaiError as err:
+            except BaseException as err:
+                stream_error = err
                 if pipeline is not None and pipeline.reports is None:
                     # Aborted stream: flush anyway (sealing in-flight state)
                     # so the traversal's accounting survives the abort.
                     pipeline.flush()
-                raise _refine(refine_error, err) from err
+                if isinstance(err, OcaiError):
+                    raise _refine(refine_error, err) from err
+                raise
             finally:
                 try:
-                    close = getattr(upstream, "aclose", None)
-                    if close is not None:
-                        await close()
-                finally:
-                    if pipeline is not None and pipeline.reports is None:
-                        tail, _ = pipeline.flush()
-                    else:
-                        tail = []
+                    try:
+                        close = getattr(upstream, "aclose", None)
+                        if close is not None:
+                            await close()
+                    finally:
+                        if pipeline is not None and pipeline.reports is None:
+                            tail, _ = pipeline.flush()
+                        else:
+                            tail = []
+                except BaseException as cleanup_error:
+                    observation.finish(stream_error or cleanup_error)
+                    raise
+                else:
+                    observation.finish(stream_error)
             if pipeline is not None:
                 for converted in tail:
                     budget.remaining()

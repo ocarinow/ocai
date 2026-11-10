@@ -524,6 +524,28 @@ acquiring a stream, composition closes it. Wrappers forward closure and terminal
 evidence; they do not buffer the response. This applies equally to local ports
 and wire-backed models (ADR 0007, WU-25).
 
+`ocai.chat.model(..., observers=...)` composes `ObservedChatModel` outside the
+entire admission chain and configures physical-attempt observers on its drivers.
+Manual compositions use `ObservedChatModel(inner, observers)` for logical calls
+and `WireChatModel(..., attempt_observers=...)` for remote attempts. Local ports
+use the same outer wrapper with no wire events. No private methods are needed.
+
+`CallStarted` is eager, before admission and stream consumption. `CallFinished`
+is emitted exactly once on result, rejection, failure, cancellation or stream
+closure. Lazy unconsumed streams have no physical attempt and remain pending
+until explicitly closed. `WireStarted`/`WireExchanged` bracket actual transport
+attempts; admission retries emit neither. All events share the logical call id;
+caller-supplied parent/correlation ids travel in the start context. Standalone
+drivers can receive a CallContext with an explicit call id for correlation.
+
+Events omit payloads, headers, raw errors, exception messages, context tags and
+extension bags. Registered observers receive independent snapshots of trusted
+identity facts, route (when available), usage and fidelity records. Exporters
+must allowlist identities and redact report notes/paths as needed; registration
+is the application's observer authorization boundary. Callback failures and
+mutations cannot alter results. Required durable audit is an enforceable
+middleware responsibility, never an exception thrown from a passive observer.
+
 ## 6. `ocai.wire` — remote transport
 
 `http.py` (`HttpRequest/HttpResponse` value objects — also the audit-archive

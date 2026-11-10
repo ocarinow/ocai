@@ -113,7 +113,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-26 — Emit correlated passive lifecycle events
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Streaming.
 - **Scope:** Emit invocation and physical-attempt lifecycle events with safe metadata, terminal state, accounting and caller correlations; isolate observer failures. Owns runtime/observe.py, runtime/drivers.py, chat/facade.py, chat/__init__.py, tests. Other WU outcomes are out of scope.
 - **Done:** Each invocation including rejection or unconsumed-then-closed streams has exactly one terminal event; attempts exclude admission waits; concurrent events remain isolated and credential-free.

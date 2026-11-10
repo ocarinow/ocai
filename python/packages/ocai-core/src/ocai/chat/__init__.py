@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from ocai.core.fidelity import Route
     from ocai.runtime.decisions import WirePolicy
     from ocai.runtime.interceptors import CallInterceptor
+    from ocai.runtime.observe import Observer
     from ocai.wire.hosting import Host
     from ocai.wire.transport import SyncTransport
     from ocai.wire.transport import Transport
@@ -92,6 +93,7 @@ def model(
     transport: Transport | SyncTransport | None = None,
     interceptors: Sequence[CallInterceptor] = (),
     policies: Sequence[WirePolicy] = (),
+    observers: Sequence[Observer] = (),
     interface: str | None = None,
     tag: str | None = None,
 ) -> ChatModel:
@@ -138,6 +140,7 @@ def model(
         transport: The wire transport, or None for a fresh `HttpxTransport`.
         interceptors: The port-tier chain wrapped around the facade,
             outermost first; empty for the bare facade.
+        observers: Authorized passive metadata-only lifecycle observers.
         policies: The wire-tier hooks (retry, rate-limit, wiretap) the
             drivers consult on every attempt, in order.
         interface: An interface pin (e.g. `"chat_completions"`), or None to
@@ -161,6 +164,7 @@ def model(
     # layer map, so the front door reaches up only at call time, through the
     # same documented seams as the facade (see [tool.importlinter] ignores).
     from ocai.chat.facade import InterceptedChatModel
+    from ocai.chat.facade import ObservedChatModel
     from ocai.convert.catalog import ResolutionError
     from ocai.convert.catalog import default_catalog
     from ocai.core.identity import CANONICAL_PROVIDER
@@ -241,7 +245,10 @@ def model(
         interface=interface,
         tag=tag,
         policies=policies,
+        attempt_observers=observers,
     )
     if interceptors:
-        return InterceptedChatModel(facade, interceptors)
+        facade = InterceptedChatModel(facade, interceptors)
+    if observers:
+        facade = ObservedChatModel(facade, observers)
     return facade
