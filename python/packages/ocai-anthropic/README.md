@@ -1,44 +1,55 @@
 # `ocai-anthropic`
 
-Anthropic **plugin distribution** for `ocai`. Distribution name: **`ocai-anthropic`**.
+The Anthropic **plugin distribution** for [ocai](https://github.com/ocarinow/ocai).
+Distribution name: **`ocai-anthropic`**; `pip install ocai[anthropic]` resolves
+to the same wheel. Requires Python 3.13+ and `ocai>=0.1,<0.2`.
 
-Ships only `ocai/anthropic/` into the shared `ocai` PEP 420 namespace. Because
-`pip install ocai[anthropic]` depends on this distribution, the two install the
-**same wheel** — the extra and the standalone package are interchangeable.
+It ships only `ocai/anthropic/` into the shared `ocai` PEP 420 namespace,
+organized one subpackage per wire interface. Today that is one:
 
-```bash
-pip install ocai-anthropic      # or:  pip install ocai[anthropic]
-```
+- `ocai.anthropic.messages` — the `/v1/messages` interface: typed wire
+  structs, the codec, contract-censused conversion edges, the capability
+  profile, and the chat component. Unary and streaming calls are implemented
+  and certified against recorded fixtures.
+
+## What installing it does
+
+Exactly one structural thing: the frozen `ocai.anthropic.FRAGMENT`
+(a `CatalogFragment`) becomes discoverable through the `ocai.fragments`
+entry-point group, so `ocai.chat.model("anthropic/<model>", ...)` can resolve
+the provider and the conversion graph gains Anthropic's nodes and edges.
+Importing `ocai.anthropic` is inert; there is no import-time registration.
+Applications that want an explicit catalog compose it themselves with
+`Catalog.of(ocai.anthropic.FRAGMENT)`.
 
 ```python
-import ocai.anthropic                    # registers Anthropic<->canonical graph edges
-from ocai.core import get_component
+from ocai.anthropic import chat_model
+from ocai.core import ApiKey
 
-handle = get_component("anthropic")      # discovered via the ocai.plugins entry point
-model = handle["chat_model"](            # stub ChatModel (no network yet)
-    credentials=ApiKey("sk-ant-...", header="x-api-key", scheme=""),
+model = chat_model(
+    "claude-sonnet-4-5",
+    credentials=ApiKey.from_env("ANTHROPIC_API_KEY", header="x-api-key", scheme=""),
 )
+result = model.chat(...)   # needs ocai[http] and a real key
 ```
 
-## What's here
+Anthropic authenticates with the `x-api-key` header, hence the explicit
+`header=`/`scheme=`; the required `anthropic-version` header is injected by
+the interface's declared traits. `chat_model` is sugar over
+`ocai.chat.model("anthropic/<model>", ...)` on a catalog built from this
+fragment, never a separate code path.
 
-- `chat/dialect.py` — the **typed Anthropic Messages wire dialect**: msgspec
-  structs modelling the full [`POST /v1/messages`](https://platform.claude.com/docs/en/api/messages)
-  request, the `Message` response, every content block (text, image, document,
-  tool_use, tool_result, thinking, search_result, server-tool results, …), tools,
-  tool choice, extended-thinking config, structured-output config, usage, and the
-  SSE streaming events. This is the plugin's **decode boundary** (rule 11).
-- `adapter.py` — the `anthropic` chat `DialectCodec`, the composed
-  `AnthropicChatModel`, and the Anthropic<->canonical graph-edge registration.
+## Boundaries
 
-## Status
+- No `anthropic` SDK: ocai owns the wire through `ocai.wire`. This plugin
+  depends on `ocai.core` + `ocai.convert` + `ocai.chat` only, never on
+  `ocai.wire` or `httpx`, so archived traffic can be re-converted by tooling
+  with no ability to make network calls.
+- `msgspec` is used only at the wire-decode boundary.
+- Every conversion edge declares an `EdgeContract` and ships golden fixtures
+  in the repository's `spec/`.
 
-- `dialect.py` — complete wire model of the Messages API (typed but tolerant).
-- `adapter.py` — **stub** codec + `AnthropicChatModel`; the canonical mapping is
-  lossless at the fixture level. `# TODO`: full content-block conversion, tool
-  calls, streaming `ChatChunk`, fidelity loss accounting.
-- Pins core to `ocai>=0.1,<0.2` (compatible API range).
+## License
 
-`ocai` owns the wire: this adapter imports **no** `anthropic` SDK (rule 12).
-Anthropic auth is the `x-api-key` header plus the required `anthropic-version`
-header — supply the key explicitly via `ApiKey(..., header="x-api-key", scheme="")`.
+Source-available under FSL-1.1-ALv2 (converting to Apache-2.0 two years after
+each release). ocai is not open source.
