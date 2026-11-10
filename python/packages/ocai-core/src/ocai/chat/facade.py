@@ -33,6 +33,7 @@ and differ only in which driver executes the wire attempt.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -64,6 +65,7 @@ from ocai.core.profile import resolve_support
 from ocai.core.result import CallContext
 from ocai.core.result import CallResult
 from ocai.runtime.binding import CompositionError
+from ocai.runtime.deadline import Deadline
 from ocai.runtime.drivers import AsyncDriver
 from ocai.runtime.drivers import SyncDriver
 from ocai.runtime.interceptors import Call
@@ -710,9 +712,9 @@ class WireChatModel:
 
         Args:
             request: The canonical chat request.
-            ctx: The per-request governance context. Accepted per the port
-                contract; threading it into the wire policy hooks is a later
-                WU's seam.
+            ctx: Trusted per-call facts, snapshotted and propagated into wire
+                policies without entering provider payloads. Its aware deadline
+                bounds the whole call, including admission and retry waits.
 
         Returns:
             The uniform envelope: response, `Route` (host-stamped, carrying
@@ -724,13 +726,20 @@ class WireChatModel:
                 ultimately fails.
             CompositionError: If the composed stack cannot serve the call.
         """
+        ctx = deepcopy(ctx)
+        budget = Deadline(ctx)
+        budget.remaining()
         prepared = self._prepare(request)
         raw = self._sync_driver.execute(
             spec=prepared.spec,
             payload=prepared.payload,
+            ctx=ctx,
+            budget=budget,
             refine_error=self._refine_error,
         )
-        return self._assemble(prepared, raw)
+        result = self._assemble(prepared, raw)
+        budget.remaining()
+        return result
 
     async def achat(
         self,
@@ -747,9 +756,9 @@ class WireChatModel:
 
         Args:
             request: The canonical chat request.
-            ctx: The per-request governance context. Accepted per the port
-                contract; threading it into the wire policy hooks is a later
-                WU's seam.
+            ctx: Trusted per-call facts, snapshotted and propagated into wire
+                policies without entering provider payloads. Its aware deadline
+                bounds the whole call, including admission and retry waits.
 
         Returns:
             The uniform envelope carrying the canonical `ChatResponse`.
@@ -759,13 +768,20 @@ class WireChatModel:
                 ultimately fails.
             CompositionError: If the composed stack cannot serve the call.
         """
+        ctx = deepcopy(ctx)
+        budget = Deadline(ctx)
+        budget.remaining()
         prepared = self._prepare(request)
         raw = await self._async_driver.execute(
             spec=prepared.spec,
             payload=prepared.payload,
+            ctx=ctx,
+            budget=budget,
             refine_error=self._refine_error,
         )
-        return self._assemble(prepared, raw)
+        result = self._assemble(prepared, raw)
+        budget.remaining()
+        return result
 
     def stream(
         self,
@@ -793,9 +809,9 @@ class WireChatModel:
 
         Args:
             request: The canonical chat request.
-            ctx: The per-request governance context. Accepted per the port
-                contract; threading it into the wire policy hooks is a later
-                WU's seam.
+            ctx: Trusted per-call facts, snapshotted and propagated into wire
+                policies without entering provider payloads. Its aware deadline
+                bounds the whole call, including admission and retry waits.
 
         Returns:
             The canonical chunk stream; its terminal chunk carries
@@ -808,6 +824,9 @@ class WireChatModel:
                 touched.
             CompositionError: If the composed stack cannot serve the call.
         """
+        ctx = deepcopy(ctx)
+        budget = Deadline(ctx)
+        budget.remaining()
         prepared = self._prepare(request, streaming=True)
         pipeline = self._catalog.stream_converter(
             self._chunk_node(prepared.route.node), CANONICAL_CHAT_CHUNK
@@ -815,6 +834,8 @@ class WireChatModel:
         events = self._sync_driver.stream(
             spec=prepared.spec,
             payload=prepared.payload,
+            ctx=ctx,
+            budget=budget,
             refine_error=self._refine_error,
             pipeline=pipeline,
         )
@@ -835,9 +856,9 @@ class WireChatModel:
 
         Args:
             request: The canonical chat request.
-            ctx: The per-request governance context. Accepted per the port
-                contract; threading it into the wire policy hooks is a later
-                WU's seam.
+            ctx: Trusted per-call facts, snapshotted and propagated into wire
+                policies without entering provider payloads. Its aware deadline
+                bounds the whole call, including admission and retry waits.
 
         Returns:
             The async canonical chunk stream; its terminal chunk carries
@@ -850,6 +871,9 @@ class WireChatModel:
                 touched.
             CompositionError: If the composed stack cannot serve the call.
         """
+        ctx = deepcopy(ctx)
+        budget = Deadline(ctx)
+        budget.remaining()
         prepared = self._prepare(request, streaming=True)
         pipeline = self._catalog.stream_converter(
             self._chunk_node(prepared.route.node), CANONICAL_CHAT_CHUNK
@@ -857,6 +881,8 @@ class WireChatModel:
         events = self._async_driver.stream(
             spec=prepared.spec,
             payload=prepared.payload,
+            ctx=ctx,
+            budget=budget,
             refine_error=self._refine_error,
             pipeline=pipeline,
         )

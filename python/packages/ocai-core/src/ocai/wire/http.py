@@ -31,6 +31,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 
+from ocai.core.result import CallContext
+
 _JSON_CONTENT_TYPE = "application/json"
 
 
@@ -55,6 +57,9 @@ class HttpRequest:
     body: bytes | None = None
     stream: bool = False
     timeout: float | None = None
+    ctx: CallContext | None = None
+    attempt: int = 0
+    admission: int = 0
 
     @classmethod
     def from_json(

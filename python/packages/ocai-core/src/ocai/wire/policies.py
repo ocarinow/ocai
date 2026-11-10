@@ -10,7 +10,11 @@ a pure function.
 
 Policies here see requests **before** the credential is applied (the driver
 applies it at the leaf, per attempt, after all hooks), so nothing in this
-module can ever observe a secret.
+module can ever observe a credential applied by the driver. Context-aware policies
+read `request.ctx` and `outcome.ctx`; these are execution metadata and are never
+serialized into the provider payload. `request.admission` counts deferrals, while
+`outcome.attempt` counts physical attempts. Whole-call deadlines are enforced by
+the driver independently of whether a retry policy elects to proceed.
 """
 
 from __future__ import annotations

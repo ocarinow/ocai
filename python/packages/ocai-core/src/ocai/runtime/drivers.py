@@ -40,18 +40,21 @@ adapters skip this module entirely.
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import AsyncIterator
 from collections.abc import Callable
 from collections.abc import Iterator
 from collections.abc import Sequence
+from copy import deepcopy
 from dataclasses import replace
 from typing import TYPE_CHECKING
 from typing import Any
 
+from ocai.core.errors import DeadlineExceededError
 from ocai.core.errors import OcaiError
+from ocai.core.result import CallContext
 from ocai.runtime.binding import Binding
 from ocai.runtime.binding import CompositionError
+from ocai.runtime.deadline import Deadline
 from ocai.runtime.decisions import Decision
 from ocai.runtime.decisions import Fail
 from ocai.runtime.decisions import Outcome
@@ -122,11 +125,11 @@ def _build_request(
 def _transport_request(binding: Binding, request: HttpRequest) -> HttpRequest:
     """Authenticate an independent transport-only copy after admission.
 
-    Headers are the only mutable HttpRequest field; body bytes and scalar
-    fields are immutable. Neither credentials nor a transport may mutate the
+    Headers and context bags are copied; body bytes and scalar fields are
+    immutable. Neither credentials nor a transport may mutate the
     request retained by a policy. Rebuild this copy on every physical attempt.
     """
-    authenticated = replace(request, headers=dict(request.headers))
+    authenticated = replace(request, headers=dict(request.headers), ctx=deepcopy(request.ctx))
     binding.credentials.apply(authenticated)
     return authenticated
 
@@ -224,6 +227,8 @@ class SyncDriver:
         *,
         spec: EndpointSpec,
         payload: dict[str, Any],
+        ctx: CallContext | None = None,
+        budget: Deadline | None = None,
         refine_error: ErrorRefiner | None = None,
     ) -> dict[str, Any]:
         """Run one non-streaming operation through the full pipeline (blocking).
@@ -237,6 +242,8 @@ class SyncDriver:
         Args:
             spec: The endpoint spec the facade assembled from the codec.
             payload: The already-encoded dialect request body.
+            ctx: Trusted per-call facts; never encoded into provider requests.
+            budget: Shared whole-call budget, or derived from ctx.
             refine_error: The dialect's layer-2 error refiner, if any.
 
         Returns:
@@ -248,32 +255,45 @@ class SyncDriver:
                 fails, a policy `Fail`s, or the attempt ceiling is hit.
         """
         transport = self._sync_transport()
+        ctx = deepcopy(ctx)
+        budget = budget or Deadline(ctx)
         attempt = 0
+        admission = 0
         while True:
-            _guard_attempts(attempt)
+            budget.remaining()
+            _guard_attempts(attempt + admission)
             envelope, request = _build_request(self._binding, spec, payload)
+            request.ctx = ctx
+            request.attempt = attempt
+            request.admission = admission
             decision = _request_decision(self._policies, request)
             if isinstance(decision, Fail):
                 raise decision.error
             if isinstance(decision, Return):
                 return envelope.unwrap(decision.response.json())
             if isinstance(decision, Retry):
-                time.sleep(decision.after or 0.0)
-                attempt += 1
+                budget.sleep(decision.after)
+                admission += 1
                 continue
             # Step 4: the leaf. After every hook, fresh on every attempt.
+            remaining = budget.remaining()
+            if remaining is not None:
+                request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
+            budget.remaining()
             response: HttpResponse | None = None
             try:
                 response = transport.send_sync(authenticated)
+                budget.remaining()
                 outcome = Outcome(request=request, attempt=attempt, response=response)
             except OcaiError as err:
                 outcome = Outcome(
                     request=request, attempt=attempt, error=_refine(refine_error, err)
                 )
             decision = _outcome_decision(self._policies, outcome)
+            budget.remaining()
             if isinstance(decision, Retry):
-                time.sleep(decision.after or 0.0)
+                budget.sleep(decision.after)
                 attempt += 1
                 continue
             if isinstance(decision, Fail):
@@ -290,6 +310,8 @@ class SyncDriver:
         *,
         spec: EndpointSpec,
         payload: dict[str, Any],
+        ctx: CallContext | None = None,
+        budget: Deadline | None = None,
         refine_error: ErrorRefiner | None = None,
         pipeline: StreamPipeline | None = None,
     ) -> Iterator[Any]:
@@ -313,6 +335,8 @@ class SyncDriver:
         Args:
             spec: The endpoint spec (its operation's `streaming` flag set).
             payload: The already-encoded dialect request body.
+            ctx: Trusted per-call facts; never encoded into provider requests.
+            budget: Shared whole-call budget, or derived from ctx.
             refine_error: The dialect's layer-2 error refiner, if any.
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
@@ -330,10 +354,17 @@ class SyncDriver:
         from ocai.wire.sse import SSEParser
 
         transport = self._sync_transport()
+        ctx = deepcopy(ctx)
+        budget = budget or Deadline(ctx)
         attempt = 0
+        admission = 0
         while True:
-            _guard_attempts(attempt)
+            budget.remaining()
+            _guard_attempts(attempt + admission)
             _, request = _build_request(self._binding, spec, payload)
+            request.ctx = ctx
+            request.attempt = attempt
+            request.admission = admission
             decision = _request_decision(self._policies, request)
             if isinstance(decision, Fail):
                 raise decision.error
@@ -342,18 +373,26 @@ class SyncDriver:
                 # SSEParser — needs the wire-cache policy to exist first.
                 raise NotImplementedError("Return decisions for streams are not supported yet")
             if isinstance(decision, Retry):
-                time.sleep(decision.after or 0.0)
-                attempt += 1
+                budget.sleep(decision.after)
+                admission += 1
                 continue
+            remaining = budget.remaining()
+            if remaining is not None:
+                request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
+            budget.remaining()
             parser = SSEParser()
             try:
                 for chunk in transport.stream_sync(authenticated):
+                    budget.remaining()
                     for event in parser.feed(chunk):
                         if pipeline is None:
+                            budget.remaining()
                             yield event
                         else:
-                            yield from pipeline.feed(event)
+                            for converted in pipeline.feed(event):
+                                budget.remaining()
+                                yield converted
             except OcaiError as err:
                 if pipeline is not None and pipeline.reports is None:
                     # Aborted stream: flush anyway (sealing in-flight state)
@@ -362,7 +401,9 @@ class SyncDriver:
                 raise _refine(refine_error, err) from err
             if pipeline is not None:
                 tail, _ = pipeline.flush()
-                yield from tail
+                for converted in tail:
+                    budget.remaining()
+                    yield converted
             return
 
 
@@ -404,6 +445,8 @@ class AsyncDriver:
         *,
         spec: EndpointSpec,
         payload: dict[str, Any],
+        ctx: CallContext | None = None,
+        budget: Deadline | None = None,
         refine_error: ErrorRefiner | None = None,
     ) -> dict[str, Any]:
         """Run one non-streaming operation through the full pipeline (async).
@@ -414,6 +457,8 @@ class AsyncDriver:
         Args:
             spec: The endpoint spec the facade assembled from the codec.
             payload: The already-encoded dialect request body.
+            ctx: Trusted per-call facts; never encoded into provider requests.
+            budget: Shared whole-call budget, or derived from ctx.
             refine_error: The dialect's layer-2 error refiner, if any.
 
         Returns:
@@ -424,31 +469,48 @@ class AsyncDriver:
                 fails, a policy `Fail`s, or the attempt ceiling is hit.
         """
         transport = self._async_transport()
+        ctx = deepcopy(ctx)
+        budget = budget or Deadline(ctx)
         attempt = 0
+        admission = 0
         while True:
-            _guard_attempts(attempt)
+            budget.remaining()
+            _guard_attempts(attempt + admission)
             envelope, request = _build_request(self._binding, spec, payload)
+            request.ctx = ctx
+            request.attempt = attempt
+            request.admission = admission
             decision = _request_decision(self._policies, request)
             if isinstance(decision, Fail):
                 raise decision.error
             if isinstance(decision, Return):
                 return envelope.unwrap(decision.response.json())
             if isinstance(decision, Retry):
-                await asyncio.sleep(decision.after or 0.0)
-                attempt += 1
+                await budget.asleep(decision.after)
+                admission += 1
                 continue
             # Step 4: the leaf. After every hook, fresh on every attempt.
+            remaining = budget.remaining()
+            if remaining is not None:
+                request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
+            budget.remaining()
             try:
-                response = await transport.send(authenticated)
+                try:
+                    async with asyncio.timeout(budget.remaining()):
+                        response = await transport.send(authenticated)
+                except TimeoutError as exc:
+                    raise DeadlineExceededError("whole-call deadline expired") from exc
+                budget.remaining()
                 outcome = Outcome(request=request, attempt=attempt, response=response)
             except OcaiError as err:
                 outcome = Outcome(
                     request=request, attempt=attempt, error=_refine(refine_error, err)
                 )
             decision = _outcome_decision(self._policies, outcome)
+            budget.remaining()
             if isinstance(decision, Retry):
-                await asyncio.sleep(decision.after or 0.0)
+                await budget.asleep(decision.after)
                 attempt += 1
                 continue
             if isinstance(decision, Fail):
@@ -465,6 +527,8 @@ class AsyncDriver:
         *,
         spec: EndpointSpec,
         payload: dict[str, Any],
+        ctx: CallContext | None = None,
+        budget: Deadline | None = None,
         refine_error: ErrorRefiner | None = None,
         pipeline: StreamPipeline | None = None,
     ) -> AsyncIterator[Any]:
@@ -483,6 +547,8 @@ class AsyncDriver:
         Args:
             spec: The endpoint spec (its operation's `streaming` flag set).
             payload: The already-encoded dialect request body.
+            ctx: Trusted per-call facts; never encoded into provider requests.
+            budget: Shared whole-call budget, or derived from ctx.
             refine_error: The dialect's layer-2 error refiner, if any.
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
@@ -499,10 +565,17 @@ class AsyncDriver:
         from ocai.wire.sse import SSEParser
 
         transport = self._async_transport()
+        ctx = deepcopy(ctx)
+        budget = budget or Deadline(ctx)
         attempt = 0
+        admission = 0
         while True:
-            _guard_attempts(attempt)
+            budget.remaining()
+            _guard_attempts(attempt + admission)
             _, request = _build_request(self._binding, spec, payload)
+            request.ctx = ctx
+            request.attempt = attempt
+            request.admission = admission
             decision = _request_decision(self._policies, request)
             if isinstance(decision, Fail):
                 raise decision.error
@@ -511,18 +584,33 @@ class AsyncDriver:
                 # SSEParser — needs the wire-cache policy to exist first.
                 raise NotImplementedError("Return decisions for streams are not supported yet")
             if isinstance(decision, Retry):
-                await asyncio.sleep(decision.after or 0.0)
-                attempt += 1
+                await budget.asleep(decision.after)
+                admission += 1
                 continue
+            remaining = budget.remaining()
+            if remaining is not None:
+                request.timeout = min(request.timeout, remaining) if request.timeout else remaining
             authenticated = _transport_request(self._binding, request)
+            budget.remaining()
             parser = SSEParser()
             try:
-                async for chunk in transport.stream(authenticated):
+                upstream = transport.stream(authenticated)
+                while True:
+                    try:
+                        async with asyncio.timeout(budget.remaining()):
+                            chunk = await anext(upstream)
+                    except StopAsyncIteration:
+                        break
+                    except TimeoutError as exc:
+                        raise DeadlineExceededError("whole-call deadline expired") from exc
+                    budget.remaining()
                     for event in parser.feed(chunk):
                         if pipeline is None:
+                            budget.remaining()
                             yield event
                         else:
                             for converted in pipeline.feed(event):
+                                budget.remaining()
                                 yield converted
             except OcaiError as err:
                 if pipeline is not None and pipeline.reports is None:
@@ -533,5 +621,6 @@ class AsyncDriver:
             if pipeline is not None:
                 tail, _ = pipeline.flush()
                 for converted in tail:
+                    budget.remaining()
                     yield converted
             return
