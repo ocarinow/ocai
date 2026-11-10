@@ -214,10 +214,20 @@ with real usage in hand.
 
 ### 2.9 `traits.py` and survivors
 
-`DialectTraits` (vendor, first-party headers, cloud body version) lives in the
-**contract layer**, not in `ocai.wire`: it is *declared* by plugin interface
-subpackages (which may only import core+convert) and merely *read* by wire
-hosts. Plus the survivors: `errors.py` (the taxonomy — unchanged),
+`DialectTraits` lives in the **contract layer**, not in `ocai.wire`: plugin
+interface subpackages declare data; wire hosts consume it. WU-37 adds
+`version_headers`, `feature_headers`, `host_body_versions` and
+`host_feature_body_mappings` alongside the unchanged legacy constructor fields.
+`HeaderBodyMapping(header, field, separator)` declares scalar preservation or
+explicit list splitting; declaring a mapping never enables a feature.
+`request_headers()` merges explicit groups over legacy headers case-insensitively;
+`body_fields(host)` resolves that host's version and declared feature values.
+An absent host entry falls back to `cloud_body_version`; explicit `None` disables
+that fallback. Header role collisions, duplicate mapping sources/destinations and
+version/feature body collisions fail at construction. Maps are copied on input;
+returned headers/body values are detached. These declarations contain no secrets.
+Binding-level header overrides and new hosts remain WU-38/later work.
+Plus the survivors: `errors.py` (the taxonomy — unchanged),
 `credentials.py` (`Credential` protocol + `ApiKey`, explicit-only, redacted —
 unchanged; *application* moved to the driver leaf, §5), `jsonschema.py`,
 `sources.py` (gains `SourceRef(ProviderRef)` for provider file handles),
@@ -507,7 +517,11 @@ multiple eligible sibling interfaces require an explicit `interface=` pin.
 The chat front door applies this to serveable interfaces, excluding stubs.
 
 Lock format `ocai.catalog-lock/2` includes structured node/endpoint metadata,
-full contracts, traits, and optional conformance-resource locations. Reordering
+full contracts, traits, and optional conformance-resource locations. WU-37
+snapshots every trait map at admission and on readback, and fingerprints all
+host-specific versions, header groups and feature-body rules. Empty new trait
+maps are omitted from lock serialization, preserving legacy-only hashes; adding
+explicit declarations changes the fingerprint. Reordering
 the same declarations does not change the hash. The new format changes hashes
 from the old format. Code, package artifacts, fixture contents, and schema
 contents are not hashed: this is a declaration fingerprint, not proof of binary
@@ -597,6 +611,14 @@ survives), and
 `policies.py` (Decision-based `RetryPolicy`, `RateLimitPolicy` [stub],
 `WireTap` audit hook [stub] — feeds content-addressed archive satellites).
 
+WU-37 makes Direct/Custom consume resolved trait headers. Vertex consumes
+`body_fields("vertex")`, removes model/stream as before, and keeps the legacy
+`setdefault` behavior for legacy-only traits. Explicit declarations that conflict
+with a payload field fail before I/O rather than silently selecting a value.
+Vertex forwards explicit feature headers unless a Vertex trait mapping relocates
+them into the body; version headers are omitted. Its default Anthropic wire body
+is unchanged. This is not a Bedrock host implementation.
+
 ## 7. Plugins — one subpackage per interface
 
 ```
@@ -621,6 +643,11 @@ plugin. A plugin MAY additionally ship a convenience helper
 (`ocai.openai.chat_model(...)`) — a thin wrapper over the same fragment +
 facade machinery, never a separate code path, and never required: the core
 string door must always work without it.
+
+Anthropic's WU-37 traits declare separate Vertex and Bedrock body versions and
+a Bedrock `anthropic-beta` → `anthropic_beta` list mapping. Feature values remain
+empty until explicitly supplied; no beta is enabled by installing the plugin.
+The legacy Vertex tuple and first-party version header remain available.
 
 WU-29 qualifies the Chat Completions client request decoder for the gateway
 matrix in `plans/gateway-readiness.md`. Function tool identity/order and named

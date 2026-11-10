@@ -1,0 +1,43 @@
+{
+  "description": "Synthetic WU-37 recorded Vertex rawPredict request/response, derived from anthropic_messages.json and the Google Cloud Claude REST request documentation. Exercises the unchanged unary Vertex envelope through sync and async public facades; no live identifiers or credentials. Host version is vertex-2023-10-16; model is carried in the URL.",
+  "request": {
+    "method": "POST",
+    "url": "https://us-east5-aiplatform.googleapis.com/v1/projects/test-project/locations/us-east5/publishers/anthropic/models/claude-opus-4-6:rawPredict",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello, who are you?"
+            }
+          ]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024,
+      "anthropic_version": "vertex-2023-10-16"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01XYZ",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-6",
+      "content": [
+        {
+          "type": "text",
+          "text": "I am Claude, an AI assistant."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 14,
+        "output_tokens": 9
+      }
+    }
+  }
+}

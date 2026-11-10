@@ -176,9 +176,7 @@ def _snapshot(fragment: CatalogFragment) -> CatalogFragment:
         edges=tuple(edge_copy(edge) for edge in fragment.edges),
         transducers=tuple(edge_copy(edge) for edge in fragment.transducers),
         profiles=tuple(replace(p, features=dict(p.features)) for p in fragment.profiles),
-        traits=tuple(
-            replace(t, first_party_headers=dict(t.first_party_headers)) for t in fragment.traits
-        ),
+        traits=tuple(replace(t) for t in fragment.traits),
     )
 
 
@@ -897,7 +895,7 @@ class Catalog:
                             }
                             for component in fragment.components
                         ],
-                        "traits": [asdict(trait) for trait in fragment.traits],
+                        "traits": [_lock_traits(trait) for trait in fragment.traits],
                         "conformance": (
                             asdict(fragment.conformance)
                             if fragment.conformance is not None
@@ -985,3 +983,13 @@ def default_catalog() -> Catalog:
         The memoized default catalog.
     """
     return Catalog.discover()
+
+
+def _lock_traits(trait: DialectTraits) -> dict[str, Any]:
+    """Fingerprint all host declarations while preserving legacy empty-field hashes."""
+    data = asdict(trait)
+    for key in ("version_headers", "feature_headers", "host_body_versions",
+                "host_feature_body_mappings"):
+        if not data[key]:
+            del data[key]
+    return data

@@ -66,7 +66,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-33 | Publish the platform and gateway design | Platform design | [platform design](platform-design.md) | ✅ Complete |
 | WU-36 | Define the tier 1–2 integration program | Integration | [integration](integration-program.md) | ✅ Complete (plan) |
-| WU-37 | Declare host-specific dialect versions | Integration | [integration](integration-program.md) | ⬜ |
+| WU-37 | Declare host-specific dialect versions | Integration | [integration](integration-program.md) | ✅ Complete (review pending) |
 | WU-38 | Compose explicit host endpoints and profiles | Integration | [integration](integration-program.md) | ⬜ |
 | WU-39 | Select framing independently of semantic conversion | Integration | [integration](integration-program.md) | ⬜ |
 | WU-40 | Qualify URL citations on canonical text | Integration | [integration](integration-program.md) | ⬜ |

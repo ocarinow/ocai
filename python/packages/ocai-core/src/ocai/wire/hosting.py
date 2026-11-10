@@ -214,9 +214,9 @@ class Direct:
             spec: The endpoint spec carrying the dialect traits.
 
         Returns:
-            The dialect's `first_party_headers`.
+            Detached dialect headers with explicit version/feature groups resolved.
         """
-        return spec.traits.first_party_headers
+        return spec.traits.request_headers()
 
 
 @dataclass(frozen=True)
@@ -270,9 +270,9 @@ class Custom:
             spec: The endpoint spec carrying the dialect traits.
 
         Returns:
-            The dialect's `first_party_headers`.
+            Detached dialect headers with explicit version/feature groups resolved.
         """
-        return spec.traits.first_party_headers
+        return spec.traits.request_headers()
 
 
 class _RawPredictEnvelope:
@@ -280,8 +280,8 @@ class _RawPredictEnvelope:
 
     Vertex addresses the model in the URL, so `model` is dropped from the body;
     it signals streaming via the URL verb, so a `stream` flag is dropped; and a
-    dialect that needs a cloud version field (its `cloud_body_version`, e.g.
-    Anthropic's `anthropic_version`) gets it injected. The response is returned
+    dialect's host-specific version and feature-body declarations are injected
+    (falling back to `cloud_body_version` for legacy declarations). The response is returned
     verbatim. This single envelope serves every dialect Vertex hosts — the
     per-dialect difference is read from `DialectTraits`, not coded per pair.
     """
@@ -305,8 +305,14 @@ class _RawPredictEnvelope:
             version field injected.
         """
         body = {k: v for k, v in payload.items() if k not in ("model", "stream")}
-        if self._traits.cloud_body_version is not None:
-            field_name, value = self._traits.cloud_body_version
+        fields = self._traits.body_fields("vertex")
+        explicit = (
+            "vertex" in self._traits.host_body_versions
+            or bool(self._traits.host_feature_body_mappings.get("vertex"))
+        )
+        for field_name, value in fields.items():
+            if explicit and field_name in body and body[field_name] != value:
+                raise ValueError(f"payload conflicts with host declaration: {field_name}")
             body.setdefault(field_name, value)
         return body
 
@@ -376,16 +382,21 @@ class Vertex:
         )
 
     def headers(self, spec: EndpointSpec) -> Mapping[str, str]:
-        """Return no host headers — Vertex carries the version in the body.
+        """Return explicit feature headers that the envelope does not relocate.
 
-        First-party version headers are deliberately *not* forwarded: Vertex
-        injects the version into the body via the envelope (see
-        `_RawPredictEnvelope`) and authenticates with a Google bearer credential.
+        First-party version headers are not forwarded: Vertex injects its body
+        version. Explicit feature headers remain headers unless a trait declares
+        their relocation into the body. Legacy unclassified headers stay ignored.
 
         Args:
-            spec: The endpoint spec for the request (unused).
+            spec: The endpoint spec carrying feature declarations.
 
         Returns:
-            An empty mapping.
+            Explicit feature headers not relocated by the Vertex envelope.
         """
-        return {}
+        mapped = {
+            rule.header for rule in spec.traits.host_feature_body_mappings.get("vertex", ())
+        }
+        return {
+            key: value for key, value in spec.traits.feature_headers.items() if key not in mapped
+        }
