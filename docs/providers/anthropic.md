@@ -170,3 +170,18 @@ reason, no prefill.
 - `usage` maps to `Usage`, but Anthropic adds `cache_creation_input_tokens` /
   `cache_read_input_tokens` — extra fields the IR's `Usage` should grow or stash in
   `extensions`.
+
+## WU-37 host declaration verification (2026-11-10)
+
+The [Bedrock request reference](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages-request-response.html)
+specifies body `anthropic_version=bedrock-2023-05-31` and optional
+`anthropic_beta` as an array. The [Google Cloud Claude REST examples](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude/use-claude)
+specify `anthropic_version=vertex-2023-10-16`. These confirm separate host
+versions, not interchangeable values in one cloud tuple. Beta feature availability
+is model/host-specific; declaring the Bedrock mapping enables no feature.
+
+The synthetic `anthropic_vertex_version.json` HTTP recording qualifies the existing
+Vertex unary envelope in both drivers. Bedrock transport, signing and streaming
+remain later WUs. No Vertex beta body mapping is inferred from the Bedrock example;
+explicit unmapped feature headers remain headers. Binding-level overrides are
+not relocated by the trait-only resolver in WU-37.

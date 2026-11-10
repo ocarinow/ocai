@@ -1,8 +1,9 @@
 # 0008 — Additive integration contracts before the qualification gate
 
-- **Status:** proposed
+- **Status:** WU-37 host declarations accepted; remaining proposals pending
 - **Date:** 2026-11-10
-- **Deciders:** maintainer review pending
+- **Deciders:** maintainer authorized WU-37 implementation after merging PR #27;
+  later contract proposals remain pending
 
 ## Context
 
@@ -13,7 +14,9 @@ survey recommendations need additive changes to frozen-candidate core/chat
 contracts before provider plugins or satellites can use them honestly.
 
 This proposal accompanies WU-36 in the [integration program](../plans/integration-program.md).
-It does not implement those contracts or accept its own decisions. ADR 0005
+The plan did not implement or accept its own decisions. The maintainer
+subsequently authorized WU-37; acceptance below is limited to its host-declaration
+surface. ADR 0005
 remains the freeze gate; neither a library semver nor merging this plan earns
 qualification. The active canonical revision stays 2026-07. ADR 0003's
 ordered-item candidate and the required Responses migration remain separate work.
@@ -26,7 +29,7 @@ constructor behavior and serialized payloads when the new feature is absent.
 Each implementation includes schema/unknown-input evidence and the affected
 edge contracts; a plan cannot authorize removing a legacy field.
 
-### Host declarations and credentials (WU-37–38)
+### Host declarations (WU-37 accepted) and credentials (WU-38 proposed)
 
 Add host-keyed body-version declarations and separate version-header versus
 feature-header handling to DialectTraits. Keep cloud_body_version and
@@ -37,6 +40,27 @@ mapping duplicated in hosts. Binding overrides apply only to non-secret headers;
 credential application remains the driver leaf after hooks on an independent
 request. Snapshot all maps and include relevant host/trait configuration in
 catalog or prepared-handle identity so approval cannot silently go stale.
+
+WU-37 concretizes the accepted declarations as `version_headers`,
+`feature_headers`, `host_body_versions` and `host_feature_body_mappings` with
+`HeaderBodyMapping(header, field, separator)`. Explicit groups override legacy
+header values case-insensitively; a header cannot have both explicit roles.
+Duplicate body destinations/sources and version-versus-feature body collisions
+fail construction. A host-specific None entry disables the legacy body version.
+`body_fields(host)` resolves declared values only, without reading environment
+or binding headers. Header list splitting trims delimiter whitespace and rejects
+empty items; it never silently removes a feature. Vertex forwards explicit
+unmapped feature headers. Payload collisions with explicit declarations fail
+before I/O; legacy-only Vertex setdefault behavior remains intact.
+
+Catalog admission/readback copies all maps; locks include every nonempty new
+field and omit empty additions so legacy-only lock hashes stay identical. The
+Anthropic declarations now carry both cloud versions and the Bedrock beta mapping,
+without enabling any beta or implementing a Bedrock host. The fixture qualifies
+existing Vertex unary execution through both driver faces. No conversion edge,
+canonical schema or credentials protocol changes in WU-37.
+
+The following WU-38 credential and binding composition additions remain proposed:
 
 Add an explicit NoCredential implementation. Preserve Credential and ApiKey's
 existing protocol/signatures and configurable header/scheme. Absence of a

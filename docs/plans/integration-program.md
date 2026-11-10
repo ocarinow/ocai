@@ -28,7 +28,8 @@ is included. The first satellites here are independently packaged libraries.
 [ADR 0005](../decisions/0005-revised-freeze-gate.md) remains the release gate.
 [ADR 0007](../decisions/0007-governed-execution.md) remains the execution boundary.
 [The proposed integration ADR](../decisions/0008-integration-contract-additions.md)
-must be accepted before a WU changes a frozen-candidate surface. All additions
+must have the relevant portion accepted before a WU changes a frozen-candidate
+surface; the maintainer authorized the WU-37 host declarations after PR #27 merged. All additions
 remain optional/open and preserve existing serialized forms and constructors.
 There is no canonical-node promotion or ordered-item migration in this program.
 The stale semver-based freeze wording in procedure templates does not override
@@ -115,7 +116,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-37 — Declare host-specific dialect versions
 
-- [ ] **Status:** not started.
+- [x] **Status:** complete; awaiting implementation PR review/merge.
 - **Scope:** `core/traits.py`, catalog trait snapshots/lock serialization, existing
   Anthropic trait declarations and Vertex envelope; 12–20 files. Add host-keyed
   body versions, distinguish version/feature headers and declarative feature-body
@@ -124,13 +125,13 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Done:** A trait composition regression test passes: identical Anthropic input
   resolves independent Vertex/Bedrock version and beta settings without mutation,
   legacy Vertex output remains identical, and each relevant change alters the lock.
-- **Deps:** WU-36; accepted integration ADR.
+- **Deps:** WU-36; accepted WU-37 host-declaration portion of ADR 0008.
 - **Architecture:** §2.9, §4.3, §6, §7.
-- **Freeze:** additive `ocai.core.DialectTraits`; no chat shape changes; proposed
+- **Freeze:** additive `ocai.core.DialectTraits`; no chat shape changes; accepted WU-37 portion of the
   integration ADR covers the legacy-field preservation rule.
 - **Decision:** Use a per-host map, never overload the Vertex tuple for Bedrock
   ([Bedrock §13(a)](../providers/amazon-bedrock.md#13-mapping-to-ocai)).
-- **Open:** None beyond ADR acceptance; unsupported mapping conflicts fail at
+- **Open:** None for WU-37; unsupported mapping conflicts fail at
   composition rather than selecting a silent winner.
 
 ## WU-38 — Compose explicit host endpoints and profiles

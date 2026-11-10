@@ -114,6 +114,7 @@ from ocai.core.sources import SourceUnknown
 from ocai.core.sources import SourceUrl
 from ocai.core.sources import cast_source
 from ocai.core.traits import DialectTraits
+from ocai.core.traits import HeaderBodyMapping
 from ocai.core.usage import Consumption
 from ocai.core.usage import Usage
 from ocai.core.usage import UsageModality
@@ -147,6 +148,7 @@ __all__ = [
     "ContextLengthError",
     "Credential",
     "DialectTraits",
+    "HeaderBodyMapping",
     "CredentialError",
     "DataClassProto",
     "DetailOpaque",

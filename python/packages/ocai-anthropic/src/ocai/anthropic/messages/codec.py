@@ -83,6 +83,7 @@ from ocai.core.refs import RefScope
 from ocai.core.refs import Replay
 from ocai.core.sources import SourceRef
 from ocai.core.traits import DialectTraits
+from ocai.core.traits import HeaderBodyMapping
 
 # Interface coordinates. `TAG` is an opaque dated revision token, ordered by
 # `released`, never parsed.
@@ -101,8 +102,8 @@ ANTHROPIC_VERSION = "2023-06-01"
 
 # The `anthropic_version` BODY value cloud hosts (Vertex) require in place of
 # the first-party header. Distinct from the header value above.
-# TODO: confirm/parameterize per cloud host as more cloud targets land.
 ANTHROPIC_VERTEX_VERSION = "vertex-2023-10-16"
+ANTHROPIC_BEDROCK_VERSION = "bedrock-2023-05-31"
 
 # The Messages API requires max_tokens; when the canonical config omits it the
 # encoder injects this default and reports the shift.
@@ -323,6 +324,14 @@ def dialect_traits() -> DialectTraits:
         first_party_headers={"anthropic-version": ANTHROPIC_VERSION},
         cloud_body_version=("anthropic_version", ANTHROPIC_VERTEX_VERSION),
         first_party_base_url=ANTHROPIC_BASE_URL,
+        version_headers={"anthropic-version": ANTHROPIC_VERSION},
+        host_body_versions={
+            "vertex": ("anthropic_version", ANTHROPIC_VERTEX_VERSION),
+            "bedrock": ("anthropic_version", ANTHROPIC_BEDROCK_VERSION),
+        },
+        host_feature_body_mappings={
+            "bedrock": (HeaderBodyMapping("anthropic-beta", "anthropic_beta", ","),),
+        },
     )
 
 
