@@ -53,6 +53,7 @@ from ocai.chat.types.usage import Usage
 from ocai.core.errors import StreamProtocolError
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
+from ocai.core.fidelity import FidelityPolicyError
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import NodeId
@@ -959,6 +960,9 @@ class _StreamState:
             report = self.end.report
         if self.error is not None:
             status, error = "failed", self.error
+        if isinstance(error, FidelityPolicyError):
+            self.usage = deepcopy(error.usage) if error.usage is not None else self.usage
+            report = error.report
         self.outcome = StreamOutcome(status, self.usage, deepcopy(report), error)
         if status != "completed":
             self.end = None

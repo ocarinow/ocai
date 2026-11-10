@@ -139,7 +139,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-28 — Enforce request and response fidelity policy
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Conversion.
 - **Scope:** Enforce caller predicates over FieldLoss and SemanticShift; reject request violations before I/O, retain accounting on response rejection, and document incremental streaming limits. Owns core/fidelity.py, chat/facade.py, chat/types/stream.py, tests. Other WU outcomes are out of scope.
 - **Done:** Forbidden requests perform zero calls; response-policy errors retain reports and usage, including already-delivered stream output without claiming retraction.

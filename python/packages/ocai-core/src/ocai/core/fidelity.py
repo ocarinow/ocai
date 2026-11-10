@@ -20,6 +20,8 @@ reconstructs exactly which conversion logic served a call — the audit joint.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
@@ -28,11 +30,13 @@ from typing import Any
 from typing import Final
 from typing import Self
 
+from ocai.core.errors import OcaiError
 from ocai.core.identity import Capability
 from ocai.core.identity import NodeId
 from ocai.core.identity import Shape
 from ocai.core.ir import is_json_array
 from ocai.core.ir import is_json_object
+from ocai.core.usage import Usage
 
 
 class Disposition(str, Enum):
@@ -546,3 +550,58 @@ class Route:
             "catalog_hash": self.catalog_hash,
             "host": self.host,
         }
+
+
+class FidelityPolicyError(OcaiError):
+    """Conversion policy rejected execution; accounting survives without payloads."""
+
+    def __init__(self, *, phase: str, report: FidelityReport,
+                 usage: Usage | None = None, route: Route | None = None,
+                 delivered_events: int = 0) -> None:
+        """Retain detached evidence, never the rejected response or raw body."""
+        super().__init__(f"conversion policy rejected {phase}")
+        self.phase = phase
+        self.report = deepcopy(report)
+        self.usage = deepcopy(usage)
+        self.route = route
+        self.delivered_events = delivered_events
+        self.partial = delivered_events > 0
+
+
+@dataclass(frozen=True)
+class FidelityPolicy:
+    """Caller-defined acceptance over both field records and semantic shifts.
+
+    Predicates receive detached records and must be pure. A raising predicate
+    rejects execution. Predicates are re-evaluated before every physical attempt;
+    closures are application policy code, not portable conformance evidence.
+    Neither semantic acceptance nor coverage is inferred from report.lossless.
+    """
+
+    forbidden_dispositions: frozenset[Disposition] = frozenset()
+    forbidden_shifts: frozenset[str] = frozenset()
+    allow_loss: Callable[[FieldLoss], bool] | None = None
+    allow_shift: Callable[[SemanticShift], bool] | None = None
+
+    def enforce(self, report: FidelityReport, *, phase: str,
+                usage: Usage | None = None, route: Route | None = None,
+                delivered_events: int = 0) -> None:
+        """Reject forbidden findings while retaining usage and the complete ledger."""
+        accepted = True
+        try:
+            for edge in report.edges:
+                for loss in edge.losses:
+                    if loss.disposition in self.forbidden_dispositions:
+                        accepted = False
+                    if self.allow_loss is not None and not self.allow_loss(deepcopy(loss)):
+                        accepted = False
+                for shift in edge.shifts:
+                    if shift.kind in self.forbidden_shifts:
+                        accepted = False
+                    if self.allow_shift is not None and not self.allow_shift(deepcopy(shift)):
+                        accepted = False
+        except Exception:
+            accepted = False
+        if not accepted:
+            raise FidelityPolicyError(phase=phase, report=report, usage=usage,
+                                      route=route, delivered_events=delivered_events)

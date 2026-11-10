@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from ocai.chat.facade import ObservedChatModel
     from ocai.convert.catalog import Catalog
     from ocai.core.credentials import Credential
+    from ocai.core.fidelity import FidelityPolicy
     from ocai.core.fidelity import Route
     from ocai.runtime.decisions import WirePolicy
     from ocai.runtime.interceptors import CallInterceptor
@@ -96,6 +97,7 @@ def model(
     interceptors: Sequence[CallInterceptor] = (),
     policies: Sequence[WirePolicy] = (),
     observers: Sequence[Observer] = (),
+    conversion_policy: FidelityPolicy | None = None,
     interface: str | None = None,
     tag: str | None = None,
 ) -> WireChatModel | InterceptedChatModel | ObservedChatModel:
@@ -142,6 +144,7 @@ def model(
         transport: The wire transport, or None for a fresh `HttpxTransport`.
         interceptors: The port-tier chain wrapped around the facade,
             outermost first; empty for the bare facade.
+        conversion_policy: Caller-defined acceptance over field losses and shifts.
         observers: Authorized passive metadata-only lifecycle observers.
         policies: The wire-tier hooks (retry, rate-limit, wiretap) the
             drivers consult on every attempt, in order.
@@ -248,6 +251,7 @@ def model(
         tag=tag,
         policies=policies,
         attempt_observers=observers,
+        conversion_policy=conversion_policy,
     )
     if interceptors:
         facade = InterceptedChatModel(facade, interceptors)
