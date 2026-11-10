@@ -135,6 +135,7 @@ Run from the repository root.
 ```bash
 uv sync                                          # create the env, install the workspace
 uv run python scripts/check.py                   # THE gate: ruff + import contracts + pyright/mypy strict + pytest
+task check                                       # the same gate via Task (task lists every command)
 uv run python examples/cross_conversion_demo.py  # the cross-conversion fidelity demo (offline)
 ```
 

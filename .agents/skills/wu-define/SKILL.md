@@ -84,7 +84,7 @@ creates missing cards from the plan table and keeps their status in step
 with the linked PR; to create it immediately:
 
 ```bash
-gh issue create --template work-unit.yml --title "WU-NN: <title>" --body-file <file>
+task board:card -- "WU-NN: <title>" <file>
 ```
 
 Scope never lives on the card. If the entry changes, the plan file changes

@@ -34,7 +34,7 @@ In this order, and only the parts the WU cites:
 ## 3. Branch
 
 ```bash
-git switch -c wu-NN-short-slug
+task pr:worktree -- wu-NN-short-slug       # worktree + branch from origin/main
 ```
 
 If another agent is working the same checkout and your file sets would
@@ -47,8 +47,7 @@ branch at your first commit and open a **draft PR** whose body starts with
 work but no PR is invisible and the nightly sync flags it.
 
 ```bash
-git push -u origin wu-NN-short-slug
-gh pr create --draft --title "WU-NN: <title>" --body "Closes #N"
+task pr:draft -- "WU-NN: <title>" N        # privacy guard, push, draft PR with Closes #N
 ```
 
 ## 4. Implement only the WU
@@ -66,7 +65,7 @@ gh pr create --draft --title "WU-NN: <title>" --body "Closes #N"
 ## 5. Verify
 
 ```bash
-uv run python scripts/check.py
+task check                                 # = uv run python scripts/check.py
 ```
 
 Paste the summary block into the PR. If a step fails, fix it or stop and

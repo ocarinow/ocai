@@ -1,0 +1,44 @@
+# The GitHub Project board (AGENTS.md "The board"): a view of the repo, moved
+# by automation only. scripts/board_sync.py is the single mover.
+version: "3"
+
+tasks:
+  sync:
+    desc: Report plan ↔ cards ↔ board differences (exit 1 when out of sync)
+    cmds:
+      - uv run python scripts/board_sync.py {{.CLI_ARGS}}
+
+  sync:apply:
+    desc: Create missing cards and set statuses from the facts (needs a token with the project scope)
+    cmds:
+      - uv run python scripts/board_sync.py --apply {{.CLI_ARGS}}
+
+  card:
+    desc: "Create the board card for a WU (task board:card -- \"WU-NN: title\" BODYFILE)"
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{index (splitArgs .CLI_ARGS) 1}}
+      - gh issue create --label work-unit --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}
+
+  decision:
+    desc: "File a decision-needed issue for the maintainer (task board:decision -- \"Decision: question\" BODYFILE); see maintainer-handoff"
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{index (splitArgs .CLI_ARGS) 1}}
+      - gh issue create --label decision --label blocked-maintainer --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}
+
+  gap:
+    desc: "File a kernel-gap issue mirroring a gaps.md row (task board:gap -- \"Gap: what\" BODYFILE)"
+    cmds:
+      - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{index (splitArgs .CLI_ARGS) 1}}
+      - gh issue create --label gap --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}
+
+  blocked:
+    desc: What is waiting on the maintainer
+    silent: true
+    cmds:
+      - gh issue list --label blocked-maintainer --state open
+
+  cards:
+    desc: Open WU cards
+    silent: true
+    cmds:
+      - gh issue list --label work-unit --state open --limit 200
