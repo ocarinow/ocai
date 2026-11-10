@@ -84,6 +84,7 @@ change public liveness or foundation status to expose deployment secrets.
 ## WU-72 — Define the authenticated console program
 
 - [x] **Status:** complete (plan; review pending).
+- **Goal:** Make the authenticated-console and machine-access program executable as one bounded, reviewable PR per workflow.
 - **Scope:** This plan, ADR 0011, architecture §12.2 cross-reference, roadmap,
   MVP/identity design links and site navigation.
 - **Done:** WU-73–80 have bounded ownership, explicit acceptance tests, ordered
@@ -91,16 +92,22 @@ change public liveness or foundation status to expose deployment secrets.
   and full repository checks pass.
 - **Deps:** WU-71 (publication may be stacked for review).
 - **Architecture:** §12.2; no implemented behavior changes.
+- **Integration:** Platform planning only: ADR 0011 and the identity program connect architecture section 12.2 to WU-73–80; runtime dependency arrows stay unchanged.
 - **Freeze:** none; no kernel shapes/nodes/edges/fields/extensions/options,
   streaming, fixtures, dependencies or schemas change in this planning WU.
 - **Decision:** Preserve ADRs 0006, 0009 and 0010; propose ADR 0011.
 - **Out:** All runtime implementation, deployment and production support claims.
 - **Open:** none for the bounded plan. Advanced federation and resource models
   remain outside this program, not blockers on its first workflow.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** program
+- **Owner:** Codex
 
 ## WU-73 — Persist organization identity and transactional audit
 
 - [ ] **Status:** defined.
+- **Goal:** Provide durable organization identity state and atomic audit evidence so later authenticated operations cannot succeed without their recorded state transition.
 - **Scope:** Gateway `app/storage/`, initial `migrations/`, project/lock,
   PostgreSQL development/test provisioning, storage integration tests, platform
   gate/CI wiring and operating instructions.
@@ -111,6 +118,7 @@ change public liveness or foundation status to expose deployment secrets.
   bindings are rejected, and organization-scoped reads cannot cross boundaries.
 - **Deps:** WU-72.
 - **Architecture:** §12.2 plus implemented persistence subsection in §12.
+- **Integration:** Platform service: app.storage settings → Database transaction → scoped Repository → SQLAlchemy/psycopg → PostgreSQL; operator Alembic migrations establish schema and grants. No dependency flows into public ocai packages.
 - **Freeze:** none; platform-only database schema. No kernel or streaming changes.
 - **Decision:** SQLAlchemy/psycopg/Alembic; explicit database settings and pool
   lifecycle; parameterized queries; stable UUID principal/resource IDs; unique
@@ -125,10 +133,15 @@ change public liveness or foundation status to expose deployment secrets.
 - **Out:** HTTP tenant endpoints, bootstrap, identity provider, OpenFGA calls,
   console sessions, APIs for future grants/resources, production RLS claims.
 - **Open:** none. Dependencies and image versions lock during implementation.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-74 — Authenticate API callers through the reference issuer
 
 - [ ] **Status:** defined.
+- **Goal:** Verify reference-provider access tokens into a trusted external identity context before any protected API can resolve a platform principal.
 - **Scope:** Gateway `app/identity/` verifier/context, configured app lifecycle,
   Keycloak development/CI provisioning, token-validation tests, explicit runtime
   dependencies and safe error handling.
@@ -138,6 +151,7 @@ change public liveness or foundation status to expose deployment secrets.
   verify bounded signing-key refresh/rotation without fetching caller-chosen URLs.
 - **Deps:** WU-73.
 - **Architecture:** §12.2 plus implemented authentication subsection in §12.
+- **Integration:** Platform service: explicit issuer configuration → bounded HTTP discovery/JWKS cache → joserfc verification → trusted identity dependency; storage resolves bindings. Keycloak supplies credentials; middleware never infers identity from caller headers.
 - **Freeze:** none; platform identity context only, no kernel changes/streaming.
 - **Decision:** Use `joserfc`, explicit issuer/API audience and RS256 allowlist.
   Verify the reference access-token profile (including token type); distinguish
@@ -157,10 +171,15 @@ change public liveness or foundation status to expose deployment secrets.
   administration endpoints, introspection/opaque-token support, direct customer
   OIDC certification, SAML, delegated agent tokens and machine authentication.
 - **Open:** none; key rotation and ID-token rejection are acceptance conditions.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-75 — Bootstrap an organization with synchronized access
 
 - [ ] **Status:** defined.
+- **Goal:** Create the first organization owner safely and project explicit organization permissions into OpenFGA without treating partial synchronization as authorization.
 - **Scope:** Operator bootstrap command, initial OpenFGA model/adapter and
   outbox reconciler, principal/membership repository integration, bootstrap and
   authorization integration tests, deploy/test service configuration.
@@ -170,6 +189,7 @@ change public liveness or foundation status to expose deployment secrets.
   and interrupted grant projection never permits use of stale authority.
 - **Deps:** WU-74.
 - **Architecture:** §12.2 plus implemented bootstrap/authorization subsection.
+- **Integration:** Platform service: operator bootstrap → storage transaction with memberships/audit/outbox → serialized projector → OpenFGA → applied revision. Request authorization checks platform state plus pinned-model decisions.
 - **Freeze:** none; internal platform authorization model/version only.
 - **Decision:** Bootstrap takes the configured issuer and exact subject inspected
   by the operator in the trusted provider. Require an explicit installation
@@ -189,10 +209,15 @@ change public liveness or foundation status to expose deployment secrets.
 - **Out:** Arbitrary role editor, team/compartment inheritance, delegated grants,
   production multi-region synchronization, public registration and browser login.
 - **Open:** none for the owner/viewer organization model.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-76 — Establish durable OIDC console sessions
 
 - [ ] **Status:** defined.
+- **Goal:** Let users sign in and out through durable console sessions while keeping access and refresh tokens out of browser application state.
 - **Scope:** Reusable Nuxt server identity/session modules in `nuxt-platform`,
   console route wiring and sign-in/out UI, console-session schema migration,
   server-only dependencies/configuration, real-provider browser/session tests.
@@ -202,6 +227,7 @@ change public liveness or foundation status to expose deployment secrets.
   appear in browser storage, hydrated state, URLs after callback, or diagnostics.
 - **Deps:** WU-75.
 - **Architecture:** §12.2 plus implemented browser-session subsection.
+- **Integration:** Nuxt server modules in nuxt-platform use openid-client → Keycloak and pg → separate session schema. The console consumes shared session presentation; server credentials never enter nuxt-ui or client bundles.
 - **Freeze:** none; platform routes and console-only persistence are provisional.
 - **Decision:** `openid-client` server-only Authorization Code + S256 PKCE,
   state/nonce and issuer checks; one-use login transaction bound to the initiating
@@ -228,10 +254,15 @@ change public liveness or foundation status to expose deployment secrets.
 - **Out:** Persistent login across the absolute bound, cross-app cookies,
   back-channel logout certification, public registration and enterprise SSO UI.
 - **Open:** none; password recovery/MFA remain provider responsibilities.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-77 — Update an organization through the authenticated console
 
 - [ ] **Status:** defined.
+- **Goal:** Deliver the first complete authenticated product workflow: an organization owner can change a display name with resource authorization and durable audit.
 - **Scope:** Organization read/update API, request/response contracts and typed
   client, console organization settings, fixed Nuxt authenticated forwarding,
   application authorization/audit composition and end-to-end tests.
@@ -242,6 +273,7 @@ change public liveness or foundation status to expose deployment secrets.
   unchanged, and unavailable required dependencies cannot produce success.
 - **Deps:** WU-76.
 - **Architecture:** §12.2 plus the implemented management workflow in §12.
+- **Integration:** Console feature → fixed Nuxt authenticated route → typed management client → FastAPI identity/resource checks → OpenFGA plus scoped storage transaction → audit and versioned response.
 - **Freeze:** none; platform OpenAPI/client changes only; no streaming/inference.
 - **Decision (API):** `GET /management/v1/me` returns the current bound principal
   and authorized organization summaries; `GET` and `PATCH
@@ -262,10 +294,15 @@ change public liveness or foundation status to expose deployment secrets.
 - **Out:** Generic user/role management, arbitrary resources, audit-search UI,
   provider connections, inference and production-ready status.
 - **Open:** none. This is the first complete authenticated product slice.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-78 — Administer owned service-account principals
 
 - [ ] **Status:** defined.
+- **Goal:** Make non-human actors accountable platform principals with explicit ownership and narrowly delegated organization access.
 - **Scope:** Service-account persistence/lifecycle, organization-scoped API and
   console administration, OpenFGA resource model extension, audit and integration
   tests. Credential issuance belongs to the following WUs.
@@ -275,6 +312,7 @@ change public liveness or foundation status to expose deployment secrets.
   the creator's delegable authority.
 - **Deps:** WU-77.
 - **Architecture:** §12 identity and management subsections updated in the WU.
+- **Integration:** Console administration → management API → scoped service-account storage and audit → authorization outbox/OpenFGA resource relationships; credential bindings remain separate.
 - **Freeze:** none; platform-only service-account resource and model migration.
 - **Decision:** Require purpose and accountable owner; one organization per
   service account in this slice. Default to no grants; initial supported grant
@@ -283,10 +321,15 @@ change public liveness or foundation status to expose deployment secrets.
 - **Out:** Service-account administration of other principals, agents, wildcard
   grants, team/compartment grants, keys or OAuth client provisioning.
 - **Open:** none; broader grant types require owning resource WUs.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 2
+- **Owner:** Codex
 
 ## WU-79 — Bind OAuth workloads to service accounts
 
 - [ ] **Status:** defined.
+- **Goal:** Allow a provisioned workload to use OAuth client credentials while preserving current platform suspension and resource restrictions.
 - **Scope:** Narrow Keycloak administrative adapter/operator provisioning,
   verified external credential bindings, service-principal authentication and
   real client-credentials integration tests. Reuse existing resource authorization.
@@ -296,6 +339,7 @@ change public liveness or foundation status to expose deployment secrets.
   when an old token remains cryptographically valid.
 - **Deps:** WU-78.
 - **Architecture:** §12 identity/credential subsections updated in the WU.
+- **Integration:** Operator provider adapter → Keycloak confidential client → access token → FastAPI verifier → service-principal binding → existing organization authorization and audit.
 - **Freeze:** none; platform credential binding only.
 - **Decision:** Bind issuer, subject and expected client identity to an active
   service principal. Separate bindings from roles/grants. Provision credentials
@@ -307,10 +351,15 @@ change public liveness or foundation status to expose deployment secrets.
   delegation, automatic trust of arbitrary issuer/client combinations.
 - **Open:** none; confidential-client secret authentication is the initial
   qualified profile, with asymmetric/federated profiles added separately.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 2
+- **Owner:** Codex
 
 ## WU-80 — Issue and revoke scoped platform API keys
 
 - [ ] **Status:** defined.
+- **Goal:** Provide show-once, expiring API credentials for service accounts with explicit scope and tested rotation/revocation.
 - **Scope:** Service-account key lifecycle, hashed storage, API authentication,
   console show-once issuance/revocation, audit and integration tests.
 - **Done:** An owner issues an expiring key for their service account's explicit
@@ -319,6 +368,7 @@ change public liveness or foundation status to expose deployment secrets.
   cannot use previously valid access, and cross-organization attempts fail.
 - **Deps:** WU-79.
 - **Architecture:** §12 identity/credential subsections updated in the WU.
+- **Integration:** Console issuance → protected management operation → hashed key storage/audit; incoming key → credential resolver → active principal and scope intersection → existing resource authorization.
 - **Freeze:** none; provisional platform credential/API schema only.
 - **Decision:** Generate a 256-bit random secret with a distinct opaque public
   key identifier; store a one-way digest, compare safely, never expose digest or
@@ -334,6 +384,11 @@ change public liveness or foundation status to expose deployment secrets.
 - **Out:** Provider secrets, human-bound personal keys, inference scopes before
   inference is implemented, arbitrary downstream token minting or delegation.
 - **Open:** none. Enterprise key-policy customization is a later explicit WU.
+
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 2
+- **Owner:** Codex
 
 ## References and follow-on scope
 
