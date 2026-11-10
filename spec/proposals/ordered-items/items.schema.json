@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/proposals/ordered-items/items.schema.json",
+  "title": "Draft ordered item",
+  "$comment": "Design proposal only. Not an active canonical revision or runtime contract.",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "extensions": {
+      "type": "object"
+    },
+    "source_group": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "interface": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "provider",
+        "interface",
+        "container",
+        "index"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "message"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "phase": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "content.schema.json"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "tool_call"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "args_json": {
+            "type": "string"
+          },
+          "executed_by": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "name",
+          "args_json"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "tool_result"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "content.schema.json"
+            }
+          },
+          "is_error": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "call_id",
+          "content"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "reasoning"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "opaque": {
+            "$ref": "https://ocai.dev/spec/schema/parts.schema.json#/$defs/providerRef"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "approval_request"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "args_json": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id",
+          "name",
+          "args_json"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "approval_response"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id",
+          "approved"
+        ]
+      }
+    }
+  ]
+}

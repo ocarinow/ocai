@@ -1,0 +1,84 @@
+{
+  "provenance": {
+    "kind": "synthetic",
+    "reviewed_on": "2026-11-10",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/guides/tools-connectors-mcp"
+    ],
+    "scope": "Hand-authored design example; not a live recording or complete provider response."
+  },
+  "schema": "response.schema.json",
+  "input": {
+    "output": [
+      {
+        "type": "mcp_approval_request",
+        "id": "approval_1",
+        "name": "lookup",
+        "arguments": "{\"topic\":\"ocai\"}",
+        "server_label": "documentation"
+      }
+    ]
+  },
+  "document": {
+    "proposal": "ordered-items-draft-1",
+    "items": [
+      {
+        "type": "approval_request",
+        "id": "approval_1",
+        "approval_id": "approval_1",
+        "name": "lookup",
+        "args_json": "{\"topic\":\"ocai\"}",
+        "extensions": {
+          "openai.responses.mcp": {
+            "server_label": "documentation"
+          }
+        }
+      }
+    ]
+  },
+  "preserved": [
+    {
+      "source": [
+        "output",
+        0,
+        "id"
+      ],
+      "target": [
+        "items",
+        0,
+        "approval_id"
+      ]
+    },
+    {
+      "source": [
+        "output",
+        0,
+        "arguments"
+      ],
+      "target": [
+        "items",
+        0,
+        "args_json"
+      ]
+    },
+    {
+      "source": [
+        "output",
+        0,
+        "server_label"
+      ],
+      "target": [
+        "items",
+        0,
+        "extensions",
+        "openai.responses.mcp",
+        "server_label"
+      ]
+    }
+  ],
+  "requirements": [
+    "Preserve approval correlation and server identity.",
+    "Approval data is not application authorization; no tool executes from schema validation.",
+    "The draft extension key must be registered before a converter uses it."
+  ]
+}

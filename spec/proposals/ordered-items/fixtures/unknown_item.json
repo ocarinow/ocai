@@ -1,0 +1,31 @@
+{
+  "provenance": {
+    "kind": "synthetic",
+    "reviewed_on": "2026-11-10",
+    "source_urls": [],
+    "scope": "Hand-authored design example; not a live recording or complete provider response."
+  },
+  "schema": "response.schema.json",
+  "document": {
+    "proposal": "ordered-items-draft-1",
+    "items": [
+      {
+        "type": "future.example",
+        "id": "new_1",
+        "payload": {
+          "nested": [
+            null,
+            false,
+            {
+              "bytes": "AAH/"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "requirements": [
+    "Future decoders preserve an unknown item and every nested value verbatim.",
+    "Schema acceptance alone does not implement a total decoder."
+  ]
+}

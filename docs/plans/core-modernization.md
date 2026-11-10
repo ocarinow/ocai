@@ -16,7 +16,7 @@ milestones are split into small work units when reached.
 |---|---|---|
 | WU-17 | Refresh status, record platform boundaries and revised freeze gates, publish the feature matrix | ✅ Complete |
 | WU-18 | Repair the independent conversion plugin; test wheel installation, discovery, every edge, and unknown content in CI | ✅ Complete |
-| WU-19 | Draft item schemas and provenance-labelled design fixtures, schema-tested without changing runtime revision | Planned |
+| WU-19 | Draft item schemas and provenance-labelled design fixtures, schema-tested without changing runtime revision | ✅ Complete |
 | WU-20 | Harden catalog composition and external plugin conformance integration | Next |
 
 WU-19 is a design checkpoint, not an adapter or canonical migration release.
@@ -26,9 +26,9 @@ node, rewrite existing fixtures, or claim conversions/streaming are implemented.
 
 Completed work units are committed locally; no PRs have been merged. WU-17 follows M1–M3;
 WU-18 and WU-19 depend on that baseline and are otherwise independent. Their
-scope and acceptance are the deliverables above. WU-19 will record the design rationale and candidate schemas under
-`spec/proposals/ordered-items/`; the item shape remains open to change before
-runtime implementation.
+scope and acceptance are the deliverables above. WU-19 records the candidate under `spec/proposals/ordered-items/` and its
+rationale in [proposed ADR 0003](../decisions/0003-ordered-item-modernization.md).
+The item shape remains open to change before runtime implementation.
 
 ## Implementation sequence and gates
 

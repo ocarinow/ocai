@@ -37,3 +37,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 |---|---|---|
 | [0001](0001-agent-neutral-repo-layout.md) | Agent-neutral repo layout | accepted |
 | [0002](0002-branch-protection-and-typing-gate.md) | Branch protection and the strict typing gate | accepted |
+| [0003](0003-ordered-item-modernization.md) | Ordered-item modernization | proposed |
