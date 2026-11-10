@@ -74,7 +74,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-23 — Propagate context and enforce deadlines
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Execution.
 - **Scope:** Thread a per-call context snapshot through facade, drivers, and policies; carry trusted compartment and correlation facts; bound retry waits and physical operations by one deadline. Owns core/result.py, core/errors.py, runtime/decisions.py, runtime/drivers.py, wire/policies.py, wire/http.py, wire/transport.py, chat/facade.py, tests. Other WU outcomes are out of scope.
 - **Done:** Different concurrent contexts reach every applicable hook without entering provider JSON/headers; expiration stops further attempts and sync/async deadline tests agree.

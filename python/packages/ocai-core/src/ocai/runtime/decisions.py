@@ -29,6 +29,7 @@ from typing import Protocol
 from typing import runtime_checkable
 
 from ocai.core.errors import OcaiError
+from ocai.core.result import CallContext
 
 if TYPE_CHECKING:
     from ocai.wire.http import HttpRequest
@@ -127,6 +128,12 @@ class Outcome:
     error: OcaiError | None = None
 
 
+    @property
+    def ctx(self) -> CallContext | None:
+        """The logical call context, never provider payload or credentials."""
+        return self.request.ctx
+
+
 @runtime_checkable
 class WirePolicy(Protocol):
     """A wire-tier hook: sees requests and outcomes, returns `Decision`s.
@@ -155,7 +162,8 @@ class WirePolicy(Protocol):
         `Fail` to veto, or `Return` to serve a synthesized response.
 
         Args:
-            request: The built (unauthenticated) wire request.
+            request: The safe wire request. Its ctx is the per-call snapshot;
+                attempt counts physical I/O and admission counts deferred checks.
 
         Returns:
             The policy's decision for this attempt.

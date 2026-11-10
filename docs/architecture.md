@@ -126,11 +126,28 @@ structurally fixes the old embedding/vectorstore ports that had no channel for
 usage or reports. The report lives **here and only here** (`ChatResponse` has
 no `report` field; one home, not two).
 
-`CallContext(tenant, principal, classification, deadline, tags)` is the
+`CallContext(tenant, principal, compartment, classification, deadline, tags,
+call_id, parent_id, correlation_id)` is the
 per-request governance carrier, threaded through ports as an optional keyword
 — a policy like "PII-classified traffic may not go to provider X" needs the
 classification *at call time*; without a sanctioned carrier, enterprises
 smuggle it through bags.
+
+The facade snapshots caller context and passes it to drivers; policies read
+`HttpRequest.ctx` and `Outcome.ctx`. Trusted identity facts are established by
+platform code, not authenticated by core. Context never enters provider bodies or
+headers. `request.attempt` counts physical attempts (zero-based); `admission`
+counts policy deferrals independently.
+
+Aware deadlines become one monotonic budget before preparation. Admission,
+retry waits, credential application and all physical attempts share it; an
+impossible wait fails immediately. Drivers pass remaining timeout to transports,
+reject late output, and cancel pending async operations. Sync transports must
+honor timeout cooperatively: arbitrary blocking custom code cannot be forcibly
+preempted. HTTPX timeouts bound I/O phases, not total execution; driver checks
+reject output arriving after the whole-call deadline. Consumer pauses consume
+the streaming budget. Local adapters remain responsible for their execution
+budget; context transport does not claim automatic interruption of local code.
 
 ### 2.4 `refs.py` — provider-anchored state [frozen-candidate]
 

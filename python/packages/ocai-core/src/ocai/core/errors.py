@@ -75,6 +75,10 @@ class OcaiError(Exception):
         self.raw = raw
 
 
+class DeadlineExceededError(OcaiError):
+    """The whole-call execution budget expired; retrying cannot extend it."""
+
+
 class TransientError(OcaiError):
     """A retryable failure: 5xx, connection reset, timeout, overloaded (529)."""
 
