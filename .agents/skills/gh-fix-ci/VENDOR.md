@@ -10,4 +10,7 @@
   implement a fix before the maintainer approves the plan (upstream says so too). ocai's
   rules in `AGENTS.md` win over anything here.
 
+**Privacy:** anything this skill writes to GitHub (comments, PR edits, commits) must
+contain no AI session link, footer, trailer, agent id, or home path (AGENTS.md).
+
 To update: re-fetch at a newer commit, diff against this copy, read the diff, bump the pin.

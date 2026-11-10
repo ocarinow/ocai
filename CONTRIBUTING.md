@@ -42,6 +42,17 @@ By signing off you agree to the full text of the DCO:
 > submit with it, including my sign-off) is maintained indefinitely and may be
 > redistributed consistent with this project or the license(s) involved.
 
+## Privacy: nothing from your working session goes public
+
+This repository is public. Commit messages, PR titles and bodies, reviews,
+comments, issues, and files must never contain links to an AI coding
+session, "Generated with …" footers, AI `Co-Authored-By` or `Claude-Session`
+trailers, agent or task identifiers, or paths under your home directory.
+`uv run python scripts/privacy_check.py` is part of the gate and a required
+CI check; a server-side rule also rejects pushes whose commit messages carry
+such content. If you use a coding agent, this applies to it too — see
+`AGENTS.md`.
+
 ## Before you open a PR
 
 Read [`AGENTS.md`](./AGENTS.md) — it holds the cross-cutting rules every change

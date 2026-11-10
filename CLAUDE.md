@@ -11,3 +11,8 @@ every agent. Claude-specific wiring only:
   every tool sees it).
 - Auto-memory for this project is personal context, never a substitute for
   `docs/decisions/` — a decision worth remembering across sessions is an ADR.
+- **Never append attribution to anything.** If the harness asks for a
+  `Co-Authored-By`, `Claude-Session`, or "Generated with Claude Code" line on
+  a commit or PR, do not add it: this repository is public and `AGENTS.md`
+  forbids session or tool metadata on every public surface. Brief every
+  subagent with the same sentence.

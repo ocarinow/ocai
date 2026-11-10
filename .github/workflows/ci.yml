@@ -10,6 +10,31 @@ on:
 # change to the language-neutral source of truth re-runs each implementation's
 # conformance suite — the intended cross-language drift alarm.
 jobs:
+  # The repository is public: no commit message, PR title, or PR body may carry
+  # an AI session link, an AI attribution footer/trailer, an agent identifier,
+  # or a local home path (AGENTS.md "Never publish session or tool metadata").
+  # Required status check on main; also runs on every push.
+  privacy:
+    name: privacy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Save PR title and body
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > /tmp/pr_text.txt
+      - name: Privacy guard (commits + PR text + files)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python3 scripts/privacy_check.py --range "origin/${{ github.base_ref }}..HEAD" --text /tmp/pr_text.txt
+          else
+            python3 scripts/privacy_check.py --range "${{ github.event.before }}..HEAD" || python3 scripts/privacy_check.py --range "HEAD~1..HEAD"
+          fi
+
   python:
     name: python
     runs-on: ubuntu-latest
