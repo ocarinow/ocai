@@ -12,6 +12,7 @@ derived, never dragged::
     uv run python scripts/board_sync.py add decision "Decision: …" --body-file F
     uv run python scripts/board_sync.py add gap "Gap: …" --body-file F
     uv run python scripts/board_sync.py set WU-NN --owner Claude --tier "1 chat …"
+    uv run python scripts/board_sync.py pr-body WU-NN [--stacked-on N]   # PR body from the entry
 
 Derivation for a WU card: plan row ✅ or its PR merged → Done; open draft
 PR → In progress; open PR ready for review → In review; otherwise Defined.
@@ -616,6 +617,29 @@ def cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pr_body(args: argparse.Namespace) -> int:
+    """Print a PR body from the template, pre-filled from the WU entry."""
+    rows = {r.wu: r for r in read_plan()}
+    row = rows.get(args.wu)
+    if row is None:
+        print(f"no plan row for {args.wu}")
+        return 1
+    entry = read_entry(row)
+    template = (ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+    placeholder = "<two or three sentences: the behavior, not the diff>"
+    goal = _first(entry, "Goal") or _first(entry, "Scope") or placeholder
+    done = entry.sections.get("Done", "").replace("\n", " ") if entry else ""
+    body = template.replace("WU-__ — <title from docs/plans/>", f"{row.wu} — {row.title}")
+    body = body.replace(placeholder, goal + (f"\n\nDone when: {done}" if done else ""))
+    arch = _first(entry, "Architecture")
+    if arch:
+        body = body.replace("§__", arch)
+    if args.stacked_on:
+        body = f"Stacked on #{args.stacked_on}.\n\n" + body
+    print(body)
+    return 0
+
+
 def cmd_set(args: argparse.Namespace) -> int:
     """Set Owner and/or Tier on a WU card."""
     board = Board(args.project)
@@ -656,13 +680,17 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("title")
     p_add.add_argument("--body-file")
     p_add.set_defaults(func=cmd_add)
+    p_body = sub.add_parser("pr-body", help="print a PR body pre-filled from the WU entry")
+    p_body.add_argument("wu")
+    p_body.add_argument("--stacked-on", type=int, default=0, help="parent PR number when stacked")
+    p_body.set_defaults(func=cmd_pr_body)
     p_set = sub.add_parser("set", help="set Owner / Tier on a WU card")
     p_set.add_argument("wu")
     p_set.add_argument("--owner")
     p_set.add_argument("--tier")
     p_set.set_defaults(func=cmd_set)
     args = parser.parse_args(argv)
-    if not args.project:
+    if not args.project and args.command != "pr-body":
         print("no project number: pass --project or set BOARD_PROJECT_NUMBER")
         return 2
     try:

@@ -255,6 +255,15 @@ Several agents (and humans) work this repo concurrently. The protocol:
   the WU owner edits the sections their change touches; new tiers and
   positioning get new sections. `docs/plans/README.md` status rows are
   flipped by the WU owner in the same PR.
+- **A PR follows the template from its first draft.** Title `WU-NN:
+  <imperative title>` (housekeeping: `<Topic>: …`); every section of
+  `.github/PULL_REQUEST_TEMPLATE.md` present; no unchecked box once ready
+  for review (check it or replace it with a one-line reason); the gate
+  output pasted; `Stacked on #N` when the base is not `main`. `task
+  pr:draft` generates the body from the WU entry, `task pr:ready` refuses
+  to mark a non-compliant PR ready, and the `pr-hygiene` CI check is
+  required on `main`. A PR whose body is a placeholder is not reviewable
+  and will not be reviewed.
 - **Review against the rules, not taste.** A review checks the eighteen
   rules above, the freeze boundaries (rule 2), and that declared loss
   matches runtime loss. Findings cite a rule or an architecture section.
