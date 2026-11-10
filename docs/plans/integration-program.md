@@ -178,6 +178,8 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 ## WU-39 — Select framing independently of semantic conversion
 
 - [x] **Status:** complete; stacked on WU-38 (PR #35), awaiting PR review.
+- **Goal:** Hosted providers can select framing independently of semantic codecs,
+  while preparation, deadlines and stream ownership still govern execution.
 - **Scope:** `wire/hosting.py`, transport/framing contracts, both drivers and facade
   stream plumbing; 15–25 files. Add an optional host framing/envelope selection
   contract with SSE as the legacy default; codecs continue receiving decoded
@@ -187,6 +189,10 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   credential isolation and approved-configuration behavior in both drivers.
 - **Deps:** WU-38.
 - **Architecture:** §3.3, §5–6, §8.
+- **Integration:** Wire `FramingHost` selects `StreamFraming`; the facade pins its
+  configuration, runtime owns one decoder per admitted stream, and decoded events
+  enter the existing conversion graph. Modules: `wire/framing.py`, `wire/hosting.py`,
+  `runtime/drivers.py` and `chat/facade.py`; plugins retain provider mapping.
 - **Freeze:** none changed: `ChatChunk`, `StreamEnd`, `StreamOutcome`, `CallContext`
   and their schemas remain intact; wire protocols are provisional.
 - **Decision:** Binary framing belongs beside SSE in wire, semantic decode stays
@@ -194,6 +200,10 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   selector, decoder ownership and approval identity are recorded in
   [ADR 0011](../decisions/0011-host-selected-stream-framing.md).
 - **Open:** None; any need to change canonical chunk shape becomes a separate gap.
+- **Area:** wire
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-40 — Qualify URL citations on canonical text
 
