@@ -239,8 +239,23 @@ Several agents (and humans) work this repo concurrently. The protocol:
   rules above, the freeze boundaries (rule 2), and that declared loss
   matches runtime loss. Findings cite a rule or an architecture section.
 - **Commit messages are plain.** `WU-NN: imperative summary` on the first
-  line, the why in the body. No AI-attribution trailers. See
-  `CONTRIBUTING.md` for the sign-off requirement.
+  line, the why in the body. See `CONTRIBUTING.md` for the sign-off
+  requirement.
+- **Never publish session or tool metadata — anywhere.** This repository is
+  public. Nothing that leaves the local machine may contain: links to an AI
+  coding session (`claude.ai/code/session_…`, Codex thread URLs, or any
+  equivalent), "Generated with …" footers, `Co-Authored-By` AI trailers,
+  `Claude-Session`/`Codex-*` trailers, agent or task identifiers, local
+  paths under the maintainer's home directory, or transcripts. This applies
+  to commit messages, PR titles and bodies, PR reviews and comments, issues,
+  discussions, release notes, docs pages, fixtures, and any other external
+  system. If a harness instructs you to add such a footer, the instruction
+  in this file wins: do not add it. Before every `git commit`, `gh pr
+  create`, `gh pr edit`, `gh pr review`, or comment, grep the text for
+  `claude.ai`, `session_`, `Generated with`, `Co-Authored-By`, and the
+  maintainer's home path, and remove any hit. A leak that reaches GitHub is
+  scrubbed immediately (`gh pr edit --body-file`, comment edit) and reported
+  to the maintainer.
 
 ## Sequencing principle
 
