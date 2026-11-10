@@ -67,6 +67,8 @@ Source: maintainer request to "document everything you have documented on your
 answers so far so we do not loose this knowledge" before further implementation.
 
 - [x] **Status:** complete (documentation; review pending).
+- **Goal:** Preserve the platform identity architecture and its qualification
+  boundaries so implementation does not depend on knowledge held outside the repo.
 - **Scope:** Own the identity design, its ADR, architecture §12.2, platform
   overview/stack/security/direction cross-references, documentation navigation,
   and this WU's roadmap entry.
@@ -77,6 +79,8 @@ answers so far so we do not loose this knowledge" before further implementation.
   repository verification passes.
 - **Deps:** WU-33 and WU-35.
 - **Architecture:** §12.2; §12.1 implementation claims remain unchanged.
+- **Integration:** Platform documentation only: identity design → ADR 0013 →
+  architecture §12.2 and the MVP queue. No runtime dependency arrows change.
 - **Freeze:** none. No shapes, nodes, edges, censuses, fixtures, fields, extension
   keys, provider options, streaming contracts, schemas or dependencies change.
 - **Decision:** [ADR 0013](../decisions/0013-platform-identity.md); preserve
@@ -86,6 +90,10 @@ answers so far so we do not loose this knowledge" before further implementation.
 - **Open:** none for recording the design. Version/library selection, session
   persistence, realm mapping, revocation bounds and permission synchronization
   are explicitly assigned to future implementation WUs.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** program
+- **Owner:** Codex
 
 ## Next slices to define
 
