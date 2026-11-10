@@ -53,7 +53,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-24 | Own and terminate streams explicitly | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-25 | Govern streaming through port middleware | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-26 | Emit correlated passive lifecycle events | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
-| WU-27 | Expose immutable execution inspection | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-27 | Expose immutable execution inspection | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-28 | Enforce request and response fidelity policy | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-29 | Qualify client request decoding | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-30 | Encode canonical client responses | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |

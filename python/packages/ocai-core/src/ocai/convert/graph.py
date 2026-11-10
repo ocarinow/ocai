@@ -45,6 +45,7 @@ from typing import Protocol
 
 from ocai.convert.contract import EdgeContract
 from ocai.convert.contract import LossGrade
+from ocai.convert.inspection import EdgeDeclaration
 from ocai.core.fidelity import EdgeReport
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import FieldLoss
@@ -533,6 +534,17 @@ class ConversionGraph:
             raise ConversionError(f"no stream conversion path from {src} to {dst}")
         self._stream_plan_cache[(src, dst)] = path
         return path
+
+    def inspect(self, src: NodeId, dst: NodeId, *,
+                streaming: bool = False) -> tuple[EdgeDeclaration, ...]:
+        """Inspect a path without executing converters or constructing transducers."""
+        edges: Sequence[Edge | StreamEdge] = (
+            self._plan_stream(src, dst) if streaming else self._plan(src, dst)
+        )
+        return tuple(EdgeDeclaration(
+            edge.src, edge.dst, edge.origin,
+            replace(edge.contract, census=dict(edge.contract.census)),
+        ) for edge in edges)
 
     def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
         """Convert `payload` from node `src` to node `dst`.

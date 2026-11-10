@@ -428,6 +428,30 @@ code. Catalog lock hashes describe declared metadata, not executable artifact
 checksums. Applications needing controlled composition should pass explicit
 catalogs; the default catalog discovers installed entry points once.
 
+### Public execution inspection (WU-27)
+
+`model.prepare(request, streaming=False)` returns a `PreparedChatCall` with
+copied `.request` and `.inspection` views and `chat/achat/stream/astream` execution
+faces. Preparation performs conversion and host shaping without authentication or
+provider I/O. Execution uses the detached original snapshot, retains the same
+port middleware and observers, and validates every physical attempt before auth.
+Canonical mutations by admission middleware, approved body/URL/header changes,
+or effective host/catalog/configuration changes raise `StalePreparationError`.
+Explicit wire policies may add transport metadata headers, but cannot replace
+approved fields. Credentials are deliberately excluded and may rotate per attempt.
+Handles are in-process execution objects, not portable authorization tokens.
+
+`Catalog.inspect` plans without executing converters or building transducers.
+Inspection separates selected edge declarations, payload-specific request findings,
+matched capability profiles, and packaged conformance resource pointers. Unknown
+feature coverage is None; recognized keys do not exhaust the open feature universe
+(`coverage_complete=False`). The legacy permissive gate remains compatible, but
+its undeclared-means-native fallback is never proof of qualification. Inspection
+never claims conformance was run (`conformance_evaluated=False`). Catalog/config
+hashes identify declarations/effective configuration, not executable artifacts.
+Response findings remain unknown until conversion occurs. ADR 0007 records why
+public detached preparation replaces gateway dependence on private `_prepare`.
+
 ### 4.1 `graph.py` [frozen-candidate mechanics]
 The Dijkstra planner survives. `Edge(src: NodeId, dst: NodeId, fn, contract,
 origin)`; planner cost is **derived** from the contract (§4.2), never
