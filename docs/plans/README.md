@@ -1,7 +1,9 @@
 # ocai roadmap
 
-**Current direction (November 2026):** implement the Python
-[governed gateway program](gateway-readiness.md), following merged WU-17–20.
+**Current direction (November 2026):** the Python
+[governed gateway program](gateway-readiness.md) is implemented in reviewable WU PRs,
+following merged WU-17–20. Review/merge status is separate from the implementation
+checkboxes below; see the [integration guide](../gateway-integration.md).
 The release gate remains [ADR 0005](../decisions/0005-revised-freeze-gate.md).
 The platform vision includes agent execution/management, telemetry, auditing,
 evaluation, and typed registries. Other language implementations are deferred.
@@ -58,7 +60,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-29 | Qualify client request decoding | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-30 | Encode canonical client responses | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-31 | Encode canonical client stream events | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
-| WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones

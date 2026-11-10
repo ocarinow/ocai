@@ -1,0 +1,55 @@
+{
+  "description": "Synthetic WU-32 gateway tool stream, exact SSE log from spec/fixtures/openai/chat_completions/streams/stream_tool_call_args.json; paired with gateway_openai_tools.json. No live key or SDK mock.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "model": "gpt-4o",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather in Paris?"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get the current weather for a city.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string",
+                  "description": "City name."
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": null, \"tool_calls\": [{\"index\": 0, \"id\": \"call_9c3d1e\", \"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"arguments\": \"\"}}]}, \"logprobs\": null, \"finish_reason\": null}]}",
+      "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"{\\\"ci\"}}]}, \"logprobs\": null, \"finish_reason\": null}]}",
+      "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"ty\\\": \\\"Paris\\\"}\"}}]}, \"logprobs\": null, \"finish_reason\": null}]}",
+      "data: {\"id\": \"chatcmpl-B7Qstream1toolAAAAAAAAAAAAA02\", \"object\": \"chat.completion.chunk\", \"created\": 1767225602, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"tool_calls\"}]}",
+      "data: [DONE]"
+    ]
+  }
+}
