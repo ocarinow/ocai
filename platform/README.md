@@ -161,3 +161,76 @@ uv run --directory platform/services/gateway pytest -m storage
 ```
 
 `pytest -m 'not storage'` is useful for HTTP-only iteration; it is not the full gate.
+
+## Local services and reference identity (WU-74)
+
+From the repository root, install Task, Docker, uv and the Node version specified
+above, then run:
+
+```bash
+task serve:setup    # install dependencies, start PostgreSQL/Keycloak, apply migrations
+task serve:all      # gateway + console; infrastructure/package dependencies run first
+task serve:status   # inspect this checkout's development containers
+task serve:stop     # stop infrastructure, preserve the PostgreSQL volume
+```
+
+Individual commands are `serve:gateway`, `serve:console`, `serve:postgres` and
+`serve:keycloak`. Stop foreground gateway/console processes with Ctrl+C. Console
+runs at `http://localhost:3000`, gateway at `http://127.0.0.1:8000`, Keycloak at
+`http://localhost:18080` and PostgreSQL on loopback port 15432. The console still
+shows foundation status; the user-facing login and session flow arrive in WU-76.
+A fresh database needs the explicit `serve:setup` migration step. Ordinary service
+startup does not silently migrate schemas. Docker images are pinned by digest in
+`deploy/{postgres,keycloak}/image.txt`; the same versions run in required tests.
+
+The helper creates `.local/platform/settings.json` with private permissions and
+random credentials, plus an imported realm. The directory is gitignored. Local
+Keycloak has username `developer` and a separate `ocai-admin` operator; their
+passwords are respectively `OCAI_DEV_USER_PASSWORD` and
+`OCAI_KEYCLOAK_ADMIN_PASSWORD` in that private settings file. Read them locally
+when needed; do not print, paste or commit the file. The development user has no
+platform membership. This profile uses local HTTP and Keycloak `start-dev`;
+it is unsuitable for an exposed or production deployment.
+
+The named Compose project belongs to this checkout. `stop` retains its data and
+credentials; subsequent setup is idempotent. Keep settings and volumes together:
+regenerating settings against an existing volume does not rotate database or
+Keycloak credentials. Change development ports in the private settings before
+first initialization. There is deliberately no automatic destructive reset.
+These tasks select their own local profile explicitly; they do not load or replace
+an active root `.env` or any `.envs/` environment.
+
+Production service startup reads `OCAI_IDENTITY_ISSUER`,
+`OCAI_IDENTITY_AUDIENCE` and `OCAI_CONSOLE_CLIENT_ID` explicitly. Use an HTTPS issuer
+and the qualified Keycloak profile: confidential console client, Authorization
+Code with S256 PKCE, exact callback URI, five-minute access tokens and an
+`ocai-management` audience mapper applied to access tokens only. Use
+`included.custom.audience` for this API audience, as specified in the
+[Keycloak mapper reference](https://www.keycloak.org/admin-api/protocol-mappers). Password grant,
+implicit flow and console service-account access are disabled. Select
+`OCAI_LOCAL_DEVELOPMENT=1` only for the loopback HTTP profile. Direct external OIDC,
+SAML federation and machine-token qualification are not implemented by this WU.
+
+The reusable FastAPI identity dependency verifies one Authorization bearer token
+through `joserfc` (RS256 allowlist). It validates issuer/audience, expiry/issued-at,
+subject, Bearer token type and authorized console client. It rejects ID tokens,
+forged identity headers, caller-selected key URLs and invalid credentials (401).
+Discovery/JWKS requests have five-second bounds, a 64 KiB document limit, no
+redirects/ambient proxies and at most 32 keys. Fresh keys are cached for at most
+five minutes; refresh is single-flight with a five-second retry interval. An
+outage can use fresh known keys but cannot extend their freshness; unavailable
+verification returns sanitized 503. Token revocation at the IdP is not immediate
+offline JWT revocation; platform membership enforcement follows in WU-75.
+
+Focused identity qualification:
+
+```bash
+uv run --directory platform/services/gateway pytest tests/test_identity.py tests/test_keycloak.py
+```
+
+The real Keycloak test runs Authorization Code + PKCE and token exchange with
+disposable accounts, then verifies access-token acceptance and ID-token rejection.
+It uses ephemeral H2 storage for protocol qualification; the development Compose
+service uses a separate PostgreSQL database/role. Missing Docker fails the gate.
+For unit-only iteration, use `pytest -m 'not storage and not identity'`; this is not
+full verification. No live user or provider credentials are required.

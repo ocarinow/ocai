@@ -934,3 +934,34 @@ tests real migrations, restart persistence, concurrent transactions, audit rollb
 constraint isolation and role enforcement. Missing Docker fails verification.
 See [platform operations](../platform/README.md) for bootstrap, migration and
 explicit connection configuration.
+
+### 12.4 Reference issuer authentication [provisional]
+
+WU-74 adds `app/identity/`: explicit issuer/audience/client configuration, bounded
+same-origin OIDC discovery and JWKS retrieval, and `joserfc` RS256 verification.
+Only the configured Keycloak access-token profile yields an `ExternalIdentity`:
+exact issuer, API audience, console authorized party, Bearer token type, bounded
+subject, expiration/issued-at and maximum five-minute lifetime. ID tokens and
+caller-supplied identity headers never establish API identity. The FastAPI
+`authenticated_identity` dependency requires one bearer credential; no new public
+identity/debug endpoint is introduced.
+
+Each application lifespan owns its HTTP client and key cache. Network calls ignore
+ambient proxies, disallow redirects and enforce time/document/key-count bounds.
+Untrusted JWT headers never choose a network endpoint. Cached keys are fresh for
+at most five minutes; refresh is single-flight and limited to once per five
+seconds. Fresh known keys remain usable during issuer outage; unknown/stale keys
+fail closed. Invalid credentials receive sanitized 401 with a Bearer challenge;
+unavailable verification infrastructure receives sanitized 503.
+
+Authentication establishes external identity only. Binding to an active platform
+principal, current membership and OpenFGA enforcement belong to the following WU;
+successful login never provisions membership or grants access by itself. Existing
+foundation status and readiness retain their earlier meaning.
+
+Local `serve:*` tasks explicitly create isolated PostgreSQL/Keycloak infrastructure,
+generate private development credentials and install app dependencies. Production
+requires HTTPS; the separate loopback development profile is not production
+qualification. Tests exercise Authorization Code with PKCE against digest-pinned
+Keycloak and adversarial signed credentials, key rotation, outage and forged
+headers. See [platform operations](../platform/README.md).

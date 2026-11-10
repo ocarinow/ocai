@@ -7,6 +7,8 @@ license = "LicenseRef-FSL-1.1-ALv2"
 dependencies = [
     "alembic>=1.16,<2",
     "fastapi>=0.115,<1",
+    "httpx>=0.28,<1",
+    "joserfc>=1,<2",
     "psycopg[binary]>=3.2,<4",
     "sqlalchemy[asyncio]>=2.0,<3",
     "uvicorn>=0.34,<1",
@@ -40,4 +42,7 @@ addopts = "-q --import-mode=importlib"
 asyncio_mode = "auto"
 pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"
-markers = ["storage: real disposable PostgreSQL integration (requires Docker)"]
+markers = [
+    "storage: real disposable PostgreSQL integration (requires Docker)",
+    "identity: real disposable Keycloak integration (requires Docker)",
+]

@@ -100,6 +100,19 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | `task board:sync` | Report plan ↔ PRs ↔ cards differences (exit 1 when out of sync) |
 | `task board:sync:apply` | Create missing cards and set statuses from the facts |
 
+## Local platform — services, dependencies and lifecycle
+
+| Task | Does |
+|---|---|
+| `task serve:all` | Launch gateway and console together with their dependencies (Ctrl+C stops foreground apps) |
+| `task serve:console` | Launch Nuxt with frontend dependencies installed (use serve:all for the gateway too) |
+| `task serve:gateway` | Launch FastAPI with local issuer configuration after infrastructure and Python dependencies |
+| `task serve:keycloak` | Start local Keycloak with its PostgreSQL dependency and wait for issuer discovery |
+| `task serve:postgres` | Start isolated local PostgreSQL and wait until healthy (preserves development data) |
+| `task serve:setup` | Explicitly provision local infrastructure, install dependencies and apply platform migrations |
+| `task serve:status` | Show the state of this checkout's managed development infrastructure |
+| `task serve:stop` | Stop managed development infrastructure while preserving data (foreground apps use Ctrl+C) |
+
 ## spec/ — schema and fixture validation
 
 | Task | Does |

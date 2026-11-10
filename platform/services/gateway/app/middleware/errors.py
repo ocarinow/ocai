@@ -40,6 +40,8 @@ async def _http_error(request: Request, exc: Exception) -> JSONResponse:
     }
     code, message = messages.get(status, ("request_failed", "The request could not be completed."))
     response = error_response(status, code, message, request.state.request_id)
+    if status == 401:
+        response.headers["www-authenticate"] = "Bearer"
     # Only controlled protocol headers survive, not arbitrary exception headers.
     if isinstance(exc, HTTPException) and exc.headers:
         for name, value in exc.headers.items():

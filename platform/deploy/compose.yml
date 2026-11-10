@@ -1,0 +1,41 @@
+# Local development only. Generate private configuration with task serve:setup.
+services:
+  postgres:
+    image: ${OCAI_POSTGRES_IMAGE:?Generate local settings first}
+    environment:
+      POSTGRES_DB: ocai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Missing local secret}
+      OCAI_MIGRATION_PASSWORD: ${OCAI_MIGRATION_PASSWORD:?Missing local secret}
+      OCAI_RUNTIME_PASSWORD: ${OCAI_RUNTIME_PASSWORD:?Missing local secret}
+      OCAI_KEYCLOAK_PASSWORD: ${OCAI_KEYCLOAK_PASSWORD:?Missing local secret}
+    ports:
+      - "127.0.0.1:${OCAI_POSTGRES_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/bootstrap.sql:/docker-entrypoint-initdb.d/10-platform.sql:ro
+      - ./postgres/keycloak.sql:/docker-entrypoint-initdb.d/20-keycloak.sql:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, "127.0.0.1", -U, postgres, -d, ocai]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  keycloak:
+    image: ${OCAI_KEYCLOAK_IMAGE:?Generate local settings first}
+    command: [start-dev, --import-realm]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ocai_keycloak
+      KC_DB_PASSWORD: ${OCAI_KEYCLOAK_PASSWORD:?Missing local secret}
+      KC_HOSTNAME: http://localhost:${OCAI_KEYCLOAK_PORT}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ocai-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${OCAI_KEYCLOAK_ADMIN_PASSWORD:?Missing local secret}
+    ports:
+      - "127.0.0.1:${OCAI_KEYCLOAK_PORT}:8080"
+    volumes:
+      - ../../.local/platform/realm.json:/opt/keycloak/data/import/realm.json:ro
+volumes:
+  postgres-data:
