@@ -1,0 +1,59 @@
+{
+  "description": "Typed canonical request serialized to echo JSON.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "echo",
+    "interface": "chat",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Hello, who are you?"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "temperature": 0.5,
+      "max_output_tokens": 128
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Hello, who are you?"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "temperature": 0.5,
+      "max_output_tokens": 128
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

@@ -24,6 +24,7 @@ jobs:
             run:
               - 'python/**'
               - 'spec/**'
+              - 'examples/ocai-contrib-echo/**'
               - 'pyproject.toml'
               - '.github/workflows/ci.yml'
 
@@ -62,6 +63,17 @@ jobs:
       - name: Pytest
         if: steps.changes.outputs.run == 'true'
         run: uv run pytest
+
+      # Build/install ordinary wheels in a fresh environment: source-path
+      # injection would miss broken namespace packaging and entry points.
+      - name: Independently installed community plugin
+        if: steps.changes.outputs.run == 'true'
+        run: >-
+          uv run --isolated --no-project --python 3.13
+          --with ./python/packages/ocai-core
+          --with ./examples/ocai-contrib-echo --with pytest
+          python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib
+          examples/ocai-contrib-echo/tests -q
 
   typescript:
     name: typescript

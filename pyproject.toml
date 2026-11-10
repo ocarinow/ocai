@@ -90,7 +90,8 @@ include = [
     "examples",
     "scripts",
 ]
-exclude = ["**/__pycache__", "**/.venv", "examples/ocai-contrib-echo/**"]
+exclude = ["**/__pycache__", "**/.venv"]
+extraPaths = ["examples/ocai-contrib-echo/src"]
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
@@ -105,11 +106,13 @@ python_version = "3.13"
 namespace_packages = true
 explicit_package_bases = true
 mypy_path = [
+    "examples/ocai-contrib-echo/src",
     "python/packages/ocai-core/src",
     "python/packages/ocai-openai/src",
     "python/packages/ocai-anthropic/src",
 ]
 packages = [
+    "ocai.contrib.echo",
     "ocai.core", "ocai.chat", "ocai.embedding", "ocai.vectorstore",
     "ocai.convert", "ocai.runtime", "ocai.wire", "ocai.openai", "ocai.anthropic",
 ]

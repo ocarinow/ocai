@@ -76,8 +76,8 @@ application select its plugins; omitted catalogs discover installed
 
 The `ocai` distribution contains the shared layers. `ocai-openai` and
 `ocai-anthropic` extend the PEP 420 namespace without provider SDKs.
-WU-18 will repair the [community example](examples/ocai-contrib-echo/) and verify
-independent installation; its author guide will be updated alongside that work.
+The [community example](examples/ocai-contrib-echo/) demonstrates an independently
+installed conversion-only plugin; see the [author guide](docs/writing-a-plugin.md).
 
 ## Repository
 

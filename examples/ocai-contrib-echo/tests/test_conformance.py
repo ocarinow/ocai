@@ -1,60 +1,115 @@
-"""Conformance: the echo fragment's edges satisfy their golden fixtures.
+"""Conformance and discovery from independently installed distributions.
 
-A plugin's whole test suite can stay this small because the harness ships in
-core (`ocai.convert.conformance`): `check_edge` runs an edge over a fixture,
-asserts the output is `semantic_equal` to `expect`, and certifies the runtime
-`FieldLoss` never exceeds the edge's declared `EdgeContract` census. Equality
-is always semantic equality over canonical JSON (`spec/canonical-json.md`) —
-never `==` on raw dicts.
-
-TEMPLATE STATUS: pending completion of the `ocai.convert` harness. The suite
-skips gracefully (importorskip) until that layer lands, so this file
-documents the settled test shape without failing the world in the meantime.
-When echo grows streaming, add a fold-triple fixture and a
-`check_fold_triple` test in the same change (the streaming-first ratchet).
+Run with the core and example wheels installed. Missing packages and obsolete
+APIs fail collection rather than skipping.
 """
 
 from __future__ import annotations
 
+from importlib.metadata import distribution
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-conformance = pytest.importorskip(
-    "ocai.convert.conformance",
-    reason="ocai.convert conformance harness not landed yet (template pending)",
-)
-echo = pytest.importorskip(
-    "ocai.contrib.echo",
-    reason="echo fragment imports ocai.convert, not landed yet (template pending)",
-)
+import ocai.contrib.echo as echo
+from ocai.chat.types import ChatRequest
+from ocai.chat.types import ChatResponse
+from ocai.chat.types import PartUnknown
+from ocai.convert.catalog import Catalog
+from ocai.convert.conformance import certify_edge
+from ocai.convert.conformance import check_edge
+from ocai.convert.conformance import load_fixture
+from ocai.convert.graph import Edge
+from ocai.core.canonjson import semantic_equal
+from ocai.core.identity import CHAT
+from ocai.core.identity import CHAT_REQUEST
+from ocai.core.identity import NodeId
+from ocai.core.identity import canonical_node
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
+PATHS = sorted(FIXTURES.glob("*.json"))
 
 
-def _edge_for(fixture: object) -> object:
-    """Find the FRAGMENT edge whose (src, dst) matches the fixture's."""
-    for edge in echo.FRAGMENT.edges:
-        if (edge.src, edge.dst) == (fixture.src, fixture.dst):
-            return edge
-    raise AssertionError(f"no echo edge declared for fixture {fixture!r}")
+def _matches(node: NodeId, coordinate: dict[str, str]) -> bool:
+    """Match fixture coordinates without inventing release dates."""
+    return (
+        node.provider == coordinate["provider"]
+        and node.interface == coordinate["interface"]
+        and node.tag == coordinate["tag"]
+        and str(node.shape) == coordinate["shape"]
+    )
 
 
-def test_edges_satisfy_golden_fixtures() -> None:
-    """Every fixture converts to `expect` with loss within the declared census."""
-    paths = sorted(FIXTURES.glob("*.json"))
-    assert paths, "template must ship at least one golden fixture"
-    for path in paths:
-        fixture = conformance.load_fixture(path)
-        report = conformance.check_edge(_edge_for(fixture), fixture)
-        # echo's contracts are empty (a lossless claim); hold the edges to it.
-        assert not report.losses
-        assert not report.shifts
+def _edge_for(fixture: dict[str, Any]) -> Edge:
+    """Find the declared edge named by an independent fixture."""
+    return next(
+        edge
+        for edge in echo.FRAGMENT.edges
+        if _matches(edge.src, fixture["src"]) and _matches(edge.dst, fixture["dst"])
+    )
 
 
-def test_fragment_declares_no_import_time_globals() -> None:
-    """The fragment is a frozen value; composing catalogs is the app's job."""
-    from ocai.convert.catalog import Catalog
+@pytest.mark.parametrize("path", PATHS, ids=lambda path: path.stem)
+def test_edge_output_and_contract(path: Path) -> None:
+    fixture = load_fixture(path)
+    edge = _edge_for(fixture)
+    decode = ChatRequest.from_dict if edge.src.provider == "ocai" else None
+    check_edge(edge, fixture, decode_input=decode)
+    payload = decode(fixture["input"]) if decode else fixture["input"]
+    assert certify_edge(edge, [payload]) == []
 
+
+def test_every_edge_has_a_fixture() -> None:
+    assert PATHS, "the plugin must ship fixtures"
+    covered = [
+        (_edge_for(load_fixture(path)).src, _edge_for(load_fixture(path)).dst) for path in PATHS
+    ]
+    assert set(covered) == {(edge.src, edge.dst) for edge in echo.FRAGMENT.edges}
+
+
+def test_installed_entry_point_discovers_a_working_conversion() -> None:
+    dist = distribution("ocai-contrib-echo")
+    entries = [entry for entry in dist.entry_points if entry.group == "ocai.fragments"]
+    assert len(entries) == 1
+    assert entries[0].load() is echo.FRAGMENT
+    assert echo.ECHO_ORIGIN.version == dist.version
+    files = [str(path) for path in dist.files or ()]
+    assert "ocai/contrib/echo/py.typed" in files
+    assert "ocai/__init__.py" not in files
+    assert "ocai/contrib/__init__.py" not in files
+    catalog = Catalog.discover()
+    fixture = load_fixture(FIXTURES / "echo_chat_request.json")
+    converted = catalog.convert(
+        fixture["input"],
+        echo.ECHO_CHAT_REQUEST,
+        canonical_node(CHAT_REQUEST),
+    )
+    assert isinstance(converted.value, ChatRequest)
+    assert semantic_equal(converted.value, fixture["expect"])
+    assert converted.report.lossless
+    assert catalog.components_for("echo", CHAT) == ()
+
+
+def test_request_roundtrip_and_unknown_content_preservation() -> None:
     catalog = Catalog.of(echo.FRAGMENT)
-    assert echo.ECHO_CHAT_REQUEST in catalog.nodes
+    fixture = load_fixture(FIXTURES / "echo_unknown_part.json")
+    decoded = catalog.convert(
+        fixture["input"],
+        echo.ECHO_CHAT_REQUEST,
+        canonical_node(CHAT_REQUEST),
+    )
+    assert isinstance(decoded.value.messages[0].parts[0], PartUnknown)
+    encoded = catalog.convert(decoded.value, canonical_node(CHAT_REQUEST), echo.ECHO_CHAT_REQUEST)
+    assert semantic_equal(encoded.value, fixture["input"])
+
+
+def test_response_decode_returns_a_typed_response() -> None:
+    fixture = load_fixture(FIXTURES / "echo_chat_response.json")
+    result = Catalog.of(echo.FRAGMENT).convert(
+        fixture["input"],
+        echo.ECHO_CHAT_RESPONSE,
+        echo.FRAGMENT.edges[-1].dst,
+    )
+    assert isinstance(result.value, ChatResponse)
+    assert result.value.message.text == "Hello!"

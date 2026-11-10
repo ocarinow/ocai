@@ -1,0 +1,59 @@
+{
+  "description": "Unknown canonical part survives the typed decode and encode boundary.",
+  "src": {
+    "provider": "echo",
+    "interface": "chat",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "type": "future.example",
+            "payload": {
+              "number": 7,
+              "nested": [
+                true,
+                null
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "type": "future.example",
+            "payload": {
+              "number": 7,
+              "nested": [
+                true,
+                null
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

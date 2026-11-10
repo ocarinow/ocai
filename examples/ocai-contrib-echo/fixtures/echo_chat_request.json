@@ -1,5 +1,5 @@
 {
-  "description": "echo chat.request -> canonical (identity: echo's wire IS canonical JSON). Golden edge fixture for the template plugin. TEMPLATE STATUS: regenerate `expect` via to_dict() once the re-architected ocai.chat types land.",
+  "description": "Hand-authored canonical-format request decoded to a typed request.",
   "src": {
     "provider": "echo",
     "interface": "chat",
@@ -16,15 +16,19 @@
     "version": "2026-07",
     "messages": [
       {
-        "role": "system",
-        "parts": [{ "type": "text", "text": "You are concise." }]
-      },
-      {
+        "version": "2026-07",
         "role": "user",
-        "parts": [{ "type": "text", "text": "Hello, who are you?" }]
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Hello, who are you?"
+          }
+        ]
       }
     ],
     "config": {
+      "version": "2026-07",
       "temperature": 0.5,
       "max_output_tokens": 128
     }
@@ -33,15 +37,19 @@
     "version": "2026-07",
     "messages": [
       {
-        "role": "system",
-        "parts": [{ "type": "text", "text": "You are concise." }]
-      },
-      {
+        "version": "2026-07",
         "role": "user",
-        "parts": [{ "type": "text", "text": "Hello, who are you?" }]
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Hello, who are you?"
+          }
+        ]
       }
     ],
     "config": {
+      "version": "2026-07",
       "temperature": 0.5,
       "max_output_tokens": 128
     }
