@@ -1,6 +1,6 @@
 # 0011 — First authenticated console implementation contract
 
-- **Status:** proposed; accepted when the WU-72 plan is merged or approved in place
+- **Status:** accepted in place for stacked implementation, 2026-11-11
 - **Date:** 2026-11-10
 - **Deciders:** maintainer through plan review
 
