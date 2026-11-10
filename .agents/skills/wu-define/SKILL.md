@@ -70,8 +70,22 @@ more than one capability, a new edge *and* a new interface, or an estimated
 diff over roughly 40 files that is not mechanical. Split it; the split is the
 deliverable of this skill, and the entries list their dependencies.
 
-## 5. Hand-off
+## 5. Hand-off and the board card
 
 The entry PR is small and reviewable on its own. Implementation starts in a
 separate PR via the `wu-session` skill, after the entry is merged or the
 maintainer approves it in place.
+
+Once the entry is on `main`, the WU gets its **board card**: an issue from
+the `work-unit` template whose title is exactly `WU-NN: <title>` and whose
+body is only the plan link, the owner, and the tier. The board sync
+(`scripts/board_sync.py`, run by CI on every push to `main` and nightly)
+creates missing cards from the plan table and keeps their status in step
+with the linked PR; to create it immediately:
+
+```bash
+gh issue create --template work-unit.yml --title "WU-NN: <title>" --body-file <file>
+```
+
+Scope never lives on the card. If the entry changes, the plan file changes
+in a PR; the card only links to it.
