@@ -1,10 +1,10 @@
 # 0008 — Additive integration contracts before the qualification gate
 
-- **Status:** WU-37–38 and WU-40 citations accepted; remaining proposals pending
+- **Status:** WU-37–38 and WU-40–41 chat additions accepted; remaining proposals pending
 - **Date:** 2026-11-10
 - **Deciders:** maintainer authorized WU-37 after PR #27 and WU-38 after PR #30
   merged; directed execution of assigned integration WUs on 2026-11-11.
-  WU-40 citation acceptance is recorded here; other implementation portions remain pending.
+  WU-40–41 acceptance is recorded here; other implementation portions remain pending.
 
 ## Context
 
@@ -98,7 +98,7 @@ Sources: [Hosting, Mapping (a)](../capabilities/hosting-and-aggregators.md),
 [Bedrock §13(a–b)](../providers/amazon-bedrock.md),
 [Azure §11/13](../providers/azure-openai.md).
 
-### Citations (WU-40 accepted) and server-tool intent (WU-41 proposed)
+### Citations and server-tool intent (WU-40–41 accepted)
 
 Extend existing Annotation with optional open kind (including url_citation),
 a source-result reference and native metadata. Retain Span, url, document_index,
@@ -127,7 +127,7 @@ positions are retained in a registered extension and exposed without a span.
 Validation is deferred until final text is known, so annotations may arrive before
 their text deltas without being prematurely rejected.
 
-The following WU-41 addition remains proposed:
+The following WU-41 addition is accepted for implementation:
 
 Add a tagged ServerTool alternative to ChatRequest.tools, retaining untagged
 function Tool serialization. The initial common intent is an open kind plus
@@ -136,6 +136,13 @@ search_context_size, dynamic thresholds and display obligations use censused
 extensions; destination controls use provider_options. Unknown tool tags decode
 to a preserving unknown representation and unsupported destinations report them.
 This does not add tool execution, an MCP client or a registry to the kernel.
+
+WU-41 uses `type="server"` for `ServerTool`; legacy untagged Tool serialization
+is unchanged. `ToolUnknown` retains the original payload for unknown tags and
+non-object entries. `ServerToolLocation` carries optional country, region, city
+and timezone; unknown fields stay in its extensions. The initial provider request
+edges report whole unsupported entries at `tools[index]` and never encode them
+as functions. Provider-specific search qualification belongs to WU-43.
 
 Sources: [Web search §1.3–1.4](../capabilities/web-search-and-retrieval.md).
 The survey's sketch mentions max_uses/search_context_size as possible fields;
