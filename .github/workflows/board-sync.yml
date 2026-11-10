@@ -38,6 +38,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Reconcile plan, cards, and board
         env:
-          GH_TOKEN: ${{ secrets.BOARD_TOKEN || github.token }}
+          BOARD_TOKEN: ${{ secrets.BOARD_TOKEN }}
           BOARD_PROJECT_NUMBER: ${{ vars.BOARD_PROJECT_NUMBER }}
-        run: python3 scripts/board_sync.py sync --apply
+        run: |
+          if [ -z "$BOARD_TOKEN" ]; then
+            echo "::notice::BOARD_TOKEN secret is not set; the board cannot be reached from CI. Set a token with the project scope: gh secret set BOARD_TOKEN -R ${{ github.repository }}"
+            exit 0
+          fi
+          GH_TOKEN="$BOARD_TOKEN" python3 scripts/board_sync.py sync --apply

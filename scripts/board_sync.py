@@ -1,7 +1,10 @@
 """Board sync: the GitHub Project is a view of the plan and the PRs, nothing more.
 
-Cards are **draft items** on the project (never issues): one per open work
-unit, titled `WU-NN: <title>` exactly as the plan row. The card body and its
+Cards are project items, never issues. Before a WU has a pull request its
+card is a **draft item** titled `WU-NN: <title>` exactly as the plan row;
+once a PR titled `WU-NN: …` exists, **the PR itself becomes the WU's item**
+(reviewers, checks, and review state are then native on the board) and the
+draft is removed. The card body and its
 fields (Program, Area, Priority, Tier, Owner, Kind, PR, Plan) are generated
 from the WU entry in the plan file (`docs/plans/WU-TEMPLATE.md`); Status is
 derived, never dragged::
@@ -210,6 +213,7 @@ class Item:
     content_id: str = ""
     body: str = ""
     fields: dict[str, str] = field(default_factory=dict[str, str])
+    number: int = 0
 
 
 def _gh(*args: str) -> str:
@@ -361,6 +365,8 @@ def read_pulls() -> dict[str, Pull]:
         m = ID_RE.match(str(item["title"]))
         if not m:
             continue
+        if str(item["state"]) == "CLOSED":
+            continue  # abandoned without merge: the WU falls back to its draft card
         pull = Pull(
             int(item["number"]),
             str(item["state"]),
@@ -410,7 +416,7 @@ class Board:
                 ... on ProjectV2ItemFieldTextValue {
                   text field { ... on ProjectV2Field { name } } } } }
               content { __typename ... on DraftIssue { id title body } ... on Issue { title }
-                        ... on PullRequest { title } } } } } } }"""
+                        ... on PullRequest { number title } } } } } } }"""
         self.items: dict[str, Item] = {}
         after = ""
         while True:
@@ -444,14 +450,18 @@ class Board:
                         values[str(fname)] = str(fv["name"])
                     elif fname and "text" in fv:
                         values[str(fname)] = str(fv["text"] or "")
-                self.items[title] = Item(
+                kind = str(content.get("__typename", ""))
+                number = int(content.get("number") or 0)
+                key = f"PR#{number}" if kind == "PullRequest" else title
+                self.items[key] = Item(
                     str(node["id"]),
                     title,
                     values.get("Status"),
-                    str(content.get("__typename", "")),
+                    kind,
                     str(content.get("id") or ""),
                     str(content.get("body") or ""),
                     values,
+                    number,
                 )
             page = project["items"]["pageInfo"]
             if not page["hasNextPage"]:
@@ -470,6 +480,34 @@ class Board:
         )
         self.items[title] = item
         return item
+
+    def add_pr(self, number: int) -> Item:
+        """Add a pull request to the project as an item and return it."""
+        node_id = _gh("pr", "view", str(number), "-R", REPO, "--json", "id", "-q", ".id").strip()
+        title = _gh(
+            "pr", "view", str(number), "-R", REPO, "--json", "title", "-q", ".title"
+        ).strip()
+        mutation = """
+        mutation($p:ID!, $c:ID!) {
+          addProjectV2ItemById(input:{projectId:$p, contentId:$c}) { item { id } } }"""
+        data = _graphql(mutation, p=self.id, c=node_id)
+        item = Item(
+            str(data["addProjectV2ItemById"]["item"]["id"]),
+            title,
+            None,
+            "PullRequest",
+            number=number,
+        )
+        self.items[f"PR#{number}"] = item
+        return item
+
+    def delete_item(self, item: Item) -> None:
+        """Remove an item from the project (its content is untouched)."""
+        mutation = """
+        mutation($p:ID!, $i:ID!) {
+          deleteProjectV2Item(input:{projectId:$p, itemId:$i}) { deletedItemId } }"""
+        _graphql(mutation, p=self.id, i=item.id)
+        self.items = {k: v for k, v in self.items.items() if v.id != item.id}
 
     def update_draft(self, item: Item, title: str, body: str) -> None:
         """Rewrite a draft item's title and body."""
@@ -522,12 +560,17 @@ def _option(board: Board, field_name: str, value: str) -> str:
 
 
 def _find(board: Board, wu: str) -> Item | None:
-    """Find the card whose title starts with the WU id."""
-    for title, item in board.items.items():
-        m = ID_RE.match(title)
-        if m and m.group(1) == wu:
+    """Find the WU's draft card (title starts with the WU id)."""
+    for item in board.items.values():
+        m = ID_RE.match(item.title)
+        if m and m.group(1) == wu and item.kind == "DraftIssue":
             return item
     return None
+
+
+def _find_pr_item(board: Board, number: int) -> Item | None:
+    """Find the project item that is this pull request."""
+    return board.items.get(f"PR#{number}")
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
@@ -541,7 +584,19 @@ def cmd_sync(args: argparse.Namespace) -> int:
     for row in rows:
         known.add(row.wu)
         pull = pulls.get(row.wu)
-        card = _find(board, row.wu)
+        draft = _find(board, row.wu)
+        card: Item | None = None
+        if pull is not None:
+            card = _find_pr_item(board, pull.number)
+            if card is None and args.apply:
+                card = board.add_pr(pull.number)
+                print(f"{row.wu}: PR #{pull.number} added as the card")
+            if card is not None and draft is not None and args.apply:
+                board.delete_item(draft)
+                print(f"{row.wu}: draft card replaced by PR #{pull.number}")
+                draft = None
+        if card is None:
+            card = draft
         if card is None:
             if row.done:
                 continue  # completed before the board existed; no card needed
@@ -551,13 +606,14 @@ def cmd_sync(args: argparse.Namespace) -> int:
             card = board.add_draft(f"{row.wu}: {row.title}", "")
             print(f"created card for {row.wu}")
         entry = read_entry(row)
-        if entry is None:
-            findings.append(f"{row.wu}: no entry heading in docs/plans/{row.file or '?'}")
-        elif not entry.sections.get("Done"):
-            findings.append(f"{row.wu}: entry has no Done bullet")
+        if not row.done:  # historical rows predate the template; only open work is held to it
+            if entry is None:
+                findings.append(f"{row.wu}: no entry heading in docs/plans/{row.file or '?'}")
+            elif not entry.sections.get("Done"):
+                findings.append(f"{row.wu}: entry has no Done bullet")
         title = f"{row.wu}: {row.title}"
         body = card_body(row, entry, pull)
-        if args.apply and (card.body != body or card.title != title):
+        if card.kind == "DraftIssue" and args.apply and (card.body != body or card.title != title):
             board.update_draft(card, title, body)
             print(f"{row.wu}: body refreshed")
         wanted_fields: dict[str, str] = {
@@ -589,8 +645,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 print(f"{row.wu}: {card.status} -> {want}")
             else:
                 findings.append(f"{row.wu}: card shows {card.status}, facts say {want}")
-    for title in board.items:
-        m = ID_RE.match(title)
+    for item in board.items.values():
+        m = ID_RE.match(item.title)
         if m and m.group(1) not in known:
             findings.append(f"{m.group(1)}: card has no plan row")
     if findings:
