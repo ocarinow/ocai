@@ -165,7 +165,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-30 — Encode canonical client responses
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Conversion.
 - **Scope:** Register canonical response to OpenAI Chat Completions response edge with a complete contract and golden fixtures. Owns ocai-openai/chat_completions/, spec/fixtures/, plugin tests. Other WU outcomes are out of scope.
 - **Done:** Text/tools/refusal, tool identity, finish and known usage map to the client wire contract with explicit findings for unsupported content/references.
