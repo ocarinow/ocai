@@ -1,7 +1,9 @@
 # ocai roadmap
 
 **Current direction (November 2026):** implement the Python
-[core modernization program](core-modernization.md), beginning with WU-17–19.
+[core modernization program](core-modernization.md). WU-17–20 are merged; the
+next units are split from its implementation sequence when reached. The
+release gate is [ADR 0005](../decisions/0005-revised-freeze-gate.md).
 The platform vision includes agent execution/management, telemetry, auditing,
 evaluation, and typed registries. Other language implementations are deferred.
 The July table below preserves completed M1–M3 history; its original horizon
