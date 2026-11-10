@@ -29,7 +29,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
-from typing import cast
+
+from ocai.core.ir import is_json_array
+from ocai.core.ir import is_json_object
 
 __all__ = [
     "MISSING",
@@ -170,10 +172,10 @@ def encode_schema(value: Any) -> Any:
     """
     if isinstance(value, JsonSchema):
         return value.to_dict()
-    if isinstance(value, list):
-        return [encode_schema(v) for v in cast(list[Any], value)]
-    if isinstance(value, dict):
-        return {k: encode_schema(v) for k, v in cast(dict[str, Any], value).items()}
+    if is_json_array(value):
+        return [encode_schema(v) for v in value]
+    if is_json_object(value):
+        return {k: encode_schema(v) for k, v in value.items()}
     return value
 
 
@@ -185,9 +187,11 @@ def decode_schema(value: Any) -> Schema:
     """
     if isinstance(value, bool):
         return value
-    if isinstance(value, dict):
-        return JsonSchema.from_dict(cast(dict[str, Any], value))
-    return value
+    if is_json_object(value):
+        return JsonSchema.from_dict(value)
+    # Tolerant passthrough (rule 6): a non-schema value is preserved verbatim,
+    # so this branch is typed `Schema` by declaration only.
+    return value  # type: ignore[no-any-return]
 
 
 @dataclass(kw_only=True)

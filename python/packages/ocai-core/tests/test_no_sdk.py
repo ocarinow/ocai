@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -15,16 +16,22 @@ _FORBIDDEN = re.compile(
     re.MULTILINE,
 )
 
+# The whole public surface, imported before the SDK check below.
+_SURFACE = (
+    "ocai.anthropic",
+    "ocai.chat",
+    "ocai.convert",
+    "ocai.core",
+    "ocai.openai",
+    "ocai.runtime",
+    "ocai.wire",
+)
+
 
 def test_provider_sdks_not_imported_by_core_or_plugins() -> None:
     # Import the whole surface, then assert no provider SDK got pulled in.
-    import ocai.anthropic  # noqa: F401
-    import ocai.chat  # noqa: F401
-    import ocai.convert  # noqa: F401
-    import ocai.core  # noqa: F401
-    import ocai.openai  # noqa: F401
-    import ocai.runtime  # noqa: F401
-    import ocai.wire  # noqa: F401
+    for module in _SURFACE:
+        importlib.import_module(module)
 
     assert sys.modules.get("openai") is None, "ocai must not import the openai SDK"
     assert sys.modules.get("anthropic") is None, "ocai must not import the anthropic SDK"

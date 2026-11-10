@@ -237,7 +237,7 @@ class Custom:
     """
 
     base_url: str
-    paths: Mapping[str, str] = field(default_factory=dict)
+    paths: Mapping[str, str] = field(default_factory=dict[str, str])
 
     def envelope(self, spec: EndpointSpec) -> EnvelopeTransform:
         """Return the identity envelope: a gateway speaks the dialect verbatim.

@@ -13,9 +13,11 @@ at the codec boundary; a role core has never seen is preserved verbatim.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Self
+from typing import overload
 
 from ocai.chat.types.parts import Part
 from ocai.chat.types.parts import PartText
@@ -23,6 +25,7 @@ from ocai.chat.types.parts import cast_part
 from ocai.chat.types.role import Role
 from ocai.chat.types.role import decode_role
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 
 
 @dataclass
@@ -44,6 +47,46 @@ class Message(IRObject):
     role: str
     parts: list[Part]
 
+    if TYPE_CHECKING:
+        # The constructor's typed face: the dataclass-generated `__init__` is
+        # untouched at runtime; these declarations only admit the documented
+        # sugar that `__post_init__` normalizes, so `Message(role, "hi")`
+        # type-checks while the stored field stays `list[Part]`. The generic
+        # overload admits any list of one part type (`list[PartToolResult]`,
+        # which list invariance would otherwise reject); the second admits
+        # the bare string/part forms and mixed literals.
+        @overload
+        def __init__[T: Part | str](
+            self,
+            role: str,
+            parts: list[T],
+            *,
+            version: str = ...,
+            provider_options: dict[str, Any] = ...,
+            extensions: dict[str, Any] = ...,
+        ) -> None: ...
+
+        @overload
+        def __init__(
+            self,
+            role: str,
+            parts: str | Part | list[Part | str],
+            *,
+            version: str = ...,
+            provider_options: dict[str, Any] = ...,
+            extensions: dict[str, Any] = ...,
+        ) -> None: ...
+
+        def __init__(
+            self,
+            role: str,
+            parts: Any,
+            *,
+            version: str = ...,
+            provider_options: dict[str, Any] = ...,
+            extensions: dict[str, Any] = ...,
+        ) -> None: ...
+
     def __post_init__(self) -> None:
         """Normalize constructor sugar into the parts-only storage shape.
 
@@ -56,7 +99,7 @@ class Message(IRObject):
         if isinstance(raw, str):
             self.parts = [PartText(text=raw)]
             return
-        if not isinstance(raw, list):
+        if not isinstance(raw, list):  # pyright: ignore[reportUnnecessaryIsInstance] -- constructor sugar: a single `Part` reaches here untyped
             self.parts = [raw]
             return
         self.parts = [PartText(text=item) if isinstance(item, str) else item for item in raw]
@@ -71,7 +114,7 @@ class Message(IRObject):
         Returns:
             A `Message` with `role == Role.USER`.
         """
-        return cls(role=Role.USER, parts=parts)  # type: ignore[arg-type]
+        return cls(role=Role.USER, parts=parts)
 
     @classmethod
     def model(cls, parts: str | Part | list[Part | str]) -> Self:
@@ -83,7 +126,7 @@ class Message(IRObject):
         Returns:
             A `Message` with `role == Role.MODEL`.
         """
-        return cls(role=Role.MODEL, parts=parts)  # type: ignore[arg-type]
+        return cls(role=Role.MODEL, parts=parts)
 
     @classmethod
     def system(cls, parts: str | Part | list[Part | str]) -> Self:
@@ -98,7 +141,7 @@ class Message(IRObject):
         Returns:
             A `Message` with `role == Role.SYSTEM`.
         """
-        return cls(role=Role.SYSTEM, parts=parts)  # type: ignore[arg-type]
+        return cls(role=Role.SYSTEM, parts=parts)
 
     @classmethod
     def tool(cls, parts: str | Part | list[Part | str]) -> Self:
@@ -113,7 +156,7 @@ class Message(IRObject):
         Returns:
             A `Message` with `role == Role.TOOL`.
         """
-        return cls(role=Role.TOOL, parts=parts)  # type: ignore[arg-type]
+        return cls(role=Role.TOOL, parts=parts)
 
     @property
     def text(self) -> str:
@@ -142,10 +185,11 @@ class Message(IRObject):
             The decoded `Message`.
         """
         parts: list[Part] = []
-        for item in data.get("parts") or []:
+        raw_parts: list[Any] = data.get("parts") or []
+        for item in raw_parts:
             if isinstance(item, str):
                 parts.append(PartText(text=item))
-            elif isinstance(item, dict):
+            elif is_json_object(item):
                 parts.append(cast_part(item))
         return cls(
             role=decode_role(data.get("role")),

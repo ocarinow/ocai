@@ -360,7 +360,7 @@ def _dijkstra[E: (Edge, StreamEdge)](
             dst_best = best.get(edge.dst)
             if dst_best is None or nd < dst_best:
                 best[edge.dst] = nd
-                heapq.heappush(heap, (nd, next(counter), edge.dst, [*path, edge]))
+                heapq.heappush(heap, (nd, next(counter), edge.dst, path + [edge]))
     return None
 
 

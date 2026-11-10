@@ -76,7 +76,7 @@ class Binding:
     host: Host
     credentials: Credential
     transport: Transport | SyncTransport
-    extra_headers: Mapping[str, str] = field(default_factory=dict)
+    extra_headers: Mapping[str, str] = field(default_factory=dict[str, str])
 
     def validate(self, mode: Mode = "sync") -> None:
         """Check this binding can serve `mode`, at composition time.

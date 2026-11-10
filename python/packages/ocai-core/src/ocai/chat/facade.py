@@ -232,9 +232,9 @@ def _request_features(request: ChatRequest) -> tuple[tuple[str, str], ...]:
         found.append(("chat.tools", "tools"))
     for i, message in enumerate(request.messages):
         for j, part in enumerate(message.parts):
-            feature = _PART_FEATURES.get(getattr(part, "type", PartType.UNDEFINED))
-            if feature is not None:
-                found.append((feature, f"messages[{i}].parts[{j}]"))
+            part_feature = _PART_FEATURES.get(getattr(part, "type", PartType.UNDEFINED))
+            if part_feature is not None:
+                found.append((part_feature, f"messages[{i}].parts[{j}]"))
     return tuple(found)
 
 

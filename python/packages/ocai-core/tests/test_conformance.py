@@ -9,7 +9,9 @@ content-hashed lockfile.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -34,7 +36,10 @@ from ocai.core import Origin
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_REQUEST
 from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
 
-_REQUEST = ChatRequest(messages=[Message(role="user", parts="hi")])
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
+
+_REQUEST = ChatRequest(messages=[Message.user("hi")])
 
 
 def _catalog() -> Catalog:
@@ -104,7 +109,7 @@ def test_request_encodes_through_the_catalog() -> None:
     assert converted.report.path == [CANONICAL_CHAT_REQUEST, CHAT_COMPLETIONS_REQUEST]
 
 
-def test_response_decodes_through_the_catalog(load_http) -> None:
+def test_response_decodes_through_the_catalog(load_http: LoadHttp) -> None:
     rec = load_http("openai_chat_completion.json")
     converted = _catalog().convert(
         rec["response"]["json"], CHAT_COMPLETIONS_RESPONSE, CANONICAL_CHAT_RESPONSE

@@ -31,6 +31,8 @@ from ocai.chat.types.tools import Tool
 from ocai.chat.types.tools import ToolChoice
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_array
+from ocai.core.ir import is_json_object
 
 
 @dataclass
@@ -75,21 +77,18 @@ class ChatRequest(IRObject):
         Returns:
             The decoded `ChatRequest`.
         """
+        messages: list[Any] = data.get("messages") or []
         tools = data.get("tools")
         choice = data.get("tool_choice")
         config = data.get("config")
         return cls(
-            messages=[
-                Message.from_dict(item)
-                for item in data.get("messages") or []
-                if isinstance(item, dict)
-            ],
+            messages=[Message.from_dict(item) for item in messages if is_json_object(item)],
             tools=(
-                [Tool.from_dict(item) for item in tools if isinstance(item, dict)]
-                if isinstance(tools, list)
+                [Tool.from_dict(item) for item in tools if is_json_object(item)]
+                if is_json_array(tools)
                 else None
             ),
-            tool_choice=ToolChoice.from_dict(choice) if isinstance(choice, dict) else None,
-            config=ChatConfig.from_dict(config) if isinstance(config, dict) else None,
+            tool_choice=ToolChoice.from_dict(choice) if is_json_object(choice) else None,
+            config=ChatConfig.from_dict(config) if is_json_object(config) else None,
             **cls._from_dict_common(data),
         )

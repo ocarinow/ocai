@@ -32,6 +32,7 @@ from typing import runtime_checkable
 from ocai.core.errors import OcaiError
 from ocai.core.errors import TransientError
 from ocai.core.errors import error_from_response
+from ocai.core.ir import is_json_object
 from ocai.wire.http import HttpRequest
 from ocai.wire.http import HttpResponse
 
@@ -369,4 +370,4 @@ def _safe_json(text: str) -> dict[str, Any] | None:
         parsed = _json.loads(text)
     except (ValueError, TypeError):
         return None
-    return parsed if isinstance(parsed, dict) else None
+    return parsed if is_json_object(parsed) else None

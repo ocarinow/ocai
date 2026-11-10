@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from typing import Any
+from typing import TypeIs
 
 from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatConfig
@@ -159,6 +160,50 @@ _ERROR_CODES: dict[type[OcaiError], str] = {
     TransientError: "transient",
     AuthError: "auth",
 }
+
+
+def _is_obj(value: object) -> TypeIs[dict[str, Any]]:
+    """Narrow a wire JSON value to an object (a `dict`).
+
+    JSON objects always carry string keys, so the `dict[str, Any]` narrowing
+    is exact for anything `json.loads` produced; the values stay `Any`
+    because the wire is inherently dynamic (rule 6: decode never trusts a
+    shape it has not checked).
+
+    Args:
+        value: The wire value to check.
+
+    Returns:
+        Whether `value` is a JSON object.
+    """
+    return isinstance(value, dict)
+
+
+def _is_list(value: object) -> TypeIs[list[Any]]:
+    """Narrow a wire JSON value to an array (a `list`).
+
+    Args:
+        value: The wire value to check.
+
+    Returns:
+        Whether `value` is a JSON array.
+    """
+    return isinstance(value, list)
+
+
+def _as_list(value: object) -> list[Any]:
+    """Return a wire JSON value as an array, or an empty array when it is not one.
+
+    The tolerant-reader loop helper: a missing, null, or mis-typed array
+    member iterates as empty rather than raising (rule 6).
+
+    Args:
+        value: The wire value to coerce.
+
+    Returns:
+        The array itself, or an empty list.
+    """
+    return value if _is_list(value) else []
 
 
 def _stream_error(err: dict[str, Any]) -> ErrorInfo:
@@ -317,7 +362,8 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     _add("output", raw.get("output_tokens"))
     _add("cached", raw.get("cache_read_input_tokens"))
     _add("anthropic.cache_write", raw.get("cache_creation_input_tokens"))
-    _add("reasoning", (raw.get("output_tokens_details") or {}).get("thinking_tokens"))
+    details: dict[str, Any] = raw.get("output_tokens_details") or {}
+    _add("reasoning", details.get("thinking_tokens"))
     return Usage(consumptions=consumptions)
 
 
@@ -546,7 +592,7 @@ class MessagesCodec:
         self._encode_config(request, payload, losses, shifts)
         # Lane 3: expand only OUR destination namespace (three-lane law §3.4).
         own = (request.provider_options or {}).get(f"{PROVIDER}.{INTERFACE}")
-        if isinstance(own, dict):
+        if _is_obj(own):
             payload.update(own)
         # Lane 2 (extensions) has no encode lane on this interface yet: the
         # bag is preserved on the canonical form, but this wire body cannot
@@ -672,8 +718,10 @@ class MessagesCodec:
             "tool_use_id": part.call_id,
             "content": content,
         }
-        if part.is_error is not None:
-            block["is_error"] = part.is_error
+        # `is_error` is a plain bool on the canonical part (never None), and it
+        # crosses natively here — always emitted, the honest asymmetry vs
+        # chat_completions where the flag is DROPPED.
+        block["is_error"] = part.is_error
         return block
 
     def _encode_reasoning(
@@ -725,9 +773,7 @@ class MessagesCodec:
         entry: dict[str, Any] = {
             "type": "custom",
             "name": tool.name,
-            "input_schema": tool.parameters.to_dict()
-            if tool.parameters is not None
-            else {"type": "object"},
+            "input_schema": tool.parameters.to_dict(),
         }
         if tool.description is not None:
             entry["description"] = tool.description
@@ -753,7 +799,7 @@ class MessagesCodec:
         choice = request.tool_choice
         if choice is None:
             return
-        mode = getattr(choice, "mode", None)
+        mode = choice.mode
         wire = {"auto": "auto", "required": "any", "none": "none"}.get(mode)
         if wire is not None:
             payload["tool_choice"] = {"type": wire}
@@ -871,7 +917,7 @@ class MessagesCodec:
                         "type": "json_schema",
                         # `Schema` is `JsonSchema | bool`: render the typed
                         # form to its plain wire dict; a boolean passes.
-                        "schema": schema.to_dict() if hasattr(schema, "to_dict") else schema,
+                        "schema": schema.to_dict() if isinstance(schema, JsonSchema) else schema,
                     }
                 }
                 # The wire format object carries only the schema itself.
@@ -947,8 +993,8 @@ class MessagesCodec:
                     note="top-level `system` field un-hoists to a leading canonical system message",
                 )
             )
-        for index, wire_msg in enumerate(payload.get("messages") or []):
-            if not isinstance(wire_msg, dict):
+        for index, wire_msg in enumerate(_as_list(payload.get("messages"))):
+            if not _is_obj(wire_msg):
                 continue
             messages.append(self._decode_request_message(index, wire_msg, losses, shifts))
         tools = self._decode_request_tools(payload, extensions, losses)
@@ -1002,8 +1048,8 @@ class MessagesCodec:
         if isinstance(system, str):
             return [PartText(text=system)]
         parts: list[Part] = []
-        for j, block in enumerate(system if isinstance(system, list) else []):
-            if not isinstance(block, dict):
+        for j, block in enumerate(_as_list(system)):
+            if not _is_obj(block):
                 continue
             if block.get("type") == "text":
                 parts.append(PartText(text=block.get("text", "")))
@@ -1049,9 +1095,9 @@ class MessagesCodec:
         if isinstance(content, str):
             if content:
                 parts.append(PartText(text=content))
-        elif isinstance(content, list):
+        elif _is_list(content):
             for j, block in enumerate(content):
-                if not isinstance(block, dict):
+                if not _is_obj(block):
                     continue
                 part = self._decode_request_block(index, j, block, losses, shifts)
                 if isinstance(part, PartToolResult):
@@ -1127,9 +1173,9 @@ class MessagesCodec:
             if isinstance(nested_content, str):
                 if nested_content:
                     nested.append(PartText(text=nested_content))
-            elif isinstance(nested_content, list):
+            elif _is_list(nested_content):
                 for n, item in enumerate(nested_content):
-                    if not isinstance(item, dict):
+                    if not _is_obj(item):
                         continue
                     if item.get("type") == "text":
                         nested.append(PartText(text=item.get("text", "")))
@@ -1199,15 +1245,13 @@ class MessagesCodec:
             The decoded tools, possibly empty.
         """
         tools: list[Tool] = []
-        for i, entry in enumerate(payload.get("tools") or []):
-            if isinstance(entry, dict) and entry.get("type", "custom") == "custom":
+        for i, entry in enumerate(_as_list(payload.get("tools"))):
+            if _is_obj(entry) and entry.get("type", "custom") == "custom":
                 schema = entry.get("input_schema")
                 tools.append(
                     Tool(
                         name=entry.get("name", ""),
-                        parameters=JsonSchema.from_dict(
-                            schema if isinstance(schema, dict) else {}
-                        ),
+                        parameters=JsonSchema.from_dict(schema if _is_obj(schema) else {}),
                         description=entry.get("description"),
                     )
                 )
@@ -1247,18 +1291,19 @@ class MessagesCodec:
             `parallel_tool_calls` value (or None when the wire is silent).
         """
         choice = payload.get("tool_choice")
-        if not isinstance(choice, dict):
+        if not _is_obj(choice):
             return None, None
         parallel: bool | None = None
         disable = choice.get("disable_parallel_tool_use")
         if disable is not None:
             parallel = not disable
         ctype = choice.get("type")
-        mode = {"auto": "auto", "any": "required", "none": "none"}.get(ctype)
-        if mode is not None:
-            return ToolChoice(mode=mode), parallel
-        if ctype == "tool" and choice.get("name"):
-            return ToolChoice(mode="named", name=choice["name"]), parallel
+        if isinstance(ctype, str):
+            mode = {"auto": "auto", "any": "required", "none": "none"}.get(ctype)
+            if mode is not None:
+                return ToolChoice(mode=mode), parallel
+            if ctype == "tool" and choice.get("name"):
+                return ToolChoice(mode="named", name=choice["name"]), parallel
         extensions[f"{PROVIDER}.tool_choice"] = choice
         losses.append(
             FieldLoss(
@@ -1302,10 +1347,10 @@ class MessagesCodec:
         knobs["max_output_tokens"] = payload.get("max_tokens")
         knobs["parallel_tool_calls"] = parallel
         stop = payload.get("stop_sequences")
-        if isinstance(stop, list):
+        if _is_list(stop):
             knobs["stop_sequences"] = list(stop)
         thinking = payload.get("thinking")
-        if isinstance(thinking, dict):
+        if _is_obj(thinking):
             if thinking.get("type") == "enabled":
                 knobs["reasoning"] = ReasoningConfig(budget_tokens=thinking.get("budget_tokens"))
             else:
@@ -1318,9 +1363,9 @@ class MessagesCodec:
                     )
                 )
         output_config = payload.get("output_config")
-        if isinstance(output_config, dict):
+        if _is_obj(output_config):
             fmt = output_config.get("format")
-            if isinstance(fmt, dict) and fmt.get("type") == "json_schema":
+            if _is_obj(fmt) and fmt.get("type") == "json_schema":
                 schema = fmt.get("schema")
                 knobs["output"] = OutputFormat(
                     mode="json_schema",
@@ -1365,11 +1410,11 @@ class MessagesCodec:
         shifts: list[SemanticShift] = []
         extensions: dict[str, Any] = {}
         parts: list[Part] = []
-        for i, block in enumerate(payload.get("content") or []):
-            if not isinstance(block, dict):
+        for i, block in enumerate(_as_list(payload.get("content"))):
+            if not _is_obj(block):
                 continue
             parts.append(self._decode_block(i, block, losses, shifts))
-        role = payload.get("role", "assistant")
+        role: str = payload.get("role", "assistant")
         message = Message(role=_ROLE_TO_CANONICAL.get(role, role), parts=parts)
         finish = self._decode_finish(payload, extensions, losses)
         usage = _usage(payload.get("usage"))
@@ -1551,7 +1596,7 @@ class MessagesCodec:
             return None
         detail = None
         details = payload.get("stop_details")
-        if isinstance(details, dict) and details.get("type") == "refusal":
+        if _is_obj(details) and details.get("type") == "refusal":
             detail = RefusalDetail(
                 category=details.get("category"),
                 explanation=details.get("explanation"),
@@ -1633,13 +1678,14 @@ class MessagesCodec:
             An `EdgeOutput` whose value is the event's canonical chunks, in
             order (possibly empty), with any drop/extension records.
         """
-        raw = json.loads(data)
+        raw: dict[str, Any] = json.loads(data)
         etype = raw.get("type")
         chunks: list[ChatChunk] = []
         losses: list[FieldLoss] = []
         if etype == "message_start":
             chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
-            usage = _usage((raw.get("message") or {}).get("usage"))
+            message: dict[str, Any] = raw.get("message") or {}
+            usage = _usage(message.get("usage"))
             if usage is not None:
                 chunks.append(
                     ChatChunk(
@@ -1648,7 +1694,7 @@ class MessagesCodec:
                 )
         elif etype == "content_block_start":
             index = raw.get("index", 0)
-            block = raw.get("content_block") or {}
+            block: dict[str, Any] = raw.get("content_block") or {}
             chunks.append(
                 ChatChunk(
                     type=ChunkType.PART_START,
@@ -1674,7 +1720,7 @@ class MessagesCodec:
             chunks.append(
                 ChatChunk(
                     type=ChunkType.ERROR,
-                    error=_stream_error(err if isinstance(err, dict) else {}),
+                    error=_stream_error(err if _is_obj(err) else {}),
                     raw_event=raw,
                 )
             )
@@ -1727,7 +1773,7 @@ class MessagesCodec:
             chunks: The event's chunk accumulator, appended in place.
             losses: The edge's loss accumulator, appended in place.
         """
-        delta = raw.get("delta") or {}
+        delta: dict[str, Any] = raw.get("delta") or {}
         dtype = delta.get("type")
         typed: Delta | None = None
         if dtype == "text_delta":
@@ -1781,7 +1827,7 @@ class MessagesCodec:
             chunks: The event's chunk accumulator, appended in place.
             losses: The edge's loss accumulator, appended in place.
         """
-        delta = raw.get("delta") or {}
+        delta: dict[str, Any] = raw.get("delta") or {}
         native = delta.get("stop_reason")
         if native:
             finish_chunk = ChatChunk(
@@ -1829,9 +1875,11 @@ class MessagesCodec:
             intentionally defers.
         """
         err = (body or {}).get("error")
-        if not isinstance(err, dict):
+        if not _is_obj(err):
             return None
         etype = err.get("type")
+        if not isinstance(etype, str):
+            return None
         cls = _ERROR_TYPES.get(etype)
         if cls is None:
             return None

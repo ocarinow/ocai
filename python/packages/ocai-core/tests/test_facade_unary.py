@@ -26,6 +26,7 @@ only the physical send differs.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from typing import Any
@@ -50,6 +51,7 @@ from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
 from ocai.convert.catalog import Catalog
 from ocai.core import ApiKey
+from ocai.core import CallResult
 from ocai.core.canonjson import canonical
 from ocai.core.canonjson import semantic_equal
 from ocai.core.errors import AuthError
@@ -66,6 +68,9 @@ from ocai.runtime.binding import CompositionError
 from ocai.wire.hosting import Direct
 from ocai.wire.policies import RetryPolicy
 from ocai.wire.transport import HttpxTransport
+
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
 
 URL = f"{OPENAI_BASE_URL}{CHAT_COMPLETIONS_PATH}"
 
@@ -189,7 +194,7 @@ def _expected_tool_call(raw: dict[str, Any]) -> ChatResponse:
 
 
 def _assert_call_result(
-    res: Any,
+    res: CallResult[ChatResponse],
     *,
     pair: dict[str, Any],
     expected: ChatResponse,
@@ -233,7 +238,7 @@ def _assert_call_result(
 
 
 @respx.mock
-def test_chat_plain_pair(load_http) -> None:
+def test_chat_plain_pair(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -247,12 +252,13 @@ def test_chat_plain_pair(load_http) -> None:
         sent=route.calls.last.request,
     )
     # This particular conversion is honestly lossless, and says so.
+    assert res.report is not None
     assert res.report.lossless
     assert res.report.losses == []
 
 
 @respx.mock
-async def test_achat_plain_pair(load_http) -> None:
+async def test_achat_plain_pair(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -265,6 +271,7 @@ async def test_achat_plain_pair(load_http) -> None:
         input_tokens=18,
         sent=route.calls.last.request,
     )
+    assert res.report is not None
     assert res.report.lossless
 
 
@@ -272,7 +279,7 @@ async def test_achat_plain_pair(load_http) -> None:
 
 
 @respx.mock
-def test_chat_tool_call_pair(load_http) -> None:
+def test_chat_tool_call_pair(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_tool_call.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -288,6 +295,7 @@ def test_chat_tool_call_pair(load_http) -> None:
     # The decode leg records the typed tool-call mapping (EXACT — recorded,
     # not lossy) and the finish decodes to the canonical open code with the
     # native lane verbatim.
+    assert res.report is not None
     assert [(loss.path, loss.disposition.value) for loss in res.report.losses] == [
         ("choices[0].message.tool_calls[0]", "exact")
     ]
@@ -300,7 +308,7 @@ def test_chat_tool_call_pair(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_tool_call_pair(load_http) -> None:
+async def test_achat_tool_call_pair(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_tool_call.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -330,7 +338,7 @@ def _retry_responses(pair: dict[str, Any]) -> list[httpx.Response]:
 
 
 @respx.mock
-def test_chat_retries_through_a_429_then_succeeds(load_http) -> None:
+def test_chat_retries_through_a_429_then_succeeds(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_retry.json")
     route = respx.post(URL).mock(side_effect=_retry_responses(pair))
 
@@ -340,12 +348,14 @@ def test_chat_retries_through_a_429_then_succeeds(load_http) -> None:
     assert route.call_count == 2
     expected = _expected_plain(pair["responses"][1]["json"])
     assert semantic_equal(res.value, expected)
+    assert res.usage is not None
     assert res.usage.input_tokens == 18
+    assert res.route is not None
     assert res.route.catalog_hash == CATALOG.lock().hash
 
 
 @respx.mock
-async def test_achat_retries_through_a_429_then_succeeds(load_http) -> None:
+async def test_achat_retries_through_a_429_then_succeeds(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_retry.json")
     route = respx.post(URL).mock(side_effect=_retry_responses(pair))
 
@@ -357,7 +367,7 @@ async def test_achat_retries_through_a_429_then_succeeds(load_http) -> None:
 
 
 @respx.mock
-def test_chat_without_a_retry_policy_raises_the_429(load_http) -> None:
+def test_chat_without_a_retry_policy_raises_the_429(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_retry.json")
     respx.post(URL).mock(side_effect=_retry_responses(pair))
 
@@ -371,7 +381,7 @@ def test_chat_without_a_retry_policy_raises_the_429(load_http) -> None:
 
 
 @respx.mock
-def test_chat_maps_401_to_auth_error(load_http) -> None:
+def test_chat_maps_401_to_auth_error(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_auth_error.json")
     respx.post(URL).mock(
         return_value=httpx.Response(pair["response"]["status"], json=pair["response"]["json"])
@@ -385,7 +395,7 @@ def test_chat_maps_401_to_auth_error(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_maps_401_to_auth_error(load_http) -> None:
+async def test_achat_maps_401_to_auth_error(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_auth_error.json")
     respx.post(URL).mock(
         return_value=httpx.Response(pair["response"]["status"], json=pair["response"]["json"])
@@ -397,7 +407,7 @@ async def test_achat_maps_401_to_auth_error(load_http) -> None:
 
 
 @respx.mock
-def test_chat_refines_400_overflow_to_context_length_error(load_http) -> None:
+def test_chat_refines_400_overflow_to_context_length_error(load_http: LoadHttp) -> None:
     # A context overflow is a 400 on this wire: layer 1 (status) alone would
     # raise a plain OcaiError; only the codec's map_error can name it. This
     # is the proof the facade actually wires refine_error into the driver.
@@ -414,7 +424,7 @@ def test_chat_refines_400_overflow_to_context_length_error(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_refines_400_overflow_to_context_length_error(load_http) -> None:
+async def test_achat_refines_400_overflow_to_context_length_error(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_context_length.json")
     respx.post(URL).mock(
         return_value=httpx.Response(pair["response"]["status"], json=pair["response"]["json"])

@@ -28,8 +28,10 @@ binding, and the `ChatCompletionsCodec`:
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from collections.abc import Callable
 from collections.abc import Iterator
 from typing import Any
+from typing import cast
 
 import httpx
 import pytest
@@ -38,10 +40,14 @@ import respx
 import ocai.openai
 from ocai.chat import CANONICAL_CHAT_REQUEST
 from ocai.chat import WireChatModel
+from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatRequest
+from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
+from ocai.chat.types import DeltaText
 from ocai.chat.types import Message
 from ocai.chat.types import StreamAccumulator
+from ocai.chat.types import StreamEnd
 from ocai.convert.catalog import Catalog
 from ocai.core import ApiKey
 from ocai.core.canonjson import canonical
@@ -57,6 +63,9 @@ from ocai.openai.chat_completions.codec import ChatCompletionsCodec
 from ocai.runtime.binding import Binding
 from ocai.wire.hosting import Direct
 from ocai.wire.transport import HttpxTransport
+
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
 
 URL = f"{OPENAI_BASE_URL}{CHAT_COMPLETIONS_PATH}"
 
@@ -108,13 +117,14 @@ def _strip_raw(value: Any) -> Any:
     body — verbatim lanes can never agree across the two wires.
     """
     if isinstance(value, dict):
-        return {k: _strip_raw(v) for k, v in value.items() if k not in ("raw", "raw_event")}
+        mapping = cast(dict[str, Any], value)
+        return {k: _strip_raw(v) for k, v in mapping.items() if k not in ("raw", "raw_event")}
     if isinstance(value, list):
-        return [_strip_raw(item) for item in value]
+        return [_strip_raw(item) for item in cast(list[Any], value)]
     return value
 
 
-def _mock_stream(pair: dict[str, Any]) -> Any:
+def _mock_stream(pair: dict[str, Any]) -> respx.Route:
     """Mount the recorded streaming exchange on respx, matched by body."""
     return respx.post(URL, json=pair["request"]["json"]).mock(
         return_value=httpx.Response(
@@ -123,7 +133,7 @@ def _mock_stream(pair: dict[str, Any]) -> Any:
     )
 
 
-def _mock_unary(pair: dict[str, Any]) -> Any:
+def _mock_unary(pair: dict[str, Any]) -> respx.Route:
     """Mount the recorded blocking exchange on respx, matched by body."""
     return respx.post(URL, json=pair["request"]["json"]).mock(
         return_value=httpx.Response(200, json=pair["response"]["json"])
@@ -148,13 +158,20 @@ class _DyingStream(httpx.SyncByteStream, httpx.AsyncByteStream):
 # --- (a) canonical chunks + the two-leg terminal report -------------------------
 
 
-def _assert_streamed(chunks: list[Any], stream_end: Any, *, sent: httpx.Request) -> None:
+def _assert_streamed(
+    chunks: list[ChatChunk], stream_end: StreamEnd | None, *, sent: httpx.Request
+) -> None:
     """The WU-11 done-criteria, asserted identically for both twins."""
     import json
 
     assert [c.type for c in chunks] == EXPECTED_TYPES
     assert [c.seq for c in chunks] == list(range(len(chunks)))
-    text = "".join(c.delta.text for c in chunks if c.type == ChunkType.PART_DELTA)
+    fragments: list[str] = []
+    for chunk in chunks:
+        if chunk.type == ChunkType.PART_DELTA:
+            assert isinstance(chunk.delta, DeltaText)
+            fragments.append(chunk.delta.text)
+    text = "".join(fragments)
     assert text == "Hello! How can I help you today?"
     # The wrapper captured the terminal record after exhaustion (.end).
     assert stream_end is not None
@@ -183,7 +200,7 @@ def _assert_streamed(chunks: list[Any], stream_end: Any, *, sent: httpx.Request)
 
 
 @respx.mock
-def test_stream_yields_canonical_chunks_with_terminal_report(load_http) -> None:
+def test_stream_yields_canonical_chunks_with_terminal_report(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_stream.json")
     route = _mock_stream(pair)
 
@@ -196,7 +213,7 @@ def test_stream_yields_canonical_chunks_with_terminal_report(load_http) -> None:
 
 
 @respx.mock
-async def test_astream_yields_canonical_chunks_with_terminal_report(load_http) -> None:
+async def test_astream_yields_canonical_chunks_with_terminal_report(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_stream.json")
     route = _mock_stream(pair)
 
@@ -209,7 +226,7 @@ async def test_astream_yields_canonical_chunks_with_terminal_report(load_http) -
 # --- (b) THE M2 CRITERION: fold(stream(req)) == chat(req).value ------------------
 
 
-def _assert_fold_law(folded: Any, unary_value: Any) -> None:
+def _assert_fold_law(folded: ChatResponse, unary_value: ChatResponse) -> None:
     """fold(chunks) reproduces the blocking value, raw/info excluded.
 
     The exclusions follow WU-10's paired-assertion precedent: verbatim
@@ -229,7 +246,7 @@ def _assert_fold_law(folded: Any, unary_value: Any) -> None:
 
 
 @respx.mock
-def test_fold_of_stream_matches_unary_chat(load_http) -> None:
+def test_fold_of_stream_matches_unary_chat(load_http: LoadHttp) -> None:
     _mock_stream(load_http("openai_chat_completion_stream.json"))
     _mock_unary(load_http("openai_chat_completion_stream_paired.json"))
     model = _model()
@@ -241,7 +258,7 @@ def test_fold_of_stream_matches_unary_chat(load_http) -> None:
 
 
 @respx.mock
-async def test_fold_of_astream_matches_unary_achat(load_http) -> None:
+async def test_fold_of_astream_matches_unary_achat(load_http: LoadHttp) -> None:
     _mock_stream(load_http("openai_chat_completion_stream.json"))
     _mock_unary(load_http("openai_chat_completion_stream_paired.json"))
     model = _model()
@@ -257,7 +274,7 @@ async def test_fold_of_astream_matches_unary_achat(load_http) -> None:
 
 
 @respx.mock
-def test_stream_open_error_refines_through_map_error(load_http) -> None:
+def test_stream_open_error_refines_through_map_error(load_http: LoadHttp) -> None:
     # A context overflow is a 400 on this wire: only the codec's map_error
     # can name it — proof the layer-2 refiner is wired on the STREAMING
     # path too. The provider's error body rides `raw` (wire shape).
@@ -275,7 +292,7 @@ def test_stream_open_error_refines_through_map_error(load_http) -> None:
 
 
 @respx.mock
-def test_mid_stream_death_maps_to_transient_error(load_http) -> None:
+def test_mid_stream_death_maps_to_transient_error(load_http: LoadHttp) -> None:
     # The recorded stream died after three frames: the delivered chunks
     # survive, the wire failure surfaces as the taxonomy TransientError,
     # and NO terminal is synthesized (the accumulator's aborted-stream
@@ -288,7 +305,7 @@ def test_mid_stream_death_maps_to_transient_error(load_http) -> None:
     )
 
     stream = _model().stream(_request())
-    received: list[Any] = []
+    received: list[ChatChunk] = []
     with pytest.raises(TransientError):
         # extend() appends element by element, so the chunks delivered
         # before the abort survive the raise.
@@ -305,7 +322,7 @@ def test_mid_stream_death_maps_to_transient_error(load_http) -> None:
 
 
 @respx.mock
-async def test_mid_stream_death_maps_to_transient_error_async(load_http) -> None:
+async def test_mid_stream_death_maps_to_transient_error_async(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_stream_abort.json")
     respx.post(URL).mock(
         return_value=httpx.Response(

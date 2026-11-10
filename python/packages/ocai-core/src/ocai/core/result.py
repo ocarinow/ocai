@@ -81,8 +81,8 @@ class CallContext:
     principal: str | None = None
     classification: str | None = None
     deadline: datetime | None = None
-    tags: dict[str, str] = field(default_factory=dict)
-    extensions: dict[str, Any] = field(default_factory=dict)
+    tags: dict[str, str] = field(default_factory=dict[str, str])
+    extensions: dict[str, Any] = field(default_factory=dict[str, Any])
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the context to a plain JSON-compatible dict.

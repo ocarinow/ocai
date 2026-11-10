@@ -41,7 +41,9 @@ live keys, no provider-SDK mocks), plus this dialect's own streaming shape:
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
+from typing import cast
 
 import httpx
 import pytest
@@ -57,10 +59,15 @@ from ocai.anthropic.messages.codec import MESSAGES_REQUEST
 from ocai.anthropic.messages.codec import MessagesCodec
 from ocai.chat import CANONICAL_CHAT_REQUEST
 from ocai.chat import WireChatModel
+from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatRequest
+from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
+from ocai.chat.types import DeltaText
 from ocai.chat.types import Message
+from ocai.chat.types import PartText
 from ocai.chat.types import StreamAccumulator
+from ocai.chat.types import StreamEnd
 from ocai.convert.catalog import Catalog
 from ocai.core import ApiKey
 from ocai.core.canonjson import canonical
@@ -70,6 +77,9 @@ from ocai.core.fidelity import ShiftKind
 from ocai.runtime.binding import Binding
 from ocai.wire.hosting import Direct
 from ocai.wire.transport import HttpxTransport
+
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
 
 URL = f"{ANTHROPIC_BASE_URL}{MESSAGES_PATH}"
 
@@ -140,13 +150,14 @@ def _strip_raw(value: Any) -> Any:
     body — verbatim lanes can never agree across the two wires.
     """
     if isinstance(value, dict):
-        return {k: _strip_raw(v) for k, v in value.items() if k not in ("raw", "raw_event")}
+        mapping = cast(dict[str, Any], value)
+        return {k: _strip_raw(v) for k, v in mapping.items() if k not in ("raw", "raw_event")}
     if isinstance(value, list):
-        return [_strip_raw(item) for item in value]
+        return [_strip_raw(item) for item in cast(list[Any], value)]
     return value
 
 
-def _mock_stream(pair: dict[str, Any]) -> Any:
+def _mock_stream(pair: dict[str, Any]) -> respx.Route:
     """Mount the recorded streaming exchange on respx, matched by body."""
     return respx.post(URL, json=pair["request"]["json"]).mock(
         return_value=httpx.Response(
@@ -155,7 +166,7 @@ def _mock_stream(pair: dict[str, Any]) -> Any:
     )
 
 
-def _mock_unary(pair: dict[str, Any]) -> Any:
+def _mock_unary(pair: dict[str, Any]) -> respx.Route:
     """Mount the recorded blocking exchange on respx, matched by body."""
     return respx.post(URL, json=pair["request"]["json"]).mock(
         return_value=httpx.Response(200, json=pair["response"]["json"])
@@ -165,11 +176,18 @@ def _mock_unary(pair: dict[str, Any]) -> Any:
 # --- (a) canonical chunks + the two-leg terminal report -------------------------
 
 
-def _assert_streamed(chunks: list[Any], stream_end: Any, *, sent: httpx.Request) -> None:
+def _assert_streamed(
+    chunks: list[ChatChunk], stream_end: StreamEnd | None, *, sent: httpx.Request
+) -> None:
     """The WU-14b done-criteria, asserted identically for both twins."""
     assert [c.type for c in chunks] == EXPECTED_TYPES
     assert [c.seq for c in chunks] == list(range(len(chunks)))
-    text = "".join(c.delta.text for c in chunks if c.type == ChunkType.PART_DELTA)
+    fragments: list[str] = []
+    for chunk in chunks:
+        if chunk.type == ChunkType.PART_DELTA:
+            assert isinstance(chunk.delta, DeltaText)
+            fragments.append(chunk.delta.text)
+    text = "".join(fragments)
     assert text == "I am Claude, an AI assistant."
     # The wrapper captured the terminal record after exhaustion (.end).
     assert stream_end is not None
@@ -211,7 +229,7 @@ def _assert_streamed(chunks: list[Any], stream_end: Any, *, sent: httpx.Request)
 
 
 @respx.mock
-def test_stream_yields_canonical_chunks_with_terminal_report(load_http) -> None:
+def test_stream_yields_canonical_chunks_with_terminal_report(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_stream.json")
     route = _mock_stream(pair)
 
@@ -224,7 +242,7 @@ def test_stream_yields_canonical_chunks_with_terminal_report(load_http) -> None:
 
 
 @respx.mock
-async def test_astream_yields_canonical_chunks_with_terminal_report(load_http) -> None:
+async def test_astream_yields_canonical_chunks_with_terminal_report(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_stream.json")
     route = _mock_stream(pair)
 
@@ -237,7 +255,7 @@ async def test_astream_yields_canonical_chunks_with_terminal_report(load_http) -
 # --- (b) fold(stream(req)) == chat(req).value on the paired recordings ----------
 
 
-def _assert_fold_law(folded: Any, unary_value: Any) -> None:
+def _assert_fold_law(folded: ChatResponse, unary_value: ChatResponse) -> None:
     """fold(chunks) reproduces the blocking value, raw/info excluded.
 
     The exclusions follow WU-10/11's paired-assertion precedent: verbatim
@@ -257,7 +275,7 @@ def _assert_fold_law(folded: Any, unary_value: Any) -> None:
 
 
 @respx.mock
-def test_fold_of_stream_matches_unary_chat(load_http) -> None:
+def test_fold_of_stream_matches_unary_chat(load_http: LoadHttp) -> None:
     _mock_stream(load_http("anthropic_messages_stream.json"))
     _mock_unary(load_http("anthropic_messages.json"))
     model = _model()
@@ -269,7 +287,7 @@ def test_fold_of_stream_matches_unary_chat(load_http) -> None:
 
 
 @respx.mock
-async def test_fold_of_astream_matches_unary_achat(load_http) -> None:
+async def test_fold_of_astream_matches_unary_achat(load_http: LoadHttp) -> None:
     _mock_stream(load_http("anthropic_messages_stream.json"))
     _mock_unary(load_http("anthropic_messages.json"))
     model = _model()
@@ -284,7 +302,7 @@ async def test_fold_of_astream_matches_unary_achat(load_http) -> None:
 # --- (c) errors map to the taxonomy with wire shape (rule 8) ---------------------
 
 
-def _assert_error_stream(chunks: list[Any], stream_end: Any) -> None:
+def _assert_error_stream(chunks: list[ChatChunk], stream_end: StreamEnd | None) -> None:
     """The in-band error contract, asserted identically for both twins."""
     assert [c.type for c in chunks] == [
         ChunkType.STREAM_START,
@@ -302,6 +320,7 @@ def _assert_error_stream(chunks: list[Any], stream_end: Any) -> None:
     # ...with the provider's error payload verbatim on the native lane, so
     # a recorded stream replays identically to a live one.
     assert error.native == {"type": "overloaded_error", "message": "Overloaded"}
+    assert chunks[-1].raw_event is not None
     assert chunks[-1].raw_event["type"] == "error"
     # No terminal is synthesized for a stream that died before message_stop
     # — the accumulator's aborted-stream sealing is the honest downstream.
@@ -309,7 +328,7 @@ def _assert_error_stream(chunks: list[Any], stream_end: Any) -> None:
 
 
 @respx.mock
-def test_mid_stream_error_event_surfaces_wire_shaped_error_chunk(load_http) -> None:
+def test_mid_stream_error_event_surfaces_wire_shaped_error_chunk(load_http: LoadHttp) -> None:
     # Anthropic can fail IN-BAND: the HTTP exchange is a 200 and the uniform
     # error envelope arrives as an SSE `error` event — status-based mapping
     # never runs, so the codec's decode is the only honest place to classify.
@@ -328,12 +347,15 @@ def test_mid_stream_error_event_surfaces_wire_shaped_error_chunk(load_http) -> N
     # open part incomplete — never passed off as complete.
     folded = StreamAccumulator.fold(chunks)
     (part,) = folded.message.parts
+    assert isinstance(part, PartText)
     assert part.text == "I am"
     assert part.extensions["ocai.incomplete"] is True
 
 
 @respx.mock
-async def test_mid_stream_error_event_surfaces_wire_shaped_error_chunk_async(load_http) -> None:
+async def test_mid_stream_error_event_surfaces_wire_shaped_error_chunk_async(
+    load_http: LoadHttp,
+) -> None:
     pair = load_http("anthropic_messages_stream_error.json")
     respx.post(URL).mock(
         return_value=httpx.Response(
@@ -348,7 +370,7 @@ async def test_mid_stream_error_event_surfaces_wire_shaped_error_chunk_async(loa
 
 
 @respx.mock
-def test_stream_open_error_refines_through_map_error(load_http) -> None:
+def test_stream_open_error_refines_through_map_error(load_http: LoadHttp) -> None:
     # A 529 on the stream open is coarsely transient by status alone, but
     # the coarse error carries no code: `code == "overloaded_error"` proves
     # the codec's body-aware map_error (layer 2) is wired on the STREAMING

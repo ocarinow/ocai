@@ -27,6 +27,8 @@ dev = [
     "httpx>=0.27",
     "jsonschema>=4.23",
     "import-linter>=2.1",
+    "pyright>=1.1.400",
+    "mypy>=1.14",
 ]
 docs = [
     "zensical>=0.0.45",
@@ -72,6 +74,43 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
+
+[tool.pyright]
+# Rule 16 made executable for the IDE: nothing may resolve to Unknown.
+# Strict mode is what Pylance shows users; CI runs the same configuration.
+include = [
+    "python/packages/ocai-core/src",
+    "python/packages/ocai-openai/src",
+    "python/packages/ocai-anthropic/src",
+    "python/packages/ocai-core/tests",
+    "python/packages/ocai-openai/tests",
+    "python/packages/ocai-anthropic/tests",
+    "examples",
+    "scripts",
+]
+exclude = ["**/__pycache__", "**/.venv", "examples/ocai-contrib-echo/**"]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "strict"
+
+[tool.mypy]
+# Second opinion on the same bar; nearly free because the tree is already
+# fully annotated. Namespace package: the three src roots are on mypy_path
+# and the portions are listed as packages (never `ocai` itself, rule 1).
+strict = true
+python_version = "3.13"
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = [
+    "python/packages/ocai-core/src",
+    "python/packages/ocai-openai/src",
+    "python/packages/ocai-anthropic/src",
+]
+packages = [
+    "ocai.core", "ocai.chat", "ocai.embedding", "ocai.vectorstore",
+    "ocai.convert", "ocai.runtime", "ocai.wire", "ocai.openai", "ocai.anthropic",
+]
 
 [tool.pytest.ini_options]
 testpaths = [

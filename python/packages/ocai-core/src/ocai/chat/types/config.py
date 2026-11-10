@@ -24,6 +24,7 @@ from typing import Final
 from typing import Self
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.core.jsonschema import Schema
 from ocai.core.jsonschema import decode_schema
 from ocai.core.refs import ProviderRef
@@ -204,7 +205,7 @@ class CacheConfig(IRObject):
         ref = data.get("ref")
         return cls(
             mode=data.get("mode"),
-            ref=ProviderRef.from_dict(ref) if isinstance(ref, dict) else None,
+            ref=ProviderRef.from_dict(ref) if is_json_object(ref) else None,
             **cls._from_dict_common(data),
         )
 
@@ -327,9 +328,9 @@ class ChatConfig(IRObject):
             top_k=data.get("top_k"),
             logprobs=data.get("logprobs"),
             modalities=data.get("modalities"),
-            audio=AudioOutputConfig.from_dict(audio) if isinstance(audio, dict) else None,
-            reasoning=ReasoningConfig.from_dict(reasoning) if isinstance(reasoning, dict) else None,
-            output=OutputFormat.from_dict(output) if isinstance(output, dict) else None,
-            cache=CacheConfig.from_dict(cache) if isinstance(cache, dict) else None,
+            audio=AudioOutputConfig.from_dict(audio) if is_json_object(audio) else None,
+            reasoning=ReasoningConfig.from_dict(reasoning) if is_json_object(reasoning) else None,
+            output=OutputFormat.from_dict(output) if is_json_object(output) else None,
+            cache=CacheConfig.from_dict(cache) if is_json_object(cache) else None,
             **cls._from_dict_common(data),
         )

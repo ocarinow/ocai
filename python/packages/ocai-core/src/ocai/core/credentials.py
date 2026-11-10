@@ -79,7 +79,9 @@ class ApiKey:
         Raises:
             CredentialError: If `key` is empty, not a string, or only whitespace.
         """
-        if not key or not isinstance(key, str) or not key.strip():
+        # The docstring promises `CredentialError`, not `AttributeError`, when an
+        # untyped caller passes a non-string, so the guard stays.
+        if not key or not isinstance(key, str) or not key.strip():  # pyright: ignore[reportUnnecessaryIsInstance]
             raise CredentialError(
                 "ApiKey requires a non-empty key string. Pass one explicitly, e.g. "
                 "ApiKey('sk-...'), or read it from a named source with "

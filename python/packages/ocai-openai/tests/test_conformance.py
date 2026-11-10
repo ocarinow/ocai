@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from typing import cast
 
 import pytest
 
@@ -80,6 +81,14 @@ DECODE_EDGE = next(edge for edge in EDGES if edge.src == CHAT_COMPLETIONS_RESPON
 
 def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
+
+
+def _expect_shifts(fixture: dict[str, Any]) -> list[dict[str, Any]]:
+    """The fixture's pinned shift records; an absent or null key means none."""
+    shifts: Any = fixture.get("expect_shifts")
+    if not shifts:
+        return []
+    return cast(list[dict[str, Any]], shifts)
 
 
 def _is_encode(fixture: dict[str, Any]) -> bool:
@@ -222,8 +231,7 @@ def test_fixture_converts_through_the_catalog(path: Path) -> None:
     assert actual_losses == expected_losses
     actual_shifts = sorted((shift.kind, shift.path) for shift in converted.report.shifts)
     expected_shifts = sorted(
-        (entry["kind"], entry.get("path", ""))
-        for entry in fixture.get("expect_shifts") or []
+        (entry["kind"], entry.get("path", "")) for entry in _expect_shifts(fixture)
     )
     assert actual_shifts == expected_shifts
 
@@ -281,9 +289,10 @@ def _strip_raw(value: Any) -> Any:
     `raw_event`, but the fixtures pin canonical content only.
     """
     if isinstance(value, dict):
-        return {k: _strip_raw(v) for k, v in value.items() if k not in ("raw", "raw_event")}
+        mapping = cast(dict[str, Any], value)
+        return {k: _strip_raw(v) for k, v in mapping.items() if k not in ("raw", "raw_event")}
     if isinstance(value, list):
-        return [_strip_raw(item) for item in value]
+        return [_strip_raw(item) for item in cast(list[Any], value)]
     return value
 
 

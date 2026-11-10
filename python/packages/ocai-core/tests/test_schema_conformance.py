@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from dataclasses import fields
 from pathlib import Path
 from typing import Any
+from typing import cast
 from urllib.parse import urljoin
 
 import pytest
@@ -72,6 +73,7 @@ from ocai.chat.types.tools import Tool
 from ocai.chat.types.tools import ToolChoice
 from ocai.chat.types.usage import Consumption
 from ocai.chat.types.usage import Usage
+from ocai.core.ir import DataClassProto
 from ocai.core.refs import ProviderRef
 from ocai.core.sources import SourceBase64
 from ocai.core.sources import SourceRef
@@ -126,17 +128,34 @@ def _property_names(node: Any, base_id: str, *, conditionals: bool = False) -> f
     """
     if not isinstance(node, dict):
         return frozenset()
-    out = set(node.get("properties") or {})
-    if "$ref" in node:
-        target, target_base = _resolve(node["$ref"], base_id)
+    schema = cast(dict[str, Any], node)
+    out: set[str] = set(_object_at(schema, "properties"))
+    if "$ref" in schema:
+        target, target_base = _resolve(schema["$ref"], base_id)
         out |= _property_names(target, target_base, conditionals=conditionals)
-    for member in node.get("allOf") or []:
+    for member in _list_at(schema, "allOf"):
         out |= _property_names(member, base_id, conditionals=conditionals)
     if conditionals:
         for key in ("then", "else"):
-            if key in node:
-                out |= _property_names(node[key], base_id, conditionals=True)
+            if key in schema:
+                out |= _property_names(schema[key], base_id, conditionals=True)
     return frozenset(out)
+
+
+def _object_at(schema: dict[str, Any], key: str) -> dict[str, Any]:
+    """The JSON object under `key` on `schema`; absent or null means empty."""
+    value: Any = schema.get(key)
+    if not value:
+        return {}
+    return cast(dict[str, Any], value)
+
+
+def _list_at(schema: dict[str, Any], key: str) -> list[Any]:
+    """The JSON array under `key` on `schema`; absent or null means empty."""
+    value: Any = schema.get(key)
+    if not value:
+        return []
+    return cast(list[Any], value)
 
 
 def _schema_props(ref: str, *, conditionals: bool = False) -> frozenset[str]:
@@ -154,8 +173,8 @@ def _variant_props(union_ref: str, tag: str) -> frozenset[str]:
     """
     node, base_id = _resolve(union_ref, SCHEMA_ID_BASE)
     shared = _property_names(node, base_id)
-    for member in node.get("allOf") or []:
-        condition = member.get("if", {}).get("properties", {}).get("type", {})
+    for member in _list_at(cast(dict[str, Any], node), "allOf"):
+        condition = _object_at(_object_at(_object_at(member, "if"), "properties"), "type")
         if condition.get("const") == tag:
             return shared | _property_names(member["then"], base_id)
     pytest.fail(f"{union_ref} declares no variant branch for tag {tag!r}")
@@ -284,7 +303,7 @@ def test_comparison_bites_on_unschemad_field() -> None:
 @pytest.mark.parametrize(
     "cls", [PartUnknown, SourceUnknown, DetailOpaque], ids=lambda c: c.__name__
 )
-def test_verbatim_fallback_round_trips_untouched(cls: type) -> None:
+def test_verbatim_fallback_round_trips_untouched(cls: type[DataClassProto]) -> None:
     """Unknown-tag fallbacks preserve payloads verbatim through to_dict.
 
     Their `data`/`type` fields are internal carriers, never wire members, so
@@ -297,7 +316,7 @@ def test_verbatim_fallback_round_trips_untouched(cls: type) -> None:
         "frames": [1, 2, 3],
         "extensions": {"future.lane": True},
     }
-    decoded = cls.from_dict(payload)  # type: ignore[attr-defined]
+    decoded = cls.from_dict(payload)
     assert decoded.to_dict() == payload
 
 

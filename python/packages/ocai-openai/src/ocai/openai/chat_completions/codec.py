@@ -28,6 +28,7 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from typing import Any
+from typing import TypeIs
 
 from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatConfig
@@ -191,6 +192,33 @@ _KNOB_RANGES: dict[str, tuple[float, float]] = {
 }
 
 
+def _is_object(value: object) -> TypeIs[dict[str, Any]]:
+    """Narrow a decoded wire value to a JSON object.
+
+    Wire JSON is dynamic by nature; this is the single place its shape is
+    asserted, so the codec never leaks an un-parameterized `dict` type.
+
+    Args:
+        value: Any decoded wire value.
+
+    Returns:
+        Whether `value` is a JSON object (a `dict`).
+    """
+    return isinstance(value, dict)
+
+
+def _is_array(value: object) -> TypeIs[list[Any]]:
+    """Narrow a decoded wire value to a JSON array.
+
+    Args:
+        value: Any decoded wire value.
+
+    Returns:
+        Whether `value` is a JSON array (a `list`).
+    """
+    return isinstance(value, list)
+
+
 def dialect_traits() -> DialectTraits:
     """Build the hosting traits the wire layer composes for this interface.
 
@@ -234,8 +262,10 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
 
     _add("input", raw.get("prompt_tokens"))
     _add("output", raw.get("completion_tokens"))
-    _add("cached", (raw.get("prompt_tokens_details") or {}).get("cached_tokens"))
-    _add("reasoning", (raw.get("completion_tokens_details") or {}).get("reasoning_tokens"))
+    prompt_details: dict[str, Any] = raw.get("prompt_tokens_details") or {}
+    completion_details: dict[str, Any] = raw.get("completion_tokens_details") or {}
+    _add("cached", prompt_details.get("cached_tokens"))
+    _add("reasoning", completion_details.get("reasoning_tokens"))
     return Usage(consumptions=consumptions)
 
 
@@ -427,7 +457,7 @@ class ChatCompletionsCodec:
         # Lane 3: expand only OUR destination namespace; foreign namespaces are
         # scoped to their own destination and must never leak through us.
         own = (request.provider_options or {}).get(f"{PROVIDER}.{INTERFACE}")
-        if isinstance(own, dict):
+        if _is_object(own):
             payload.update(own)
         # Lane 2 (extensions) has no encode lane on this interface yet: the
         # bag is preserved on the canonical form, but this wire body cannot
@@ -599,8 +629,7 @@ class ChatCompletionsCodec:
         function: dict[str, Any] = {"name": tool.name}
         if tool.description is not None:
             function["description"] = tool.description
-        if tool.parameters is not None:
-            function["parameters"] = tool.parameters.to_dict()
+        function["parameters"] = tool.parameters.to_dict()
         return {"type": "function", "function": function}
 
     def _encode_tool_choice(
@@ -779,8 +808,9 @@ class ChatCompletionsCodec:
         shifts: list[SemanticShift] = []
         extensions: dict[str, Any] = {}
         messages: list[Message] = []
-        for index, wire_msg in enumerate(payload.get("messages") or []):
-            if not isinstance(wire_msg, dict):
+        wire_messages: list[Any] = payload.get("messages") or []
+        for index, wire_msg in enumerate(wire_messages):
+            if not _is_object(wire_msg):
                 continue
             messages.append(self._decode_request_message(index, wire_msg, losses, shifts))
         tools = self._decode_request_tools(payload, extensions, losses)
@@ -843,7 +873,7 @@ class ChatCompletionsCodec:
         Returns:
             The canonical `Message`.
         """
-        role = wire_msg.get("role", "user")
+        role: str = wire_msg.get("role", "user")
         if role == "tool":
             shifts.append(
                 SemanticShift(
@@ -862,8 +892,9 @@ class ChatCompletionsCodec:
                 ],
             )
         parts = self._decode_request_content(index, wire_msg, losses)
-        for call in wire_msg.get("tool_calls") or []:
-            function = call.get("function") or {}
+        tool_calls: list[Any] = wire_msg.get("tool_calls") or []
+        for call in tool_calls:
+            function: dict[str, Any] = call.get("function") or {}
             parts.append(
                 PartToolCall(
                     call_id=call.get("id", ""),
@@ -906,9 +937,9 @@ class ChatCompletionsCodec:
             if content:
                 parts.append(PartText(text=content))
             return parts
-        if isinstance(content, list):
+        if _is_array(content):
             for j, item in enumerate(content):
-                if not isinstance(item, dict):
+                if not _is_object(item):
                     continue
                 if item.get("type") == "text":
                     parts.append(PartText(text=item.get("text", "")))
@@ -946,15 +977,16 @@ class ChatCompletionsCodec:
             The decoded tools, possibly empty.
         """
         tools: list[Tool] = []
-        for i, entry in enumerate(payload.get("tools") or []):
-            function = entry.get("function") if isinstance(entry, dict) else None
-            if isinstance(function, dict) and entry.get("type") == "function":
+        wire_tools: list[Any] = payload.get("tools") or []
+        for i, entry in enumerate(wire_tools):
+            function = entry.get("function") if _is_object(entry) else None
+            if _is_object(function) and entry.get("type") == "function":
                 parameters = function.get("parameters")
                 tools.append(
                     Tool(
                         name=function.get("name", ""),
                         parameters=JsonSchema.from_dict(
-                            parameters if isinstance(parameters, dict) else {}
+                            parameters if _is_object(parameters) else {}
                         ),
                         description=function.get("description"),
                     )
@@ -995,8 +1027,9 @@ class ChatCompletionsCodec:
             return None
         if choice in ("auto", "none", "required"):
             return ToolChoice(mode=choice)
-        if isinstance(choice, dict) and choice.get("type") == "function":
-            name = (choice.get("function") or {}).get("name")
+        if _is_object(choice) and choice.get("type") == "function":
+            function: dict[str, Any] = choice.get("function") or {}
+            name = function.get("name")
             if name:
                 return ToolChoice(mode="named", name=name)
         extensions[f"{PROVIDER}.tool_choice"] = choice
@@ -1050,13 +1083,13 @@ class ChatCompletionsCodec:
         stop = payload.get("stop")
         if isinstance(stop, str):
             knobs["stop_sequences"] = [stop]
-        elif isinstance(stop, list):
+        elif _is_array(stop):
             knobs["stop_sequences"] = list(stop)
         effort = payload.get("reasoning_effort")
         if effort is not None:
             knobs["reasoning"] = ReasoningConfig(effort=effort)
         fmt = payload.get("response_format")
-        if isinstance(fmt, dict):
+        if _is_object(fmt):
             knobs["output"] = self._decode_response_format(fmt, extensions, losses)
         if all(value is None for value in knobs.values()):
             return None
@@ -1085,7 +1118,7 @@ class ChatCompletionsCodec:
         if ftype == "json_object":
             return OutputFormat(mode="json")
         if ftype == "json_schema":
-            selector = fmt.get("json_schema") or {}
+            selector: dict[str, Any] = fmt.get("json_schema") or {}
             schema = selector.get("schema")
             return OutputFormat(
                 mode="json_schema",
@@ -1123,7 +1156,7 @@ class ChatCompletionsCodec:
         """
         losses: list[FieldLoss] = []
         extensions: dict[str, Any] = {}
-        choices = payload.get("choices") or []
+        choices: list[Any] = payload.get("choices") or []
         choice: dict[str, Any] = choices[0] if choices else {}
         if len(choices) > 1:
             extensions["openai.choices"] = choices[1:]
@@ -1220,8 +1253,9 @@ class ChatCompletionsCodec:
         content = wire_msg.get("content")
         if content:
             parts.append(PartText(text=content))
-        for i, call in enumerate(wire_msg.get("tool_calls") or []):
-            function = call.get("function") or {}
+        tool_calls: list[Any] = wire_msg.get("tool_calls") or []
+        for i, call in enumerate(tool_calls):
+            function: dict[str, Any] = call.get("function") or {}
             parts.append(
                 PartToolCall(
                     call_id=call.get("id", ""),
@@ -1272,7 +1306,7 @@ class ChatCompletionsCodec:
                     note="deprecated wire lane preserved; superseded by tool_calls",
                 )
             )
-        role = wire_msg.get("role", "assistant")
+        role: str = wire_msg.get("role", "assistant")
         return Message(role=_ROLE_TO_CANONICAL.get(role, role), parts=parts)
 
     def _decode_finish(
@@ -1373,10 +1407,11 @@ class ChatCompletionsCodec:
         """
         if data.strip() == _DONE:
             return EdgeOutput([])
-        raw = json.loads(data)
+        raw: dict[str, Any] = json.loads(data)
         chunks: list[ChatChunk] = []
         losses: list[FieldLoss] = []
-        for choice in raw.get("choices") or []:
+        choices: list[Any] = raw.get("choices") or []
+        for choice in choices:
             if choice.get("index", 0) != 0:
                 losses.append(
                     FieldLoss(
@@ -1412,7 +1447,7 @@ class ChatCompletionsCodec:
                 `raw_event`.
             chunks: The frame's chunk accumulator, appended in place.
         """
-        delta = choice.get("delta") or {}
+        delta: dict[str, Any] = choice.get("delta") or {}
         if delta.get("role"):
             chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
         content = delta.get("content")
@@ -1434,7 +1469,8 @@ class ChatCompletionsCodec:
                     raw_event=raw,
                 )
             )
-        for call in delta.get("tool_calls") or []:
+        tool_calls: list[Any] = delta.get("tool_calls") or []
+        for call in tool_calls:
             self._decode_tool_call_frame(call, raw, chunks)
         native = choice.get("finish_reason")
         if native is not None:
@@ -1467,7 +1503,7 @@ class ChatCompletionsCodec:
             chunks: The frame's chunk accumulator, appended in place.
         """
         slot = call.get("index", 0) + _TOOL_SLOT_OFFSET
-        function = call.get("function") or {}
+        function: dict[str, Any] = call.get("function") or {}
         if call.get("id"):
             chunks.append(
                 ChatChunk(
@@ -1520,7 +1556,7 @@ class ChatCompletionsCodec:
             A precise `OcaiError`, or `None` to defer to the neutral mapping.
         """
         err = (body or {}).get("error")
-        if not isinstance(err, dict):
+        if not _is_object(err):
             return None
         code = err.get("code") or err.get("type")
         message = err.get("message") or str(code)

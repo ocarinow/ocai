@@ -24,6 +24,7 @@ from typing import Any
 from typing import Self
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.core.refs import ProviderRef
 
 
@@ -112,12 +113,12 @@ class Annotation(IRObject):
         file = data.get("file")
         opaque = data.get("opaque")
         return cls(
-            span=Span.from_dict(span) if isinstance(span, dict) else None,
+            span=Span.from_dict(span) if is_json_object(span) else None,
             url=data.get("url"),
             document_index=data.get("document_index"),
-            file=ProviderRef.from_dict(file) if isinstance(file, dict) else None,
+            file=ProviderRef.from_dict(file) if is_json_object(file) else None,
             title=data.get("title"),
             cited_text=data.get("cited_text"),
-            opaque=ProviderRef.from_dict(opaque) if isinstance(opaque, dict) else None,
+            opaque=ProviderRef.from_dict(opaque) if is_json_object(opaque) else None,
             **cls._from_dict_common(data),
         )

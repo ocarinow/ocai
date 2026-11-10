@@ -39,6 +39,7 @@ from typing import Final
 from typing import Self
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 
 
 class UsageModality:
@@ -167,7 +168,7 @@ class Usage(IRObject):
 
     object: ClassVar[str] = "usage"
 
-    consumptions: list[Consumption] = field(default_factory=list, kw_only=True)
+    consumptions: list[Consumption] = field(default_factory=list[Consumption], kw_only=True)
 
     def _sum(self, unit: str, source: str | None = None) -> int:
         """Sum the numeric consumptions matching `unit` (and `source`).
@@ -234,11 +235,10 @@ class Usage(IRObject):
         Returns:
             The decoded `Usage`.
         """
+        consumptions: list[Any] = data.get("consumptions") or []
         return cls(
             consumptions=[
-                Consumption.from_dict(item)
-                for item in data.get("consumptions") or []
-                if isinstance(item, dict)
+                Consumption.from_dict(item) for item in consumptions if is_json_object(item)
             ],
             **cls._from_dict_common(data),
         )

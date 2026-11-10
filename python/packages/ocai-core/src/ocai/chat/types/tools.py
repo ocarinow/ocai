@@ -38,6 +38,7 @@ from typing import get_origin
 from typing import get_type_hints
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.core.jsonschema import JsonSchema
 from ocai.core.jsonschema import Schema
 
@@ -181,12 +182,13 @@ class Tool(IRObject):
         Returns:
             The reconstructed `Tool`.
         """
+        parameters: dict[str, Any] = data.get("parameters") or {}
         output = data.get("output")
         return cls(
             name=data.get("name", ""),
-            parameters=JsonSchema.from_dict(data.get("parameters") or {}),
+            parameters=JsonSchema.from_dict(parameters),
             description=data.get("description"),
-            output=JsonSchema.from_dict(output) if isinstance(output, dict) else None,
+            output=JsonSchema.from_dict(output) if is_json_object(output) else None,
             **cls._from_dict_common(data),
         )
 
@@ -268,24 +270,28 @@ class Tool(IRObject):
         Raises:
             TypeError: If `obj` matches none of the accepted shapes.
         """
-        schema_getter = getattr(obj, "model_json_schema", None)
+        schema_getter: Callable[[], dict[str, Any]] | None = getattr(
+            obj, "model_json_schema", None
+        )
         if callable(schema_getter):
             raw = schema_getter()
             parameters = JsonSchema.from_dict(raw)
+            title: str | None = raw.get("title")
+            fallback: str = getattr(obj, "__name__", "")
             return cls(
-                name=name or raw.get("title") or getattr(obj, "__name__", ""),
+                name=name or title or fallback,
                 parameters=parameters,
                 description=description or raw.get("description") or inspect.getdoc(obj),
             )
 
-        if isinstance(obj, type) and is_dataclass(obj):
+        if inspect.isclass(obj) and is_dataclass(obj):
             return cls(
                 name=name or obj.__name__,
                 parameters=_schema_for_annotation(obj),
                 description=description or inspect.getdoc(obj),
             )
 
-        if isinstance(obj, dict):
+        if is_json_object(obj):
             return cls(
                 name=name or obj.get("title", ""),
                 parameters=JsonSchema.from_dict(obj),

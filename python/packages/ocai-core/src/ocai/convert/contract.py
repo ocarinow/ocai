@@ -238,7 +238,9 @@ class EdgeContract:
         note: A human-readable summary of what the edge converts.
     """
 
-    census: Mapping[str, DeclaredDisposition] = field(default_factory=dict)
+    census: Mapping[str, DeclaredDisposition] = field(
+        default_factory=dict[str, DeclaredDisposition]
+    )
     semantic_shifts: tuple[SemanticShift, ...] = ()
     note: str = ""
 
