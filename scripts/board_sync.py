@@ -1,28 +1,28 @@
-"""Board sync: keep the GitHub Project in step with the plan table and the PRs.
+"""Board sync: the GitHub Project is a view of the plan and the PRs, nothing more.
 
-The plan table in `docs/plans/README.md` is the definition of every work
-unit (WU). The board is a view of it. This script reconciles the two from
-facts it can read with `gh`::
+Cards are **draft items** on the project (never issues): one per open work
+unit, titled `WU-NN: <title>` exactly as the plan row. Status is derived,
+never dragged::
 
-    uv run python scripts/board_sync.py                 # report only, exit 1 on findings
-    uv run python scripts/board_sync.py --apply         # also create missing cards and set statuses
-    uv run python scripts/board_sync.py --project 3     # project number (or BOARD_PROJECT_NUMBER)
+    uv run python scripts/board_sync.py sync                   # report, exit 1 when out of sync
+    uv run python scripts/board_sync.py sync --apply           # create missing cards, set statuses
+    uv run python scripts/board_sync.py add wu "WU-NN: title"  # one card now (sync does it too)
+    uv run python scripts/board_sync.py add decision "Decision: …" --body-file F
+    uv run python scripts/board_sync.py add gap "Gap: …" --body-file F
+    uv run python scripts/board_sync.py set WU-NN --owner Claude --tier "1 chat …"
 
-Rules (also stated in AGENTS.md, "The board"):
+Derivation for a WU card: plan row ✅ or its PR merged → Done; open draft
+PR → In progress; open PR ready for review → In review; otherwise Defined.
+A PR belongs to a WU when its title starts with the WU id. A card the
+maintainer moved to "Blocked on maintainer" stays there until its PR merges.
+Cards whose title does not start with `WU-` (decisions, gaps) are never
+moved by the sync. Findings (exit 1): a plan row marked ✅ with no merged PR
+and a card that is not Done; a card with no plan row; a draft PR untouched
+for `--stale-days`.
 
-- every open plan row has one card: an open or closed issue labelled
-  `work-unit` whose title starts with the WU id (rows already ✅ before the
-  board existed need none);
-- a card's status is derived, never dragged: no PR → Defined; draft PR →
-  In progress; PR ready for review → In review; merged (or closed card) →
-  Done; `blocked-maintainer` label → Blocked on maintainer;
-- the plan row and the card must agree: a ✅ row needs a merged PR or a
-  closed card; an open card with a ✅ row, or a closed card with a ⬜ row,
-  is a finding;
-- an In progress card whose PR has not moved for `--stale-days` is a finding.
-
-Project access needs a token with the `project` scope (CI: `BOARD_TOKEN`).
-Without it the script still checks plan ↔ cards and skips the status step.
+Needs a token with the `project` scope (`gh auth refresh -s project`; in CI
+the `BOARD_TOKEN` secret) and the project number (`--project` or the
+`BOARD_PROJECT_NUMBER` environment variable).
 """
 
 from __future__ import annotations
@@ -43,11 +43,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "plans" / "README.md"
 REPO = "ocarinow/ocai"
-STATUS_FIELD = "Status"
+ORG = REPO.split("/")[0]
 STATUSES = ("Defined", "In progress", "In review", "Blocked on maintainer", "Done")
 ROW_RE = re.compile(r"^\|\s*(WU-[0-9A-Za-z]+)\s*\|\s*(.+?)\s*\|.*\|\s*(.+?)\s*\|\s*$")
 ID_RE = re.compile(r"^(WU-[0-9A-Za-z]+)\b")
-CLOSES_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,27 +65,8 @@ class PlanRow:
 
 
 @dataclass(frozen=True, slots=True)
-class Card:
-    """One board card (a `work-unit` issue).
-
-    Attributes:
-        wu: The WU id parsed from the title.
-        number: Issue number.
-        state: `OPEN` or `CLOSED`.
-        labels: Label names.
-        updated_at: Last update timestamp.
-    """
-
-    wu: str
-    number: int
-    state: str
-    labels: tuple[str, ...]
-    updated_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
 class Pull:
-    """One pull request linked to a WU.
+    """One pull request whose title starts with a WU id.
 
     Attributes:
         number: PR number.
@@ -99,6 +79,23 @@ class Pull:
     state: str
     draft: bool
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class Item:
+    """One project item.
+
+    Attributes:
+        id: The project item node id.
+        title: The card title.
+        status: The current Status option name, or None.
+        kind: `DraftIssue`, `Issue`, or `PullRequest`.
+    """
+
+    id: str
+    title: str
+    status: str | None
+    kind: str
 
 
 def _gh(*args: str) -> str:
@@ -119,6 +116,17 @@ def _gh(*args: str) -> str:
     return proc.stdout
 
 
+def _graphql(query: str, **variables: str | int) -> dict[str, Any]:
+    """Run a GraphQL query or mutation through `gh api graphql`."""
+    args = ["api", "graphql", "-f", f"query={query}"]
+    for key, value in variables.items():
+        args += ["-F", f"{key}={value}"]
+    data: dict[str, Any] = json.loads(_gh(*args))
+    if "errors" in data:
+        raise RuntimeError(str(data["errors"]))
+    return data["data"]
+
+
 def _when(value: str) -> datetime:
     """Parse a GitHub ISO timestamp."""
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -134,43 +142,8 @@ def read_plan() -> list[PlanRow]:
     return rows
 
 
-def read_cards() -> dict[str, Card]:
-    """Fetch `work-unit` issues keyed by WU id."""
-    raw: list[dict[str, Any]] = json.loads(
-        _gh(
-            "issue",
-            "list",
-            "-R",
-            REPO,
-            "--label",
-            "work-unit",
-            "--state",
-            "all",
-            "--limit",
-            "500",
-            "--json",
-            "number,title,state,labels,updatedAt",
-        )
-    )
-    cards: dict[str, Card] = {}
-    for item in raw:
-        m = ID_RE.match(str(item["title"]))
-        if not m:
-            continue
-        labels = tuple(str(lab["name"]) for lab in item["labels"])
-        cards[m.group(1)] = Card(
-            m.group(1),
-            int(item["number"]),
-            str(item["state"]),
-            labels,
-            _when(str(item["updatedAt"])),
-        )
-    return cards
-
-
-def read_pulls(cards: dict[str, Card]) -> dict[str, Pull]:
-    """Fetch PRs and key the most recent one per WU (by title prefix or `Closes #N`)."""
-    by_issue = {c.number: c.wu for c in cards.values()}
+def read_pulls() -> dict[str, Pull]:
+    """Fetch PRs and keep the most relevant one per WU id (merged wins, else newest)."""
     raw: list[dict[str, Any]] = json.loads(
         _gh(
             "pr",
@@ -182,18 +155,13 @@ def read_pulls(cards: dict[str, Card]) -> dict[str, Pull]:
             "--limit",
             "500",
             "--json",
-            "number,title,state,isDraft,updatedAt,body",
+            "number,title,state,isDraft,updatedAt",
         )
     )
     pulls: dict[str, Pull] = {}
     for item in raw:
-        wu: str | None = None
         m = ID_RE.match(str(item["title"]))
-        if m:
-            wu = m.group(1)
-        for ref in CLOSES_RE.findall(str(item.get("body") or "")):
-            wu = wu or by_issue.get(int(ref))
-        if wu is None:
+        if not m:
             continue
         pull = Pull(
             int(item["number"]),
@@ -201,141 +169,187 @@ def read_pulls(cards: dict[str, Card]) -> dict[str, Pull]:
             bool(item["isDraft"]),
             _when(str(item["updatedAt"])),
         )
-        prev = pulls.get(wu)
-        if prev is None or pull.state == "MERGED" or pull.updated_at > prev.updated_at:
-            pulls[wu] = pull
+        prev = pulls.get(m.group(1))
+        if (
+            prev is None
+            or (pull.state == "MERGED" and prev.state != "MERGED")
+            or (prev.state != "MERGED" and pull.updated_at > prev.updated_at)
+        ):
+            pulls[m.group(1)] = pull
     return pulls
 
 
-def desired_status(card: Card | None, pull: Pull | None) -> str:
-    """Derive the status a card must show from the facts."""
-    if card is not None and "blocked-maintainer" in card.labels:
-        return "Blocked on maintainer"
-    if (card is not None and card.state == "CLOSED") or (
-        pull is not None and pull.state == "MERGED"
-    ):
+def desired_status(row: PlanRow, pull: Pull | None, current: str | None) -> str:
+    """Derive the status a WU card must show."""
+    if row.done or (pull is not None and pull.state == "MERGED"):
         return "Done"
+    if current == "Blocked on maintainer":
+        return current
     if pull is not None and pull.state == "OPEN":
         return "In progress" if pull.draft else "In review"
     return "Defined"
 
 
-def create_card(row: PlanRow) -> int:
-    """Create the board card for a plan row and return its issue number."""
-    body = (
-        "### Plan entry\n\nhttps://github.com/ocarinow/ocai/blob/main/docs/plans/README.md\n\n"
-        "### Owner\n\nunassigned\n\n### Tier\n\nprogram\n"
-    )
-    out = _gh(
-        "issue",
-        "create",
-        "-R",
-        REPO,
-        "--label",
-        "work-unit",
-        "--title",
-        f"{row.wu}: {row.title}",
-        "--body",
-        body,
-    )
-    return int(out.strip().rsplit("/", 1)[-1])
-
-
 class Board:
-    """Thin GraphQL client for the project's Status field."""
+    """GraphQL client for one organization project: items, Status, Owner, Tier."""
 
     def __init__(self, number: int) -> None:
-        """Load the project, its Status field, and its items.
+        """Load the project, its single-select fields, and every item (paginated).
 
         Args:
             number: The project number under the organization.
         """
         query = """
-        query($org:String!, $num:Int!) {
+        query($org:String!, $num:Int!, $after:String) {
           organization(login:$org) { projectV2(number:$num) { id
             fields(first:50) { nodes {
               ... on ProjectV2SingleSelectField { id name options { id name } } } }
-            items(first:500) { nodes { id content { ... on Issue { number } } } } } } }"""
-        data: dict[str, Any] = json.loads(
-            _gh(
-                "api",
-                "graphql",
-                "-f",
-                f"query={query}",
-                "-F",
-                f"org={REPO.split('/')[0]}",
-                "-F",
-                f"num={number}",
-            )
-        )
-        project = data["data"]["organization"]["projectV2"]
-        self.id: str = project["id"]
-        field = next(f for f in project["fields"]["nodes"] if f.get("name") == STATUS_FIELD)
-        self.field_id: str = field["id"]
-        self.options: dict[str, str] = {o["name"]: o["id"] for o in field["options"]}
-        self.items: dict[int, str] = {
-            int(n["content"]["number"]): n["id"]
-            for n in project["items"]["nodes"]
-            if n.get("content") and "number" in n["content"]
-        }
+            items(first:100, after:$after) { pageInfo { hasNextPage endCursor } nodes { id
+              fieldValueByName(name:"Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name } }
+              content { __typename ... on DraftIssue { title } ... on Issue { title }
+                        ... on PullRequest { title } } } } } } }"""
+        self.items: dict[str, Item] = {}
+        after = ""
+        while True:
+            variables: dict[str, str | int] = {"org": ORG, "num": number}
+            if after:
+                variables["after"] = after
+            project = _graphql(query, **variables)["organization"]["projectV2"]
+            self.id: str = project["id"]
+            self.fields: dict[str, tuple[str, dict[str, str]]] = {
+                f["name"]: (f["id"], {o["name"]: o["id"] for o in f["options"]})
+                for f in project["fields"]["nodes"]
+                if f.get("name")
+            }
+            nodes: list[dict[str, Any]] = project["items"]["nodes"]
+            for node in nodes:
+                content: dict[str, Any] = node.get("content") or {}
+                title = str(content.get("title") or "")
+                status_value: dict[str, Any] = node.get("fieldValueByName") or {}
+                status_name = status_value.get("name")
+                self.items[title] = Item(
+                    str(node["id"]),
+                    title,
+                    None if status_name is None else str(status_name),
+                    str(content.get("__typename", "")),
+                )
+            page = project["items"]["pageInfo"]
+            if not page["hasNextPage"]:
+                break
+            after = str(page["endCursor"])
 
-    def add(self, issue_number: int) -> str:
-        """Add an issue to the project and return the item id."""
-        node: dict[str, Any] = json.loads(_gh("api", f"repos/{REPO}/issues/{issue_number}"))
+    def add_draft(self, title: str, body: str) -> Item:
+        """Create a draft item and return it."""
         mutation = """
-        mutation($p:ID!, $c:ID!) {
-          addProjectV2ItemById(input:{projectId:$p, contentId:$c}) { item { id } } }"""
-        data: dict[str, Any] = json.loads(
-            _gh(
-                "api",
-                "graphql",
-                "-f",
-                f"query={mutation}",
-                "-F",
-                f"p={self.id}",
-                "-F",
-                f"c={node['node_id']}",
-            )
+        mutation($p:ID!, $t:String!, $b:String!) {
+          addProjectV2DraftIssue(input:{projectId:$p, title:$t, body:$b}) {
+            projectItem { id } } }"""
+        data = _graphql(mutation, p=self.id, t=title, b=body)
+        item = Item(
+            str(data["addProjectV2DraftIssue"]["projectItem"]["id"]), title, None, "DraftIssue"
         )
-        item_id = str(data["data"]["addProjectV2ItemById"]["item"]["id"])
-        self.items[issue_number] = item_id
-        return item_id
+        self.items[title] = item
+        return item
 
-    def set_status(self, item_id: str, status: str) -> None:
-        """Set the Status single-select field of an item."""
+    def set_field(self, item: Item, field: str, option: str) -> None:
+        """Set a single-select field of an item by option name.
+
+        Raises:
+            KeyError: When the field or option does not exist on the project.
+        """
+        field_id, options = self.fields[field]
         mutation = """
         mutation($p:ID!, $i:ID!, $f:ID!, $o:String!) {
           updateProjectV2ItemFieldValue(input:{projectId:$p, itemId:$i, fieldId:$f,
             value:{singleSelectOptionId:$o}}) { projectV2Item { id } } }"""
-        _gh(
-            "api",
-            "graphql",
-            "-f",
-            f"query={mutation}",
-            "-F",
-            f"p={self.id}",
-            "-F",
-            f"i={item_id}",
-            "-F",
-            f"f={self.field_id}",
-            "-F",
-            f"o={self.options[status]}",
-        )
+        _graphql(mutation, p=self.id, i=item.id, f=field_id, o=options[option])
 
-    def status_of(self, issue_number: int) -> str | None:
-        """Read the current Status of an issue's item, or None if absent."""
-        item_id = self.items.get(issue_number)
-        if item_id is None:
-            return None
-        query = """
-        query($id:ID!) { node(id:$id) { ... on ProjectV2Item {
-          fieldValueByName(name:"Status") {
-            ... on ProjectV2ItemFieldSingleSelectValue { name } } } } }"""
-        data: dict[str, Any] = json.loads(
-            _gh("api", "graphql", "-f", f"query={query}", "-F", f"id={item_id}")
-        )
-        value = data["data"]["node"].get("fieldValueByName")
-        return None if value is None else str(value.get("name"))
+
+def _find(board: Board, wu: str) -> Item | None:
+    """Find the card whose title starts with the WU id."""
+    for title, item in board.items.items():
+        m = ID_RE.match(title)
+        if m and m.group(1) == wu:
+            return item
+    return None
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    """Reconcile plan rows, PRs, and cards; create and move cards with --apply."""
+    rows = read_plan()
+    pulls = read_pulls()
+    board = Board(args.project)
+    print(f"plan rows: {len(rows)}; cards: {len(board.items)}; WU-titled PRs: {len(pulls)}")
+    findings: list[str] = []
+    known: set[str] = set()
+    for row in rows:
+        known.add(row.wu)
+        pull = pulls.get(row.wu)
+        card = _find(board, row.wu)
+        if card is None:
+            if row.done:
+                continue  # completed before the board existed; no card needed
+            if not args.apply:
+                findings.append(f"{row.wu}: no card (run with --apply)")
+                continue
+            card = board.add_draft(
+                f"{row.wu}: {row.title}", f"Plan: docs/plans/README.md — {row.wu}"
+            )
+            print(f"created card for {row.wu}")
+        want = desired_status(row, pull, card.status)
+        if row.done and want != "Done":
+            findings.append(f"{row.wu}: plan says ✅ but the card is {card.status}")
+        if want == "In progress" and pull is not None:
+            age = datetime.now(UTC) - pull.updated_at
+            if age > timedelta(days=args.stale_days):
+                findings.append(f"{row.wu}: draft PR #{pull.number} untouched for {age.days} days")
+        if card.status != want:
+            if args.apply:
+                board.set_field(card, "Status", want)
+                print(f"{row.wu}: {card.status} -> {want}")
+            else:
+                findings.append(f"{row.wu}: card shows {card.status}, facts say {want}")
+    for title in board.items:
+        m = ID_RE.match(title)
+        if m and m.group(1) not in known:
+            findings.append(f"{m.group(1)}: card has no plan row")
+    if findings:
+        print("\nBOARD OUT OF SYNC:")
+        for f in findings:
+            print("  " + f)
+        return 1
+    print("board: in sync")
+    return 0
+
+
+def cmd_add(args: argparse.Namespace) -> int:
+    """Add one card: a WU card (status derived) or a decision/gap card."""
+    board = Board(args.project)
+    if args.title in board.items:
+        print(f"already on the board: {args.title}")
+        return 0
+    body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
+    item = board.add_draft(args.title, body)
+    status = {"wu": "Defined", "decision": "Blocked on maintainer", "gap": "Defined"}[args.kind]
+    board.set_field(item, "Status", status)
+    print(f"added {args.kind} card: {args.title} [{status}]")
+    return 0
+
+
+def cmd_set(args: argparse.Namespace) -> int:
+    """Set Owner and/or Tier on a WU card."""
+    board = Board(args.project)
+    card = _find(board, args.wu)
+    if card is None:
+        print(f"no card for {args.wu}")
+        return 1
+    if args.owner:
+        board.set_field(card, "Owner", args.owner)
+    if args.tier:
+        board.set_field(card, "Tier", args.tier)
+    print(f"{args.wu}: owner={args.owner or '-'} tier={args.tier or '-'}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -345,94 +359,38 @@ def main(argv: list[str] | None = None) -> int:
         argv: Command-line arguments, defaulting to `sys.argv[1:]`.
 
     Returns:
-        0 when plan, cards, and board agree; 1 when any finding remains.
+        Process exit code.
     """
     parser = argparse.ArgumentParser(
-        description="Reconcile the plan table, WU cards, and the board."
-    )
-    parser.add_argument(
-        "--apply", action="store_true", help="create missing cards and set statuses"
+        description="Keep the project board in step with the plan and PRs."
     )
     parser.add_argument(
         "--project", type=int, default=int(os.environ.get("BOARD_PROJECT_NUMBER", "0"))
     )
-    parser.add_argument("--stale-days", type=int, default=7)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p_sync = sub.add_parser("sync", help="reconcile; --apply creates cards and sets statuses")
+    p_sync.add_argument("--apply", action="store_true")
+    p_sync.add_argument("--stale-days", type=int, default=7)
+    p_sync.set_defaults(func=cmd_sync)
+    p_add = sub.add_parser("add", help="add one card")
+    p_add.add_argument("kind", choices=("wu", "decision", "gap"))
+    p_add.add_argument("title")
+    p_add.add_argument("--body-file")
+    p_add.set_defaults(func=cmd_add)
+    p_set = sub.add_parser("set", help="set Owner / Tier on a WU card")
+    p_set.add_argument("wu")
+    p_set.add_argument("--owner")
+    p_set.add_argument("--tier")
+    p_set.set_defaults(func=cmd_set)
     args = parser.parse_args(argv)
-
-    findings: list[str] = []
-    rows = read_plan()
-    cards = read_cards()
-    pulls = read_pulls(cards)
-    print(f"plan rows: {len(rows)}; cards: {len(cards)}; linked PRs: {len(pulls)}")
-
-    for row in rows:
-        card = cards.get(row.wu)
-        pull = pulls.get(row.wu)
-        if card is None:
-            if row.done:
-                continue  # historical row completed before the board existed: no card needed
-            if args.apply:
-                number = create_card(row)
-                card = Card(row.wu, number, "OPEN", ("work-unit",), datetime.now(UTC))
-                cards[row.wu] = card
-                print(f"created card #{number} for {row.wu}")
-            else:
-                findings.append(f"{row.wu}: no board card (run with --apply to create)")
-                continue
-        status = desired_status(card, pull)
-        if row.done and status != "Done":
-            findings.append(
-                f"{row.wu}: plan says ✅ but card #{card.number} is {status} "
-                "(no merged PR, card open)"
-            )
-        if not row.done and card.state == "CLOSED":
-            findings.append(f"{row.wu}: card #{card.number} is closed but the plan row is not ✅")
-        if status == "In progress" and pull is not None:
-            age = datetime.now(UTC) - pull.updated_at
-            if age > timedelta(days=args.stale_days):
-                findings.append(
-                    f"{row.wu}: PR #{pull.number} is a draft untouched for {age.days} days"
-                )
-    for wu, card in cards.items():
-        if all(r.wu != wu for r in rows):
-            findings.append(f"{wu}: card #{card.number} has no plan row")
-
-    if args.project:
-        try:
-            board = Board(args.project)
-        except RuntimeError as exc:
-            reason = str(exc).splitlines()[0] if str(exc) else "no access"
-            print(f"board: skipped ({reason}) — needs a token with the project scope")
-        else:
-            for row in rows:
-                card = cards.get(row.wu)
-                if card is None:
-                    continue
-                want = desired_status(card, pulls.get(row.wu))
-                item_id = board.items.get(card.number)
-                if item_id is None:
-                    if not args.apply:
-                        findings.append(f"{row.wu}: card #{card.number} is not on the board")
-                        continue
-                    item_id = board.add(card.number)
-                    print(f"added #{card.number} to the board")
-                have = board.status_of(card.number)
-                if have != want:
-                    if args.apply:
-                        board.set_status(item_id, want)
-                        print(f"{row.wu}: #{card.number} {have} -> {want}")
-                    else:
-                        findings.append(f"{row.wu}: board shows {have}, facts say {want}")
-    else:
-        print("board: no project number given; status step skipped")
-
-    if findings:
-        print("\nBOARD OUT OF SYNC:")
-        for f in findings:
-            print("  " + f)
+    if not args.project:
+        print("no project number: pass --project or set BOARD_PROJECT_NUMBER")
+        return 2
+    try:
+        return int(args.func(args))
+    except RuntimeError as exc:
+        print(f"board: {str(exc).splitlines()[0] if str(exc) else 'gh failed'}")
         return 1
-    print("board: in sync")
-    return 0
 
 
 if __name__ == "__main__":

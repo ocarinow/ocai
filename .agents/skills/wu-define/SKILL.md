@@ -76,16 +76,16 @@ The entry PR is small and reviewable on its own. Implementation starts in a
 separate PR via the `wu-session` skill, after the entry is merged or the
 maintainer approves it in place.
 
-Once the entry is on `main`, the WU gets its **board card**: an issue from
-the `work-unit` template whose title is exactly `WU-NN: <title>` and whose
-body is only the plan link, the owner, and the tier. The board sync
-(`scripts/board_sync.py`, run by CI on every push to `main` and nightly)
-creates missing cards from the plan table and keeps their status in step
-with the linked PR; to create it immediately:
+Once the entry is on `main`, the WU gets its **board card**: a draft item
+on the project (never an issue) titled exactly `WU-NN: <title>`. The board
+sync (`task board:sync:apply`, run by CI on every push to `main` and
+nightly) creates missing cards from the plan table and keeps their status
+in step with the PR whose title starts with the WU id; to create it now:
 
 ```bash
-task board:card -- "WU-NN: <title>" <file>
+task board:card -- "WU-NN: <title>"
+task board:set -- WU-NN --owner <Codex|Claude|maintainer> --tier "<tier>"
 ```
 
 Scope never lives on the card. If the entry changes, the plan file changes
-in a PR; the card only links to it.
+in a PR; the card only names it.

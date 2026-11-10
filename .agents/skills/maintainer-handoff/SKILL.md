@@ -5,9 +5,10 @@ description: What to do when work hits something only the maintainer can decide 
 
 # Maintainer handoff
 
-Agents do not block in chat. A question for the maintainer becomes a card
-in the **Blocked on maintainer** column, with a recommendation, and the
-agent continues with everything that does not depend on the answer.
+Agents do not block in chat. A question for the maintainer becomes a draft
+card in the **Blocked on maintainer** column of the project (never an
+issue), with a recommendation, and the agent continues with everything that
+does not depend on the answer.
 
 ## When this applies
 
@@ -31,20 +32,19 @@ calls a careful colleague would make.
    task board:decision -- "Decision: <one line>" <file>
    ```
 
-   The task runs the privacy guard on the body, then files the issue with
-   the `decision` and `blocked-maintainer` labels; the board sync moves the
-   card.
+   The task runs the privacy guard on the body, then adds the card directly
+   in Blocked on maintainer.
 3. If the decision outlives the PR, note that the answer becomes an ADR in
    `docs/decisions/` (numbered after rebasing onto `main`).
 4. Continue with the parts of the WU that do not depend on the answer. If
-   nothing can proceed, the WU card gets the `blocked-maintainer` label too
-   (`gh issue edit <n> --add-label blocked-maintainer`).
+   nothing can proceed, say so in the decision card's body ("blocks WU-NN")
+   and the maintainer parks the WU card in Blocked on maintainer.
 5. In your report, list every handoff by issue number. Never state or
    imply the maintainer approved something unless they wrote it in the
    repo, the PR, or the issue.
 
 ## When the answer arrives
 
-Remove the label (`--remove-label blocked-maintainer`), record the decision
-where it belongs (ADR, WU Decision bullet, or the PR), and close the
-decision issue with a one-line comment naming where it was recorded.
+Record the decision where it belongs (ADR, WU Decision bullet, or the
+PR), then move the decision card to Done — the one card an agent may move,
+since nothing else derives it — noting in its body where it was recorded.

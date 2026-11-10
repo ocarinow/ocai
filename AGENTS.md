@@ -273,26 +273,33 @@ Several agents (and humans) work this repo concurrently. The protocol:
 ### The board
 
 A GitHub Project (`ocai`, under the `ocarinow` organization) is a **view
-of the repo, never a second source of truth**:
+of the repo, never a second source of truth**, and it holds **draft cards
+only — no issues are created**:
 
-- One card per WU: an issue from the `work-unit` template, titled
-  `WU-NN: <title>`, holding only the plan link, owner, and tier. The WU's
-  definition stays in `docs/plans/`, reviewed in a PR.
-- Cards move by automation only. `scripts/board_sync.py` (CI on every
-  push to `main` and nightly; runnable locally) creates missing cards from
-  the plan table and sets each card's status from the facts: no PR →
-  Defined; draft PR → In progress; PR ready → In review; merged or closed
-  → Done; `blocked-maintainer` label → Blocked on maintainer. It fails the
-  run when the plan table and the cards disagree. Agents never drag cards.
-- A WU is In progress only when its draft PR exists (`wu-session`). Work
-  with no PR is invisible and gets flagged.
-- Questions only the maintainer can answer are filed with the
-  `decision-needed` template through the `maintainer-handoff` skill, not
-  asked in chat; they land in Blocked on maintainer with a recommendation.
-- Kernel gaps get a row in `docs/plans/gaps.md` in the PR that found them
-  and a `kernel-gap` issue for the board.
-- Issues and project items are public: the privacy rule applies to them in
-  full, and the guard scans issue and PR text in CI.
+- One card per open WU, titled `WU-NN: <title>` exactly as the plan row.
+  The WU's definition stays in `docs/plans/`, reviewed in a PR; the card
+  carries only Status, Owner, and Tier.
+- Cards move by automation only. `scripts/board_sync.py sync` (CI on every
+  push to `main` touching the plan, nightly, and on demand; `task
+  board:sync` locally) creates missing cards from the plan table and sets
+  each card's status from the facts: no PR → Defined; a draft PR whose
+  title starts with the WU id → In progress; that PR ready → In review;
+  merged, or the plan row ✅ → Done. It fails the run when the plan and
+  the cards disagree. Agents never drag cards, with one exception: the
+  maintainer may park a card in Blocked on maintainer and the sync leaves
+  it there until the PR merges.
+- The PR title is the link: `WU-NN: <imperative title>`. A WU is In
+  progress only when its draft PR exists (`task pr:draft` at the first
+  commit); work with no PR is invisible and gets flagged.
+- Questions only the maintainer can answer become a decision card in
+  Blocked on maintainer (`task board:decision -- "Decision: …" FILE`,
+  through the `maintainer-handoff` skill), not a chat question. Kernel
+  gaps get a row in `docs/plans/gaps.md` in the PR that found them and a
+  gap card (`task board:gap`).
+- Owner and Tier are set per card (`task board:set -- WU-NN --owner Claude
+  --tier "1 chat completeness and hosts"`).
+- The project is visible to whoever can see the repository: the privacy
+  rule applies to card titles and bodies.
 
 ## Sequencing principle
 

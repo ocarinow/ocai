@@ -31,8 +31,8 @@ or introduced by the PR.
 
 ## 3. Check the card and the entry
 
-- The PR body says `Closes #N` and `N` is the WU's card (`work-unit` label,
-  title `WU-NN: …`). No card → finding (the board cannot track it).
+- The PR title starts with the WU id (`WU-NN: …`); that is how the board
+  card follows it. No id → finding (the board cannot track it).
 - The WU entry in `docs/plans/` has exactly one **Done** bullet and the PR
   satisfies it. Two outcomes → finding (rule 17).
 - The plan row flips to ✅ in this PR; the architecture sections the entry

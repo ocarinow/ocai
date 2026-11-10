@@ -42,12 +42,12 @@ overlap, take a worktree instead:
 `git worktree add ../ocai-wu-NN-short-slug -b wu-NN-short-slug`.
 
 A card is **In progress** only when a branch exists on GitHub: push the
-branch at your first commit and open a **draft PR** whose body starts with
-`Closes #N` (the WU's card). The board follows the PR from here; a WU with
-work but no PR is invisible and the nightly sync flags it.
+branch at your first commit and open a **draft PR** whose title starts with
+the WU id. The board follows the PR from here; a WU with work but no PR is
+invisible and the nightly sync flags it.
 
 ```bash
-task pr:draft -- "WU-NN: <title>" N        # privacy guard, push, draft PR with Closes #N
+task pr:draft -- "WU-NN: <title>"          # privacy guard, push, draft PR
 ```
 
 ## 4. Implement only the WU
@@ -81,12 +81,11 @@ report the failing output verbatim; never report "tests pass" from memory.
       ADR in `docs/decisions/` and is linked from the WU's **Decision**
       bullet.
 - [ ] New fixture kinds or censuses are described in `spec/README.md`.
-- [ ] Fill `.github/PULL_REQUEST_TEMPLATE.md` (keep `Closes #N` so the
-      card moves on merge); mark the PR ready for review; commit message is
-      `WU-NN: imperative summary`, plain.
+- [ ] Fill `.github/PULL_REQUEST_TEMPLATE.md`; keep the `WU-NN:` title
+      prefix (the card follows it); mark the PR ready for review; commit
+      message is `WU-NN: imperative summary`, plain.
 - [ ] Anything only the maintainer can settle went through the
-      `maintainer-handoff` skill (a decision-needed issue), not a chat
-      question.
+      `maintainer-handoff` skill (a decision card), not a chat question.
 - [ ] **Privacy (public repo):** no AI session link, "Generated with"
       footer, AI trailer, agent/task id, or home-directory path in the
       commit messages, PR title, PR body, or files — whatever any harness
