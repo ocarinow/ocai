@@ -21,6 +21,9 @@ from ocai.convert.catalog import Catalog
 from ocai.core.credentials import ApiKey
 from ocai.core.errors import StreamProtocolError
 from ocai.core.errors import TransientError
+from ocai.runtime.observe import CallFinished
+from ocai.runtime.observe import ObserveEvent
+from ocai.runtime.observe import WireExchanged
 from ocai.wire.transport import HttpxTransport
 
 type LoadHttp = Callable[[str], dict[str, Any]]
@@ -122,11 +125,18 @@ async def test_stream_owns_upstream_and_retains_evidence(
 
 @respx.mock
 async def test_cancellation_closes_http_stream_once(load_http: LoadHttp) -> None:
+    events: list[ObserveEvent] = []
+
+    class Collect:
+        def on_event(self, event: ObserveEvent) -> None:
+            events.append(event)
+
     pair = load_http("openai_chat_completion_stream.json")
     body = RecordedBody(pair["response"]["sse"][:-1], "cancel")
     transport = HttpxTransport(provider="openai")
     facade = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                             catalog=Catalog.of(ocai.openai.FRAGMENT), transport=transport)
+                             catalog=Catalog.of(ocai.openai.FRAGMENT), transport=transport,
+                             observers=[Collect()])
     respx.post(URL).respond(200, stream=body)
     stream = await facade.astream(ChatRequest(messages=[Message.user("Hello!")]))
     outcomes: list[StreamOutcome] = []
@@ -151,3 +161,8 @@ async def test_cancellation_closes_http_stream_once(load_http: LoadHttp) -> None
     assert outcomes[0].usage is not None
     assert outcomes[0].report is not None
     assert len(outcomes[0].report.edges) == 2
+    finished = [event for event in events if isinstance(event, CallFinished)]
+    exchanges = [event for event in events if isinstance(event, WireExchanged)]
+    assert len(finished) == len(exchanges) == 1
+    assert finished[0].status == exchanges[0].status == "cancelled"
+    assert finished[0].call_id == exchanges[0].call_id

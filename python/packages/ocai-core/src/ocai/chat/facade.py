@@ -77,6 +77,9 @@ from ocai.runtime.interceptors import acompose
 from ocai.runtime.interceptors import acompose_stream
 from ocai.runtime.interceptors import compose
 from ocai.runtime.interceptors import compose_stream
+from ocai.runtime.observe import Invocation
+from ocai.runtime.observe import Observer
+from ocai.runtime.observe import failure_status
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
 
@@ -297,6 +300,7 @@ class WireChatModel:
         tag: str | None = None,
         policies: Sequence[WirePolicy] = (),
         strict: bool = False,
+        attempt_observers: Sequence[Observer] = (),
     ) -> None:
         """Compose the facade from its three values and the bound resource.
 
@@ -324,6 +328,9 @@ class WireChatModel:
                 eligible.
             policies: The wire-tier hooks (retry, rate-limit, wiretap) the
                 drivers consult on every attempt, in order.
+            attempt_observers: Physical-attempt metadata observers. Wrap this
+                model in ObservedChatModel for logical invocation events; the
+                core model factory composes both automatically.
             strict: The feature-gate mode (§2.5). False (annotate, the
                 default): a request feature the destination's
                 `CapabilityProfile` declares `ABSENT` is recorded as an
@@ -339,8 +346,8 @@ class WireChatModel:
         self._interface = interface
         self._tag = tag
         self._strict = strict
-        self._sync_driver = SyncDriver(binding, policies=policies)
-        self._async_driver = AsyncDriver(binding, policies=policies)
+        self._sync_driver = SyncDriver(binding, policies=policies, observers=attempt_observers)
+        self._async_driver = AsyncDriver(binding, policies=policies, observers=attempt_observers)
 
     # --- The shared sans-io halves (identical for chat and achat) ---------
 
@@ -1069,3 +1076,78 @@ class InterceptedChatModel:
             to diagnostics that describe the destination.
         """
         return self._inner.details
+
+
+class ObservedChatModel:
+    """Observe a local or remote capability outside its admission middleware.
+
+    Invocation starts eagerly at the public call, including stream creation.
+    A lazy stream finishes on exhaustion, failure or explicit close. An abandoned
+    stream remains pending: callers must use its ownership contract. This wrapper
+    never treats observers as enforceable admission or required durable audit.
+    """
+
+    def __init__(self, inner: ChatModel, observers: Sequence[Observer]) -> None:
+        """Register authorized passive observers around the complete port chain."""
+        self._inner = inner
+        self._observers = tuple(observers)
+
+    @property
+    def details(self) -> dict[str, Any]:
+        """Describe the underlying target without exporting credentials."""
+        return self._inner.details
+
+    def chat(self, request: ChatRequest,
+             *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+        """Observe one synchronous invocation including admission and conversion."""
+        scope = Invocation(self._observers, ctx)
+        try:
+            result = self._inner.chat(request, ctx=scope.ctx)
+        except BaseException as error:
+            scope.finish(status=failure_status(error), error=error)
+            raise
+        scope.finish(usage=result.usage, report=result.report, route=result.route)
+        return result
+
+    async def achat(self, request: ChatRequest,
+                    *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+        """Observe one async invocation with the same correlation and accounting."""
+        scope = Invocation(self._observers, ctx)
+        try:
+            result = await self._inner.achat(request, ctx=scope.ctx)
+        except BaseException as error:
+            scope.finish(status=failure_status(error), error=error)
+            raise
+        scope.finish(usage=result.usage, report=result.report, route=result.route)
+        return result
+
+    def stream(self, request: ChatRequest, *, ctx: CallContext | None = None) -> ChatStream:
+        """Start a logical invocation now; observe its owned lazy stream later."""
+        scope = Invocation(self._observers, ctx, streaming=True)
+        try:
+            stream = self._inner.stream(request, ctx=scope.ctx)
+        except BaseException as error:
+            scope.finish(status=failure_status(error), error=error)
+            raise
+        stream.on_termination(lambda outcome: scope.finish(
+            status=(failure_status(outcome.error)
+                    if outcome.status == "failed" and outcome.error else outcome.status),
+            usage=outcome.usage, report=outcome.report, error=outcome.error,
+        ))
+        return stream
+
+    async def astream(self, request: ChatRequest,
+                      *, ctx: CallContext | None = None) -> AsyncChatStream:
+        """Observe async creation and its one eventual terminal outcome."""
+        scope = Invocation(self._observers, ctx, streaming=True)
+        try:
+            stream = await self._inner.astream(request, ctx=scope.ctx)
+        except BaseException as error:
+            scope.finish(status=failure_status(error), error=error)
+            raise
+        stream.on_termination(lambda outcome: scope.finish(
+            status=(failure_status(outcome.error)
+                    if outcome.status == "failed" and outcome.error else outcome.status),
+            usage=outcome.usage, report=outcome.report, error=outcome.error,
+        ))
+        return stream

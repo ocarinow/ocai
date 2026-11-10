@@ -203,3 +203,23 @@ async def test_stream_continuations_cannot_restart_generation(mode: str) -> None
         await invoke(InterceptedChatModel(local, [Restart()]), mode, CallContext())
     assert local.calls == 1
     assert local.pulls == 0
+
+
+@pytest.mark.parametrize("mode", ["sync", "async", "stream", "astream"])
+async def test_local_admission_rejection_is_observable(mode: str) -> None:
+    from ocai.chat.facade import ObservedChatModel
+    from ocai.runtime.observe import CallFinished
+    from ocai.runtime.observe import CallStarted
+    from ocai.runtime.observe import ObserveEvent
+
+    events: list[ObserveEvent] = []
+
+    class Collect:
+        def on_event(self, event: ObserveEvent) -> None:
+            events.append(event)
+
+    model = ObservedChatModel(InterceptedChatModel(Local(), [Govern(deny=True)]), [Collect()])
+    with pytest.raises(AuthError):
+        await invoke(model, mode, CallContext())
+    assert [type(event) for event in events] == [CallStarted, CallFinished]
+    assert isinstance(events[-1], CallFinished) and events[-1].status == "rejected"
