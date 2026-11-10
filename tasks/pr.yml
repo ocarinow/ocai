@@ -14,6 +14,22 @@ tasks:
       - git worktree add -b {{.CLI_ARGS}} {{.SCRATCH}}/{{.CLI_ARGS}} origin/main
       - echo "cd {{.SCRATCH}}/{{.CLI_ARGS}} && uv sync"
 
+  stack:
+    desc: "New worktree + branch stacked on an unmerged WU branch (task pr:stack -- PARENT_BRANCH NEW_BRANCH)"
+    cmds:
+      - git fetch -q origin
+      - git worktree add -b {{index (splitArgs .CLI_ARGS) 1}} {{.SCRATCH}}/{{index (splitArgs .CLI_ARGS) 1}} {{index (splitArgs .CLI_ARGS) 0}}
+      - echo "cd {{.SCRATCH}}/{{index (splitArgs .CLI_ARGS) 1}} && uv sync; open the PR with base {{index (splitArgs .CLI_ARGS) 0}} and body 'Stacked on #<parent PR>'"
+
+  restack:
+    desc: "After the parent PR merged (squash), rebase this branch onto origin/main dropping the parent's commits (task pr:restack -- PARENT_BRANCH)"
+    cmds:
+      - git fetch -q origin
+      - git rebase --onto origin/main {{.CLI_ARGS}}
+      - uv run python scripts/privacy_check.py --no-files
+      - git push --force-with-lease
+      - gh pr edit --base main
+
   worktree:rm:
     desc: Remove a worktree and its local branch after merge (task pr:worktree:rm -- wu-NN-slug)
     cmds:
@@ -29,11 +45,18 @@ tasks:
       - git push --force-with-lease
 
   draft:
-    desc: "Push and open a DRAFT PR for the current branch (task pr:draft -- \"WU-NN: title\"); the board card follows the title"
+    desc: "Push and open a DRAFT PR for the current branch (task pr:draft -- \"WU-NN: title\" [PARENT_BRANCH]); stacked when a parent branch is given"
     cmds:
       - uv run python scripts/privacy_check.py --no-files
       - git push -u origin HEAD
-      - gh pr create --draft --title "{{.CLI_ARGS}}" --body "Work in progress. The WU entry in docs/plans/ is the definition."
+      - |
+        title="{{index (splitArgs .CLI_ARGS) 0}}"; parent="{{if gt (len (splitArgs .CLI_ARGS)) 1}}{{index (splitArgs .CLI_ARGS) 1}}{{end}}"
+        if [ -n "$parent" ]; then
+          n=$(gh pr list --head "$parent" --json number -q '.[0].number')
+          gh pr create --draft --base "$parent" --title "$title" --body "Stacked on #$n. Work in progress; the WU entry in docs/plans/ is the definition."
+        else
+          gh pr create --draft --title "$title" --body "Work in progress. The WU entry in docs/plans/ is the definition."
+        fi
 
   open:
     desc: Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE)

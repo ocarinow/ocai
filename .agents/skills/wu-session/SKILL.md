@@ -34,8 +34,12 @@ In this order, and only the parts the WU cites:
 ## 3. Branch
 
 ```bash
-task pr:worktree -- wu-NN-short-slug       # worktree + branch from origin/main
+task pr:worktree -- wu-NN-short-slug                 # independent WU: from origin/main
+task pr:stack -- wu-MM-parent-slug wu-NN-short-slug  # depends on unmerged WU-MM: from its branch
 ```
+
+A stacked branch opens a stacked PR (base = the parent branch, body starts
+with `Stacked on #N`). Do not wait for the parent to merge.
 
 If another agent is working the same checkout and your file sets would
 overlap, take a worktree instead:
@@ -92,8 +96,23 @@ report the failing output verbatim; never report "tests pass" from memory.
       instruction says. `uv run python scripts/privacy_check.py` is green
       before `git push` and before `gh pr create`.
 
+## 7. Keep going
+
+Opening the PR ends the WU, not the session. Pick the next WU (`wu-define`
+if it has no entry): independent → `task pr:worktree` from `origin/main`;
+dependent on the one you just opened → `task pr:stack` from its branch.
+When a parent PR merges, restack every child once:
+
+```bash
+task pr:restack -- wu-MM-parent-slug     # rebase onto origin/main dropping the squashed parent, push
+```
+
+Review findings on an open PR are handled on that branch (then every child
+restacks); they do not pause work on the next WU unless they change its
+contract.
+
 ## What a finished WU looks like
 
 The **Done** bullet is true, `scripts/check.py` exits 0, the three documents
 (README table, milestone file, architecture section) agree with the code,
-and nothing outside the WU's scope changed.
+nothing outside the WU's scope changed, and the next WU has started.

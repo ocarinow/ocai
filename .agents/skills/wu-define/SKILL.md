@@ -10,8 +10,10 @@ this repo starts from a sentence in chat; it starts from a WU entry in
 `docs/plans/`. This skill produces that entry. It does not write code.
 
 The failure it prevents: an agent that reads a goal, infers the rest, and
-lands four units of work in one unreviewable stack. If the answers below are
-not known, the WU is not ready, and saying so is the correct output.
+lands four units of work in one unreviewable PR. Stacked PRs are fine — one
+WU each, reviewed in order; one PR holding several WUs is not. If the
+answers below are not known, the WU is not ready, and saying so is the
+correct output.
 
 ## 1. Locate the source
 
@@ -46,22 +48,37 @@ an unanswered question is a reason to stop and ask the maintainer.
 
 ## 3. Write the entry
 
-In the milestone or program file under `docs/plans/`, matching the existing
-format:
+In the milestone or program file under `docs/plans/`, following
+[`docs/plans/WU-TEMPLATE.md`](../../../docs/plans/WU-TEMPLATE.md) exactly —
+the board card's body and fields are generated from these bullets, so what
+you write here is what the maintainer reads on the board:
 
 ```markdown
 ## WU-NN — <imperative title>
 
-- **Scope:** <what is built, which files, which fixtures; what is out>
-- **Done:** <the observable outcome, phrased as the test that passes>
-- **Deps:** <WU numbers that must be ✅ first, or "none">
+- **Goal:** <one paragraph: what exists when done and why it matters>
+- **Scope:** <files and surfaces touched, rough size; then what is OUT>
+- **Done:** <the single observable outcome, phrased as the test that passes>
+- **Deps:** <WU numbers / ADRs that must land first, or "none">
 - **Architecture:** §<n>, §<m> (sections updated in the same PR)
-- **Freeze:** <none | pre-v0.2 change to <surface>, ADR NNNN | additive>
-- **Decision (<topic>):** <each decision already made, one bullet each>
+- **Integration:** <layer and arrows; modules; flow; optional ```mermaid diagram>
+- **Freeze:** <none | additive change to <surface> under ADR NNNN | provisional>
+- **Decision (<topic>):** <each decision already made, with what settled it>
 - **Open:** <none, or the question that blocks starting>
+- **Area:** <core | chat IR | convert | runtime | wire | plugin: … | spec | docs | platform | satellite | tooling>
+- **Priority:** <P0 | P1 | P2 | P3>
+- **Tier:** <program | 1 … 6>
+- **Owner:** <Codex | Claude | maintainer | unassigned>
 ```
 
-Add the row to the table in `docs/plans/README.md` with status ⬜.
+The Integration bullet is where the architecture lives for this WU: which
+layer the change sits in and which dependency arrows (§1) it respects, the
+modules it adds or changes, the request/data flow through existing objects,
+and a mermaid diagram when more than one layer is touched. A reviewer should
+be able to place the change in `docs/architecture.md` from this bullet alone.
+
+Add the row to the table in `docs/plans/README.md` with status ⬜ and the
+program in the Milestone column (the card's Program field comes from it).
 
 ## 4. Size check
 
@@ -77,15 +94,17 @@ separate PR via the `wu-session` skill, after the entry is merged or the
 maintainer approves it in place.
 
 Once the entry is on `main`, the WU gets its **board card**: a draft item
-on the project (never an issue) titled exactly `WU-NN: <title>`. The board
-sync (`task board:sync:apply`, run by CI on every push to `main` and
-nightly) creates missing cards from the plan table and keeps their status
-in step with the PR whose title starts with the WU id; to create it now:
+on the project (never an issue) titled exactly `WU-NN: <title>`, with a
+body rendered from the entry (Goal, Scope, Done, Deps, Architecture,
+Integration, Freeze, Decision, Open, links to the entry and the PR) and the
+fields Program, Area, Priority, Tier, Owner, Kind, PR, Plan filled from the
+table row and the bullets. The board sync (`task board:sync:apply`, run by
+CI on every push to `main` and nightly) creates and refreshes it; to do it
+now:
 
 ```bash
-task board:card -- "WU-NN: <title>"
-task board:set -- WU-NN --owner <Codex|Claude|maintainer> --tier "<tier>"
+task board:sync:apply
 ```
 
-Scope never lives on the card. If the entry changes, the plan file changes
-in a PR; the card only names it.
+The card is never edited by hand. If the entry changes, the plan file
+changes in a PR and the next sync rewrites the card.
