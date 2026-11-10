@@ -43,6 +43,7 @@ from ocai.anthropic.messages.edges import EDGES as ANTHROPIC_EDGES
 from ocai.chat import CANONICAL_CHAT_REQUEST
 from ocai.chat import CANONICAL_CHAT_RESPONSE
 from ocai.chat.types import ChatRequest
+from ocai.chat.types import ChatResponse
 from ocai.chat.types import Message
 from ocai.chat.types import PartImage
 from ocai.convert.catalog import Catalog
@@ -263,19 +264,14 @@ def test_response_decode_directions_exist_and_reports_merge() -> None:
     assert openai_leg.report.edges, "the openai response decode leg must report its edge"
 
 
-def test_encode_response_direction_does_not_exist_yet() -> None:
-    """The recorded WU-15 deviation: the response leg runs decode-only.
-
-    It cannot run canonical -> wire until encode-response edges land; the demo
-    scopes to the decode direction and this pin flips the day those edges
-    arrive.
-    """
+def test_client_response_direction_exists_only_for_qualified_interface() -> None:
+    """WU-30 adds the client OpenAI direction; Anthropic serving stays out of scope."""
     catalog = _catalog()
-    response: dict[str, Any] = {"message": {"role": "model", "parts": []}}
+    response = ChatResponse(message=Message(role="model", parts=[]))
     with pytest.raises(ConversionError):
         catalog.convert(response, CANONICAL_CHAT_RESPONSE, MESSAGES_RESPONSE)
-    with pytest.raises(ConversionError):
-        catalog.convert(response, CANONICAL_CHAT_RESPONSE, CHAT_COMPLETIONS_RESPONSE)
+    encoded = catalog.convert(response, CANONICAL_CHAT_RESPONSE, CHAT_COMPLETIONS_RESPONSE)
+    assert encoded.value["choices"][0]["message"]["role"] == "assistant"
 
 
 # --- §2.4: the ProviderRef scoped-crossing rule ---------------------------------

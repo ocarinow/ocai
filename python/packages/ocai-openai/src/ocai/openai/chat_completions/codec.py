@@ -326,10 +326,14 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
                 Consumption(modality="text", unit="tokens", source=source, value=value)
             )
 
-    _add("input", raw.get("prompt_tokens"))
-    _add("output", raw.get("completion_tokens"))
     prompt_details: dict[str, Any] = raw.get("prompt_tokens_details") or {}
     completion_details: dict[str, Any] = raw.get("completion_tokens_details") or {}
+    prompt = raw.get("prompt_tokens")
+    completion = raw.get("completion_tokens")
+    _add("input", prompt - (prompt_details.get("cached_tokens") or 0)
+         if prompt is not None else None)
+    _add("output", completion - (completion_details.get("reasoning_tokens") or 0)
+         if completion is not None else None)
     _add("cached", prompt_details.get("cached_tokens"))
     _add("reasoning", completion_details.get("reasoning_tokens"))
     return Usage(consumptions=consumptions)

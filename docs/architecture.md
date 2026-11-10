@@ -633,6 +633,17 @@ Non-text request content remains opaque and reported; file/media execution and
 strict function-tool enforcement are excluded from the qualified client surface.
 Existing scoped-reference guards still prohibit cross-provider replay.
 
+WU-30 registers canonical response → Chat Completions response. Text, refusal,
+function identity/argument strings, finish and measured usage have client lanes.
+Grouping ordered parts into message lanes is a relocation finding. Unsupported
+parts, annotations, extensions and scoped identities remain reported. Unknown
+finish codes preserve their native string with UNSUPPORTED evidence. No raw body
+is copied to client output. `chat_completions.client.ClientMetadata.bind` supplies
+explicit gateway id/model/created after conversion; graph output omits unavailable
+identity. A foreign response id is not laundered into an OpenAI reference.
+OpenAI decode subtracts cache/reasoning subsets from prompt/completion totals;
+client encode adds them back. Missing measurements remain absent, never zero.
+
 ## 8. Request lifecycle (how it all interacts)
 
 The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),
