@@ -622,6 +622,17 @@ plugin. A plugin MAY additionally ship a convenience helper
 facade machinery, never a separate code path, and never required: the core
 string door must always work without it.
 
+WU-29 qualifies the Chat Completions client request decoder for the gateway
+matrix in `plans/gateway-readiness.md`. Function tool identity/order and named
+choice survive; JSON Schema output intent round-trips to OpenAI and maps to
+Anthropic output_config with name/strict losses reported. Function-tool strict,
+message names, unknown nested fields and conflicting legacy token limits are
+preserved by source path in `openai.request_unmapped`, never silently replayed.
+Multi-choice `n != 1` is explicitly UNSUPPORTED and retained as `openai.n`.
+Non-text request content remains opaque and reported; file/media execution and
+strict function-tool enforcement are excluded from the qualified client surface.
+Existing scoped-reference guards still prohibit cross-provider replay.
+
 ## 8. Request lifecycle (how it all interacts)
 
 The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),
