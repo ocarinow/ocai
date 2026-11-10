@@ -1,0 +1,8 @@
+{
+  "name": "@ocarinow/management-client",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

@@ -1,7 +1,9 @@
 # Platform stack and shared console
 
 Status: selected product technologies with proposed integration boundaries.
-No application, dependency lock, or deployment is implemented by this document.
+The WU-35 foundation implements the shell, UI layer, typed status client, and
+FastAPI request infrastructure; see [development instructions](../../platform/README.md).
+Identity, persistence, authorization, and inference remain subsequent work.
 
 ## Selected technologies
 

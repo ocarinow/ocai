@@ -60,6 +60,8 @@ must follow (coding agents read the same file). In particular:
 
 - **One work unit per PR.** Keep diffs small and reviewable.
 - `uv run python scripts/check.py` exits 0 (ruff, import contracts, pytest).
+- The gate also verifies the platform. Install its separate dependencies and
+  browser runtime as described in [platform development](platform/README.md).
 - Tests use **recorded HTTP request/response pairs** (respx/VCR-style), never
   live API keys and never provider-SDK mocks.
 - No provider SDKs and no pydantic in `ocai-core`; credentials are explicit-only.

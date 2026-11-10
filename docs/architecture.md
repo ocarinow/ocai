@@ -859,3 +859,24 @@ contracts where needed. Platform dependency environments and lockfiles are
 separate from library development. The scaffolding WU must add the corresponding
 boundary and integration checks to repository verification. The broader product
 direction is documented in [the platform overview](platform/README.md).
+
+### 12.1 Initial platform foundation [provisional]
+
+[ADR 0009](decisions/0009-platform-foundation.md) records the implemented first
+slice. `platform/services/gateway/app/` is a non-distributed FastAPI application
+with its own uv environment/lock. Reusable ASGI middleware stays inside the
+service until another backend needs it. It generates request IDs, sanitizes
+errors, forwards streamed bodies without accumulation, and emits allowlisted
+completion diagnostics. Diagnostic observers do not provide durable audit.
+
+The console extends the `nuxt-platform` shell layer, which extends `nuxt-ui`.
+Product navigation and pages belong to the console; generic components and
+tokens belong to the UI layer. A framework-independent management client uses
+generated OpenAPI types and validates its status response at runtime. The
+console server exposes a fixed status proxy with no caller credential forwarding.
+
+Only non-sensitive health and foundation status are served. Readiness returns
+503; identity, OpenFGA enforcement, PostgreSQL state, inference, durable audit,
+and accounting are not implemented in this slice. Root verification includes
+platform typing, API drift, boundary/HTTP tests, production build, and a browser
+integration test against the real service.

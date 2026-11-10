@@ -24,31 +24,32 @@ and the supported inference paths have been exercised together.
 
 ## WU-35 — Connect the console through reusable platform layers
 
-- [ ] **Status:** not started.
+- [x] **Status:** complete.
 - **Scope:** One runnable foundation from Nuxt console through a typed management
   client to FastAPI. Own `platform/`, platform verification scripts and CI wiring,
   root ignore/tool-discovery adjustments, this status row, architecture §12, and
   the associated implementation ADR. Create only packages exercised by this path:
-  shared ASGI infrastructure, UI layer, platform shell layer, and management client.
+  UI layer, platform shell layer, and management client. Reusable ASGI middleware
+  stays inside `services/gateway/app/middleware/`; no separate HTTP distribution.
 - **Done:** A built console displays actual service availability through the
   typed client, with explicit unavailable/retry states. HTTP tests prove generated
   request identity, safe error responses, concurrent isolation, and streaming
-  transparency. Contract/boundary checks, strict typing, isolated wheel installation,
+  transparency. Contract/boundary checks, strict typing, isolated deployment-source import,
   frontend production build, browser smoke coverage, and the repository gate pass.
 - **Deps:** WU-34 and accepted ADR 0006. Inference integration later consumes
   the WU-22–32 public APIs; this foundation does not modify or duplicate them.
-- **Architecture:** §12, plus implementation ADR for reusable HTTP and frontend
+- **Architecture:** §12, plus ADR 0009 for reusable HTTP and frontend
   boundaries and the initial public, non-sensitive system-status contract.
 - **Freeze:** none. Kernel fields, shapes, nodes, edges, censuses, fixtures,
   extension keys, and stream conversion contracts remain unchanged.
-- **Decision (dependencies):** Separate platform uv and npm workspaces/locks;
+- **Decision (dependencies):** An isolated gateway uv project/lock and a platform npm workspace/lock;
   FastAPI/Starlette and Uvicorn in the product workspace; Nuxt/Vue/TypeScript,
   Tailwind and owned shadcn-vue components in frontend layers. Platform packages
   are private. No new dependency in distributed ocai libraries.
 - **Decision (HTTP):** Pure ASGI middleware, per-request generated identifiers,
   allowlisted completion metadata, sanitized errors, no body/stream buffering,
   and no inferred tenant identity from request headers. Startup creates explicit
-  app instances; shared packages have no import-time registry or logging setup.
+  app instances; modules have no import-time registry or logging setup.
 - **Decision (console):** The UI layer owns styling/components; the platform
   layer owns reusable shell composition; the app owns the status page; a plain
   TypeScript package owns the management client. Same-origin API proxying has a

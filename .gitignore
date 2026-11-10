@@ -37,3 +37,9 @@ node_modules/
 # Per-user agent settings (never commit personal permissions)
 .claude/settings.local.json
 .codex/config.toml
+
+# Platform build and browser-test artifacts
+.nuxt/
+.output/
+platform/test-results/
+platform/playwright-report/
