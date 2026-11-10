@@ -4,10 +4,12 @@ Every agent and every human runs the same gate before calling a change done,
 and CI runs the same steps. Usage (from the repo root)::
 
     uv run python scripts/check.py            # everything
-    uv run python scripts/check.py --no-tests # lint + contracts only
+    uv run python scripts/check.py --no-tests # static checks + platform build
     uv run python scripts/check.py --format   # also enforce ruff format
 
 The script prints one line per step and exits non-zero if any step fails.
+Platform prerequisites (Node, npm dependencies, and the browser test runtime)
+are documented in platform/README.md. The platform uses its own uv environment.
 `ruff format --check` is opt-in until the tree is formatted (18 files were
 unformatted when this script landed); flip it to default in the same change
 that formats them.
@@ -103,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
     steps.append(Step("mypy (strict)", ("mypy",)))
     if not args.no_tests:
         steps.append(Step("pytest", ("pytest",)))
+    platform_args = ("--no-tests",) if args.no_tests else ()
+    steps.append(Step("platform", ("python", "scripts/check_platform.py", *platform_args)))
 
     results = [_run(step) for step in steps]
 

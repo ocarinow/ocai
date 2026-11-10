@@ -1,0 +1,15 @@
+{
+  "name": "@ocarinow/nuxt-platform",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./nuxt.config.ts"
+  },
+  "dependencies": {
+    "@ocarinow/nuxt-ui": "*"
+  },
+  "peerDependencies": {
+    "nuxt": "^4.6.4",
+    "vue": "^3.5.45"
+  }
+}

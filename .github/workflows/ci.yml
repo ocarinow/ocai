@@ -100,6 +100,25 @@ jobs:
           python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib
           examples/ocai-contrib-echo/tests -q
 
+  platform:
+    name: platform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.13
+      - run: uv sync --project platform/services/gateway --frozen
+      - run: npm ci
+        working-directory: platform
+      - run: npx playwright install --with-deps chromium
+        working-directory: platform
+      - run: uv run --project platform/services/gateway python scripts/check_platform.py
+
   typescript:
     name: typescript
     runs-on: ubuntu-latest

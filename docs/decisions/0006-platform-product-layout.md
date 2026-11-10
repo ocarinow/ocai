@@ -32,7 +32,7 @@ platform/
   services/
     gateway/                        first deployable backend service
       pyproject.toml
-      src/
+      app/                          application modules (ADR 0009)
       tests/
       migrations/
   apps/

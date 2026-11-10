@@ -1,0 +1,17 @@
+{
+  "name": "@ocarinow/console",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@ocarinow/nuxt-platform": "*",
+    "@ocarinow/management-client": "*",
+    "nuxt": "4.6.4",
+    "vue": "3.5.45"
+  }
+}
