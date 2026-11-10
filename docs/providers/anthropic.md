@@ -185,3 +185,24 @@ Vertex unary envelope in both drivers. Bedrock transport, signing and streaming
 remain later WUs. No Vertex beta body mapping is inferred from the Bedrock example;
 explicit unmapped feature headers remain headers. Binding-level overrides are
 not relocated by the trait-only resolver in WU-37.
+
+## 16. WU-43 search qualification (verified 2026-11-11)
+
+The initial surface is `web_search_20250305`, basic direct search. Later dynamic
+filtering versions are excluded. Domain allow/block lists are alternatives;
+location uses `type: approximate`. Native `max_uses` stays a provider control.
+Results retain `encrypted_content`, citations retain `encrypted_index`, and both
+must survive replay. Search failures appear inside a successful HTTP response;
+an empty result list is a successful search with no matches. Billing uses the
+reported `usage.server_tool_use.web_search_requests`, not result or part counts.
+Source: [Web search tool: definition, response, streaming and usage](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool).
+
+Direct server calls stream their input as JSON fragments; result blocks arrive
+complete. Call/result identity is `id`/`tool_use_id`, independent of position.
+Source: [Server tools: block identity and streaming events](https://platform.claude.com/docs/en/agents-and-tools/tool-use/server-tools).
+
+Implementation boundary: buffer one server-call input until its block closes,
+then emit a complete canonical part; do not add a kernel delta type. A result's
+required `anchor` scopes its complete native payload, identified by `tool_use_id`;
+multiple encrypted result strings remain verbatim inside that payload. Citation
+`opaque` stores its native encrypted index. Missing replay evidence is unsupported.

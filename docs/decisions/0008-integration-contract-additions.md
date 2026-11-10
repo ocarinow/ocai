@@ -1,10 +1,10 @@
 # 0008 — Additive integration contracts before the qualification gate
 
-- **Status:** WU-37–38 and WU-40–42 chat additions accepted; remaining proposals pending
+- **Status:** WU-37–38 and WU-40–43 chat additions accepted; remaining proposals pending
 - **Date:** 2026-11-10
 - **Deciders:** maintainer authorized WU-37 after PR #27 and WU-38 after PR #30
   merged; directed execution of assigned integration WUs on 2026-11-11.
-  WU-40–42 acceptance is recorded here; other implementation portions remain pending.
+  WU-40–43 acceptance is recorded here; other implementation portions remain pending.
 
 ## Context
 
@@ -150,7 +150,7 @@ The survey's sketch mentions max_uses/search_context_size as possible fields;
 its explicit three-lane mapping places them in extensions. That narrower mapping
 is the proposal here.
 
-### Replay anchors (WU-42 accepted) and search accounting (WU-43 proposed)
+### Replay anchors and search accounting (WU-42–43 accepted)
 
 Add optional ChatRequest.anchors for request-side ProviderRef continuation.
 Use existing part.anchor and Annotation.opaque for server-tool replay tokens.
@@ -176,6 +176,12 @@ reported billable search operations, not the number of tool-call parts or tokens
 Missing counts remain absent. Provider-native counters, different billing units
 and replay evidence retain registered extension lanes with their declared shifts.
 The concrete provider WU certifies these mappings before claiming compatibility.
+WU-43 selects basic `web_search_20250305`. A required result anchor uses the
+provider's `tool_use_id` to scope the entire verbatim result payload; encrypted
+content stays in that payload, without duplicated canonical scalar fields.
+Citation opaque refs carry encrypted indexes. Server-call input fragments are
+buffered within the plugin until block completion and then published as a complete
+part, with a declared timing shift; no new kernel delta or part shape is added.
 
 Sources: [Web search §1.1/1.4](../capabilities/web-search-and-retrieval.md),
 [DeepSeek §5/7](../providers/deepseek.md), and gap G-01.
