@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import MISSING as _DC_MISSING
 from dataclasses import dataclass
+from dataclasses import field
 from dataclasses import fields as _dc_fields
 from dataclasses import is_dataclass
 from enum import Enum
@@ -302,6 +304,115 @@ class Tool(IRObject):
             f"Tool.from_schema expects a dict, a dataclass type, or an object "
             f"exposing model_json_schema(); got {type(obj).__name__}"
         )
+
+
+@dataclass
+class ServerToolLocation(IRObject):
+    """Approximate search location; not a device location or execution authority.
+
+    Attributes:
+        country: Country code supplied by the caller.
+        region: Region supplied by the caller.
+        city: City supplied by the caller.
+        timezone: Time zone supplied by the caller.
+    """
+
+    country: str | None = None
+    region: str | None = None
+    city: str | None = None
+    timezone: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Decode location data without interpreting or normalizing its values."""
+        return cls(
+            country=data.get("country"), region=data.get("region"),
+            city=data.get("city"), timezone=data.get("timezone"),
+            **cls._from_dict_common(data),
+        )
+
+
+@dataclass
+class ServerTool(IRObject):
+    """Provider-executed tool intent, separate from a callable function definition.
+
+    Attributes:
+        kind: Open intent code, for example `web_search`.
+        allowed_domains: Explicit domain allowlist; never normalized implicitly.
+        blocked_domains: Explicit domain blocklist; conflicts are provider-qualified.
+        user_location: Approximate caller-supplied search location.
+        type: Fixed discriminator; legacy function tools remain untagged.
+    """
+
+    kind: str
+    allowed_domains: list[str] | None = None
+    blocked_domains: list[str] | None = None
+    user_location: ServerToolLocation | None = None
+    type: str = field(default="server", init=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize intent, preserving explicitly empty domain lists."""
+        data = super().to_dict()
+        if self.allowed_domains is not None:
+            data["allowed_domains"] = deepcopy(self.allowed_domains)
+        if self.blocked_domains is not None:
+            data["blocked_domains"] = deepcopy(self.blocked_domains)
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Decode server intent and retain unparsed location evidence."""
+        location = data.get("user_location")
+        result = cls(
+            kind=data.get("kind", ""),
+            allowed_domains=deepcopy(data.get("allowed_domains")),
+            blocked_domains=deepcopy(data.get("blocked_domains")),
+            user_location=(ServerToolLocation.from_dict(location)
+                           if is_json_object(location) else None),
+            **cls._from_dict_common(data),
+        )
+        if location is not None and not is_json_object(location):
+            result.extensions["ocai.server_tool_unparsed_location"] = deepcopy(location)
+        return result
+
+
+@dataclass
+class ToolUnknown:
+    """A future or malformed tool entry preserved verbatim, with no execution meaning.
+
+    Attributes:
+        data: The original JSON value, retained without interpreting its tag.
+    """
+
+    data: Any
+
+    def to_dict(self) -> Any:
+        """Return detached original data, including unknown non-object entries."""
+        return deepcopy(self.data)
+
+    @classmethod
+    def from_dict(cls, data: Any) -> Self:
+        """Preserve the unknown tool payload without imposing this revision's schema."""
+        return cls(deepcopy(data))
+
+
+type ToolDefinition = Tool | ServerTool | ToolUnknown
+
+
+def decode_tool(data: Any) -> ToolDefinition:
+    """Decode the open tool union; untagged mappings retain legacy function semantics."""
+    if not is_json_object(data):
+        return ToolUnknown.from_dict(data)
+    try:
+        if "type" not in data:
+            return Tool.from_dict(data)
+        if data.get("type") == "server":
+            return ServerTool.from_dict(data)
+    except (TypeError, ValueError, AttributeError):
+        # Malformed known shapes retain their whole payload. G-09 tracks the
+        # shared envelope reader; union decode must not lose the input meanwhile.
+        return ToolUnknown.from_dict(data)
+    return ToolUnknown.from_dict(data)
 
 
 class ToolChoiceMode:

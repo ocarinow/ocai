@@ -239,7 +239,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-41 — Admit server-tool definitions on ChatRequest
 
-- [ ] **Status:** in progress; stacked on WU-40 (PR #77).
+- [x] **Status:** implemented; stacked PR #80, pending review.
 - **Goal:** Portable requests distinguish provider-executed tool intent from
   function definitions, preserving unknown tools and reporting unsupported intent.
 - **Scope:** `chat/types/tools.py`, request reader/schema, generic edge census

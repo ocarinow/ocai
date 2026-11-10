@@ -1,0 +1,45 @@
+{
+  "description": "Synthetic WU-41 openai recorded pair: canonical unsupported server intent is reported and only a qualified function is sent. Paired with openai_server_tool_unsupported.json; response fold evidence reuses the existing openai_chat_completion stream fixtures.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "gpt-4o",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      },
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "lookup",
+            "parameters": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"Hello! How can\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" I help you today?\"}, \"logprobs\": null, \"finish_reason\": null}], \"usage\": null}",
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"stop\"}], \"usage\": null}",
+      "data: {\"id\": \"chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz\", \"object\": \"chat.completion.chunk\", \"created\": 1767225600, \"model\": \"gpt-4o-2024-08-06\", \"choices\": [], \"usage\": {\"prompt_tokens\": 12, \"completion_tokens\": 9, \"total_tokens\": 21, \"prompt_tokens_details\": {\"cached_tokens\": 0, \"audio_tokens\": 0}, \"completion_tokens_details\": {\"reasoning_tokens\": 0, \"audio_tokens\": 0, \"accepted_prediction_tokens\": 0, \"rejected_prediction_tokens\": 0}}}",
+      "data: [DONE]"
+    ]
+  }
+}

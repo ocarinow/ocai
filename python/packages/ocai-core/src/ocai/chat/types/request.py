@@ -27,8 +27,9 @@ from typing import Self
 from ocai.chat.canonical import CANONICAL_CHAT_REQUEST
 from ocai.chat.types.config import ChatConfig
 from ocai.chat.types.message import Message
-from ocai.chat.types.tools import Tool
 from ocai.chat.types.tools import ToolChoice
+from ocai.chat.types.tools import ToolDefinition
+from ocai.chat.types.tools import decode_tool
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import is_json_array
@@ -58,7 +59,7 @@ class ChatRequest(IRObject):
     __node__: ClassVar[NodeId] = CANONICAL_CHAT_REQUEST
 
     messages: list[Message]
-    tools: list[Tool] | None = None
+    tools: list[ToolDefinition] | None = None
     tool_choice: ToolChoice | None = None
     config: ChatConfig | None = None
 
@@ -84,7 +85,7 @@ class ChatRequest(IRObject):
         return cls(
             messages=[Message.from_dict(item) for item in messages if is_json_object(item)],
             tools=(
-                [Tool.from_dict(item) for item in tools if is_json_object(item)]
+                [decode_tool(item) for item in tools]
                 if is_json_array(tools)
                 else None
             ),

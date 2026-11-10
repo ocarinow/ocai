@@ -55,6 +55,7 @@ from ocai.chat.types import ResponseInfo
 from ocai.chat.types import StreamEnd
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
+from ocai.chat.types import ToolDefinition
 from ocai.chat.types import Usage
 from ocai.convert.graph import EdgeOutput
 from ocai.core.errors import ContentFilterError
@@ -524,7 +525,19 @@ class ChatCompletionsCodec:
             messages.extend(self._encode_message(index, message, losses, shifts))
         payload: dict[str, Any] = {"messages": messages}
         if request.tools:
-            payload["tools"] = [self._encode_tool(tool) for tool in request.tools]
+            encoded_tools: list[dict[str, Any]] = []
+            for index, tool in enumerate(request.tools):
+                if isinstance(tool, Tool):
+                    encoded_tools.append(self._encode_tool(tool))
+                else:
+                    losses.append(FieldLoss(
+                        path=f"tools[{index}]",
+                        disposition=Disposition.UNSUPPORTED,
+                        note=("server or unknown tool intent has no qualified mapping "
+                              "on this interface"),
+                    ))
+            if encoded_tools:
+                payload["tools"] = encoded_tools
         self._encode_tool_choice(request, payload, losses)
         self._encode_config(request, payload, losses)
         # Lane 3: expand only OUR destination namespace; foreign namespaces are
@@ -1048,7 +1061,7 @@ class ChatCompletionsCodec:
         payload: dict[str, Any],
         extensions: dict[str, Any],
         losses: list[FieldLoss],
-    ) -> list[Tool]:
+    ) -> list[ToolDefinition]:
         """Decode the wire `tools` array into canonical `Tool`s.
 
         Function tools decode typed; anything else (a future built-in tool
@@ -1063,7 +1076,7 @@ class ChatCompletionsCodec:
         Returns:
             The decoded tools, possibly empty.
         """
-        tools: list[Tool] = []
+        tools: list[ToolDefinition] = []
         wire_tools = payload.get("tools")
         wire_tools = wire_tools if _is_array(wire_tools) else []
         for i, entry in enumerate(wire_tools):

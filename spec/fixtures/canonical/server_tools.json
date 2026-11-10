@@ -1,0 +1,44 @@
+{
+  "description": "WU-41: mixed legacy function, server intent and future tagged tool are preserved by canonical decode.",
+  "document": {
+    "version": "2026-07",
+    "messages": [],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "lookup",
+        "parameters": {
+          "type": "object"
+        }
+      },
+      {
+        "version": "2026-07",
+        "type": "server",
+        "kind": "web_search",
+        "allowed_domains": [
+          "example.test"
+        ],
+        "blocked_domains": [
+          "blocked.test"
+        ],
+        "user_location": {
+          "version": "2026-07",
+          "country": "FR",
+          "city": "Paris"
+        }
+      },
+      {
+        "version": "2026-07",
+        "type": "future_tool",
+        "future_payload": {
+          "meaning": [
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  "shape": "chat.request"
+}

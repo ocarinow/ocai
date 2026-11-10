@@ -140,7 +140,8 @@ This does not add tool execution, an MCP client or a registry to the kernel.
 WU-41 uses `type="server"` for `ServerTool`; legacy untagged Tool serialization
 is unchanged. `ToolUnknown` retains the original payload for unknown tags and
 non-object entries. `ServerToolLocation` carries optional country, region, city
-and timezone; unknown fields stay in its extensions. The initial provider request
+and timezone; unknown fields stay in its extensions. Explicit empty domain lists
+remain explicit, and malformed location data is retained in a registered extension. The initial provider request
 edges report whole unsupported entries at `tools[index]` and never encode them
 as functions. Provider-specific search qualification belongs to WU-43.
 

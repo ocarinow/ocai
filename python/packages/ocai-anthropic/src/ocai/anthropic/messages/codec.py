@@ -59,6 +59,7 @@ from ocai.chat.types import ResponseInfo
 from ocai.chat.types import StreamEnd
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
+from ocai.chat.types import ToolDefinition
 from ocai.chat.types import Usage
 from ocai.convert.graph import EdgeOutput
 from ocai.core.errors import AuthError
@@ -596,7 +597,19 @@ class MessagesCodec:
         if system_texts:
             payload["system"] = "".join(system_texts)
         if request.tools:
-            payload["tools"] = [self._encode_tool(tool) for tool in request.tools]
+            encoded_tools: list[dict[str, Any]] = []
+            for index, tool in enumerate(request.tools):
+                if isinstance(tool, Tool):
+                    encoded_tools.append(self._encode_tool(tool))
+                else:
+                    losses.append(FieldLoss(
+                        path=f"tools[{index}]",
+                        disposition=Disposition.UNSUPPORTED,
+                        note=("server or unknown tool intent has no qualified mapping "
+                              "on this interface"),
+                    ))
+            if encoded_tools:
+                payload["tools"] = encoded_tools
         self._encode_tool_choice(request, payload, losses)
         self._encode_config(request, payload, losses, shifts)
         # Lane 3: expand only OUR destination namespace (three-lane law §3.4).
@@ -1237,7 +1250,7 @@ class MessagesCodec:
         payload: dict[str, Any],
         extensions: dict[str, Any],
         losses: list[FieldLoss],
-    ) -> list[Tool]:
+    ) -> list[ToolDefinition]:
         """Decode the wire `tools` array into canonical `Tool`s.
 
         Custom tools decode typed (`input_schema` is the rename of the
@@ -1253,7 +1266,7 @@ class MessagesCodec:
         Returns:
             The decoded tools, possibly empty.
         """
-        tools: list[Tool] = []
+        tools: list[ToolDefinition] = []
         for i, entry in enumerate(_as_list(payload.get("tools"))):
             if _is_obj(entry) and entry.get("type", "custom") == "custom":
                 schema = entry.get("input_schema")

@@ -88,6 +88,9 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "messages[].parts[document]": DeclaredDisposition(Disposition.DROPPED),
         "messages[].parts[refusal]": DeclaredDisposition(Disposition.DROPPED),
         "tools": DeclaredDisposition(Disposition.RENAMED),
+        "tools[]": DeclaredDisposition(
+            Disposition.UNSUPPORTED, "server or unknown intent requires a qualified mapping"
+        ),
         "tool_choice": DeclaredDisposition(Disposition.RENAMED),
         "config.temperature": DeclaredDisposition(
             Disposition.APPROXIMATED, "range-limited (0..1): out-of-range passes verbatim"
