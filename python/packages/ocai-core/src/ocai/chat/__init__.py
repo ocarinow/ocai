@@ -38,6 +38,7 @@ from ocai.chat.types import Part
 from ocai.chat.types import Role
 from ocai.chat.types import StreamAccumulator
 from ocai.chat.types import StreamEnd
+from ocai.chat.types import StreamOutcome
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
@@ -73,6 +74,7 @@ __all__ = [
     "Role",
     "StreamAccumulator",
     "StreamEnd",
+    "StreamOutcome",
     "Tool",
     "ToolChoice",
     "Usage",

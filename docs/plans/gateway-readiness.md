@@ -87,7 +87,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-24 — Own and terminate streams explicitly
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Streaming.
 - **Scope:** Add close/aclose, context managers, and separate aborted evidence; propagate closure and failure through all generators and transport resources. Owns chat/types/stream.py, chat/facade.py, runtime/drivers.py, wire/transport.py, tests. Other WU outcomes are out of scope.
 - **Done:** Normal fold behavior is unchanged; early close, cancellation, malformed EOF, and provider/transport failure release resources and preserve available usage/report without success synthesis.

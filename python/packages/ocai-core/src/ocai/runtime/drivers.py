@@ -382,8 +382,9 @@ class SyncDriver:
             authenticated = _transport_request(self._binding, request)
             budget.remaining()
             parser = SSEParser()
+            upstream = transport.stream_sync(authenticated)
             try:
-                for chunk in transport.stream_sync(authenticated):
+                for chunk in upstream:
                     budget.remaining()
                     for event in parser.feed(chunk):
                         if pipeline is None:
@@ -399,8 +400,17 @@ class SyncDriver:
                     # so the traversal's accounting survives the abort.
                     pipeline.flush()
                 raise _refine(refine_error, err) from err
+            finally:
+                try:
+                    close = getattr(upstream, "close", None)
+                    if close is not None:
+                        close()
+                finally:
+                    if pipeline is not None and pipeline.reports is None:
+                        tail, _ = pipeline.flush()
+                    else:
+                        tail = []
             if pipeline is not None:
-                tail, _ = pipeline.flush()
                 for converted in tail:
                     budget.remaining()
                     yield converted
@@ -593,8 +603,8 @@ class AsyncDriver:
             authenticated = _transport_request(self._binding, request)
             budget.remaining()
             parser = SSEParser()
+            upstream = transport.stream(authenticated)
             try:
-                upstream = transport.stream(authenticated)
                 while True:
                     try:
                         async with asyncio.timeout(budget.remaining()):
@@ -618,8 +628,17 @@ class AsyncDriver:
                     # so the traversal's accounting survives the abort.
                     pipeline.flush()
                 raise _refine(refine_error, err) from err
+            finally:
+                try:
+                    close = getattr(upstream, "aclose", None)
+                    if close is not None:
+                        await close()
+                finally:
+                    if pipeline is not None and pipeline.reports is None:
+                        tail, _ = pipeline.flush()
+                    else:
+                        tail = []
             if pipeline is not None:
-                tail, _ = pipeline.flush()
                 for converted in tail:
                     budget.remaining()
                     yield converted

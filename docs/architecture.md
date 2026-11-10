@@ -391,6 +391,24 @@ credentials/catalogs).
    — a codec expands only its own namespace; foreign namespaces are never
    forwarded (kills cross-dialect leakage under a "lossless" report).
 
+### Stream ownership and incomplete execution (WU-24)
+
+`ChatStream.close()` / `AsyncChatStream.aclose()` and their context managers
+own the upstream iterator. Exhaustion, early exit, consumer exceptions and async
+cancellation close the facade, driver and transport chain. One owner consumes a
+stream; to interrupt an active async consumer, cancel its task and await cleanup.
+An unconsumed stream performs no provider I/O and becomes `closed` when explicitly
+closed. Garbage collection is not a finalization or audit guarantee.
+
+`.outcome: StreamOutcome` is separate from canonical `.end: StreamEnd` and records
+`completed|closed|cancelled|failed|incomplete` exactly once. Missing usage remains
+None. Available usage and flushed request/decode findings survive aborts without
+buffering response content. Provider in-band ERROR chunks remain visible and
+finalize as failed; EOF without a terminal is `StreamProtocolError`. Duplicate or
+post-terminal content is malformed. No successful terminal is synthesized.
+`on_termination` callbacks are passive and exception-isolated; enforceable policy
+and required audit cannot be implemented by throwing from those callbacks.
+
 ## 4. `ocai.convert` — meaning
 
 ### Current fidelity and admission guarantees
