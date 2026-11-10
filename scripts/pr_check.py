@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         for f in findings:
             print("  - " + f)
         print(
-            "Template: .github/PULL_REQUEST_TEMPLATE.md; generate a body with `task pr:body -- WU-NN`."
+            "Template: .github/PULL_REQUEST_TEMPLATE.md; body generator: `task pr:body -- WU-NN`."
         )
         return 1
     print(f"pr hygiene: ok ({label}, base {base})")
