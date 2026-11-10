@@ -1,0 +1,65 @@
+{
+  "description": "Synthetic WU-30 text/refusal client response and cross-provider finish rename.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.response"
+  },
+  "input": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "Sorry."
+        },
+        {
+          "version": "2026-07",
+          "type": "refusal",
+          "text": "Cannot comply."
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "end_turn"
+    }
+  },
+  "expect": {
+    "object": "chat.completion",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Sorry.",
+          "refusal": "Cannot comply."
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  },
+  "expect_losses": [
+    {
+      "path": "finish.native",
+      "disposition": "renamed"
+    }
+  ],
+  "expect_shifts": [
+    {
+      "kind": "relocation",
+      "path": "message.parts"
+    }
+  ]
+}

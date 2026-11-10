@@ -29,6 +29,7 @@ from typing import Protocol
 from typing import runtime_checkable
 
 from ocai.core.errors import OcaiError
+from ocai.core.result import CallContext
 
 if TYPE_CHECKING:
     from ocai.wire.http import HttpRequest
@@ -114,8 +115,8 @@ class Outcome:
     across concurrent calls and both drivers.
 
     Attributes:
-        request: The request that was sent (post-hooks; auth header applied by
-            the driver at the leaf — policies received it *before* that).
+        request: The safe post-hook request. Authentication is applied only
+            to a detached transport copy; retained hook references stay safe.
         attempt: The zero-based index of this attempt.
         response: The successful wire response, when the attempt succeeded.
         error: The refined taxonomy error, when the attempt failed.
@@ -125,6 +126,12 @@ class Outcome:
     attempt: int
     response: HttpResponse | None = None
     error: OcaiError | None = None
+
+
+    @property
+    def ctx(self) -> CallContext | None:
+        """The logical call context, never provider payload or credentials."""
+        return self.request.ctx
 
 
 @runtime_checkable
@@ -155,7 +162,8 @@ class WirePolicy(Protocol):
         `Fail` to veto, or `Return` to serve a synthesized response.
 
         Args:
-            request: The built (unauthenticated) wire request.
+            request: The safe wire request. Its ctx is the per-call snapshot;
+                attempt counts physical I/O and admission counts deferred checks.
 
         Returns:
             The policy's decision for this attempt.

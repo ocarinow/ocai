@@ -41,8 +41,10 @@ class CredentialError(OSError):
 class Credential(Protocol):
     """A credential that knows how to authenticate an outgoing request.
 
-    Implementations mutate the request's headers in place (typically setting an
-    auth header). `apply` is called **once per attempt**, just before send, so
+    Implementations mutate the transport-only request's headers in place
+    (typically setting an auth header). Drivers copy the request and its mutable
+    headers first; this object is never the one exposed to hooks. `apply` is
+    called **once per attempt**, just before send, so
     a short-lived/rotating credential can resolve its current value at send time.
     Because it is applied at the driver leaf, the secret never enters a policy
     hook, an interceptor, the `raw` response, the `FidelityReport`, or logs.

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "openai.request_unmapped",
+  "description": "Unmapped nested request fields keyed by original source path; preservation only, never portable semantics or automatic replay.",
+  "x-ocai-origin": "ocai-openai",
+  "x-ocai-promotion": "none expected",
+  "type": "object"
+}

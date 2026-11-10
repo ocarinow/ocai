@@ -38,6 +38,7 @@ from ocai.chat.types import Part
 from ocai.chat.types import Role
 from ocai.chat.types import StreamAccumulator
 from ocai.chat.types import StreamEnd
+from ocai.chat.types import StreamOutcome
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
@@ -45,11 +46,15 @@ from ocai.chat.types import Usage
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from ocai.chat.facade import InterceptedChatModel
+    from ocai.chat.facade import ObservedChatModel
     from ocai.convert.catalog import Catalog
     from ocai.core.credentials import Credential
+    from ocai.core.fidelity import FidelityPolicy
     from ocai.core.fidelity import Route
     from ocai.runtime.decisions import WirePolicy
     from ocai.runtime.interceptors import CallInterceptor
+    from ocai.runtime.observe import Observer
     from ocai.wire.hosting import Host
     from ocai.wire.transport import SyncTransport
     from ocai.wire.transport import Transport
@@ -73,6 +78,7 @@ __all__ = [
     "Role",
     "StreamAccumulator",
     "StreamEnd",
+    "StreamOutcome",
     "Tool",
     "ToolChoice",
     "Usage",
@@ -90,9 +96,11 @@ def model(
     transport: Transport | SyncTransport | None = None,
     interceptors: Sequence[CallInterceptor] = (),
     policies: Sequence[WirePolicy] = (),
+    observers: Sequence[Observer] = (),
+    conversion_policy: FidelityPolicy | None = None,
     interface: str | None = None,
     tag: str | None = None,
-) -> ChatModel:
+) -> WireChatModel | InterceptedChatModel | ObservedChatModel:
     """Build a chat model from one spec string — the §3.4 core front door.
 
     The whole provider+model choice is ONE data value
@@ -136,6 +144,8 @@ def model(
         transport: The wire transport, or None for a fresh `HttpxTransport`.
         interceptors: The port-tier chain wrapped around the facade,
             outermost first; empty for the bare facade.
+        conversion_policy: Caller-defined acceptance over field losses and shifts.
+        observers: Authorized passive metadata-only lifecycle observers.
         policies: The wire-tier hooks (retry, rate-limit, wiretap) the
             drivers consult on every attempt, in order.
         interface: An interface pin (e.g. `"chat_completions"`), or None to
@@ -159,6 +169,7 @@ def model(
     # layer map, so the front door reaches up only at call time, through the
     # same documented seams as the facade (see [tool.importlinter] ignores).
     from ocai.chat.facade import InterceptedChatModel
+    from ocai.chat.facade import ObservedChatModel
     from ocai.convert.catalog import ResolutionError
     from ocai.convert.catalog import default_catalog
     from ocai.core.identity import CANONICAL_PROVIDER
@@ -231,7 +242,7 @@ def model(
 
         transport = HttpxTransport(provider=provider)
     binding = Binding(host=host, credentials=credentials, transport=transport)
-    facade: ChatModel = WireChatModel(
+    facade: WireChatModel | InterceptedChatModel | ObservedChatModel = WireChatModel(
         codec,
         binding,
         composed,
@@ -239,7 +250,11 @@ def model(
         interface=interface,
         tag=tag,
         policies=policies,
+        attempt_observers=observers,
+        conversion_policy=conversion_policy,
     )
     if interceptors:
-        return InterceptedChatModel(facade, interceptors)
+        facade = InterceptedChatModel(facade, interceptors)
+    if observers:
+        facade = ObservedChatModel(facade, observers)
     return facade

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from typing import Any
+from typing import Literal
 
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import Route
@@ -64,13 +65,18 @@ class CallContext:
     call*, never payload data and never credentials.
 
     Attributes:
+        compartment: Trusted isolation scope established by the platform.
+        call_id: Optional logical invocation identifier.
+        parent_id: Optional parent invocation identifier.
+        correlation_id: Optional application correlation identifier.
         tenant: The tenancy the call is made on behalf of.
         principal: The end user or service identity initiating the call.
         classification: A data-classification label for the payload
             (e.g. `"pii"`, `"public"`) that routing policy can gate on.
         deadline: An absolute wall-clock deadline for the whole call,
-            including retries; policy hooks translate it into per-attempt
-            timeouts.
+            including retries. Must be timezone-aware; wire drivers enforce
+            the remaining budget and reject late results. Synchronous custom
+            transports must cooperate with request timeouts.
         tags: Free-form string labels for tracing/metering dimensions.
         extensions: A namespaced bag for enterprise-specific context fields
             that have no first-class slot (same namespacing convention as IR
@@ -83,6 +89,10 @@ class CallContext:
     deadline: datetime | None = None
     tags: dict[str, str] = field(default_factory=dict[str, str])
     extensions: dict[str, Any] = field(default_factory=dict[str, Any])
+    compartment: str | None = None
+    call_id: str | None = None
+    parent_id: str | None = None
+    correlation_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the context to a plain JSON-compatible dict.
@@ -91,6 +101,10 @@ class CallContext:
             A dict of the set fields; the `deadline` is ISO-8601 formatted.
         """
         out: dict[str, Any] = {}
+        for name in ("compartment", "call_id", "parent_id", "correlation_id"):
+            value = getattr(self, name)
+            if value is not None:
+                out[name] = value
         if self.tenant is not None:
             out["tenant"] = self.tenant
         if self.principal is not None:
@@ -104,3 +118,20 @@ class CallContext:
         if self.extensions:
             out["extensions"] = dict(self.extensions)
         return out
+
+
+@dataclass(frozen=True)
+class StreamOutcome:
+    """Execution evidence, separate from the successful canonical StreamEnd.
+
+    Missing usage means unknown, never zero. An incomplete or failed outcome
+    may retain usage and conversion findings without claiming completion.
+    This is a local execution contract, not a new canonical chunk or revision.
+    """
+
+    status: Literal["completed", "closed", "cancelled", "failed", "incomplete"]
+    usage: Usage | None = None
+    report: FidelityReport | None = None
+    error: BaseException | None = None
+
+

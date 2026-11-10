@@ -126,11 +126,28 @@ structurally fixes the old embedding/vectorstore ports that had no channel for
 usage or reports. The report lives **here and only here** (`ChatResponse` has
 no `report` field; one home, not two).
 
-`CallContext(tenant, principal, classification, deadline, tags)` is the
+`CallContext(tenant, principal, compartment, classification, deadline, tags,
+call_id, parent_id, correlation_id)` is the
 per-request governance carrier, threaded through ports as an optional keyword
 — a policy like "PII-classified traffic may not go to provider X" needs the
 classification *at call time*; without a sanctioned carrier, enterprises
 smuggle it through bags.
+
+The facade snapshots caller context and passes it to drivers; policies read
+`HttpRequest.ctx` and `Outcome.ctx`. Trusted identity facts are established by
+platform code, not authenticated by core. Context never enters provider bodies or
+headers. `request.attempt` counts physical attempts (zero-based); `admission`
+counts policy deferrals independently.
+
+Aware deadlines become one monotonic budget before preparation. Admission,
+retry waits, credential application and all physical attempts share it; an
+impossible wait fails immediately. Drivers pass remaining timeout to transports,
+reject late output, and cancel pending async operations. Sync transports must
+honor timeout cooperatively: arbitrary blocking custom code cannot be forcibly
+preempted. HTTPX timeouts bound I/O phases, not total execution; driver checks
+reject output arriving after the whole-call deadline. Consumer pauses consume
+the streaming budget. Local adapters remain responsible for their execution
+budget; context transport does not claim automatic interruption of local code.
 
 ### 2.4 `refs.py` — provider-anchored state [frozen-candidate]
 
@@ -374,6 +391,24 @@ credentials/catalogs).
    — a codec expands only its own namespace; foreign namespaces are never
    forwarded (kills cross-dialect leakage under a "lossless" report).
 
+### Stream ownership and incomplete execution (WU-24)
+
+`ChatStream.close()` / `AsyncChatStream.aclose()` and their context managers
+own the upstream iterator. Exhaustion, early exit, consumer exceptions and async
+cancellation close the facade, driver and transport chain. One owner consumes a
+stream; to interrupt an active async consumer, cancel its task and await cleanup.
+An unconsumed stream performs no provider I/O and becomes `closed` when explicitly
+closed. Garbage collection is not a finalization or audit guarantee.
+
+`.outcome: StreamOutcome` is separate from canonical `.end: StreamEnd` and records
+`completed|closed|cancelled|failed|incomplete` exactly once. Missing usage remains
+None. Available usage and flushed request/decode findings survive aborts without
+buffering response content. Provider in-band ERROR chunks remain visible and
+finalize as failed; EOF without a terminal is `StreamProtocolError`. Duplicate or
+post-terminal content is malformed. No successful terminal is synthesized.
+`on_termination` callbacks are passive and exception-isolated; enforceable policy
+and required audit cannot be implemented by throwing from those callbacks.
+
 ## 4. `ocai.convert` — meaning
 
 ### Current fidelity and admission guarantees
@@ -392,6 +427,45 @@ self-declared, not authenticated. Python entry-point loading executes plugin
 code. Catalog lock hashes describe declared metadata, not executable artifact
 checksums. Applications needing controlled composition should pass explicit
 catalogs; the default catalog discovers installed entry points once.
+
+### Public execution inspection (WU-27)
+
+`model.prepare(request, streaming=False)` returns a `PreparedChatCall` with
+copied `.request` and `.inspection` views and `chat/achat/stream/astream` execution
+faces. Preparation performs conversion and host shaping without authentication or
+provider I/O. Execution uses the detached original snapshot, retains the same
+port middleware and observers, and validates every physical attempt before auth.
+Canonical mutations by admission middleware, approved body/URL/header changes,
+or effective host/catalog/configuration changes raise `StalePreparationError`.
+Explicit wire policies may add transport metadata headers, but cannot replace
+approved fields. Credentials are deliberately excluded and may rotate per attempt.
+Handles are in-process execution objects, not portable authorization tokens.
+
+`Catalog.inspect` plans without executing converters or building transducers.
+Inspection separates selected edge declarations, payload-specific request findings,
+matched capability profiles, and packaged conformance resource pointers. Unknown
+feature coverage is None; recognized keys do not exhaust the open feature universe
+(`coverage_complete=False`). The legacy permissive gate remains compatible, but
+its undeclared-means-native fallback is never proof of qualification. Inspection
+never claims conformance was run (`conformance_evaluated=False`). Catalog/config
+hashes identify declarations/effective configuration, not executable artifacts.
+Response findings remain unknown until conversion occurs. ADR 0007 records why
+public detached preparation replaces gateway dependence on private `_prepare`.
+
+`FidelityPolicy` accepts explicit disposition/shift denials and pure predicates
+on detached `FieldLoss` and `SemanticShift` records. It never treats `lossless`
+as semantic acceptance. Prepared execution rechecks request policy before every
+physical attempt; a rejection or raising predicate prevents I/O. Changing policy
+identity invalidates preparation. Closures remain trusted application code.
+
+Response policy runs after the conversion ledger is complete. A
+`FidelityPolicyError` retains report, usage, route and phase without the rejected
+payload/raw body. Streaming checks the completed ledger before delivering
+`StreamEnd`; previous chunks cannot be retracted. A late rejection raises with
+`partial` and `delivered_events`, and stream outcome retains available accounting
+with failed status and no successful end. Aborts retain evidence under the
+separate stream outcome contract; they never synthesize policy approval. Gateway
+policies may independently enforce the ingress and client-egress leg reports.
 
 ### 4.1 `graph.py` [frozen-candidate mechanics]
 The Dijkstra planner survives. `Edge(src: NodeId, dst: NodeId, fn, contract,
@@ -472,6 +546,45 @@ schemas or executing tests.
 | `dual.py` | `from_sync(port)` / `from_async(port)` adapters (thread offload / portal) — visible composition decisions, never silent bridging. |
 | `observe.py` | `Observer` protocol + provisional event shapes [provisional — freezes at v1.0 after real exercise]. |
 
+The driver authenticates a detached transport-only `HttpRequest` per physical
+attempt. Its mutable headers are copied, not shared with the safe post-hook
+request. `Outcome.request` and references retained by admission hooks stay
+unauthenticated for the lifetime of the call, including failures and retries
+(ADR 0007, WU-22). This boundary applies to unary and streaming in both modes.
+
+Port middleware implements both `CallInterceptor` and `StreamInterceptor` to
+govern all four call faces. Stream continuations return owned `SyncStream` or
+`AsyncStream` protocols; runtime remains capability-neutral. `StreamOutcome`
+lives in core result vocabulary and is re-exported by chat. Admission is eager,
+with the same snapshotted CallContext. A unary-only interceptor causes streaming
+to fail closed before invoking the inner port. Each stream continuation is
+single-use, preventing accidental generation restart. If middleware raises after
+acquiring a stream, composition closes it. Wrappers forward closure and terminal
+evidence; they do not buffer the response. This applies equally to local ports
+and wire-backed models (ADR 0007, WU-25).
+
+`ocai.chat.model(..., observers=...)` composes `ObservedChatModel` outside the
+entire admission chain and configures physical-attempt observers on its drivers.
+Manual compositions use `ObservedChatModel(inner, observers)` for logical calls
+and `WireChatModel(..., attempt_observers=...)` for remote attempts. Local ports
+use the same outer wrapper with no wire events. No private methods are needed.
+
+`CallStarted` is eager, before admission and stream consumption. `CallFinished`
+is emitted exactly once on result, rejection, failure, cancellation or stream
+closure. Lazy unconsumed streams have no physical attempt and remain pending
+until explicitly closed. `WireStarted`/`WireExchanged` bracket actual transport
+attempts; admission retries emit neither. All events share the logical call id;
+caller-supplied parent/correlation ids travel in the start context. Standalone
+drivers can receive a CallContext with an explicit call id for correlation.
+
+Events omit payloads, headers, raw errors, exception messages, context tags and
+extension bags. Registered observers receive independent snapshots of trusted
+identity facts, route (when available), usage and fidelity records. Exporters
+must allowlist identities and redact report notes/paths as needed; registration
+is the application's observer authorization boundary. Callback failures and
+mutations cannot alter results. Required durable audit is an enforceable
+middleware responsibility, never an exception thrown from a passive observer.
+
 ## 6. `ocai.wire` — remote transport
 
 `http.py` (`HttpRequest/HttpResponse` value objects — also the audit-archive
@@ -509,7 +622,57 @@ plugin. A plugin MAY additionally ship a convenience helper
 facade machinery, never a separate code path, and never required: the core
 string door must always work without it.
 
+WU-29 qualifies the Chat Completions client request decoder for the gateway
+matrix in `plans/gateway-readiness.md`. Function tool identity/order and named
+choice survive; JSON Schema output intent round-trips to OpenAI and maps to
+Anthropic output_config with name/strict losses reported. Function-tool strict,
+message names, unknown nested fields and conflicting legacy token limits are
+preserved by source path in `openai.request_unmapped`, never silently replayed.
+Multi-choice `n != 1` is explicitly UNSUPPORTED and retained as `openai.n`.
+Non-text request content remains opaque and reported; file/media execution and
+strict function-tool enforcement are excluded from the qualified client surface.
+Existing scoped-reference guards still prohibit cross-provider replay.
+
+WU-30 registers canonical response → Chat Completions response. Text, refusal,
+function identity/argument strings, finish and measured usage have client lanes.
+Grouping ordered parts into message lanes is a relocation finding. Unsupported
+parts, annotations, extensions and scoped identities remain reported. Unknown
+finish codes preserve their native string with UNSUPPORTED evidence. No raw body
+is copied to client output. `chat_completions.client.ClientMetadata.bind` supplies
+explicit gateway id/model/created after conversion; graph output omits unavailable
+identity. A foreign response id is not laundered into an OpenAI reference.
+OpenAI decode subtracts cache/reasoning subsets from prompt/completion totals;
+client encode adds them back. Missing measurements remain absent, never zero.
+
+WU-31 registers canonical chunks → client JSON events. A fresh transducer keeps
+part identities, rolling checksums, usage and finish, without accumulating text or
+arguments. Final-part mismatches fail; part starts must follow canonical order.
+Successful finish/usage events require StreamEnd; errors and incomplete flushes
+never synthesize completion. Flush yields a separate egress report, without
+merging upstream StreamEnd.report. Gateways bind ClientMetadata, frame SSE, and
+emit DONE only after accepting upstream outcome and egress report. Streaming
+refusal has its own sparse decode slot after text/tools, preventing text/refusal
+collisions; reverse fold triples qualify the mixed-content case.
+
+WU-32 qualifies the complete client → canonical → provider → canonical → client
+path with recorded OpenAI and Anthropic text/tool HTTP/SSE pairs on all four call
+faces. `examples/governed_gateway.py` and `docs/gateway-integration.md` demonstrate
+public preparation, admission, policy enforcement, serving metadata and ownership.
+The combined ledger contains ingress + execution's two legs + egress exactly once.
+Client egress policy may fail after the kernel invocation succeeds; gateway
+serving outcome is distinct from kernel lifecycle and retains its own evidence.
+Authentication, compartments, deployment selection, budgets, persistence and HTTP
+serving remain satellite responsibilities. Qualification does not promote a new
+canonical revision or alter the ADR 0005 freeze gate.
+
 ## 8. Request lifecycle (how it all interacts)
+
+The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),
+following ADR 0007. Its status table distinguishes shipped mechanisms from planned
+contracts; a gateway remains a satellite owning authentication, compartments,
+deployment selection, budgets, persistence and HTTP serving. Canonical 2026-07
+remains active throughout this program.
+
 
 ```
 user code
