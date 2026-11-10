@@ -1,100 +1,75 @@
 # ocai
 
-**One Common interface for AI** — provider-neutral Python contracts and
-conversion machinery, designed as the foundation of an enterprise AI platform.
+**One Common interface for AI** — a single, stable, provider-neutral API in
+front of every AI capability (LLM chat, embeddings, vector stores, monitoring)
+so application code never imports a provider SDK. The differentiator is
+**honest, version-resilient conversion**: switching provider, provider
+*interface* (OpenAI `/chat/completions` → `/responses`), or provider *version*
+is ocai's problem, not the user's, and every conversion reports exactly what
+it cost (`FidelityReport`), never silently. Target users are enterprises
+putting GenAI in production; auditability, governance, and determinism are the
+product, not a nice-to-have.
 
-**Status:** M1–M3 are implemented: OpenAI Chat Completions and Anthropic Messages
-support synchronous/asynchronous chat and streaming over the shared runtime.
-Tests use synthetic and recorded wire-shaped fixtures, without live credentials.
-Responses remains a stub; Gemini, embeddings/vector-store implementations,
-telemetry exporters, auditing services, and agent hosting are future work.
+ocai is the **kernel of a larger platform**, and this repository is that
+platform's monorepo. The kernel stays one call → one `CallResult`; satellite
+libraries (telemetry, eval, audit, registries of tools/skills/MCP servers, an
+agent runtime, a gateway) are planned on top of its contracts and are **not
+implemented yet**. What exists today (November 2026): the language-neutral
+`spec/`, and a Python implementation with unary and streaming chat through
+OpenAI Chat Completions and Anthropic Messages, cross-provider conversion with
+fidelity reports, and the `ocai.chat.model(...)` front door. The OpenAI
+Responses interface is a stub; Gemini, embeddings, and vector stores are
+contracts without an exercised implementation; TypeScript and Go are deferred.
+The program that moves the kernel forward is in [`docs/plans/`](docs/plans/README.md).
 
-The active canonical revision is `2026-07`. The
-[core modernization plan](docs/plans/core-modernization.md) introduces ordered
-interaction items, richer content/resources, stronger fidelity evidence, and
-modern provider APIs before freezing revised contracts. Draft schemas live under
-`spec/proposals/`; TypeScript and Go implementation are deferred.
+## Repository map
 
-## Why ocai
+| Directory | Role | Start at |
+|---|---|---|
+| `spec/` | Language-neutral source of truth: canonical JSON, JSON Schema, golden fixtures (incl. fold triples), extension census, interface descriptors, draft proposals | [spec/README.md](spec/README.md) |
+| `python/` | The first implementation: a uv workspace with three distributions (`ocai`, `ocai-openai`, `ocai-anthropic`) | [python/README.md](python/README.md) |
+| `typescript/` | Placeholder; will mirror `spec/` and run the same fixtures | [typescript/README.md](typescript/README.md) |
+| `go/` | Placeholder; will mirror `spec/` and run the same fixtures | [go/README.md](go/README.md) |
+| `docs/` | The constitution (`architecture.md`), roadmap and work units (`plans/`), decisions (`decisions/`), provider wire research (`providers/`), guides | [docs/architecture.md](docs/architecture.md) |
+| `examples/` | The cross-conversion fidelity demo and `ocai-contrib-echo`, the plugin template | [examples/ocai-contrib-echo/README.md](examples/ocai-contrib-echo/README.md) |
+| `scripts/` | `check.py`, the one verification command (lint, import contracts, strict typing, tests) | [scripts/check.py](scripts/check.py) |
+| `.agents/` | Procedures and role bodies for coding agents, shared by every tool; `.claude/` and `.codex/` hold only pointers | [.agents/skills/README.md](.agents/skills/README.md) |
 
-Applications use common requests and receive a `CallResult`:
+## Start here
 
-- `value`: the canonical response.
-- `route`: selected provider interface/revision and catalog fingerprint.
-- `report`: per-edge conversion losses and semantic changes.
-- `usage` and `raw`: consumption and provider output.
+- **Use the library:** [python/README.md](python/README.md) — install,
+  front door, streaming, developer commands.
+- **Read the docs site:** <https://ocarinow.github.io/ocai/>.
+- **Understand the structure:** [docs/architecture.md](docs/architecture.md)
+  is the structural contract every layer, object, and interaction follows.
+- **Read the spec:** [spec/README.md](spec/README.md) — the equality
+  predicate, the schemas, and the fixture shapes every port must pass.
+- **See what is next:** [docs/plans/README.md](docs/plans/README.md) (roadmap
+  and work units) and [docs/decisions/README.md](docs/decisions/README.md)
+  (ADRs: why each settled shape was chosen).
+- **Contribute, as a human or a coding agent:** [AGENTS.md](AGENTS.md) is the
+  single instruction file (rules, layout, session procedure);
+  [CONTRIBUTING.md](CONTRIBUTING.md) covers the DCO sign-off and review
+  expectations.
 
-Conversions report renamed, approximated, emulated, preserved-in-extension,
-dropped, and unsupported fields. `lossless` is derived from emitted records.
-Fixtures check output and reporting against expectations; this is not a proof
-that arbitrary third-party code reports every loss. See the
-[architecture](docs/architecture.md#current-fidelity-and-admission-guarantees).
+## How the pieces relate
 
-## Development and usage
-
-Python 3.13+ and [uv](https://docs.astral.sh/uv/) are required.
-
-```bash
-uv sync --all-packages
-uv run python scripts/check.py
-uv run python examples/cross_conversion_demo.py
-```
-
-For a live call, install the HTTP extra and a provider plugin. Credentials are
-explicit; constructing a model does not discover them from the environment.
-
-```python
-import ocai.chat
-from ocai.chat.types import ChatRequest
-from ocai.chat.types import Message
-from ocai.core import ApiKey
-
-model = ocai.chat.model(
-    "openai/gpt-4o",
-    credentials=ApiKey.from_env("OPENAI_API_KEY"),
-)
-result = model.chat(ChatRequest(messages=[Message.user("Hello!")]))
-print(result.value.message.text)
-print(result.report)
-```
-
-The model name is routing configuration, not a field on `ChatRequest`.
-The example model must be available to your account. Explicit catalogs let an
-application select its plugins; omitted catalogs discover installed
-`ocai.fragments` entry points.
-
-## Layers and packages
-
-| Layer | Purpose |
-|---|---|
-| `ocai.core` | Standard-library contracts, identities, context, results, fidelity, references |
-| `ocai.chat / embedding / vectorstore` | Capability data and ports; only chat currently exercised end to end |
-| `ocai.convert` | Catalog composition, graph planning, conversion and conformance |
-| `ocai.runtime` | Drivers, bindings, policy decisions, interceptor composition |
-| `ocai.wire` | HTTP/SSE, hosting and retry; HTTP dependency is optional |
-| Provider distributions | Pure interface-specific codecs, edges, profiles and factories |
-
-The `ocai` distribution contains the shared layers. `ocai-openai` and
-`ocai-anthropic` extend the PEP 420 namespace without provider SDKs.
-The [community example](examples/ocai-contrib-echo/) demonstrates an independently
-installed conversion-only plugin; see the [author guide](docs/writing-a-plugin.md).
-
-## Repository
-
-- `spec/schema`, `spec/fixtures`: active schemas and conformance evidence.
-- `spec/proposals`: isolated draft contracts, not registered runtime revisions.
-- `python/packages`: shared library and provider distributions.
-- `docs`: architecture, [support matrix](docs/provider-feature-matrix.md), and plans.
-- `examples`: cross-conversion demo and community plugin.
-- `typescript`, `go`: placeholders.
-
-The platform roadmap adds telemetry, durable audit, evaluations, typed asset
-registries, and agent execution/management as separate libraries and services.
-The kernel stays independent of those backends.
+`spec/` is the truth. It serializes the structural contract in
+`docs/architecture.md` as normative documents, JSON Schema, and golden
+fixtures; every language port consumes those same files, and a port that
+drifts from `spec/` fails its own conformance suite (CI re-runs every
+implementation's suite whenever `spec/**` changes). `python/` is the first
+port and the proof that the contracts hold on real provider traffic, through
+recorded wire pairs rather than live keys. Provider support ships as separate
+distributions in the same `ocai` namespace, each contributing a frozen
+`CatalogFragment` to the conversion graph; `examples/ocai-contrib-echo` is the
+template for a third-party one. The platform satellites, when they arrive,
+will be separate libraries built on the kernel's hook protocols and
+`CallResult`, never features of the kernel itself.
 
 ## License
 
-Source-available under **FSL-1.1-ALv2**, converting to Apache-2.0 two years after
-each version's release. ocai is not open source.
-See [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md); contributions
+Source-available under **FSL-1.1-ALv2**, converting to Apache-2.0 two years
+after each version's release. ocai is not open source. See
+[LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md); contributions
 require DCO sign-off.
