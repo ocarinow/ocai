@@ -124,6 +124,7 @@ nav = [
     { "Gateway readiness" = "plans/gateway-readiness.md" },
     { "Platform design" = "plans/platform-design.md" },
     { "Platform MVP" = "plans/platform-mvp.md" },
+    { "Authenticated console" = "plans/platform-identity.md" },
     { "WU-20 — Catalog conformance" = "plans/wu-20-catalog-conformance.md" },
     { "Horizon milestones" = "plans/horizon.md" },
     { "Kernel gaps" = "plans/gaps.md" },
@@ -144,6 +145,7 @@ nav = [
     { "0009 — Platform application and reusable layers" = "decisions/0009-platform-foundation.md" },
     { "0010 — Versioning and releases" = "decisions/0010-versioning-and-releases.md" },
     { "0013 — Platform identity and session boundaries" = "decisions/0013-platform-identity.md" },
+    { "0011 — Authenticated console implementation contract" = "decisions/0011-authenticated-console-contract.md" },
   ] },
 ]
 

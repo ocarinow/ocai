@@ -46,3 +46,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0010](0010-versioning-and-releases.md) | Versioning and releases: independent semver, changesets, two branches | accepted |
 | [0009](0009-platform-foundation.md) | Platform application and reusable layers | accepted for the first implementation slice |
 | [0013](0013-platform-identity.md) | Platform identity and session boundaries | accepted direction; implementation pending |
+| [0011](0011-authenticated-console-contract.md) | First authenticated console implementation contract | proposed |

@@ -280,4 +280,8 @@ Before exposing each workflow, settle session storage/encryption and libraries,
 realm/tenant mapping, trusted provider profiles, exact TTL/revocation bounds,
 in-flight stream behavior, permission synchronization, and evidence durability.
 Publish measured capacity and operating responsibilities; do not invent an SLA.
-The implementation queue remains [the MVP plan](../plans/platform-mvp.md).
+The implementation queue is [WU-73–80](../plans/platform-identity.md), proposed
+by WU-72 with concrete persistence, session, bootstrap and authorization contracts
+in [ADR 0011](../decisions/0011-authenticated-console-contract.md). The broader
+release sequence remains [the MVP plan](../plans/platform-mvp.md). None of those
+implementation WUs is completed by the design or planning documentation.
