@@ -8,11 +8,13 @@ icon: lucide/rocket
 front of every AI capability (LLM chat, embeddings, vector stores,
 monitoring) so your code never imports a provider SDK.
 
-!!! note "Status: re-architected skeleton (July 2026)"
+!!! note "Status: M1–M3 implemented; modernization underway"
 
-    Structure, contracts, and interactions are laid out end to end per
-    [architecture.md](architecture.md); most behavior is an honest `# TODO`
-    stub. Nothing makes a network call yet.
+    Python provides unary and streaming chat through OpenAI Chat Completions
+    and Anthropic Messages, conversion graphs, and fidelity reports. The active
+    canonical revision is `2026-07`. Responses is a stub; Gemini is not yet
+    implemented. See the [feature matrix](provider-feature-matrix.md) and
+    [modernization plan](plans/core-modernization.md).
 
 The differentiator is **honest, version-resilient conversion**: switching
 provider, provider *interface* (OpenAI `/chat/completions` → `/responses`),
@@ -61,10 +63,10 @@ Every boundary crossing pays its toll in a `FidelityReport` — visibly:
 ``` mermaid
 graph LR
   CC[openai/chat_completions] --> IR[ocai-2026-07]
-  R[openai/responses] --> IR
+  R[openai/responses: planned] -.-> IR
   A[anthropic/messages] --> IR
   IR --> CC
-  IR --> R
+  IR -.-> R
   IR --> A
 ```
 

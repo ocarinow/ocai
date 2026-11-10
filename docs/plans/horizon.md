@@ -1,5 +1,10 @@
 # Horizon milestones
 
+**Historical ordering.** The [core modernization plan](core-modernization.md)
+now determines execution order and release gates. The descriptions below retain
+the July scope for reference. Responses alone no longer qualifies a contract
+freeze, and TypeScript/Go implementation is deferred.
+
 One paragraph each, detailed into WUs only when reached (the roadmap's
 anti-staleness rule: no pretend-detail a year out). Order is intent, not law.
 

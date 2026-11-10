@@ -41,8 +41,8 @@ class ChatRequest(IRObject):
 
     Enters the lifecycle at the port (`ChatModel.chat(request)`), rides the
     interceptor chain unchanged, and is encoded by the conversion graph from
-    `CANONICAL_CHAT_REQUEST` to the resolved provider node. Single-response
-    forever: there is no `n` — a request for multiple candidates fails
+    `CANONICAL_CHAT_REQUEST` to the resolved provider node. This revision is
+    single-candidate: there is no `n` — a request for multiple candidates fails
     admission at the codec. And no `model`: the model name is routing data
     bound to the model object at construction (§3.4), injected on the wire by
     the codec from the bound resource — never carried in the request.

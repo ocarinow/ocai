@@ -10,6 +10,14 @@ Status legend: **[frozen-candidate]** freezes additive-only at v0.2 ·
 **[provisional]** may still change until exercised · **[stub]** structure only,
 implementation pending.
 
+**November 2026 update:** M1–M3 implement Python chat and streaming for OpenAI
+Chat Completions and Anthropic Messages. The active IR remains `2026-07`.
+The [core modernization plan](plans/core-modernization.md) replaces the original
+freeze assumption: ordered interaction items, replay, and independent plugins
+must be exercised before the next contracts freeze. Draft schemas under
+`spec/proposals/` are not runtime support or registered graph nodes.
+See the [feature matrix](provider-feature-matrix.md) for implementation gaps.
+
 ---
 
 ## 0. The one-paragraph model
@@ -261,7 +269,7 @@ request**: the model name is provider-specific routing data, bound to the
 model object at construction (§3.4) and injected into the wire payload by the
 codec from `EndpointSpec.resource` at encode time (Vertex even carries it in
 the URL). A `ChatRequest` is pure, portable conversation content. Response is
-a *pure graph payload* — no report field (that's `CallResult`'s). Single message forever:
+a *pure graph payload* — no report field (that's `CallResult`'s). In revision `2026-07`, one message:
 `n` fails admission; decoded `choices[1:]` land in a censused extension with
 reported loss. `ResponseInfo` carries id/model echo as `ProviderRef` anchors
 (reusable as `previous_response_id`).
@@ -365,6 +373,23 @@ credentials/catalogs).
    forwarded (kills cross-dialect leakage under a "lossless" report).
 
 ## 4. `ocai.convert` — meaning
+
+### Current fidelity and admission guarantees
+
+Converters emit field records and semantic shifts; the graph aggregates them.
+`lossless` is derived from emitted dispositions. It does not independently
+detect unreported loss, and semantic shifts alone do not flip the flag.
+Conformance tests compare independent expected outputs/records and check
+declared bounds over fixture inputs. Catalog loading does not require a
+certificate or prove correctness on arbitrary payloads. Reports are sparse,
+not exhaustive field lineage; diagnostic cost is not a fidelity percentage.
+
+Planning uses static declared grades, not the actual payload. Admission checks
+endpoints against interfaces the fragment itself publishes: ownership is
+self-declared, not authenticated. Python entry-point loading executes plugin
+code. Catalog lock hashes describe declared metadata, not executable artifact
+checksums. Applications needing controlled composition should pass explicit
+catalogs; the default catalog discovers installed entry points once.
 
 ### 4.1 `graph.py` [frozen-candidate mechanics]
 The Dijkstra planner survives. `Edge(src: NodeId, dst: NodeId, fn, contract,
@@ -476,7 +501,10 @@ local adapters: implement the port directly — same CallResult, no wire/runtime
 
 ## 9. Stability domains & freeze staging
 
-Freeze is **earned**: at v0.2 only the data contracts freeze (`ocai.core`
+Freeze is **earned**: the next release gate follows the
+[modernization qualification](plans/core-modernization.md), including ordered
+item replay, migration, and independent plugin evidence. Only exercised data
+contracts freeze (`ocai.core`
 vocabulary, chat port + chat IR, their `spec/` schemas). `ocai.embedding` /
 `ocai.vectorstore` stay provisional until they carry `CallResult` in anger.
 Hook protocols, plugin ABI (`CatalogFragment`), profile keys, and observer
