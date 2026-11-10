@@ -1,7 +1,7 @@
 # ocai roadmap — v0.1 → v1.0 → expansion
 
 > **⚠️ July 2026 re-architecture landed.**
-> [`docs/architecture.md`](../architecture.md) is now the **structural
+> [`docs/architecture.md`](../../architecture.md) is now the **structural
 > contract** for every layer, object, and interaction — read it before any
 > milestone file in this directory. The WU numbering and module references
 > below **predate the re-architecture and are being remapped** onto the new
@@ -16,7 +16,7 @@ sized to be one focused session / one small PR, with explicit done-criteria and
 dependencies so instances can run in parallel where the graph allows.
 
 The shared rules every session inherits live in the root
-[`CLAUDE.md`](../CLAUDE.md). This directory holds the milestone breakdown.
+[`CLAUDE.md`](https://github.com/ocarinow/ocai/blob/main/CLAUDE.md). This directory holds the milestone breakdown.
 
 ## Milestones
 
@@ -85,7 +85,7 @@ and harden**, not greenfield. Don't redo them — extend them.
 - ✅ Middleware base + `RetryMiddleware` — [middleware.py](../python/packages/ocai-core/src/ocai/core/middleware.py) (WU 1.5 partial: no usage/cost accounting yet; retry lacks jitter/Retry-After).
 - ✅ Plugin discovery via entry points — [plugins.py](../python/packages/ocai-core/src/ocai/core/plugins.py).
 - ✅ OpenAI adapter + codec **stub** (no network I/O, canned response) — [adapter.py](../python/packages/ocai-openai/src/ocai/openai/adapter.py) (WU 1.2 / 2.3 OpenAI side partial).
-- ✅ Spec: JSON Schema + one golden fixture + conformance test — [spec/](../spec/README.md).
+- ✅ Spec: JSON Schema + one golden fixture + conformance test — [spec/](https://github.com/ocarinow/ocai/blob/main/spec/README.md).
 - ✅ Path-filtered CI (python active; ts/go stubbed).
 - ❌ Missing: real HTTP I/O, streaming/`ChatChunk`, error taxonomy, recorded-fixture harness, Anthropic/Gemini, capabilities, embeddings/vector store, polyglot.
 

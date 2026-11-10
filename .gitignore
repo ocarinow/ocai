@@ -19,6 +19,9 @@ uv.lock.bak
 .coverage
 htmlcov/
 
+# Docs site build output (zensical build)
+/site/
+
 # Node (future typescript/)
 node_modules/
 *.tsbuildinfo

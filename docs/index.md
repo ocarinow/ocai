@@ -12,9 +12,12 @@ monitoring) so your code never imports a provider SDK.
 
     Python provides unary and streaming chat through OpenAI Chat Completions
     and Anthropic Messages, conversion graphs, and fidelity reports. The active
-    canonical revision is `2026-07`. Responses is a stub; Gemini is not yet
-    implemented. See the [feature matrix](provider-feature-matrix.md) and
-    [modernization plan](plans/core-modernization.md).
+    canonical revision is `2026-07`. WU-17–20 are merged: the
+    [modernization plan](plans/core-modernization.md), the independently
+    installed conversion plugin, the ordered-item proposal (under
+    `spec/proposals/`), and catalog-composition hardening. Responses is a
+    stub; Gemini is not yet implemented; TypeScript and Go ports are deferred.
+    See the [feature matrix](provider-feature-matrix.md).
 
 The differentiator is **honest, version-resilient conversion**: switching
 provider, provider *interface* (OpenAI `/chat/completions` → `/responses`),
@@ -87,9 +90,16 @@ uv add "ocai[openai]"  # core + the OpenAI plugin
   fixed in the same PR.
 - [Writing a plugin](writing-a-plugin.md) — the community-plugin guide, with
   the `ocai-contrib-echo` template.
-- [Roadmap](plans/README.md) — milestones and work units.
-- `spec/` in the repository — the language-neutral truth every port
-  implements, starting with `spec/canonical-json.md`.
+- [Providers](providers/README.md) — the shipped
+  [feature matrix](provider-feature-matrix.md) and the per-provider wire
+  research that informs the IR.
+- [Roadmap](plans/README.md) — milestones, work units, and the core
+  modernization program.
+- [Decisions](decisions/README.md) — the ADRs: why each contract shape was
+  chosen over the alternatives.
+- [`spec/`](https://github.com/ocarinow/ocai/tree/main/spec) in the
+  repository — the language-neutral truth every port implements, starting
+  with [`spec/canonical-json.md`](https://github.com/ocarinow/ocai/blob/main/spec/canonical-json.md).
 
 ## Local docs workflow
 
@@ -97,9 +107,15 @@ These docs are built with [Zensical](https://zensical.org). It lives in the
 `docs` dependency group, so run it through uv:
 
 ``` bash
-uv run --group docs zensical serve   # live preview at http://127.0.0.1:8000
-uv run --group docs zensical build   # render the static site into ./site
+uv run --group docs zensical serve           # live preview at http://127.0.0.1:8000
+uv run --group docs zensical build --clean   # render the static site into ./site
 ```
+
+`site/` is a build artifact and is gitignored. The published site at
+<https://ocarinow.github.io/ocai/> is deployed by
+[`.github/workflows/docs.yml`](https://github.com/ocarinow/ocai/blob/main/.github/workflows/docs.yml):
+pull requests that touch `docs/**` or `zensical.toml` build the site as a
+check; a push to `main` builds it again and deploys it to GitHub Pages.
 
 !!! info "Source-available, not open source"
 

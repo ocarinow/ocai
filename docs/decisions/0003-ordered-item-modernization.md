@@ -31,5 +31,5 @@ losses, item-addressed streaming, fold parity, and provider-backed evidence.
 Reasoning representation, grouping, evidence/resources, and approval scope
 remain open. Enterprise services consume the kernel through separate libraries.
 
-See [the proposal](../../spec/proposals/ordered-items/README.md) and
+See [the proposal](https://github.com/ocarinow/ocai/blob/main/spec/proposals/ordered-items/README.md) and
 [the work plan](../plans/core-modernization.md).

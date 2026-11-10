@@ -5,7 +5,7 @@ and export a `CatalogFragment`; they do not fork the graph engine or mutate
 a global registry. The ABI remains provisional until the modernization release
 gates are met. ocai is source-available under FSL-1.1-ALv2.
 
-The working [echo example](../examples/ocai-contrib-echo/) demonstrates
+The working [echo example](https://github.com/ocarinow/ocai/tree/main/examples/ocai-contrib-echo) demonstrates
 **offline conversion**. The first-party Chat Completions and Messages adapters
 demonstrate the larger live-serving contract. Conversion registration and
 endpoint execution are separate capabilities.
@@ -145,7 +145,7 @@ locations; it does not hash executable code, package artifacts, or resource cont
 
 To be selected by `ocai.chat.model()`, register a `Component` factory for the
 provider/interface/capability. Its codec must structurally satisfy
-[`ChatCodec`](../python/packages/ocai-core/src/ocai/chat/facade.py), including:
+[`ChatCodec`](https://github.com/ocarinow/ocai/blob/main/python/packages/ocai-core/src/ocai/chat/facade.py), including:
 
 - Interface labels and request/response/chunk nodes.
 - `encode_request` and `decode_response` returning `EdgeOutput`.
