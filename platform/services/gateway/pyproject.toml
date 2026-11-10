@@ -1,0 +1,36 @@
+[project]
+name = "ocarinow-gateway"
+version = "0.1.0"
+description = "Ocarinow AI Gateway service"
+requires-python = ">=3.13"
+license = "LicenseRef-FSL-1.1-ALv2"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["httpx>=0.28,<1", "pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.14,<1", "pyright>=1.1.400", "mypy>=1.14,<2"]
+
+[tool.ruff]
+extend = "../../../pyproject.toml"
+src = ["."]
+
+[tool.pyright]
+include = ["app", "tests"]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+files = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --import-mode=importlib"
+asyncio_mode = "auto"
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"

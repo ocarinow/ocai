@@ -1,0 +1,138 @@
+{
+  "components": {
+    "schemas": {
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorEnvelope",
+        "type": "object"
+      },
+      "Liveness": {
+        "properties": {
+          "status": {
+            "const": "alive",
+            "default": "alive",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "Liveness",
+        "type": "object"
+      },
+      "SystemStatus": {
+        "properties": {
+          "inference_ready": {
+            "const": false,
+            "default": false,
+            "title": "Inference Ready",
+            "type": "boolean"
+          },
+          "service": {
+            "const": "ocai-gateway",
+            "default": "ocai-gateway",
+            "title": "Service",
+            "type": "string"
+          },
+          "stage": {
+            "const": "foundation",
+            "default": "foundation",
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "title": "SystemStatus",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Ocarinow management API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "get_liveness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Liveness"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness"
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "get_readiness",
+        "responses": {
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness"
+      }
+    },
+    "/management/v1/status": {
+      "get": {
+        "operationId": "get_system_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "System Status"
+      }
+    }
+  }
+}

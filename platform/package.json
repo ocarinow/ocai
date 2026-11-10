@@ -1,0 +1,30 @@
+{
+  "name": "@ocarinow/platform",
+  "private": true,
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
+  "workspaces": [
+    "apps/console",
+    "packages/nuxt-ui",
+    "packages/nuxt-platform",
+    "packages/management-client"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @ocarinow/console",
+    "build": "npm run build --workspace @ocarinow/console",
+    "typecheck": "npm run typecheck --workspace @ocarinow/console",
+    "test": "node --experimental-strip-types --test tests/integration/client.test.ts",
+    "test:browser": "playwright test",
+    "generate:client": "openapi-typescript spec/management.openapi.json -o packages/management-client/schema.d.ts",
+    "check:client": "openapi-typescript spec/management.openapi.json -o packages/management-client/schema.d.ts --check"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^24.19.2",
+    "openapi-typescript": "^7.10.0",
+    "typescript": "~5.9.3",
+    "vue-tsc": "^3.1.0"
+  },
+  "type": "module"
+}
