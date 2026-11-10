@@ -1,0 +1,45 @@
+{
+  "description": "Canonical-format reply decoded to a typed response.",
+  "src": {
+    "provider": "echo",
+    "interface": "chat",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "Hello!"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "Hello!"
+        }
+      ]
+    }
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

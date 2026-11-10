@@ -1,271 +1,156 @@
 # Writing an ocai plugin
 
-This guide is for **third-party authors** who want to add a provider to the
-ocai ecosystem in their *own* distribution, published independently. You never
-fork or vendor ocai; you depend on the published `ocai` package and plug in by
-exporting one frozen value: a `CatalogFragment`.
+Third-party plugins ship as independent distributions. They depend on `ocai`
+and export a `CatalogFragment`; they do not fork the graph engine or mutate
+a global registry. The ABI remains provisional until the modernization release
+gates are met. ocai is source-available under FSL-1.1-ALv2.
 
-The structural contract behind everything here is
-[`docs/architecture.md`](architecture.md) — especially §7 (plugin shape),
-§3.4 (the three-lane knob law), and §4 (the conversion catalog). A working
-template lives at
-[`examples/ocai-contrib-echo/`](../examples/ocai-contrib-echo/): copy it,
-rename `echo`, publish.
+The working [echo example](../examples/ocai-contrib-echo/) demonstrates
+**offline conversion**. The first-party Chat Completions and Messages adapters
+demonstrate the larger live-serving contract. Conversion registration and
+endpoint execution are separate capabilities.
 
-> **Status: skeleton.** The plugin ABI (`CatalogFragment`) is provisional
-> until v1.0; the conformance harness (`ocai.convert.conformance`) is landing.
-> The names in this guide are the settled contract — write against them.
+## Package and discovery
 
-> ocai is **source-available** under FSL-1.1-ALv2, not open source. Your
-> plugin is your own work under whatever license you choose.
-
-## The namespace policy (read this first)
-
-ocai is one **PEP 420 namespace package** (`ocai`) that many distributions
-contribute subpackages into:
-
-| Import prefix | Who owns it |
-| --- | --- |
-| `ocai.core`, `ocai.chat`, `ocai.convert`, `ocai.runtime`, `ocai.wire`, … | core (the `ocai` distribution) |
-| `ocai.<provider>` — e.g. `ocai.openai` | **reserved** for first-party plugins |
-| `ocai.contrib.<name>` — e.g. `ocai.contrib.echo` | **community plugins (you)** |
-
-Ship under `ocai.contrib.<name>`; name the distribution
-`ocai-contrib-<name>`. Two hard rules make the shared namespace work: **no
-`src/ocai/__init__.py`** and **no `src/ocai/contrib/__init__.py`** — only your
-leaf package gets an `__init__.py`.
-
-## One subpackage per interface
-
-A provider publishes **interfaces** (wire protocols), not just models.
-`openai/chat_completions` and `openai/responses` are *concurrent sibling
-interfaces* of the chat capability — not versions of each other — so each
-gets its own subpackage. Mirror that shape even with one interface today:
-
-```
-ocai-contrib-echo/
-├── pyproject.toml
-├── README.md
-├── src/ocai/contrib/echo/
-│   ├── __init__.py          # exports FRAGMENT — nothing else happens at import
-│   ├── fragment.py          # NodeIds, edges, contracts, profiles → CatalogFragment
-│   ├── codec.py             # encode / decode / decode_event / map_error
-│   └── py.typed
-├── fixtures/                # golden edge fixtures + fold triples
-└── tests/                   # runs ocai.convert.conformance over fixtures/
-```
-
-(First-party plugins put `codec.py` + wire structs inside each interface
-subpackage, e.g. `ocai/openai/chat_completions/`; a single-interface plugin
-can stay flat like the template.)
-
-## Identity: declare your nodes
-
-Everything you register is keyed by `NodeId(provider, interface, tag, shape,
-released, status)` from `ocai.core.identity`. `tag` is an **opaque dated
-revision** — never parsed, ordered by `released`; `status` drives resolution
-(`STABLE` is auto-selected, `PREVIEW` needs an explicit pin).
-
-```python
-from datetime import date
-
-from ocai.core.identity import CHAT_REQUEST
-from ocai.core.identity import CHAT_RESPONSE
-from ocai.core.identity import NodeId
-
-ECHO_CHAT_REQUEST = NodeId(
-    provider="echo", interface="chat", tag="2026-07",
-    shape=CHAT_REQUEST, released=date(2026, 7, 1),
-)
-ECHO_CHAT_RESPONSE = NodeId(
-    provider="echo", interface="chat", tag="2026-07",
-    shape=CHAT_RESPONSE, released=date(2026, 7, 1),
-)
-```
-
-Also add an interface descriptor to your own `spec/`-style data (and, for
-listing in the shared census, to ocai's `spec/interfaces/` via PR) — see
-[`spec/interfaces/README.md`](../spec/interfaces/README.md).
-
-## The codec: four methods
-
-A codec translates between your wire format and the canonical IR. The
-signatures (architecture §7):
-
-```python
-class EchoChatCodec:
-    def encode(self, request: ChatRequest) -> dict[str, Any]: ...
-    def decode(self, raw: dict[str, Any]) -> ChatResponse: ...
-    def decode_event(self, event: dict[str, Any]) -> ChatChunk | None: ...
-    def map_error(self, status: int, body: dict[str, Any]) -> OcaiError: ...
-```
-
-Rules that keep the codec honest:
-
-- **Decode is total.** Never raise on unknown input: unknown part tags →
-  `PartUnknown`, unknown envelope keys → swept into `extensions`, unknown
-  finish reasons → `reason="unknown"` with the provider's verbatim value in
-  the `native` lane.
-- **Three lanes only** (§3.4). Every wire field is either (1) a first-class
-  canonical field, (2) a **censused extension** — namespaced
-  (`"echo.mirror_mode"`) and schema-registered in `spec/extensions/` (an
-  unregistered key is a CI failure), or (3) expanded from
-  `provider_options["echo.chat"]` — your codec expands **only its own
-  namespace** and never forwards a foreign one.
-- **Never rescale, never clamp.** Out-of-range values pass verbatim with an
-  `APPROXIMATED` loss record.
-- **msgspec only at the wire-decode boundary**, if you want validation there.
-  Never pydantic; nothing beyond stdlib in the types you return.
-- `map_error` maps to the shared taxonomy in `ocai.core.errors`
-  (`RateLimitError`, `AuthError`, `ContextLengthError`, `ContentFilterError`,
-  `TransientError`).
-
-You never make network calls and never import `ocai.wire` or httpx: plugins
-convert meaning; the runtime moves bytes. That split is what lets an offline
-audit tool re-convert archived traffic with your plugin installed and no
-network capability at all.
-
-## Edges and the EdgeContract: declare what conversion costs
-
-Each direction of conversion is an `Edge(src, dst, fn, contract, origin)`
-(`ocai.convert.graph`). The `contract` is an `EdgeContract`
-(`ocai.convert.contract`): your **per-field disposition census**, using the
-`Disposition` vocabulary from `ocai.core.fidelity` — `EXACT`, `RENAMED`,
-`APPROXIMATED`, `EMULATED`, `EXTENSIONS`, `DROPPED`, `UNSUPPORTED`.
-
-```python
-from ocai.convert.contract import EdgeContract
-from ocai.core.fidelity import Disposition
-
-CONTRACT = EdgeContract(
-    fields={
-        "config.temperature": Disposition.EXACT,
-        "config.top_k": Disposition.UNSUPPORTED,     # echo has no top_k — say so
-        "mirror_mode": Disposition.EXTENSIONS,       # censused: echo.mirror_mode
-    },
-)
-```
-
-Honesty is enforced, not requested: the planner's weight is **derived** from
-this census (never author-declared), and the conformance harness certifies at
-build time that your edge's *runtime* `FieldLoss` never exceeds its
-declaration. **An edge claiming lossless that drops a field cannot ship.** An
-empty census is a lossless claim — the strongest claim you can make, so only
-make it when the mapping truly is identity.
-
-Streaming edges are `StreamEdge` transducer factories
-(`feed(event) -> events`, `flush() -> (events, EdgeReport)`) so chunk-shape
-conversion is planned by the same machinery.
-
-## Declare capabilities: `CapabilityProfile`
-
-Support varies below interface level, so profiles are keyed
-`(provider, interface, model_pattern)` (`ocai.core.profile`):
-
-```python
-from ocai.core.profile import CapabilityProfile
-from ocai.core.profile import Support
-
-ECHO_PROFILE = CapabilityProfile(
-    provider="echo", interface="chat", model_pattern="*",
-    features={"tools": Support.ABSENT, "streaming": Support.ABSENT},
-)
-```
-
-The feature gate consults this *before* payload conversion: strict mode
-refuses with a typed error; annotate mode records the loss.
-
-## The fragment: one frozen export, no import-time globals
-
-The old pattern of registering into a process-global graph at import time is
-**gone**. Your package exports a single frozen declarative value; the
-*application* composes catalogs:
-
-```python
-# fragment.py
-FRAGMENT = CatalogFragment(
-    origin=Origin(distribution="ocai-contrib-echo", version="0.2.0"),
-    nodes=(ECHO_CHAT_REQUEST, ECHO_CHAT_RESPONSE),
-    edges=(ENCODE_REQUEST_EDGE, DECODE_RESPONSE_EDGE, ...),
-    transducers=(),
-    profiles=(ECHO_PROFILE,),
-    traits=(),
-)
-```
-
-```python
-# the application, not you:
-catalog = Catalog.of(openai.FRAGMENT, echo.FRAGMENT)   # immutable, provenance-stamped
-```
-
-`Catalog.discover()` (entry points, group `"ocai.plugins"`) is an opt-in
-convenience — point your entry point at the `FRAGMENT` object. Trust is
-scoped: under the default `TrustPolicy.OWNED_ENDPOINTS`, your fragment may
-only register edges touching shapes **you publish or canonical** — bridging
-two foreign providers requires the application's named opt-in.
-
-## Conformance: fixtures are the contract
-
-Every edge ships golden fixtures; every streaming edge ships **fold
-triples** (wire event log → canonical chunks → folded response). Formats are
-specified in [`spec/README.md`](../spec/README.md); equality is
-`semantic_equal` over canonical JSON
-([`spec/canonical-json.md`](../spec/canonical-json.md)) — never `==` on raw
-dicts.
-
-The harness ships in core, so your test suite stays tiny:
-
-```python
-from ocai.convert.conformance import check_edge
-from ocai.convert.conformance import check_fold_triple
-from ocai.convert.conformance import load_fixture
-
-def test_edges_satisfy_golden_fixtures() -> None:
-    for path in sorted(FIXTURES.glob("*.json")):
-        check_edge(edge_for(path), load_fixture(path))   # output equality + loss ⊆ contract
-```
-
-Tip: generate the `expect` half of a fixture by running your codec once and
-dumping the omit-absent `to_dict()` form — then *review* it; the fixture is
-the contract, the codec is the implementation. When you add streaming, the
-ratchet applies to you too: no new part type without its delta type, fold
-law, and paired fixtures in the same change.
-
-Wire-level tests (when your provider is real) use recorded HTTP/SSE pairs —
-never live keys, never provider-SDK mocks.
-
-## pyproject rules
+Use distribution `ocai-contrib-<name>` and import namespace
+`ocai.contrib.<name>`. Ship no `ocai/__init__.py` or
+`ocai/contrib/__init__.py`; only the leaf package has one. Include `py.typed`.
 
 ```toml
 [project]
-name = "ocai-contrib-echo"
+name = "ocai-contrib-example"
+version = "0.1.0"
 requires-python = ">=3.13"
-# Pin a compatible core range: every wheel merges into one runtime namespace.
-dependencies = ["ocai>=0.2,<0.3"]
-# NO httpx, NO provider SDK, NO pydantic in your tree. msgspec is allowed
-# at the wire-decode boundary only.
+dependencies = ["ocai>=0.1,<0.2"]
 
-[project.entry-points."ocai.plugins"]
-echo = "ocai.contrib.echo:FRAGMENT"    # what Catalog.discover() collects
+[project.entry-points."ocai.fragments"]
+example = "ocai.contrib.example:FRAGMENT"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ocai"]                # ships only ocai/contrib/echo/
+packages = ["src/ocai"]
 ```
 
-Ship `py.typed` inside your leaf package; full type hints; `ruff` clean.
+The range above matches the current checkout, not a promise about publication
+or future ABI compatibility. Test each supported core version. The old
+`ocai.plugins` entry-point group is not discovered.
 
-## Checklist before you publish
+A fragment contains nodes, payload edges, streaming transducers, profiles,
+traits, and component factories. Omit components for conversion-only packages.
+Use the installed distribution version in `Origin`, as the echo example does.
 
-- [ ] Distribution `ocai-contrib-<name>`; code under `ocai.contrib.<name>`;
-      no `__init__.py` above the leaf.
-- [ ] One subpackage per interface; `NodeId`s with honest `released`/`status`.
-- [ ] Codec: total decode, three lanes only, own `provider_options` namespace
-      only, taxonomy-mapped errors.
-- [ ] Every edge has an `EdgeContract` census and golden fixtures; streaming
-      edges have fold triples; extension keys schema-registered.
-- [ ] A `CapabilityProfile` per interface (with `model_pattern` where support
-      varies by model).
-- [ ] One frozen `FRAGMENT` export; **zero** import-time side effects; entry
-      point targets `FRAGMENT`.
-- [ ] Depends on `ocai` core+convert only — no httpx, no wire imports, no
-      provider SDK, no pydantic; `py.typed`; core pinned `>=0.x,<0.y`.
+## Nodes, converters and contracts
+
+A node identifies `(provider, interface, tag, shape, released, status)`.
+Use a node per payload shape and interface revision. Import canonical nodes
+from the capability; do not invent a competing canonical revision. Tags,
+canonical revisions, and distribution versions are distinct.
+
+An edge function takes the source representation and returns `EdgeOutput`:
+
+```python
+from ocai.convert.graph import EdgeOutput
+
+def encode_request(request):
+    return EdgeOutput(value=request.to_dict(), losses=(), shifts=())
+```
+
+The graph assembles `EdgeReport` and `FidelityReport`; an individual edge
+does not return `Converted`. Real converters emit `FieldLoss` and
+`SemanticShift` records whenever their mappings require them.
+
+```python
+from ocai.convert.contract import DeclaredDisposition
+from ocai.convert.contract import EdgeContract
+from ocai.core.fidelity import Disposition
+
+contract = EdgeContract(census={
+    "config.top_k": DeclaredDisposition(Disposition.UNSUPPORTED),
+})
+```
+
+This is a declaration, not automatic behavior: the converter must report an
+unsupported `top_k` when present. Unlisted fields are implicitly declared
+exact. The planner uses the static declared grade, not a per-payload prediction.
+Golden fixtures and `certify_edge` check output/records and declared bounds.
+They cannot detect every omitted record outside tested cases.
+
+Register directed edges explicitly; reverse mappings often have different
+contracts. Request encoding uses typed canonical requests; request decoding
+returns typed canonical requests. Provider output normally decodes to a typed
+canonical response. Preserve unknown tags/data and report unsupported mappings.
+Use destination-scoped `provider_options` only for the matching interface.
+
+First-party extension schemas live in `spec/extensions/`. External authors
+should ship their own schemas and validate fixtures locally; catalog discovery
+does not yet ingest or certify those schemas. A common external extension-schema
+integration is tracked in WU-20, not an implemented requirement to modify core.
+
+## Application-owned composition
+
+```python
+catalog = Catalog.of(openai.FRAGMENT, example.FRAGMENT)
+# Or discover all installed ocai.fragments entry points:
+catalog = Catalog.discover()
+```
+
+Under `OWNED_ENDPOINTS`, edge endpoints must be canonical or belong to an
+interface the fragment publishes. Allow-listed packages can bridge foreign
+interfaces. A converting interface needs at least one canonical connection;
+the current check does not guarantee every direction/shape is reachable.
+
+Ownership is self-declared. Admission does not authenticate a publisher, verify
+artifact hashes, or sandbox imports. Entry-point loading executes Python.
+Applications with governance requirements should explicitly compose reviewed
+packages. The default model factory otherwise uses a cached discovered catalog.
+
+## Serving live calls
+
+To be selected by `ocai.chat.model()`, register a `Component` factory for the
+provider/interface/capability. Its codec must structurally satisfy
+[`ChatCodec`](../python/packages/ocai-core/src/ocai/chat/facade.py), including:
+
+- Interface labels and request/response/chunk nodes.
+- `encode_request` and `decode_response` returning `EdgeOutput`.
+- `native_path`, `dialect_traits`, `bind_resource`, and `bind_stream`.
+- SSE decoding and error refinement, with the current protocol signatures.
+
+Do not subclass or import the facade protocol in plugins. Implement the shape
+and register graph edges over the same mappings. The facade owns execution;
+plugins do not import runtime/wire/httpx or provider SDKs. The bound model name
+is inserted after graph conversion.
+
+Profiles use the current namespaced feature vocabulary, such as
+`chat.tools`, `chat.tools.parallel`, and `chat.config.output.json_schema`.
+Check `_request_features` in the facade and first-party profiles before adding
+a feature. A profile is a declaration, not an implementation.
+
+Streaming requires `StreamEdge` factories creating fresh state per stream.
+Use the current `StreamConverter` protocol and first-party transducers as the
+reference. Fold fixtures must prove accumulated output and final accounting.
+Do not copy the obsolete four-method codec sketch.
+
+## Conformance and installation checks
+
+Use the installed echo test suite as the executable recipe. Fixture objects are
+plain dictionaries, not objects with `.src` attributes. Canonical-source
+fixtures need `decode_input=ChatRequest.from_dict` when the edge expects a
+typed request.
+
+```python
+fixture = load_fixture(path)
+out = check_edge(edge, fixture, decode_input=decode_input)
+payload = decode_input(fixture["input"]) if decode_input else fixture["input"]
+assert certify_edge(edge, [payload]) == []
+```
+
+`check_edge` checks expected output and exact loss/shift records;
+`certify_edge` separately checks declared bounds. Use
+`assert_fold_triple` / `check_fold_triples` for streaming. Author expected
+outputs independently and record fixture provenance. Synthetic cases are not
+live recordings. Add unknown-input and downgrade cases.
+
+Test ordinary wheel installation in an isolated environment as well as direct
+imports: this catches namespace files, missing package data, entry-point errors,
+and dependency mistakes. Missing imports must fail rather than skip. The
+example's CI invocation installs core and plugin from local paths without
+vendoring core or injecting source paths.

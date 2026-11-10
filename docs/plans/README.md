@@ -43,7 +43,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-15 | Cross-conversion fidelity proof (flagship demo #1) | M3 | [m3](m3-second-provider.md) | ✅ |
 | WU-16 | Front doors wired end-to-end: `ocai.chat.model()` + plugin helper + discovery; Workspace removed | M3 | [m3](m3-second-provider.md) | ✅ |
 | WU-17 | Architecture/status refresh and release gates | Modernization | [modernization](core-modernization.md) | ✅ complete |
-| WU-18 | Independent conversion-plugin repair | Modernization | [modernization](core-modernization.md) | Planned |
+| WU-18 | Independent conversion-plugin repair | Modernization | [modernization](core-modernization.md) | ✅ Complete |
 | WU-19 | Ordered-item schema proposal (no runtime migration) | Modernization | [modernization](core-modernization.md) | Planned |
 | WU-20 | Catalog composition and external conformance | Modernization | [modernization](core-modernization.md) | ⬜ next |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |

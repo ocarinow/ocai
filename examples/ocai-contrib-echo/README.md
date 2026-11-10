@@ -1,68 +1,60 @@
-# `ocai-contrib-echo` — example third-party ocai plugin
+# ocai-contrib-echo
 
-A **template** for a community ocai plugin under the July 2026 architecture
-([`docs/architecture.md`](../../docs/architecture.md) §7). `echo` is a
-fictional provider; copy this directory, rename `echo` to your provider, and
-publish independently — nothing here lives in the ocai monorepo.
+A working, independently packaged **conversion-only** community plugin.
+Its fictional wire format is canonical ocai JSON. It demonstrates typed
+request encoding/decoding, response decoding, unknown-part preservation,
+catalog discovery, provenance, and conformance fixtures.
 
-> **TEMPLATE STATUS: pending harness completion.** The structure and names
-> below are the settled contract; the `ocai.convert` layer (catalog +
-> conformance harness) is still landing, so the fragment does not import yet
-> and the test suite skips gracefully until it does.
+It registers no live chat component, HTTP endpoint, or streaming converter.
+Installing it makes conversion nodes discoverable; it does not make
+`ocai.chat.model("echo/...")` callable.
 
-Full walkthrough: [`docs/writing-a-plugin.md`](../../docs/writing-a-plugin.md).
+## Test the installed package
 
-## What it demonstrates
-
-- **Namespace policy** — community plugins ship into `ocai.contrib.<name>`
-  (PEP 420: no `__init__.py` above the leaf package), leaving
-  `ocai.<provider>` for first-party plugins.
-- **One frozen export, zero import-time side effects** — the whole
-  integration surface is `FRAGMENT`, a declarative `CatalogFragment` (nodes,
-  edges, profiles). Applications compose `Catalog.of(echo.FRAGMENT)`; the
-  old import-time global-graph registration pattern is gone.
-- **Four-level identity** — echo publishes one interface (`echo/chat`) at one
-  dated tag as `NodeId`s; the canonical IR is just the interface named
-  `ocai`.
-- **Honest contracts** — the identity edges carry an *empty* `EdgeContract`,
-  which is a lossless **claim** the conformance harness certifies against
-  runtime loss. A real provider declares real per-field dispositions.
-- **The codec shape** — `codec.py` shows the four-method surface
-  (`encode` / `decode` / `decode_event` / `map_error`) and documents the
-  total-decode and three-lane rules each must honor.
-- **Conformance** — `fixtures/` holds a golden edge fixture in the
-  `spec/README.md` format; `tests/` runs it through
-  `ocai.convert.conformance` (`load_fixture` / `check_edge`).
-
-## Layout
-
-```
-ocai-contrib-echo/
-├── pyproject.toml                    # core pin, ocai.plugins entry point → FRAGMENT
-├── src/ocai/contrib/echo/
-│   ├── __init__.py                   # exports FRAGMENT — nothing else happens
-│   ├── fragment.py                   # NodeIds + edges + EdgeContract + profile
-│   ├── codec.py                      # encode/decode/decode_event/map_error
-│   └── py.typed
-├── fixtures/echo_chat_request.json   # golden edge fixture (input/expect/losses)
-└── tests/test_conformance.py         # harness-driven; skips until convert lands
-```
-
-## Develop & test
+From the repository root, build and install ordinary wheels in an isolated
+environment, then run the plugin's tests:
 
 ```bash
-pip install -e .          # resolves `ocai>=0.2,<0.3`
-pytest                    # conformance suite (skips while the harness is pending)
+uv run --isolated --no-project --python 3.13 \
+  --with ./python/packages/ocai-core \
+  --with ./examples/ocai-contrib-echo --with pytest \
+  python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib \
+  examples/ocai-contrib-echo/tests -q
 ```
 
-Once installed, an application can discover the plugin without importing it
-by name:
+CI runs this command. It checks real distribution metadata, namespace files,
+entry-point discovery, all three conversion edges, and an unknown-part round
+trip. No source-path injection or skipped missing imports are used. Local core
+is supplied explicitly because this checkout need not be published.
+
+## Compose and convert
+
+With both distributions installed:
 
 ```python
-from ocai.convert.catalog import Catalog
-
-catalog = Catalog.discover()          # collects ocai.plugins entry points
-# or, explicit and audit-friendly:
 import ocai.contrib.echo as echo
+from ocai.chat.types import ChatRequest
+from ocai.chat.types import Message
+from ocai.convert.catalog import Catalog
+from ocai.core.identity import CHAT_REQUEST
+from ocai.core.identity import canonical_node
+
 catalog = Catalog.of(echo.FRAGMENT)
+request = ChatRequest(messages=[Message.user("Hello!")])
+wire = catalog.convert(request, canonical_node(CHAT_REQUEST), echo.ECHO_CHAT_REQUEST)
+restored = catalog.convert(wire.value, echo.ECHO_CHAT_REQUEST, canonical_node(CHAT_REQUEST))
+assert restored.value.messages[0].text == "Hello!"
+assert restored.report.lossless
+
+# Convenience: loads all installed ocai.fragments entry points.
+discovered = Catalog.discover()
 ```
+
+`EdgeContract(census={})` is a lossless declaration for the canonical-format
+documents tested here. Tests check expected outputs and emitted records;
+discovery does not certify arbitrary plugin code.
+
+Copy the package into your own repository to develop a provider. Keep the
+`ocai.contrib.<name>` namespace, distribution entry point, compatible core
+range, and tests. See [the plugin guide](../../docs/writing-a-plugin.md) for
+the additional contracts required to serve live calls.
