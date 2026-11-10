@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 
-SCHEMA_REVISION = "0073_identity"
+SCHEMA_REVISION = "0075_bootstrap"
 SCHEMA = "platform"
 
 
@@ -94,7 +94,8 @@ class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (
         CheckConstraint(
-            "action IN ('organization.created', 'organization.renamed', 'membership.granted')"
+            "action IN ('organization.created', 'organization.renamed', 'membership.granted', "
+            "'membership.revoked', 'installation.bootstrapped')"
         ),
         CheckConstraint("outcome = 'succeeded'"),
     )
@@ -111,3 +112,13 @@ class AuditEvent(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class Installation(Base):
+    __tablename__ = "installation"
+
+    singleton: Mapped[int] = mapped_column(primary_key=True)
+    installation_id: Mapped[UUID]
+    organization_id: Mapped[UUID | None] = mapped_column(ForeignKey("platform.organizations.id"))
+    store_id: Mapped[str | None] = mapped_column(String(26))
+    model_id: Mapped[str | None] = mapped_column(String(26))

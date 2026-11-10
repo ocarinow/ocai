@@ -45,4 +45,5 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "storage: real disposable PostgreSQL integration (requires Docker)",
     "identity: real disposable Keycloak integration (requires Docker)",
+    "authorization: real disposable OpenFGA/PostgreSQL integration (requires Docker)",
 ]

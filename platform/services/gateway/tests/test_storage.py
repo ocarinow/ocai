@@ -21,6 +21,7 @@ from app.storage.database import Database
 from app.storage.database import StorageConflict
 from app.storage.database import StorageError
 from app.storage.migrate import upgrade
+from app.storage.models import SCHEMA_REVISION
 from app.storage.repository import StaleWrite
 from app.storage.settings import DatabaseSettings
 
@@ -93,8 +94,7 @@ class Postgres:
         pytest.fail("Isolated PostgreSQL did not become ready.", pytrace=False)
 
 
-@pytest.fixture(scope="session")
-def postgres() -> Iterator[Postgres]:
+def provision_postgres() -> Iterator[Postgres]:
     """Provision only disposable resources; never connect to a developer's database."""
     name = f"ocai-storage-test-{uuid4().hex}"
     migration_password = secrets.token_hex(32)
@@ -179,6 +179,12 @@ async def _seed(database: Database) -> tuple[UUID, UUID]:
             "Storage qualification", actor_id=actor, request_id=uuid4()
         )
     return actor, organization.id
+
+
+@pytest.fixture(scope="session")
+def postgres() -> Iterator[Postgres]:
+    """Share the qualified cluster across storage tests."""
+    yield from provision_postgres()
 
 
 async def test_migration_persistence_restart_and_scoped_reads(postgres: Postgres) -> None:
@@ -384,7 +390,7 @@ async def test_privilege_and_schema_checks_fail_closed(postgres: Postgres) -> No
         with pytest.raises(StorageError):
             await runtime.open()
     finally:
-        postgres.sql("UPDATE platform.alembic_version SET version_num = '0073_identity'")
+        postgres.sql(f"UPDATE platform.alembic_version SET version_num = '{SCHEMA_REVISION}'")
         await runtime.close()
 
 

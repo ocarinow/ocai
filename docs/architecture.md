@@ -965,3 +965,26 @@ requires HTTPS; the separate loopback development profile is not production
 qualification. Tests exercise Authorization Code with PKCE against digest-pinned
 Keycloak and adversarial signed credentials, key rotation, outage and forged
 headers. See [platform operations](../platform/README.md).
+
+
+### 12.5 Bootstrap and authorization [implementation in progress]
+
+WU-75 adds a migrated singleton installation identity, consumed by explicit
+operator bootstrap. First-owner identity, organization, membership, audit and
+outbox intent commit together. The consumed state pins the OpenFGA store/model;
+replays and concurrent claims cannot create another bootstrap owner. There is
+no bootstrap HTTP endpoint or first-login provisioning path.
+
+The authorization adapter validates the reviewed immutable owner/viewer model,
+uses explicit authenticated HTTP and requests higher-consistency checks. PostgreSQL
+remains authoritative: active principal/membership and matching desired/applied
+revisions are required before a permission can be used. Organization and principal
+locks remain held through the authorized operation and its audit commit.
+
+Projection serializes on the organization row, writes one idempotent tuple change
+at a time and advances applied revision only after confirmation. A crash between
+tuple write and acknowledgement leaves requests blocked and retries the same
+revision. Revocation marks membership inactive transactionally before projection.
+Tests cover real PostgreSQL/OpenFGA bootstrap races, crash recovery, permission
+isolation and mutation/revocation serialization. Operator/deployment integration
+and complete WU qualification are still in progress.

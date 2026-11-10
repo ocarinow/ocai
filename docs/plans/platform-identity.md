@@ -190,7 +190,7 @@ change public liveness or foundation status to expose deployment secrets.
 
 ## WU-75 — Bootstrap an organization with synchronized access
 
-- [ ] **Status:** defined.
+- [ ] **Status:** implementation in progress.
 - **Goal:** Create the first organization owner safely and project explicit organization permissions into OpenFGA without treating partial synchronization as authorization.
 - **Scope:** Operator bootstrap command, initial OpenFGA model/adapter and
   outbox reconciler, principal/membership repository integration, bootstrap and
@@ -220,6 +220,12 @@ change public liveness or foundation status to expose deployment secrets.
   old grants after new revocations. Test crashes before/after tuple writes.
 - **Out:** Arbitrary role editor, team/compartment inheritance, delegated grants,
   production multi-region synchronization, public registration and browser login.
+- **Decision (implementation):** Seed a singleton installation identity during migration;
+  operator bootstrap consumes it and pins the OpenFGA store/model atomically.
+  Check the exact reviewed model at adapter startup. Use OpenFGA 1.22.1 with
+  authenticated HTTP and bounded requests; tuple retries use duplicate/missing
+  ignore semantics. Real tests exercise crashes around acknowledgement and
+  serialization between permission revocation and an audited mutation.
 - **Open:** none for the owner/viewer organization model.
 - **Area:** platform
 - **Priority:** P1
