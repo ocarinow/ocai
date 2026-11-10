@@ -1,0 +1,35 @@
+name: Decision needed (maintainer)
+description: A question only the maintainer can settle. Filed by an agent via the maintainer-handoff skill.
+title: "Decision: <the question in one line>"
+labels: ["decision", "blocked-maintainer"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep it to the question, the options with their trade-offs, and one recommendation. If the answer outlives the PR, it becomes an ADR in `docs/decisions/`. Public repository: no session links, AI footers, agent ids, or local paths.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What must be decided and what it blocks (WU, PR).
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options
+      description: Each option with what it costs and what it makes easier.
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommendation
+      description: One option and the reason, so the maintainer can answer with a word.
+    validations:
+      required: true
+  - type: input
+    id: blocks
+    attributes:
+      label: Blocks
+      placeholder: WU-NN / PR #NN

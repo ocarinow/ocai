@@ -1,0 +1,42 @@
+name: Kernel gap
+description: Something the kernel lacks, found while building on it. Mirrors a row in docs/plans/gaps.md.
+title: "Gap: <what is missing>"
+labels: ["gap"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The row in `docs/plans/gaps.md` is written in the same PR as the work that exposed the gap (evidence, not opinion). This issue puts it on the board. Public repository: no session links, AI footers, agent ids, or local paths.
+  - type: input
+    id: found
+    attributes:
+      label: Found while
+      placeholder: building the telemetry satellite / reviewing PR #NN
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: Gap
+      description: What was needed and does not exist. Name the architecture section or rule it lives under.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: Today
+      description: What exists now and any workaround in use (so the fixing WU can remove it).
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: The smallest kernel change that closes it; additive if it touches a frozen-candidate surface.
+    validations:
+      required: true
+  - type: input
+    id: row
+    attributes:
+      label: gaps.md row
+      placeholder: G-NN

@@ -1,0 +1,41 @@
+name: Board sync
+
+# The board is a view of the repo. On every push to main that touches the
+# plan, and nightly, reconcile the plan table, the WU cards, and the project:
+# create missing cards, derive each card's status from its PR, and fail when
+# the plan and the cards disagree (AGENTS.md "The board").
+#
+# BOARD_TOKEN: a fine-grained token with Issues (write) on this repo and
+# Projects (write) on the organization, or a classic token with `repo` and
+# `project`. Without it the job still checks plan ↔ cards with the default
+# token and skips the project status step.
+# BOARD_PROJECT_NUMBER: repository variable with the project number.
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/plans/**", "scripts/board_sync.py", ".github/workflows/board-sync.yml"]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: board-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: board sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconcile plan, cards, and board
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_TOKEN || github.token }}
+          BOARD_PROJECT_NUMBER: ${{ vars.BOARD_PROJECT_NUMBER }}
+        run: python3 scripts/board_sync.py --apply

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Roadmap and work units
+    url: https://github.com/ocarinow/ocai/blob/main/docs/plans/README.md
+    about: A work unit is DEFINED in docs/plans/ (reviewed in a PR); an issue here is only its board card.

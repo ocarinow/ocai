@@ -2,6 +2,8 @@
 
 WU-__ — <title from docs/plans/>. One WU per PR (rule 17).
 
+Closes #__ (the WU's board card; the board moves on merge)
+
 ## What changed
 
 <two or three sentences: the behavior, not the diff>

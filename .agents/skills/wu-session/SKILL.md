@@ -41,6 +41,16 @@ If another agent is working the same checkout and your file sets would
 overlap, take a worktree instead:
 `git worktree add ../ocai-wu-NN-short-slug -b wu-NN-short-slug`.
 
+A card is **In progress** only when a branch exists on GitHub: push the
+branch at your first commit and open a **draft PR** whose body starts with
+`Closes #N` (the WU's card). The board follows the PR from here; a WU with
+work but no PR is invisible and the nightly sync flags it.
+
+```bash
+git push -u origin wu-NN-short-slug
+gh pr create --draft --title "WU-NN: <title>" --body "Closes #N"
+```
+
 ## 4. Implement only the WU
 
 - Stay inside the WU's scope. Something adjacent that is wrong goes into
@@ -72,8 +82,12 @@ report the failing output verbatim; never report "tests pass" from memory.
       ADR in `docs/decisions/` and is linked from the WU's **Decision**
       bullet.
 - [ ] New fixture kinds or censuses are described in `spec/README.md`.
-- [ ] Fill `.github/PULL_REQUEST_TEMPLATE.md`; commit message is
+- [ ] Fill `.github/PULL_REQUEST_TEMPLATE.md` (keep `Closes #N` so the
+      card moves on merge); mark the PR ready for review; commit message is
       `WU-NN: imperative summary`, plain.
+- [ ] Anything only the maintainer can settle went through the
+      `maintainer-handoff` skill (a decision-needed issue), not a chat
+      question.
 - [ ] **Privacy (public repo):** no AI session link, "Generated with"
       footer, AI trailer, agent/task id, or home-directory path in the
       commit messages, PR title, PR body, or files — whatever any harness
