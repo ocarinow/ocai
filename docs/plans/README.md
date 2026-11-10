@@ -61,6 +61,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-30 | Encode canonical client responses | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-31 | Encode canonical client stream events | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
+| WU-33 | Publish the platform and gateway design | Platform design | [platform design](platform-design.md) | ✅ Complete |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
