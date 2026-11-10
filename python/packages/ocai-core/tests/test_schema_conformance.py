@@ -38,6 +38,7 @@ from urllib.parse import urljoin
 import pytest
 
 from ocai.chat.types.annotations import Annotation
+from ocai.chat.types.annotations import SourceResultRef
 from ocai.chat.types.annotations import Span
 from ocai.chat.types.config import AudioOutputConfig
 from ocai.chat.types.config import CacheConfig
@@ -210,6 +211,7 @@ FIELD_CASES: list[tuple[type, str]] = [
     (CacheHint, "parts.schema.json#/$defs/cacheHint"),
     (Annotation, "parts.schema.json#/$defs/annotation"),
     (Span, "parts.schema.json#/$defs/span"),
+    (SourceResultRef, "parts.schema.json#/$defs/sourceResultRef"),
 ]
 
 # Part variants: dataclass ↔ the parts.schema.json branch selected by tag.

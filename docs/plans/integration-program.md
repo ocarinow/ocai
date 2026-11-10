@@ -207,7 +207,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-40 — Qualify URL citations on canonical text
 
-- [ ] **Status:** in progress; stacked on WU-39 (PR #69).
+- [x] **Status:** implemented; stacked PR #77, pending review.
 - **Goal:** Canonical text can carry URL citations and local search-result references
   with honest Unicode span validation and preserved malformed evidence.
 - **Scope:** `chat/types/annotations.py`, accumulation, canonical schemas and
@@ -226,7 +226,8 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   qualification remains separate; no provider codec or canonical node changes.
 - **Freeze:** additive Annotation/chat response and chunk schemas; Span/DeltaAnnotation
   behavior qualified without removing legacy forms (integration ADR).
-- **Decision:** Validated code-point spans only; whole-block citations may stay
+- **Decision:** ADR 0008 accepts the additive citation fields and contextual
+  validation. Validated code-point spans only; whole-block citations may stay
   unpositioned; marker-only citations stay in extensions
   ([Search §1.3–1.4](../capabilities/web-search-and-retrieval.md)).
 - **Open:** Provider offset units remain unverified for some interfaces; no

@@ -270,3 +270,17 @@ Schemas are additive-only: nothing is renamed, removed, or repurposed; new
 fields are optional; readers are tolerant. Fixtures are validated against
 schemas in CI, so a spec-vs-code contradiction is structurally detectable
 rather than a matter of review vigilance.
+
+### Canonical citation evidence
+
+`fixtures/canonical/citations/` contains canonical fold triples for URL citations,
+local source-result references, open future citation kinds, Unicode code-point
+positions and invalid bounds. The tests also compare exact decoded text and
+positions, since canonical JSON equality normalizes Unicode. Annotations may
+precede text deltas; contextual validation runs when text is final.
+
+`ocai.annotation_invalid_span` preserves rejected raw positions with a reason;
+`ocai.invalid_span` preserves a malformed standalone span; and
+`ocai.annotation_unparsed_source` preserves an undecodable source-result reference.
+These are evidence extensions, never valid positional or replay authority.
+No provider edge or new canonical node is registered by this qualification.

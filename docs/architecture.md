@@ -192,7 +192,10 @@ unknown in inspection.
 
 Precedence rule (normative): unknown *envelope keys* sweep to `extensions`;
 unknown *content tags* fall back to the Unknown type; a decoder never applies
-both to the same bytes.
+both to the same bytes. Malformed citation offsets are retained as registered
+`ocai.annotation_invalid_span` evidence, not coerced into positions. Standalone
+`Span` decode retains malformed input under `ocai.invalid_span`; such a span
+never passes contextual validation.
 
 ### 2.7 `canonjson.py` — the equality predicate [frozen-candidate]
 
@@ -202,7 +205,9 @@ defined **once, normatively**, here and in `spec/canonical-json.md`: key
 ordering, number forms, unicode normalization, absent-vs-null, and the
 parse-compare/preserve-verbatim rule for embedded JSON strings (`args_json`).
 `canonical(obj) -> str` and `semantic_equal(a, b) -> bool`. TS/Go ports
-implement the same spec; they cannot each invent their own.
+implement the same spec; they cannot each invent their own. Citation offsets are
+validated on the exact decoded text before any equality normalization. A
+canonically equivalent Unicode string does not prove offset equivalence.
 
 ### 2.8 `usage.py` / `finish.py` — the cross-capability outcome vocabulary [frozen-candidate]
 
@@ -272,6 +277,25 @@ lesson of OpenAI's item model) and `anchor: ProviderRef | None`:
 | `PartRefusal` | Refusal text; pairs with `finish.reason == "refusal"`. |
 | `PartOpaque` | *Deliberate* provider-unique content, census-registered (§7). |
 | `PartUnknown` | *Future* canonical tags (decoder fallback) — strictly distinct from `PartOpaque`; upgradeable later via IR self-migration edges. |
+
+**`types/annotations.py`** — `Annotation.kind` is an optional open string
+(`url_citation` is canonical). `SourceResultRef(call_id, pointer)` names a local
+server-tool result and JSON Pointer; it is never fetched implicitly and grants
+no provider replay authority. Existing `url`, `document_index`, `file`, `title`,
+`cited_text`, `opaque` and untagged annotation forms remain valid. Native metadata
+uses registered extensions; malformed source references retain their original
+value under `ocai.annotation_unparsed_source`.
+
+`Span.valid_for(text, attributed_text=...)` checks integer code-point bounds
+against the exact final decoded text. It does not guess byte/UTF-16 units,
+normalize Unicode, or compare source quotation (`cited_text`) with output.
+`Annotation.validated` returns detached data; an invalid span becomes
+unpositioned with its verbatim evidence retained. `ChatResponse.from_dict` and
+`validated_annotations()` apply this to final text. Accumulation validates at
+part sealing/finalization, allowing citations to precede text deltas. Consumers
+must treat delta positions as provisional until final text is available.
+These canonical checks alone do not qualify any provider's offset convention
+(ADR 0008).
 
 **`types/config.py` — `ChatConfig`, shipped FULL** (the empty-scaffold failure
 is over). First-class by the three-lane law (§3.4): `temperature`, `top_p`,
@@ -421,6 +445,11 @@ credentials/catalogs).
    — a codec expands only its own namespace; foreign namespaces are never
    forwarded (kills cross-dialect leakage under a "lossless" report).
 
+Citation kind and local result reference are first-class fields; provider-native
+search controls and citation metadata remain censused extensions or scoped
+options. Invalid position evidence is preserved in registered canonical
+extensions rather than represented as a valid attribution.
+
 ### Stream ownership and incomplete execution (WU-24)
 
 `ChatStream.close()` / `AsyncChatStream.aclose()` and their context managers
@@ -565,7 +594,10 @@ same honest machinery.
 Pure-stdlib harness plugins import: golden-fixture runner, EdgeContract-vs-
 runtime-loss certifier, **fold triple** fixtures (wire event log → canonical
 chunks → folded response, asserted with `canonjson.semantic_equal`), and
-normative unknown-X fixtures every language port must pass.
+normative unknown-X fixtures every language port must pass. Canonical citation
+triples additionally assert exact decoded Unicode text and offsets, including
+combining sequences, malformed bounds and annotations arriving before text;
+semantic JSON equality alone cannot establish position correctness.
 
 `check_fragment` matches fixture coordinates, requires every payload edge to
 have evidence, checks independent expected output/records, and certifies emitted
@@ -838,7 +870,9 @@ redefines one. Three version axes, never conflated: interface **tag**
 streaming edge), `spec/extensions/` (censused extension schemas),
 `spec/interfaces/` (catalog descriptors as data). CI re-runs every language
 suite on `spec/**` changes; fixtures are validated against schemas so
-spec-vs-code contradictions are structurally detectable.
+spec-vs-code contradictions are structurally detectable. WU-40 adds canonical
+citation triples and registered invalid-evidence extensions under ADR 0008;
+these qualify the existing canonical revision without registering a new node.
 
 ## 11. Adding a capability (normative recipe)
 

@@ -1,0 +1,187 @@
+{
+  "description": "Synthetic WU-40 canonical fold triple: annotations precede text deltas, emoji and combining code points retain their offsets, source quotation need not equal output, and an unknown kind stays open. An out-of-bounds citation becomes unpositioned with original evidence.",
+  "node": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.chunk"
+  },
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart"
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "type": "text",
+        "text": ""
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "annotation",
+        "annotation": {
+          "version": "2026-07",
+          "kind": "url_citation",
+          "span": {
+            "start": 1,
+            "end": 20
+          },
+          "url": "https://example.test/source",
+          "cited_text": "source wording differs",
+          "source_result": {
+            "version": "2026-07",
+            "call_id": "search-test",
+            "pointer": "/results/0"
+          }
+        }
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "annotation",
+        "annotation": {
+          "version": "2026-07",
+          "kind": "future_citation",
+          "span": {
+            "start": 2,
+            "end": 4
+          },
+          "url": "https://example.test/second"
+        }
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "text",
+        "text": "A😀"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "text",
+        "text": "e"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "text",
+        "text": "́Z"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "type": "text",
+        "text": "A😀éZ",
+        "annotations": [
+          {
+            "version": "2026-07",
+            "kind": "url_citation",
+            "span": {
+              "start": 1,
+              "end": 20
+            },
+            "url": "https://example.test/source",
+            "cited_text": "source wording differs",
+            "source_result": {
+              "version": "2026-07",
+              "call_id": "search-test",
+              "pointer": "/results/0"
+            }
+          },
+          {
+            "version": "2026-07",
+            "kind": "future_citation",
+            "span": {
+              "start": 2,
+              "end": 4
+            },
+            "url": "https://example.test/second"
+          }
+        ]
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "end": {
+        "version": "2026-07"
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "A😀éZ",
+          "annotations": [
+            {
+              "version": "2026-07",
+              "kind": "url_citation",
+              "url": "https://example.test/source",
+              "cited_text": "source wording differs",
+              "source_result": {
+                "version": "2026-07",
+                "call_id": "search-test",
+                "pointer": "/results/0"
+              },
+              "extensions": {
+                "ocai.annotation_invalid_span": [
+                  {
+                    "span": {
+                      "start": 1,
+                      "end": 20
+                    },
+                    "reason": "invalid position for decoded text"
+                  }
+                ]
+              }
+            },
+            {
+              "version": "2026-07",
+              "kind": "future_citation",
+              "span": {
+                "start": 2,
+                "end": 4
+              },
+              "url": "https://example.test/second"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.invalid_span",
+  "description": "Malformed canonical Span input retained verbatim. The placeholder offsets carry no attribution authority.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected"
+}

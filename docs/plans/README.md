@@ -71,7 +71,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-37 | Declare host-specific dialect versions | Integration | [integration](integration-program.md) | ✅ Complete (PR #30 merged) |
 | WU-38 | Compose explicit host endpoints and profiles | Integration | [integration](integration-program.md) | ✅ Complete (review pending) |
 | WU-39 | Select framing independently of semantic conversion | Integration | [integration](integration-program.md) | ✅ Complete (review pending; stacked on WU-38) |
-| WU-40 | Qualify URL citations on canonical text | Integration | [integration](integration-program.md) | ⬜ |
+| WU-40 | Qualify URL citations on canonical text | Integration | [integration](integration-program.md) | ✅ |
 | WU-41 | Admit server-tool definitions on ChatRequest | Integration | [integration](integration-program.md) | ⬜ |
 | WU-42 | Preserve required server-tool replay anchors | Integration | [integration](integration-program.md) | ⬜ |
 | WU-43 | Account for provider-executed search requests | Integration | [integration](integration-program.md) | ⬜ |

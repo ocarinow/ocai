@@ -141,15 +141,32 @@
           "type": "integer",
           "minimum": 0,
           "description": "The exclusive end offset; end >= start."
+        },
+        "extensions": {
+          "type": "object",
+          "description": "Preserved unknown span fields and invalid offset evidence; invalid evidence never establishes attribution."
         }
       },
       "required": ["start", "end"]
+    },
+    "sourceResultRef": {
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "call_id": { "type": "string", "description": "Local server-tool call/result identity." },
+        "pointer": { "type": "string", "description": "JSON Pointer within that result payload; empty names the root. Never resolved implicitly." }
+      }
     },
     "annotation": {
       "$comment": "ocai/chat/types/annotations.py Annotation — one span-anchored citation carried by a text part, never a side channel.",
       "type": "object",
       "allOf": [{ "$ref": "#/$defs/envelope" }],
       "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Open citation kind, including url_citation; unknown values are preserved."
+        },
+        "source_result": { "$ref": "#/$defs/sourceResultRef" },
         "span": {
           "$ref": "#/$defs/span",
           "description": "The text range being attributed; absent when the provider cited the whole part."
