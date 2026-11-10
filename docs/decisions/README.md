@@ -39,3 +39,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0002](0002-branch-protection-and-typing-gate.md) | Branch protection and the strict typing gate | accepted |
 | [0003](0003-ordered-item-modernization.md) | Ordered-item modernization | proposed |
 | [0004](0004-catalog-composition-and-evidence.md) | Catalog composition and packaged conformance evidence | accepted (provisional) |
+| [0005](0005-revised-freeze-gate.md) | Revised freeze gate: the modernization qualification | accepted |

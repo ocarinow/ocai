@@ -127,13 +127,18 @@ never a paraphrase of it.
 
 1. **PEP 420 namespace:** never create `ocai/__init__.py` at the namespace
    root in any distribution. Only subpackages get `__init__.py`.
-2. **Stability domains are earned.** At v0.2 only data contracts freeze
-   additive-only: `ocai.core` vocabulary + `ocai.chat` port and IR + their
-   spec/ schemas. `ocai.embedding`/`ocai.vectorstore` are provisional until
-   they carry `CallResult` in real use. Hook protocols, plugin ABI
-   (`CatalogFragment`), profile keys freeze at v1.0 only after the
-   `/responses` migration and one real cross-provider failover have been
-   exercised through them.
+2. **Stability domains are earned.** Data contracts (`ocai.core`
+   vocabulary + `ocai.chat` port and IR + their spec/ schemas) freeze
+   additive-only at the next release gate, defined by
+   `docs/decisions/0005-revised-freeze-gate.md`: the modernization
+   qualification (ordered-item migration evidence, item-addressed streaming
+   with fold parity, an independently packaged plugin, and the `/responses`
+   migration proof — required, no longer sufficient alone).
+   `ocai.embedding`/`ocai.vectorstore` are provisional until they carry
+   `CallResult` in real use. Hook protocols, plugin ABI (`CatalogFragment`),
+   profile keys freeze at v1.0 only after the `/responses` migration and one
+   real cross-provider failover have been exercised through them. A gate
+   never changes without an ADR; a plan file never redefines one.
 3. **Three version axes stay distinct** (above).
 4. **Every port returns `CallResult(value, route, report, usage, raw)`** —
    named result objects, never bare tuples. The FidelityReport lives on
