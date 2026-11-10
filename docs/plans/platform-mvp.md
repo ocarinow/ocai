@@ -68,7 +68,8 @@ answers so far so we do not loose this knowledge" before further implementation.
 
 - [x] **Status:** complete (documentation; review pending).
 - **Scope:** Own the identity design, its ADR, architecture §12.2, platform
-  overview/stack/security/direction cross-references, and this WU's roadmap entry.
+  overview/stack/security/direction cross-references, documentation navigation,
+  and this WU's roadmap entry.
 - **Done:** A linked design records the protocol/local-login strategy, reference
   provider rationale and alternatives, frontend/backend ownership, service
   interconnection, non-human identities, delegation limits, operations and
@@ -78,7 +79,7 @@ answers so far so we do not loose this knowledge" before further implementation.
 - **Architecture:** §12.2; §12.1 implementation claims remain unchanged.
 - **Freeze:** none. No shapes, nodes, edges, censuses, fixtures, fields, extension
   keys, provider options, streaming contracts, schemas or dependencies change.
-- **Decision:** [ADR 0010](../decisions/0010-platform-identity.md); preserve
+- **Decision:** [ADR 0013](../decisions/0013-platform-identity.md); preserve
   ADRs 0006 and 0009 and the independent kernel boundary.
 - **Out:** Runtime code, package changes, identity-provider deployment, production
   support claims, and implementation of subsequent identity workflows.

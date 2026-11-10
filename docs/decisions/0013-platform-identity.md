@@ -1,4 +1,4 @@
-# 0010 — Platform identity and session boundaries
+# 0013 — Platform identity and session boundaries
 
 - **Status:** accepted direction; implementation and qualification pending
 - **Date:** 2026-11-10

@@ -29,7 +29,7 @@ with tokens stored server-side; FastAPI validates API credentials and enforces
 resource permissions. SAML terminates at an identity broker; SCIM is a separate
 later provisioning integration. Exact versions, libraries, session persistence
 and revocation bounds require implementation qualification. See
-[identity and access](identity.md) and [ADR 0010](../decisions/0010-platform-identity.md).
+[identity and access](identity.md) and [ADR 0013](../decisions/0013-platform-identity.md).
 
 ## Shared frontend structure
 

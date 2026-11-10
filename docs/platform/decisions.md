@@ -24,7 +24,7 @@ direction register, not a replacement for [engineering ADRs](../decisions/README
 | D-15 | Organizations, teams, users, scoped API keys, and resource-specific permissions are foundational | Anticipate federation and attribute conditions; detailed model remains to qualify |
 | D-16 | Use Nuxt/Vue, shadcn-vue/Tailwind, FastAPI, PostgreSQL, and OpenFGA | Product stack; no new dependencies in the kernel |
 | D-17 | Reuse UI and platform shell through shallow Nuxt layers | Shared frontend composition; product features remain modular in one console initially |
-| D-18 | Bundle Keycloak as the reference identity provider; retain qualified customer OIDC integration | Local accounts and brokered SAML; separate provider deployment; [ADR 0010](../decisions/0010-platform-identity.md) |
+| D-18 | Bundle Keycloak as the reference identity provider; retain qualified customer OIDC integration | Local accounts and brokered SAML; separate provider deployment; [ADR 0013](../decisions/0013-platform-identity.md) |
 | D-19 | Nuxt server owns browser sessions; FastAPI enforces API authentication and resource authorization | Server-held tokens, opaque cookies, modular backend integration; [identity design](identity.md) |
 | D-20 | Non-human identities are first-class platform principals | Service accounts, OAuth client credentials and scoped API keys; human delegation is separately qualified |
 

@@ -883,7 +883,7 @@ integration test against the real service.
 
 ### 12.2 Identity boundaries [direction; not implemented]
 
-[ADR 0010](decisions/0010-platform-identity.md) records the next identity boundary.
+[ADR 0013](decisions/0013-platform-identity.md) records the next identity boundary.
 Keycloak is the reference separately deployed provider for local accounts and
 OIDC/SAML federation; qualified customer OIDC providers remain possible. Nuxt's
 server layer owns console sessions and keeps tokens server-side. FastAPI validates

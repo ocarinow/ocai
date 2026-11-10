@@ -1,7 +1,7 @@
 # Platform identity, authentication, and authorization
 
 Status: agreed architectural direction, recorded 2026-11-10; implementation and
-production qualification remain future work. [ADR 0010](../decisions/0010-platform-identity.md)
+production qualification remain future work. [ADR 0013](../decisions/0013-platform-identity.md)
 records the boundaries. WU-35 implements only public foundation status: it has
 no login, session store, service accounts, or authorization enforcement.
 
