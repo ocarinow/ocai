@@ -16,6 +16,8 @@ on:
   push:
     branches: [main]
     paths: ["docs/plans/**", "scripts/board_sync.py", ".github/workflows/board-sync.yml"]
+  pull_request:
+    types: [opened, reopened, ready_for_review, converted_to_draft, closed, edited]
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:

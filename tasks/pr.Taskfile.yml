@@ -44,19 +44,38 @@ tasks:
       - git rebase origin/main
       - git push --force-with-lease
 
+  body:
+    desc: "Print a PR body generated from the template and the WU entry (task pr:body -- WU-NN [PARENT_PR])"
+    silent: true
+    cmds:
+      - |
+        wu="{{index (splitArgs .CLI_ARGS) 0}}"; parent="{{if gt (len (splitArgs .CLI_ARGS)) 1}}{{index (splitArgs .CLI_ARGS) 1}}{{end}}"
+        if [ -n "$parent" ]; then uv run python scripts/board_sync.py pr-body "$wu" --stacked-on "$parent"; else uv run python scripts/board_sync.py pr-body "$wu"; fi
+
   draft:
-    desc: "Push and open a DRAFT PR for the current branch (task pr:draft -- \"WU-NN: title\" [PARENT_BRANCH]); stacked when a parent branch is given"
+    desc: "Push and open a DRAFT PR with a body generated from the WU entry (task pr:draft -- \"WU-NN: title\" [PARENT_BRANCH]); stacked when a parent branch is given"
     cmds:
       - uv run python scripts/privacy_check.py --no-files
       - git push -u origin HEAD
       - |
         title="{{index (splitArgs .CLI_ARGS) 0}}"; parent="{{if gt (len (splitArgs .CLI_ARGS)) 1}}{{index (splitArgs .CLI_ARGS) 1}}{{end}}"
+        wu=$(echo "$title" | sed -nE 's/^(WU-[0-9A-Za-z]+):.*/\1/p')
+        body=$(mktemp)
         if [ -n "$parent" ]; then
           n=$(gh pr list --head "$parent" --json number -q '.[0].number')
-          gh pr create --draft --base "$parent" --title "$title" --body "Stacked on #$n. Work in progress; the WU entry in docs/plans/ is the definition."
+          uv run python scripts/board_sync.py pr-body "$wu" --stacked-on "$n" > "$body"
+          uv run python scripts/pr_check.py --title "$title" --body-file "$body" --draft --base "$parent"
+          gh pr create --draft --base "$parent" --title "$title" --body-file "$body"
         else
-          gh pr create --draft --title "$title" --body "Work in progress. The WU entry in docs/plans/ is the definition."
+          uv run python scripts/board_sync.py pr-body "$wu" > "$body"
+          uv run python scripts/pr_check.py --title "$title" --body-file "$body" --draft
+          gh pr create --draft --title "$title" --body-file "$body"
         fi
+
+  check:
+    desc: "PR hygiene for an open PR — template sections, no unchecked boxes when ready, stacked note (task pr:check -- NN)"
+    cmds:
+      - uv run python scripts/pr_check.py --pr {{.CLI_ARGS}}
 
   open:
     desc: Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE)
@@ -67,8 +86,11 @@ tasks:
       - gh pr create --base main --head "$(git branch --show-current)" --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}
 
   ready:
-    desc: Mark the current branch's draft PR ready for review
+    desc: Mark the current branch's draft PR ready for review — only if the hygiene check passes as ready
     cmds:
+      - |
+        body=$(mktemp); gh pr view --json body -q .body > "$body"
+        uv run python scripts/pr_check.py --title "$(gh pr view --json title -q .title)" --body-file "$body" --base "$(gh pr view --json baseRefName -q .baseRefName)"
       - gh pr ready
 
   checks:

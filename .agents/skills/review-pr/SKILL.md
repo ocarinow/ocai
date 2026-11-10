@@ -33,7 +33,13 @@ it (`uv run pyright -p pyproject.toml`). Report the summary block verbatim.
 A failing gate is a finding, but say whether it is pre-existing on `main`
 or introduced by the PR.
 
-## 3. Check the card and the entry
+## 3. Hygiene first, then the card and the entry
+
+`task pr:check -- NN` runs `scripts/pr_check.py`: a non-compliant body
+(missing sections, unchecked boxes while ready, placeholders, no gate
+output, missing `Stacked on #N`) is a finding on its own and the review
+stops there until the author fixes it.
+
 
 - The PR title starts with the WU id (`WU-NN: …`); that is how the board
   card follows it. No id → finding (the board cannot track it).

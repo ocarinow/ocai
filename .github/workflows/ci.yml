@@ -5,11 +5,34 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
 
 # Path-filtered per language. Every job ALSO triggers on spec/** so that a
 # change to the language-neutral source of truth re-runs each implementation's
 # conformance suite — the intended cross-language drift alarm.
 jobs:
+  # Every PR follows .github/PULL_REQUEST_TEMPLATE.md: WU-NN title, every
+  # section present from the first draft, no unchecked box once ready, a
+  # Stacked-on note when the base is not main (AGENTS.md). Required on main.
+  pr-hygiene:
+    name: pr-hygiene
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n' "$PR_BODY" > /tmp/pr_body.md
+      - name: PR hygiene
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          flag=""; [ "$PR_DRAFT" = "true" ] && flag="--draft"
+          python3 scripts/pr_check.py --title "$PR_TITLE" --body-file /tmp/pr_body.md --base "$PR_BASE" $flag
+
   # The repository is public: no commit message, PR title, or PR body may carry
   # an AI session link, an AI attribution footer/trailer, an agent identifier,
   # or a local home path (AGENTS.md "Never publish session or tool metadata").

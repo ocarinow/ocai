@@ -72,11 +72,13 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
+| `task pr:body` | Print a PR body generated from the template and the WU entry (task pr:body -- WU-NN [PARENT_PR]) |
+| `task pr:check` | PR hygiene for an open PR — template sections, no unchecked boxes when ready, stacked note (task pr:check -- NN) |
 | `task pr:checks` | Watch the checks of a PR until they finish (task pr:checks -- NN) |
-| `task pr:draft` | Push and open a DRAFT PR for the current branch (task pr:draft -- "WU-NN: title" [PARENT_BRANCH]); stacked when a parent branch is given |
+| `task pr:draft` | Push and open a DRAFT PR with a body generated from the WU entry (task pr:draft -- "WU-NN: title" [PARENT_BRANCH]); stacked when a parent branch is given |
 | `task pr:open` | Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE) |
 | `task pr:post-review` | Post a review file as a comment review after the privacy scan (task pr:post-review -- NN FILE) |
-| `task pr:ready` | Mark the current branch's draft PR ready for review |
+| `task pr:ready` | Mark the current branch's draft PR ready for review — only if the hygiene check passes as ready |
 | `task pr:rebase` | Rebase the current branch onto origin/main and force-push with lease |
 | `task pr:restack` | After the parent PR merged (squash), rebase this branch onto origin/main dropping the parent's commits (task pr:restack -- PARENT_BRANCH) |
 | `task pr:review` | Review a PR in a scratch worktree with the full gate (task pr:review -- NN); see the review-pr skill |

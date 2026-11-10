@@ -51,8 +51,11 @@ the WU id. The board follows the PR from here; a WU with work but no PR is
 invisible and the nightly sync flags it.
 
 ```bash
-task pr:draft -- "WU-NN: <title>"          # privacy guard, push, draft PR
+task pr:draft -- "WU-NN: <title>" [parent-branch]   # privacy guard, push, draft PR, body generated from the entry
 ```
+
+The body is the full template pre-filled from the entry; keep its sections
+and fill the boxes as you go — a placeholder body fails `pr-hygiene`.
 
 ## 4. Implement only the WU
 
@@ -85,9 +88,10 @@ report the failing output verbatim; never report "tests pass" from memory.
       ADR in `docs/decisions/` and is linked from the WU's **Decision**
       bullet.
 - [ ] New fixture kinds or censuses are described in `spec/README.md`.
-- [ ] Fill `.github/PULL_REQUEST_TEMPLATE.md`; keep the `WU-NN:` title
-      prefix (the card follows it); mark the PR ready for review; commit
-      message is `WU-NN: imperative summary`, plain.
+- [ ] Every template box checked or replaced by a one-line reason, the
+      gate output pasted, `Stacked on #N` kept if stacked; then `task
+      pr:ready` (it runs `scripts/pr_check.py` and refuses a non-compliant
+      body). Commit message is `WU-NN: imperative summary`, plain.
 - [ ] Anything only the maintainer can settle went through the
       `maintainer-handoff` skill (a decision card), not a chat question.
 - [ ] **Privacy (public repo):** no AI session link, "Generated with"
