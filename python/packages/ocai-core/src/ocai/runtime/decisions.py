@@ -114,8 +114,8 @@ class Outcome:
     across concurrent calls and both drivers.
 
     Attributes:
-        request: The request that was sent (post-hooks; auth header applied by
-            the driver at the leaf — policies received it *before* that).
+        request: The safe post-hook request. Authentication is applied only
+            to a detached transport copy; retained hook references stay safe.
         attempt: The zero-based index of this attempt.
         response: The successful wire response, when the attempt succeeded.
         error: The refined taxonomy error, when the attempt failed.

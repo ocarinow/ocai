@@ -472,6 +472,12 @@ schemas or executing tests.
 | `dual.py` | `from_sync(port)` / `from_async(port)` adapters (thread offload / portal) — visible composition decisions, never silent bridging. |
 | `observe.py` | `Observer` protocol + provisional event shapes [provisional — freezes at v1.0 after real exercise]. |
 
+The driver authenticates a detached transport-only `HttpRequest` per physical
+attempt. Its mutable headers are copied, not shared with the safe post-hook
+request. `Outcome.request` and references retained by admission hooks stay
+unauthenticated for the lifetime of the call, including failures and retries
+(ADR 0007, WU-22). This boundary applies to unary and streaming in both modes.
+
 ## 6. `ocai.wire` — remote transport
 
 `http.py` (`HttpRequest/HttpResponse` value objects — also the audit-archive

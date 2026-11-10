@@ -48,7 +48,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-19 | Ordered-item schema proposal (no runtime migration) | Modernization | [modernization](core-modernization.md) | ✅ Complete |
 | WU-20 | Catalog composition and external conformance | Modernization | [WU-20](wu-20-catalog-conformance.md) | ✅ Complete |
 | WU-21 | Define the gateway readiness program | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
-| WU-22 | Isolate transport credentials | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-22 | Isolate transport credentials | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-23 | Propagate context and enforce deadlines | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-24 | Own and terminate streams explicitly | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-25 | Govern streaming through port middleware | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
