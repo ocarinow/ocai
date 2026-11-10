@@ -44,6 +44,7 @@ nav = [
   ] },
   { "Platform" = [
     "platform/README.md",
+    { "Gateway integration" = "gateway-integration.md" },
     { "Product portfolio" = "platform/products.md" },
     { "AI Gateway" = "platform/gateway.md" },
     { "Stack and console" = "platform/stack.md" },
@@ -115,6 +116,9 @@ nav = [
   { "Roadmap" = [
     "plans/README.md",
     { "Core modernization" = "plans/core-modernization.md" },
+    { "Integration program" = "plans/integration-program.md" },
+    { "Gateway readiness" = "plans/gateway-readiness.md" },
+    { "Platform design" = "plans/platform-design.md" },
     { "WU-20 — Catalog conformance" = "plans/wu-20-catalog-conformance.md" },
     { "Horizon milestones" = "plans/horizon.md" },
     { "Kernel gaps" = "plans/gaps.md" },

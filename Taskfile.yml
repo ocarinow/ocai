@@ -42,6 +42,16 @@ tasks:
     cmds:
       - task: py:check
 
+  tasks:readme:
+    desc: Regenerate tasks/README.md (the task catalogue every session reads) from the task definitions
+    cmds:
+      - python3 tasks/render_readme.py
+
+  tasks:check:
+    desc: Fail if tasks/README.md is stale (run tasks:readme)
+    cmds:
+      - python3 tasks/render_readme.py --check
+
   setup:
     desc: One-time setup for a fresh clone — environment, docs group, gh auth check
     cmds:

@@ -89,6 +89,7 @@ include = [
     "python/packages/ocai-anthropic/tests",
     "examples",
     "scripts",
+    "tasks",
 ]
 exclude = ["**/__pycache__", "**/.venv"]
 extraPaths = ["examples/ocai-contrib-echo/src"]
