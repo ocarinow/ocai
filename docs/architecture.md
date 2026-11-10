@@ -667,11 +667,12 @@ canonical revision or alter the ADR 0005 freeze gate.
 
 ## 8. Request lifecycle (how it all interacts)
 
-The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),
-following ADR 0007. Its status table distinguishes shipped mechanisms from planned
-contracts; a gateway remains a satellite owning authentication, compartments,
-deployment selection, budgets, persistence and HTTP serving. Canonical 2026-07
-remains active throughout this program.
+The merged [governed gateway program](plans/gateway-readiness.md) implements
+ADR 0007. The proposed [tier 1–2 integration program](plans/integration-program.md)
+sequences subsequent host, chat, provider and satellite work; its unchecked WUs
+are not shipped capabilities. A gateway remains a satellite owning authentication,
+compartments, deployment selection, budgets, persistence and HTTP serving.
+Canonical 2026-07 remains active; integration proposals do not change the §9 gate.
 
 
 ```
