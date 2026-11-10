@@ -24,7 +24,9 @@ Acceptance requires schema validity, preservation requirements, negative
 examples, and explicit unresolved decisions. It must not register a new canonical
 node, rewrite existing fixtures, or claim conversions/streaming are implemented.
 
-WU-17–20 are merged on `main` (PRs #2, #4, #5, #6). WU-17 follows M1–M3;
+WU-17–20 are merged on `main` (PRs #2, #4, #5, #6). The
+[gateway program](gateway-readiness.md) is the next execution priority.
+WU-17 follows M1–M3;
 WU-18 and WU-19 depend on that baseline and are otherwise independent. Their
 scope and acceptance are the deliverables above. WU-19 records the candidate under `spec/proposals/ordered-items/` and its
 rationale in [proposed ADR 0003](../decisions/0003-ordered-item-modernization.md).

@@ -511,6 +511,13 @@ string door must always work without it.
 
 ## 8. Request lifecycle (how it all interacts)
 
+The next implementation program is [governed gateway readiness](plans/gateway-readiness.md),
+following ADR 0007. Its status table distinguishes shipped mechanisms from planned
+contracts; a gateway remains a satellite owning authentication, compartments,
+deployment selection, budgets, persistence and HTTP serving. Canonical 2026-07
+remains active throughout this program.
+
+
 ```
 user code
   └─ ChatModel port (ocai.chat.protocol)              CallContext rides along

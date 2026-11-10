@@ -1,9 +1,8 @@
 # ocai roadmap
 
 **Current direction (November 2026):** implement the Python
-[core modernization program](core-modernization.md). WU-17–20 are merged; the
-next units are split from its implementation sequence when reached. The
-release gate is [ADR 0005](../decisions/0005-revised-freeze-gate.md).
+[governed gateway program](gateway-readiness.md), following merged WU-17–20.
+The release gate remains [ADR 0005](../decisions/0005-revised-freeze-gate.md).
 The platform vision includes agent execution/management, telemetry, auditing,
 evaluation, and typed registries. Other language implementations are deferred.
 The July table below preserves completed M1–M3 history; its original horizon
@@ -48,6 +47,18 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-18 | Independent conversion-plugin repair | Modernization | [modernization](core-modernization.md) | ✅ Complete |
 | WU-19 | Ordered-item schema proposal (no runtime migration) | Modernization | [modernization](core-modernization.md) | ✅ Complete |
 | WU-20 | Catalog composition and external conformance | Modernization | [WU-20](wu-20-catalog-conformance.md) | ✅ Complete |
+| WU-21 | Define the gateway readiness program | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
+| WU-22 | Isolate transport credentials | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-23 | Propagate context and enforce deadlines | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-24 | Own and terminate streams explicitly | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-25 | Govern streaming through port middleware | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-26 | Emit correlated passive lifecycle events | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-27 | Expose immutable execution inspection | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-28 | Enforce request and response fidelity policy | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-29 | Qualify client request decoding | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-30 | Encode canonical client responses | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-31 | Encode canonical client stream events | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
