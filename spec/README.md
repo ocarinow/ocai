@@ -36,6 +36,13 @@ authoring a fixture; implement it before anything else in a new language port.
 
 ## Fixture shapes
 
+Draft designs live separately in [`proposals/`](proposals/ordered-items/README.md).
+Their schemas and examples do not change the active canonical revision.
+Proposal fixtures carry `provenance`, a candidate `schema`, and a `document`;
+optional `input`/`preserved` pairs record design requirements. They are validated
+by a dedicated schema suite, not treated as certified conversion edges or fold
+triples. Promotion requires implemented converters and the ordinary gates below.
+
 ### Edge fixture (one per conversion-graph edge)
 
 ```jsonc

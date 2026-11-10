@@ -1,0 +1,79 @@
+{
+  "provenance": {
+    "kind": "synthetic",
+    "reviewed_on": "2026-11-10",
+    "source_urls": [],
+    "scope": "Hand-authored design example; not a live recording or complete provider response."
+  },
+  "schema": "request.schema.json",
+  "document": {
+    "proposal": "ordered-items-draft-1",
+    "items": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [
+          {
+            "type": "json",
+            "value": null
+          },
+          {
+            "type": "json",
+            "value": 42
+          },
+          {
+            "type": "file",
+            "filename": "sample.bin",
+            "size_bytes": 3,
+            "source": {
+              "type": "base64",
+              "mime_type": "application/octet-stream",
+              "data": "AAH/"
+            }
+          }
+        ]
+      },
+      {
+        "type": "tool_call",
+        "id": "item_call_1",
+        "call_id": "call_1",
+        "name": "lookup",
+        "args_json": "{ \"topic\" : \"ocai\" }",
+        "executed_by": "client"
+      },
+      {
+        "type": "tool_result",
+        "call_id": "call_1",
+        "content": [
+          {
+            "type": "json",
+            "value": {
+              "matches": [
+                "ocai"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "approval_response",
+        "approval_id": "approval_1",
+        "approved": false,
+        "reason": "The user declined."
+      }
+    ],
+    "continuation": {
+      "provider": "openai",
+      "interface": "responses",
+      "kind": "response_id",
+      "id": "resp_example",
+      "replay": "required"
+    }
+  },
+  "requirements": [
+    "Native JSON null is present, not omitted; scalars remain native JSON.",
+    "Preserve argument text verbatim, including whitespace.",
+    "A provider-scoped continuation is not portable across interfaces.",
+    "The source is data only: decoding or transferring bytes is not implemented here."
+  ]
+}

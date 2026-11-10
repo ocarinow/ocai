@@ -1,0 +1,171 @@
+{
+  "provenance": {
+    "kind": "synthetic",
+    "reviewed_on": "2026-11-10",
+    "source_file": "spec/fixtures/anthropic/messages/response_tool_use.json",
+    "scope": "Reuses an existing synthetic wire fixture; not a live recording."
+  },
+  "schema": "response.schema.json",
+  "input": {
+    "id": "msg_01Aq9w938a90dw8q9tGVsnjR",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-4-8",
+    "content": [
+      {
+        "type": "text",
+        "text": "I'll check the current weather in Paris."
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_01A09q90qw90lq917835lq9",
+        "name": "get_weather",
+        "input": {
+          "city": "Paris"
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 58,
+      "output_tokens": 15,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  },
+  "document": {
+    "proposal": "ordered-items-draft-1",
+    "items": [
+      {
+        "type": "message",
+        "role": "model",
+        "source_group": {
+          "provider": "anthropic",
+          "interface": "messages",
+          "container": "msg_01Aq9w938a90dw8q9tGVsnjR",
+          "index": 0
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "I'll check the current weather in Paris."
+          }
+        ]
+      },
+      {
+        "type": "tool_call",
+        "call_id": "toolu_01A09q90qw90lq917835lq9",
+        "name": "get_weather",
+        "args_json": "{\"city\": \"Paris\"}",
+        "executed_by": "client",
+        "source_group": {
+          "provider": "anthropic",
+          "interface": "messages",
+          "container": "msg_01Aq9w938a90dw8q9tGVsnjR",
+          "index": 1
+        }
+      }
+    ],
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_use"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 58,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 15,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "anthropic.cache_write"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "msg_01Aq9w938a90dw8q9tGVsnjR",
+        "replay": "optional"
+      },
+      "model": "claude-opus-4-8"
+    }
+  },
+  "preserved": [
+    {
+      "source": [
+        "id"
+      ],
+      "target": [
+        "items",
+        0,
+        "source_group",
+        "container"
+      ]
+    },
+    {
+      "source": [
+        "id"
+      ],
+      "target": [
+        "items",
+        1,
+        "source_group",
+        "container"
+      ]
+    },
+    {
+      "source": [
+        "content",
+        0,
+        "text"
+      ],
+      "target": [
+        "items",
+        0,
+        "content",
+        0,
+        "text"
+      ]
+    },
+    {
+      "source": [
+        "content",
+        1,
+        "id"
+      ],
+      "target": [
+        "items",
+        1,
+        "call_id"
+      ]
+    }
+  ],
+  "requirements": [
+    "Reassemble native content blocks into their original message without changing order.",
+    "Serializing tool input to args_json requires the existing anthropic.args_serialized shift.",
+    "This fixture specifies selected preservation requirements, not a complete conversion report."
+  ]
+}

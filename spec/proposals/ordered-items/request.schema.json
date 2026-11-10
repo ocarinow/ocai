@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocai.dev/spec/proposals/ordered-items/request.schema.json",
+  "title": "Draft item request",
+  "$comment": "Design proposal only. Not an active canonical revision or runtime contract.",
+  "type": "object",
+  "properties": {
+    "proposal": {
+      "const": "ordered-items-draft-1"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "items.schema.json"
+      }
+    },
+    "extensions": {
+      "type": "object"
+    },
+    "provider_options": {
+      "type": "object"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "https://ocai.dev/spec/schema/chat_request.schema.json#/$defs/tool"
+      }
+    },
+    "tool_choice": {
+      "$ref": "https://ocai.dev/spec/schema/chat_request.schema.json#/$defs/toolChoice"
+    },
+    "config": {
+      "$ref": "https://ocai.dev/spec/schema/chat_request.schema.json#/$defs/chatConfig"
+    },
+    "continuation": {
+      "$ref": "https://ocai.dev/spec/schema/parts.schema.json#/$defs/providerRef"
+    }
+  },
+  "required": [
+    "proposal",
+    "items"
+  ]
+}

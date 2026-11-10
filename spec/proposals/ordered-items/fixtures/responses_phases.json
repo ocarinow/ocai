@@ -1,0 +1,155 @@
+{
+  "provenance": {
+    "kind": "synthetic",
+    "reviewed_on": "2026-11-10",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/guides/reasoning"
+    ],
+    "scope": "Hand-authored design example; not a live recording or complete provider response."
+  },
+  "schema": "response.schema.json",
+  "input": {
+    "output": [
+      {
+        "type": "message",
+        "id": "msg_progress",
+        "role": "assistant",
+        "phase": "commentary",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "I will compare the options.",
+            "annotations": []
+          }
+        ]
+      },
+      {
+        "type": "reasoning",
+        "id": "rs_1",
+        "summary": [
+          {
+            "type": "summary_text",
+            "text": "Compared the supplied options."
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "id": "msg_final",
+        "role": "assistant",
+        "phase": "final_answer",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "Option A fits the constraints.",
+            "annotations": []
+          }
+        ]
+      }
+    ]
+  },
+  "document": {
+    "proposal": "ordered-items-draft-1",
+    "items": [
+      {
+        "type": "message",
+        "id": "msg_progress",
+        "role": "model",
+        "phase": "commentary",
+        "content": [
+          {
+            "type": "text",
+            "text": "I will compare the options."
+          }
+        ]
+      },
+      {
+        "type": "reasoning",
+        "id": "rs_1",
+        "summary": "Compared the supplied options."
+      },
+      {
+        "type": "message",
+        "id": "msg_final",
+        "role": "model",
+        "phase": "final_answer",
+        "content": [
+          {
+            "type": "text",
+            "text": "Option A fits the constraints."
+          }
+        ]
+      }
+    ]
+  },
+  "preserved": [
+    {
+      "source": [
+        "output",
+        0,
+        "id"
+      ],
+      "target": [
+        "items",
+        0,
+        "id"
+      ]
+    },
+    {
+      "source": [
+        "output",
+        0,
+        "phase"
+      ],
+      "target": [
+        "items",
+        0,
+        "phase"
+      ]
+    },
+    {
+      "source": [
+        "output",
+        1,
+        "id"
+      ],
+      "target": [
+        "items",
+        1,
+        "id"
+      ]
+    },
+    {
+      "source": [
+        "output",
+        2,
+        "phase"
+      ],
+      "target": [
+        "items",
+        2,
+        "phase"
+      ]
+    },
+    {
+      "source": [
+        "output",
+        2,
+        "content",
+        0,
+        "text"
+      ],
+      "target": [
+        "items",
+        2,
+        "content",
+        0,
+        "text"
+      ]
+    }
+  ],
+  "requirements": [
+    "Keep both message boundaries and their phases, with reasoning in the original order.",
+    "This excerpt does not specify a complete Responses decoder or account for every provider field."
+  ]
+}
