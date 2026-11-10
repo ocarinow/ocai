@@ -52,6 +52,7 @@ from ocai.chat.types.stream import ChatChunk
 from ocai.chat.types.stream import ChatStream
 from ocai.chat.types.stream import ChunkType
 from ocai.chat.types.stream import StreamEnd
+from ocai.core.errors import StreamProtocolError
 from ocai.core.errors import UnsupportedFeatureError
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
@@ -622,7 +623,7 @@ class WireChatModel:
             pipeline: The flushed stream pipeline whose `reports` carry the
                 decode leg, one `EdgeReport` per traversed stream edge.
         """
-        merged = prepared.report.merge(FidelityReport(edges=list(pipeline.reports or ())))
+        merged = self._stream_evidence(prepared, pipeline)
         end = terminal.end
         if end is None:
             terminal.end = StreamEnd(report=merged)
@@ -656,16 +657,21 @@ class WireChatModel:
             the two-leg report stamped.
         """
         terminal: ChatChunk | None = None
-        for chunk in events:
-            if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
-                if terminal is not None:  # malformed double terminal: keep both,
-                    yield terminal  # only the last carries the report
-                terminal = chunk
-                continue
-            yield chunk
-        if terminal is not None:
-            self._stamp_stream_report(terminal, prepared, pipeline)
-            yield terminal
+        try:
+            for chunk in events:
+                if terminal is not None:
+                    raise StreamProtocolError("provider emitted content after stream termination")
+                if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
+                    terminal = chunk
+                else:
+                    yield chunk
+            if terminal is not None:
+                self._stamp_stream_report(terminal, prepared, pipeline)
+                yield terminal
+        finally:
+            close = getattr(events, "close", None)
+            if close is not None:
+                close()
 
     async def _apump(
         self, events: AsyncIterator[Any], prepared: _PreparedCall, pipeline: StreamPipeline
@@ -682,16 +688,27 @@ class WireChatModel:
             the two-leg report stamped.
         """
         terminal: ChatChunk | None = None
-        async for chunk in events:
-            if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
+        try:
+            async for chunk in events:
                 if terminal is not None:
-                    yield terminal
-                terminal = chunk
-                continue
-            yield chunk
-        if terminal is not None:
-            self._stamp_stream_report(terminal, prepared, pipeline)
-            yield terminal
+                    raise StreamProtocolError("provider emitted content after stream termination")
+                if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
+                    terminal = chunk
+                else:
+                    yield chunk
+            if terminal is not None:
+                self._stamp_stream_report(terminal, prepared, pipeline)
+                yield terminal
+        finally:
+            close = getattr(events, "aclose", None)
+            if close is not None:
+                await close()
+
+    @staticmethod
+    def _stream_evidence(prepared: _PreparedCall, pipeline: StreamPipeline) -> FidelityReport:
+        """Snapshot available findings once without mutating the request report."""
+        report = deepcopy(prepared.report)
+        return report.merge(FidelityReport(edges=list(pipeline.reports or ())))
 
     # --- The port methods ---------------------------------------------------
 
@@ -839,7 +856,8 @@ class WireChatModel:
             refine_error=self._refine_error,
             pipeline=pipeline,
         )
-        return ChatStream(self._pump(events, prepared, pipeline))
+        return ChatStream(self._pump(events, prepared, pipeline),
+                          report=lambda: self._stream_evidence(prepared, pipeline))
 
     async def astream(
         self,
@@ -886,7 +904,8 @@ class WireChatModel:
             refine_error=self._refine_error,
             pipeline=pipeline,
         )
-        return AsyncChatStream(self._apump(events, prepared, pipeline))
+        return AsyncChatStream(self._apump(events, prepared, pipeline),
+                               report=lambda: self._stream_evidence(prepared, pipeline))
 
     @property
     def details(self) -> dict[str, Any]:

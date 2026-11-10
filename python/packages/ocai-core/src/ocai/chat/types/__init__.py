@@ -90,6 +90,7 @@ from ocai.chat.types.stream import DeltaUnknown
 from ocai.chat.types.stream import ErrorInfo
 from ocai.chat.types.stream import StreamAccumulator
 from ocai.chat.types.stream import StreamEnd
+from ocai.chat.types.stream import StreamOutcome
 from ocai.chat.types.stream import cast_delta
 from ocai.chat.types.tools import Tool
 from ocai.chat.types.tools import ToolChoice
@@ -167,6 +168,7 @@ __all__ = [
     "Span",
     "StreamAccumulator",
     "StreamEnd",
+    "StreamOutcome",
     "Tool",
     "ToolCallStatus",
     "ToolChoice",
