@@ -1,8 +1,10 @@
 """Board sync: the GitHub Project is a view of the plan and the PRs, nothing more.
 
 Cards are **draft items** on the project (never issues): one per open work
-unit, titled `WU-NN: <title>` exactly as the plan row. Status is derived,
-never dragged::
+unit, titled `WU-NN: <title>` exactly as the plan row. The card body and its
+fields (Program, Area, Priority, Tier, Owner, Kind, PR, Plan) are generated
+from the WU entry in the plan file (`docs/plans/WU-TEMPLATE.md`); Status is
+derived, never dragged::
 
     uv run python scripts/board_sync.py sync                   # report, exit 1 when out of sync
     uv run python scripts/board_sync.py sync --apply           # create missing cards, set statuses
@@ -34,6 +36,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -45,7 +48,57 @@ PLAN = ROOT / "docs" / "plans" / "README.md"
 REPO = "ocarinow/ocai"
 ORG = REPO.split("/")[0]
 STATUSES = ("Defined", "In progress", "In review", "Blocked on maintainer", "Done")
-ROW_RE = re.compile(r"^\|\s*(WU-[0-9A-Za-z]+)\s*\|\s*(.+?)\s*\|.*\|\s*(.+?)\s*\|\s*$")
+ROW_RE = re.compile(
+    r"^\|\s*(WU-[0-9A-Za-z]+)\s*\|\s*(.+?)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*(.+?)\s*\|\s*$"
+)
+LINK_RE = re.compile(r"\(([^)]+\.md)\)")
+HEADING_RE = re.compile(r"^##\s+(WU-[0-9A-Za-z]+)\s*[—-]+\s*(.+?)\s*$")
+BULLET_RE = re.compile(r"^- (?:\[[ x]\] )?\*\*([^:*]+?)(?: \(([^)]*)\))?:\*\*\s*(.*)$")
+BLOB = f"https://github.com/{REPO}/blob/main/"
+PROGRAMS = {
+    "M1": "M1",
+    "M2": "M2",
+    "M3": "M3",
+    "Modernization": "Modernization",
+    "Gateway": "Gateway",
+    "Integration": "Integration",
+    "Platform MVP": "Platform MVP",
+    "Platform design": "Platform MVP",
+    "Platform": "Platform MVP",
+    "Docs": "Docs",
+}
+AREA_HINTS = (
+    ("platform/", "platform"),
+    ("docs/", "docs"),
+    ("spec/", "spec"),
+    ("scripts/", "tooling"),
+    ("tasks/", "tooling"),
+    (".agents", "tooling"),
+    ("openai", "plugin: openai"),
+    ("anthropic", "plugin: anthropic"),
+    ("ocai.wire", "wire"),
+    ("wire/", "wire"),
+    ("runtime/", "runtime"),
+    ("ocai.runtime", "runtime"),
+    ("convert/", "convert"),
+    ("ocai.convert", "convert"),
+    ("chat/types", "chat IR"),
+    ("ocai.chat", "chat IR"),
+    ("core/", "core"),
+    ("ocai.core", "core"),
+    ("satellite", "satellite"),
+)
+BODY_ORDER = (
+    "Goal",
+    "Scope",
+    "Done",
+    "Deps",
+    "Architecture",
+    "Integration",
+    "Freeze",
+    "Decision",
+    "Open",
+)
 ID_RE = re.compile(r"^(WU-[0-9A-Za-z]+)\b")
 
 
@@ -62,6 +115,21 @@ class PlanRow:
     wu: str
     title: str
     done: bool
+    milestone: str = ""
+    file: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Entry:
+    """A parsed WU entry from a plan file.
+
+    Attributes:
+        sections: Bullet name → text (multi-line, fenced blocks kept), in file order.
+        anchor: GitHub heading anchor of the entry.
+    """
+
+    sections: dict[str, str]
+    anchor: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +148,11 @@ class Pull:
     draft: bool
     updated_at: datetime
 
+    @property
+    def url(self) -> str:
+        """The PR's GitHub URL."""
+        return f"https://github.com/{REPO}/pull/{self.number}"
+
 
 @dataclass(frozen=True, slots=True)
 class Item:
@@ -96,6 +169,9 @@ class Item:
     title: str
     status: str | None
     kind: str
+    content_id: str = ""
+    body: str = ""
+    fields: dict[str, str] = field(default_factory=dict[str, str])
 
 
 def _gh(*args: str) -> str:
@@ -138,8 +214,92 @@ def read_plan() -> list[PlanRow]:
     for line in PLAN.read_text(encoding="utf-8").splitlines():
         m = ROW_RE.match(line)
         if m:
-            rows.append(PlanRow(m.group(1), m.group(2), "✅" in m.group(3)))
+            link = LINK_RE.search(m.group(4))
+            rows.append(
+                PlanRow(
+                    m.group(1),
+                    m.group(2),
+                    "✅" in m.group(5),
+                    m.group(3).strip(),
+                    link.group(1) if link else "",
+                )
+            )
     return rows
+
+
+def _anchor(heading: str) -> str:
+    """GitHub's slug for a Markdown heading."""
+    text = re.sub(r"[^\w\s-]", "", heading.lower().replace("`", ""))
+    return re.sub(r"\s", "-", text.strip())
+
+
+def read_entry(row: PlanRow) -> Entry | None:
+    """Parse the WU's entry (heading + bullets) from the plan file the table row links."""
+    path = (PLAN.parent / row.file) if row.file else None
+    if path is None or not path.exists():
+        return None
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next(
+        (i for i, ln in enumerate(lines) if (m := HEADING_RE.match(ln)) and m.group(1) == row.wu),
+        None,
+    )
+    if start is None:
+        return None
+    sections: dict[str, str] = {}
+    current: str | None = None
+    fenced = False
+    for ln in lines[start + 1 :]:
+        if ln.startswith("```"):
+            fenced = not fenced
+        if not fenced and ln.startswith("## "):
+            break
+        m = None if fenced else BULLET_RE.match(ln)
+        if m:
+            name = m.group(1).strip()
+            key = name if name not in sections else f"{name} ({m.group(2) or len(sections)})"
+            topic = m.group(2) or ""
+            sections[key] = (f"**{topic}** " if topic else "") + m.group(3).strip()
+            current = key
+        elif current is not None and (
+            ln.startswith("  ") or fenced or ln.strip() == "" or ln.startswith("```")
+        ):
+            sections[current] += "\n" + (ln[2:] if ln.startswith("  ") and not fenced else ln)
+    return Entry({k: v.strip() for k, v in sections.items()}, _anchor(lines[start].lstrip("# ")))
+
+
+def infer_area(entry: Entry | None) -> str:
+    """The Area bullet, else a guess from the Scope paths."""
+    if entry is None:
+        return ""
+    if entry.sections.get("Area"):
+        return entry.sections["Area"].split("\n")[0].strip("` ").lower()
+    scope = entry.sections.get("Scope", "").lower()
+    for hint, area in AREA_HINTS:
+        if hint in scope:
+            return area
+    return ""
+
+
+def card_body(row: PlanRow, entry: Entry | None, pull: Pull | None) -> str:
+    """Render the card body from the entry, in template order."""
+    parts: list[str] = []
+    if entry is None:
+        parts.append(
+            f"_No entry found for {row.wu} in `docs/plans/{row.file or '?'}`; "
+            "write it with the wu-define skill (docs/plans/WU-TEMPLATE.md)._"
+        )
+    else:
+        for name in BODY_ORDER:
+            for key, text in entry.sections.items():
+                if key == name or key.startswith(name + " ("):
+                    parts.append(f"### {key}\n\n{text}")
+    links = [
+        f"Plan: {BLOB}docs/plans/{row.file}#{entry.anchor}" if entry and row.file else "",
+        f"PR: {pull.url}" if pull else "PR: none yet",
+        f"Program: {row.milestone}" if row.milestone else "",
+    ]
+    parts.append("---\n" + "\n".join(f"- {x}" for x in links if x))
+    return "\n\n".join(parts)
 
 
 def read_pulls() -> dict[str, Pull]:
@@ -203,11 +363,15 @@ class Board:
         query($org:String!, $num:Int!, $after:String) {
           organization(login:$org) { projectV2(number:$num) { id
             fields(first:50) { nodes {
+              ... on ProjectV2Field { id name dataType }
               ... on ProjectV2SingleSelectField { id name options { id name } } } }
             items(first:100, after:$after) { pageInfo { hasNextPage endCursor } nodes { id
-              fieldValueByName(name:"Status") {
-                ... on ProjectV2ItemFieldSingleSelectValue { name } }
-              content { __typename ... on DraftIssue { title } ... on Issue { title }
+              fieldValues(first:30) { nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name field { ... on ProjectV2SingleSelectField { name } } }
+                ... on ProjectV2ItemFieldTextValue {
+                  text field { ... on ProjectV2Field { name } } } } }
+              content { __typename ... on DraftIssue { id title body } ... on Issue { title }
                         ... on PullRequest { title } } } } } } }"""
         self.items: dict[str, Item] = {}
         after = ""
@@ -217,22 +381,39 @@ class Board:
                 variables["after"] = after
             project = _graphql(query, **variables)["organization"]["projectV2"]
             self.id: str = project["id"]
+            field_nodes: list[dict[str, Any]] = project["fields"]["nodes"]
             self.fields: dict[str, tuple[str, dict[str, str]]] = {
-                f["name"]: (f["id"], {o["name"]: o["id"] for o in f["options"]})
-                for f in project["fields"]["nodes"]
-                if f.get("name")
+                str(f["name"]): (str(f["id"]), {str(o["name"]): str(o["id"]) for o in f["options"]})
+                for f in field_nodes
+                if f.get("name") and "options" in f
+            }
+            self.text_fields: dict[str, str] = {
+                str(f["name"]): str(f["id"])
+                for f in field_nodes
+                if f.get("name") and f.get("dataType") == "TEXT"
             }
             nodes: list[dict[str, Any]] = project["items"]["nodes"]
             for node in nodes:
                 content: dict[str, Any] = node.get("content") or {}
                 title = str(content.get("title") or "")
-                status_value: dict[str, Any] = node.get("fieldValueByName") or {}
-                status_name = status_value.get("name")
+                values: dict[str, str] = {}
+                fv_container: dict[str, Any] = node.get("fieldValues") or {}
+                raw_values: list[dict[str, Any]] = fv_container.get("nodes") or []
+                for fv in raw_values:
+                    fld: dict[str, Any] = fv.get("field") or {}
+                    fname = fld.get("name")
+                    if fname and "name" in fv:
+                        values[str(fname)] = str(fv["name"])
+                    elif fname and "text" in fv:
+                        values[str(fname)] = str(fv["text"] or "")
                 self.items[title] = Item(
                     str(node["id"]),
                     title,
-                    None if status_name is None else str(status_name),
+                    values.get("Status"),
                     str(content.get("__typename", "")),
+                    str(content.get("id") or ""),
+                    str(content.get("body") or ""),
+                    values,
                 )
             page = project["items"]["pageInfo"]
             if not page["hasNextPage"]:
@@ -252,6 +433,23 @@ class Board:
         self.items[title] = item
         return item
 
+    def update_draft(self, item: Item, title: str, body: str) -> None:
+        """Rewrite a draft item's title and body."""
+        mutation = """
+        mutation($d:ID!, $t:String!, $b:String!) {
+          updateProjectV2DraftIssue(input:{draftIssueId:$d, title:$t, body:$b}) {
+            draftIssue { id } } }"""
+        _graphql(mutation, d=item.content_id, t=title, b=body)
+
+    def set_text(self, item: Item, field_name: str, text: str) -> None:
+        """Set a text field of an item."""
+        field_id = self.text_fields[field_name]
+        mutation = """
+        mutation($p:ID!, $i:ID!, $f:ID!, $t:String!) {
+          updateProjectV2ItemFieldValue(input:{projectId:$p, itemId:$i, fieldId:$f,
+            value:{text:$t}}) { projectV2Item { id } } }"""
+        _graphql(mutation, p=self.id, i=item.id, f=field_id, t=text)
+
     def set_field(self, item: Item, field: str, option: str) -> None:
         """Set a single-select field of an item by option name.
 
@@ -264,6 +462,25 @@ class Board:
           updateProjectV2ItemFieldValue(input:{projectId:$p, itemId:$i, fieldId:$f,
             value:{singleSelectOptionId:$o}}) { projectV2Item { id } } }"""
         _graphql(mutation, p=self.id, i=item.id, f=field_id, o=options[option])
+
+
+def _first(entry: Entry | None, name: str) -> str:
+    """First line of a bullet, stripped, or empty."""
+    if entry is None:
+        return ""
+    return entry.sections.get(name, "").split("\n")[0].strip("` ").strip()
+
+
+def _option(board: Board, field_name: str, value: str) -> str:
+    """Match a value to an existing single-select option (case-insensitive prefix), else empty."""
+    if not value or field_name not in board.fields:
+        return ""
+    options = board.fields[field_name][1]
+    low = value.lower()
+    for name in options:
+        if name.lower() == low or name.lower().startswith(low) or low.startswith(name.lower()):
+            return name
+    return ""
 
 
 def _find(board: Board, wu: str) -> Item | None:
@@ -293,10 +510,34 @@ def cmd_sync(args: argparse.Namespace) -> int:
             if not args.apply:
                 findings.append(f"{row.wu}: no card (run with --apply)")
                 continue
-            card = board.add_draft(
-                f"{row.wu}: {row.title}", f"Plan: docs/plans/README.md — {row.wu}"
-            )
+            card = board.add_draft(f"{row.wu}: {row.title}", "")
             print(f"created card for {row.wu}")
+        entry = read_entry(row)
+        if entry is None:
+            findings.append(f"{row.wu}: no entry heading in docs/plans/{row.file or '?'}")
+        elif not entry.sections.get("Done"):
+            findings.append(f"{row.wu}: entry has no Done bullet")
+        title = f"{row.wu}: {row.title}"
+        body = card_body(row, entry, pull)
+        if args.apply and (card.body != body or card.title != title):
+            board.update_draft(card, title, body)
+            print(f"{row.wu}: body refreshed")
+        wanted_fields: dict[str, str] = {
+            "Kind": "WU",
+            "Program": PROGRAMS.get(row.milestone, ""),
+            "Area": _option(board, "Area", infer_area(entry)),
+            "Priority": _option(board, "Priority", _first(entry, "Priority")),
+            "Tier": _option(board, "Tier", _first(entry, "Tier")),
+            "Owner": _option(board, "Owner", _first(entry, "Owner")),
+        }
+        for fname, value in wanted_fields.items():
+            if value and card.fields.get(fname) != value and args.apply:
+                board.set_field(card, fname, value)
+        plan_url = f"{BLOB}docs/plans/{row.file}#{entry.anchor}" if entry and row.file else ""
+        wanted_text = {"PR": pull.url if pull else "", "Plan": plan_url}
+        for fname, value in wanted_text.items():
+            if value and card.fields.get(fname) != value and args.apply:
+                board.set_text(card, fname, value)
         want = desired_status(row, pull, card.status)
         if row.done and want != "Done":
             findings.append(f"{row.wu}: plan says ✅ but the card is {card.status}")
@@ -333,6 +574,7 @@ def cmd_add(args: argparse.Namespace) -> int:
     item = board.add_draft(args.title, body)
     status = {"wu": "Defined", "decision": "Blocked on maintainer", "gap": "Defined"}[args.kind]
     board.set_field(item, "Status", status)
+    board.set_field(item, "Kind", {"wu": "WU", "decision": "Decision", "gap": "Gap"}[args.kind])
     print(f"added {args.kind} card: {args.title} [{status}]")
     return 0
 

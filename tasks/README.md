@@ -72,12 +72,14 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | Task | Does |
 |---|---|
 | `task pr:checks` | Watch the checks of a PR until they finish (task pr:checks -- NN) |
-| `task pr:draft` | Push and open a DRAFT PR for the current branch (task pr:draft -- "WU-NN: title"); the board card follows the title |
+| `task pr:draft` | Push and open a DRAFT PR for the current branch (task pr:draft -- "WU-NN: title" [PARENT_BRANCH]); stacked when a parent branch is given |
 | `task pr:open` | Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE) |
 | `task pr:post-review` | Post a review file as a comment review after the privacy scan (task pr:post-review -- NN FILE) |
 | `task pr:ready` | Mark the current branch's draft PR ready for review |
 | `task pr:rebase` | Rebase the current branch onto origin/main and force-push with lease |
+| `task pr:restack` | After the parent PR merged (squash), rebase this branch onto origin/main dropping the parent's commits (task pr:restack -- PARENT_BRANCH) |
 | `task pr:review` | Review a PR in a scratch worktree with the full gate (task pr:review -- NN); see the review-pr skill |
+| `task pr:stack` | New worktree + branch stacked on an unmerged WU branch (task pr:stack -- PARENT_BRANCH NEW_BRANCH) |
 | `task pr:status` | Open PRs with merge state and the required checks |
 | `task pr:worktree` | New worktree + branch from origin/main (task pr:worktree -- wu-NN-slug) |
 | `task pr:worktree:rm` | Remove a worktree and its local branch after merge (task pr:worktree:rm -- wu-NN-slug) |

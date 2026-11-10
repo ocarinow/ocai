@@ -231,12 +231,19 @@ stale).
 
 Several agents (and humans) work this repo concurrently. The protocol:
 
-- **One branch per WU, one PR per WU.** Agents sharing a checkout keep
-  their file sets disjoint and commit only their own paths; when the sets
-  would overlap, the second agent takes its own worktree
-  (`git worktree add ../ocai-<branch> -b <branch>`). Housekeeping that
-  touches no kernel code may land on the main branch directly when the
-  maintainer says so.
+- **One branch per WU, one PR per WU — and keep going.** Opening a PR is
+  not a stopping point: start the next WU immediately. An independent WU
+  branches from `origin/main`; a WU that depends on an unmerged one branches
+  from that WU's branch and opens a **stacked PR** whose base is the parent
+  branch and whose body starts with `Stacked on #N`. Review and merge happen
+  in stack order; when a parent merges (squash), the child is restacked
+  with `task pr:restack -- <parent-branch>` (rebase onto `main` dropping the
+  parent's commits) and GitHub retargets its base to `main`. A stack is a
+  sequence of one-WU PRs, never one PR with several WUs. Agents sharing a
+  checkout keep their file sets disjoint and commit only their own paths;
+  when the sets would overlap, the second agent takes its own worktree
+  (`task pr:worktree -- <branch>`). Housekeeping that touches no kernel code
+  may land on the main branch directly when the maintainer says so.
 - **Ownership by directory.** Kernel and plugin source (`python/packages/`)
   is owned by the agent assigned the WU. Satellites, `spec/` additions,
   `docs/`, `scripts/`, and skills are separate tracks. Do not edit another
@@ -277,8 +284,12 @@ of the repo, never a second source of truth**, and it holds **draft cards
 only — no issues are created**:
 
 - One card per open WU, titled `WU-NN: <title>` exactly as the plan row.
-  The WU's definition stays in `docs/plans/`, reviewed in a PR; the card
-  carries only Status, Owner, and Tier.
+  The WU's definition stays in `docs/plans/`, written to
+  `docs/plans/WU-TEMPLATE.md` and reviewed in a PR; the card's body (Goal,
+  Scope, Done, Deps, Architecture, Integration with its diagram, Freeze,
+  Decision, Open, links) and fields (Program, Area, Priority, Tier, Owner,
+  Kind, PR, Plan) are **generated from the entry** by the sync. Nobody edits
+  a card by hand; the plan file changes and the sync rewrites the card.
 - Cards move by automation only. `scripts/board_sync.py sync` (CI on every
   push to `main` touching the plan, nightly, and on demand; `task
   board:sync` locally) creates missing cards from the plan table and sets
@@ -296,8 +307,9 @@ only — no issues are created**:
   through the `maintainer-handoff` skill), not a chat question. Kernel
   gaps get a row in `docs/plans/gaps.md` in the PR that found them and a
   gap card (`task board:gap`).
-- Owner and Tier are set per card (`task board:set -- WU-NN --owner Claude
-  --tier "1 chat completeness and hosts"`).
+- Owner and Tier come from the entry's bullets; `task board:set -- WU-NN
+  --owner Claude --tier "1 chat completeness and hosts"` overrides them
+  until the next sync reads a bullet that says otherwise.
 - The project is visible to whoever can see the repository: the privacy
   rule applies to card titles and bodies.
 

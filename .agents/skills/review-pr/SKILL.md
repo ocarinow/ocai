@@ -15,8 +15,12 @@ runtime loss, and privacy. This skill is the mechanics around it.
 task pr:review -- NN      # scratch worktree at the PR head, diff stat, the full gate
 cd ../ocai-worktrees/review-pr-NN
 gh pr view NN --json title,body,baseRefName,headRefName,files
-git diff origin/main...HEAD
+git diff origin/<baseRefName>...HEAD    # for a stacked PR the base is the parent branch, not main
 ```
+
+A stacked PR (`Stacked on #N` in the body) is reviewed against its parent
+branch, so only its own WU's diff is in scope; the parent is reviewed in its
+own PR.
 
 ## 2. Run the gate exactly as CI does
 
@@ -33,8 +37,12 @@ or introduced by the PR.
 
 - The PR title starts with the WU id (`WU-NN: …`); that is how the board
   card follows it. No id → finding (the board cannot track it).
-- The WU entry in `docs/plans/` has exactly one **Done** bullet and the PR
-  satisfies it. Two outcomes → finding (rule 17).
+- The WU entry in `docs/plans/` follows `docs/plans/WU-TEMPLATE.md`: one
+  **Done** bullet that the PR satisfies, a **Goal**, an **Integration**
+  bullet that places the change in the architecture (layer, modules, flow;
+  diagram when more than one layer), and Area/Priority/Tier/Owner. Two
+  outcomes → finding (rule 17); a missing Integration bullet on a kernel
+  change → finding (the board card is the maintainer's only view).
 - The plan row flips to ✅ in this PR; the architecture sections the entry
   names are updated in this PR; a lasting decision has an ADR numbered
   after rebase.
