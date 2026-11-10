@@ -25,26 +25,40 @@ copyright = """
 ocai is source-available under the Functional Source License (FSL-1.1-ALv2).
 """
 
-# Explicit navigation. Section index pages (navigation.indexes) are the
-# README.md of each directory. docs/plans/archive/ (pre-rearchitecture plans)
+# Explicit navigation. Top-level entries render as header TABS
+# (navigation.tabs): the libraries, the platform, the spec, and the
+# constitution are separate information spaces on one site. Section index
+# pages (navigation.indexes) are the README.md of each directory. docs/plans/archive/ (pre-rearchitecture plans)
 # is intentionally left out of the nav; it still builds and is reachable from
 # the roadmap page.
 nav = [
   { "Home" = "index.md" },
+  { "Libraries" = [
+    "libraries/README.md",
+    { "Python" = [
+      "libraries/python/README.md",
+      { "Writing a plugin" = "writing-a-plugin.md" },
+    ] },
+    { "TypeScript" = "libraries/typescript.md" },
+    { "Go" = "libraries/go.md" },
+  ] },
+  { "Platform" = [
+    "platform/README.md",
+  ] },
+  { "Spec" = [
+    "spec/README.md",
+    { "Providers" = [
+      "providers/README.md",
+      { "Feature matrix" = "provider-feature-matrix.md" },
+      { "OpenAI" = "providers/openai.md" },
+      { "Anthropic" = "providers/anthropic.md" },
+      { "Google Gemini" = "providers/google-gemini.md" },
+      { "Mistral" = "providers/mistral.md" },
+      { "Research: feature matrix" = "providers/feature-matrix.md" },
+      { "Research: common interface" = "providers/common-interface.md" },
+    ] },
+  ] },
   { "Architecture" = "architecture.md" },
-  { "Guides" = [
-    { "Writing a plugin" = "writing-a-plugin.md" },
-  ] },
-  { "Providers" = [
-    "providers/README.md",
-    { "Feature matrix" = "provider-feature-matrix.md" },
-    { "OpenAI" = "providers/openai.md" },
-    { "Anthropic" = "providers/anthropic.md" },
-    { "Google Gemini" = "providers/google-gemini.md" },
-    { "Mistral" = "providers/mistral.md" },
-    { "Research: feature matrix" = "providers/feature-matrix.md" },
-    { "Research: common interface" = "providers/common-interface.md" },
-  ] },
   { "Roadmap" = [
     "plans/README.md",
     { "Core modernization" = "plans/core-modernization.md" },
@@ -92,6 +106,8 @@ features = [
     "navigation.instant.prefetch",
     "navigation.path",
     "navigation.sections",
+    "navigation.tabs",
+    "navigation.tabs.sticky",
     "navigation.top",
     "navigation.tracking",
     "search.highlight",

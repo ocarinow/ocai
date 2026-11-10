@@ -85,21 +85,24 @@ uv add "ocai[openai]"  # core + the OpenAI plugin
 
 ## Where to next
 
-- [Architecture](architecture.md) — **the structural contract**: every layer,
-  object, and interaction. When code and this document disagree, one gets
-  fixed in the same PR.
-- [Writing a plugin](writing-a-plugin.md) — the community-plugin guide, with
-  the `ocai-contrib-echo` template.
-- [Providers](providers/README.md) — the shipped
-  [feature matrix](provider-feature-matrix.md) and the per-provider wire
-  research that informs the IR.
+The site is organised as tabs, one per information space:
+
+- [Libraries](libraries/README.md) — the public implementations:
+  [Python](libraries/python/README.md) (implemented), TypeScript and Go
+  (deferred), and the [plugin author guide](writing-a-plugin.md).
+- [Platform](platform/README.md) — the enterprise platform modules built on
+  the kernel (gateway, telemetry, audit, eval, registries, agent runtime),
+  each with its own status.
+- [Spec](spec/README.md) — the language-neutral truth every port
+  implements, plus the [provider wire research](providers/README.md) and the
+  shipped [feature matrix](provider-feature-matrix.md).
+- [Architecture](architecture.md) — **the structural contract**: every
+  layer, object, and interaction. When code and this document disagree, one
+  gets fixed in the same PR.
 - [Roadmap](plans/README.md) — milestones, work units, and the core
   modernization program.
 - [Decisions](decisions/README.md) — the ADRs: why each contract shape was
   chosen over the alternatives.
-- [`spec/`](https://github.com/ocarinow/ocai/tree/main/spec) in the
-  repository — the language-neutral truth every port implements, starting
-  with [`spec/canonical-json.md`](https://github.com/ocarinow/ocai/blob/main/spec/canonical-json.md).
 
 ## Local docs workflow
 
