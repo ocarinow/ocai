@@ -1,9 +1,12 @@
 # ocai roadmap
 
 **Current direction (November 2026):** the Python
-[governed gateway program](gateway-readiness.md) is implemented in reviewable WU PRs,
-following merged WU-17–20. Review/merge status is separate from the implementation
-checkboxes below; see the [integration guide](../gateway-integration.md).
+[governed gateway program](gateway-readiness.md) is merged, following WU-17–20;
+see the [integration guide](../gateway-integration.md). The proposed
+[tier 1–2 integration program](integration-program.md) sequences host foundations,
+chat completeness, provider qualification and the first telemetry/cost libraries.
+Its plan must merge before implementation; each WU then branches from current
+main and waits for review and merge before the next starts.
 The release gate remains [ADR 0005](../decisions/0005-revised-freeze-gate.md).
 The platform vision includes agent execution/management, telemetry, auditing,
 evaluation, and typed registries. Other language implementations are deferred.
@@ -62,6 +65,42 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-31 | Encode canonical client stream events | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-32 | Prove governed gateway paths | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-33 | Publish the platform and gateway design | Platform design | [platform design](platform-design.md) | ✅ Complete |
+| WU-36 | Define the tier 1–2 integration program | Integration | [integration](integration-program.md) | ✅ Complete (plan) |
+| WU-37 | Declare host-specific dialect versions | Integration | [integration](integration-program.md) | ⬜ |
+| WU-38 | Compose explicit host endpoints and profiles | Integration | [integration](integration-program.md) | ⬜ |
+| WU-39 | Select framing independently of semantic conversion | Integration | [integration](integration-program.md) | ⬜ |
+| WU-40 | Qualify URL citations on canonical text | Integration | [integration](integration-program.md) | ⬜ |
+| WU-41 | Admit server-tool definitions on ChatRequest | Integration | [integration](integration-program.md) | ⬜ |
+| WU-42 | Preserve required server-tool replay anchors | Integration | [integration](integration-program.md) | ⬜ |
+| WU-43 | Account for provider-executed search requests | Integration | [integration](integration-program.md) | ⬜ |
+| WU-44a | Declare the DeepSeek compatible interface variant | Integration | [integration](integration-program.md) | ⬜ |
+| WU-44b | Certify the DeepSeek compatible dialect variant | Integration | [integration](integration-program.md) | ⬜ |
+| WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ⬜ |
+| WU-46 | Qualify DeepSeek streaming | Integration | [integration](integration-program.md) | ⬜ |
+| WU-47 | Sign independent transport attempts with SigV4 | Integration | [integration](integration-program.md) | ⬜ |
+| WU-48 | Host Anthropic unary calls on Bedrock InvokeModel | Integration | [integration](integration-program.md) | ⬜ |
+| WU-49 | Parse AWS EventStream without I/O | Integration | [integration](integration-program.md) | ⬜ |
+| WU-50 | Stream Anthropic through Bedrock envelopes | Integration | [integration](integration-program.md) | ⬜ |
+| WU-51 | Declare the Bedrock Converse interface | Integration | [integration](integration-program.md) | ⬜ |
+| WU-52 | Certify Converse unary conversion | Integration | [integration](integration-program.md) | ⬜ |
+| WU-53 | Execute Converse unary through public APIs | Integration | [integration](integration-program.md) | ⬜ |
+| WU-54 | Certify Converse streaming conversion | Integration | [integration](integration-program.md) | ⬜ |
+| WU-55 | Host Chat Completions on Azure v1 | Integration | [integration](integration-program.md) | ⬜ |
+| WU-56 | Preserve Azure content-filter evidence in streams | Integration | [integration](integration-program.md) | ⬜ |
+| WU-57 | Honor Azure millisecond retry hints | Integration | [integration](integration-program.md) | ⬜ |
+| WU-58 | Qualify vLLM as an existing-codec host | Integration | [integration](integration-program.md) | ⬜ |
+| WU-59 | Distinguish exhausted credit from authentication failure | Integration | [integration](integration-program.md) | ⬜ |
+| WU-60 | Qualify OpenRouter as an existing-codec host | Integration | [integration](integration-program.md) | ⬜ |
+| WU-61 | Carry inbound trace context explicitly | Integration | [integration](integration-program.md) | ⬜ |
+| WU-62 | Observe stream progress and terminal evidence | Integration | [integration](integration-program.md) | ⬜ |
+| WU-63 | Export metadata through the first OTel satellite | Integration | [integration](integration-program.md) | ⬜ |
+| WU-64 | Load model descriptors as attributable profile data | Integration | [integration](integration-program.md) | ⬜ |
+| WU-65 | Refresh model facts into reviewable diffs | Integration | [integration](integration-program.md) | ⬜ |
+| WU-66 | Name cache-write consumption explicitly | Integration | [integration](integration-program.md) | ⬜ |
+| WU-67 | Add a request-level cache hint without replacing CacheConfig | Integration | [integration](integration-program.md) | ⬜ |
+| WU-68 | Execute Anthropic prompt-cache intent honestly | Integration | [integration](integration-program.md) | ⬜ |
+| WU-69 | Price measured usage in a cost satellite | Integration | [integration](integration-program.md) | ⬜ |
+| WU-70 | Pace requests from measured rate-limit signals | Integration | [integration](integration-program.md) | ⬜ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
