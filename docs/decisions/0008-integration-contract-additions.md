@@ -1,9 +1,10 @@
 # 0008 — Additive integration contracts before the qualification gate
 
-- **Status:** WU-37–38 host declarations and composition accepted; remaining proposals pending
+- **Status:** WU-37–38 and WU-40 citations accepted; remaining proposals pending
 - **Date:** 2026-11-10
 - **Deciders:** maintainer authorized WU-37 after PR #27 and WU-38 after PR #30
-  merged; later contract proposals remain pending
+  merged; directed execution of assigned integration WUs on 2026-11-11.
+  WU-40 citation acceptance is recorded here; other implementation portions remain pending.
 
 ## Context
 
@@ -97,7 +98,7 @@ Sources: [Hosting, Mapping (a)](../capabilities/hosting-and-aggregators.md),
 [Bedrock §13(a–b)](../providers/amazon-bedrock.md),
 [Azure §11/13](../providers/azure-openai.md).
 
-### Citations and server-tool request intent (WU-40–41)
+### Citations (WU-40 accepted) and server-tool intent (WU-41 proposed)
 
 Extend existing Annotation with optional open kind (including url_citation),
 a source-result reference and native metadata. Retain Span, url, document_index,
@@ -115,6 +116,18 @@ Unpositioned whole-block citations stay representable. Invalid spans are retaine
 as unpositioned evidence in a censused extension, never silently repaired and
 never allowed to make total decode raise. Streaming reuses DeltaAnnotation and
 must prove fold/PART_STOP parity in the same change.
+
+WU-40 names the local reference `SourceResultRef(call_id, pointer)` and the
+optional annotation field `source_result`; `kind` is an open string. Native
+provider metadata uses existing registered extension lanes. Validation uses the
+actual decoded text's Unicode code points without NFC rewriting. `cited_text`
+quotes a source and is not assumed equal to the attributed output slice; a codec
+can separately supply the expected output slice when checking offsets. Malformed
+positions are retained in a registered extension and exposed without a span.
+Validation is deferred until final text is known, so annotations may arrive before
+their text deltas without being prematurely rejected.
+
+The following WU-41 addition remains proposed:
 
 Add a tagged ServerTool alternative to ChatRequest.tools, retaining untagged
 function Tool serialization. The initial common intent is an open kind plus
