@@ -84,7 +84,7 @@ type ErrorRefiner = Callable[[OcaiError], OcaiError | None]
 _ATTEMPT_CAP = 32
 
 
-def _build_request(
+def build_request(
     binding: Binding, spec: EndpointSpec, payload: dict[str, Any]
 ) -> tuple[EnvelopeTransform, HttpRequest]:
     """Build the wire request for one attempt — steps 3 of the pipeline.
@@ -234,6 +234,7 @@ class SyncDriver:
         payload: dict[str, Any],
         ctx: CallContext | None = None,
         budget: Deadline | None = None,
+        request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
     ) -> dict[str, Any]:
         """Run one non-streaming operation through the full pipeline (blocking).
@@ -249,6 +250,7 @@ class SyncDriver:
             payload: The already-encoded dialect request body.
             ctx: Trusted per-call facts; never encoded into provider requests.
             budget: Shared whole-call budget, or derived from ctx.
+            request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
 
         Returns:
@@ -267,7 +269,9 @@ class SyncDriver:
         while True:
             budget.remaining()
             _guard_attempts(attempt + admission)
-            envelope, request = _build_request(self._binding, spec, payload)
+            envelope, request = build_request(self._binding, spec, payload)
+            if request_guard is not None:
+                request_guard(request)
             request.ctx = ctx
             request.attempt = attempt
             request.admission = admission
@@ -281,6 +285,8 @@ class SyncDriver:
                 admission += 1
                 continue
             # Step 4: the leaf. After every hook, fresh on every attempt.
+            if request_guard is not None:
+                request_guard(request)
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
@@ -323,6 +329,7 @@ class SyncDriver:
         payload: dict[str, Any],
         ctx: CallContext | None = None,
         budget: Deadline | None = None,
+        request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
         pipeline: StreamPipeline | None = None,
     ) -> Iterator[Any]:
@@ -348,6 +355,7 @@ class SyncDriver:
             payload: The already-encoded dialect request body.
             ctx: Trusted per-call facts; never encoded into provider requests.
             budget: Shared whole-call budget, or derived from ctx.
+            request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
@@ -372,7 +380,9 @@ class SyncDriver:
         while True:
             budget.remaining()
             _guard_attempts(attempt + admission)
-            _, request = _build_request(self._binding, spec, payload)
+            _, request = build_request(self._binding, spec, payload)
+            if request_guard is not None:
+                request_guard(request)
             request.ctx = ctx
             request.attempt = attempt
             request.admission = admission
@@ -387,6 +397,8 @@ class SyncDriver:
                 budget.sleep(decision.after)
                 admission += 1
                 continue
+            if request_guard is not None:
+                request_guard(request)
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
@@ -483,6 +495,7 @@ class AsyncDriver:
         payload: dict[str, Any],
         ctx: CallContext | None = None,
         budget: Deadline | None = None,
+        request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
     ) -> dict[str, Any]:
         """Run one non-streaming operation through the full pipeline (async).
@@ -495,6 +508,7 @@ class AsyncDriver:
             payload: The already-encoded dialect request body.
             ctx: Trusted per-call facts; never encoded into provider requests.
             budget: Shared whole-call budget, or derived from ctx.
+            request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
 
         Returns:
@@ -512,7 +526,9 @@ class AsyncDriver:
         while True:
             budget.remaining()
             _guard_attempts(attempt + admission)
-            envelope, request = _build_request(self._binding, spec, payload)
+            envelope, request = build_request(self._binding, spec, payload)
+            if request_guard is not None:
+                request_guard(request)
             request.ctx = ctx
             request.attempt = attempt
             request.admission = admission
@@ -526,6 +542,8 @@ class AsyncDriver:
                 admission += 1
                 continue
             # Step 4: the leaf. After every hook, fresh on every attempt.
+            if request_guard is not None:
+                request_guard(request)
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
@@ -571,6 +589,7 @@ class AsyncDriver:
         payload: dict[str, Any],
         ctx: CallContext | None = None,
         budget: Deadline | None = None,
+        request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
         pipeline: StreamPipeline | None = None,
     ) -> AsyncIterator[Any]:
@@ -591,6 +610,7 @@ class AsyncDriver:
             payload: The already-encoded dialect request body.
             ctx: Trusted per-call facts; never encoded into provider requests.
             budget: Shared whole-call budget, or derived from ctx.
+            request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
@@ -614,7 +634,9 @@ class AsyncDriver:
         while True:
             budget.remaining()
             _guard_attempts(attempt + admission)
-            _, request = _build_request(self._binding, spec, payload)
+            _, request = build_request(self._binding, spec, payload)
+            if request_guard is not None:
+                request_guard(request)
             request.ctx = ctx
             request.attempt = attempt
             request.admission = admission
@@ -629,6 +651,8 @@ class AsyncDriver:
                 await budget.asleep(decision.after)
                 admission += 1
                 continue
+            if request_guard is not None:
+                request_guard(request)
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining

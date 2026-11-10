@@ -46,6 +46,8 @@ from ocai.chat.types import Usage
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from ocai.chat.facade import InterceptedChatModel
+    from ocai.chat.facade import ObservedChatModel
     from ocai.convert.catalog import Catalog
     from ocai.core.credentials import Credential
     from ocai.core.fidelity import Route
@@ -96,7 +98,7 @@ def model(
     observers: Sequence[Observer] = (),
     interface: str | None = None,
     tag: str | None = None,
-) -> ChatModel:
+) -> WireChatModel | InterceptedChatModel | ObservedChatModel:
     """Build a chat model from one spec string — the §3.4 core front door.
 
     The whole provider+model choice is ONE data value
@@ -237,7 +239,7 @@ def model(
 
         transport = HttpxTransport(provider=provider)
     binding = Binding(host=host, credentials=credentials, transport=transport)
-    facade: ChatModel = WireChatModel(
+    facade: WireChatModel | InterceptedChatModel | ObservedChatModel = WireChatModel(
         codec,
         binding,
         composed,

@@ -45,6 +45,7 @@ from ocai.convert.graph import Converted
 from ocai.convert.graph import Edge
 from ocai.convert.graph import StreamEdge
 from ocai.convert.graph import StreamPipeline
+from ocai.convert.inspection import ConversionInspection
 from ocai.convert.resources import ConformanceResources
 from ocai.core.canonjson import canonical
 from ocai.core.errors import OcaiError
@@ -680,6 +681,20 @@ class Catalog:
             reason=reason,
             catalog_hash=self.lock().hash,
         )
+
+    def inspect(self, src: NodeId, dst: NodeId, *,
+                streaming: bool = False) -> ConversionInspection:
+        """Inspect selected declarations without executing or claiming conformance."""
+        if src.shape != dst.shape:
+            raise ConversionError(f"cannot inspect across shapes: {src.shape} -> {dst.shape}")
+        graph = self._graphs.get(src.shape)
+        if graph is None:
+            raise ConversionError(f"no conversion edges registered for shape {src.shape}")
+        edges = graph.inspect(src, dst, streaming=streaming)
+        origins = {edge.origin for edge in edges}
+        resources = tuple(fragment.conformance for fragment in self.fragments
+                          if fragment.origin in origins and fragment.conformance is not None)
+        return ConversionInspection(src, dst, edges, self.lock().hash, streaming, resources)
 
     def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
         """Convert `payload` between two nodes of one shape.

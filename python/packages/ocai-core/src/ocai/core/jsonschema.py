@@ -51,6 +51,14 @@ class _Missing:
 
     __slots__ = ()
 
+    def __copy__(self) -> _Missing:
+        """Preserve the singleton absent-value marker in shallow snapshots."""
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _Missing:
+        """Preserve absent-vs-null semantics in detached request snapshots."""
+        return self
+
     def __repr__(self) -> str:
         """Return the constant representation `"MISSING"`."""
         return "MISSING"

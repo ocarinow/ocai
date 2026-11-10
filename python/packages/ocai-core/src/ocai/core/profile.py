@@ -140,3 +140,15 @@ def resolve_support(profiles: Sequence[CapabilityProfile], feature: str) -> Supp
         if declared is not None:
             return declared
     return Support.NATIVE
+
+
+def declared_support(profiles: Sequence[CapabilityProfile], feature: str) -> Support | None:
+    """Return an explicit declaration, or None for unqualified/unknown coverage.
+
+    Unlike the legacy permissive gate, public inspection never treats silence
+    as proof of native support. Profiles must already be specificity-ranked.
+    """
+    for profile in profiles:
+        if feature in profile.features:
+            return profile.features[feature]
+    return None

@@ -126,7 +126,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-27 — Expose immutable execution inspection
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Conversion.
 - **Scope:** Publish prepared execution handles and inspection data: route/path, declarations, coverage uncertainty, payload findings, catalog/configuration identity; snapshots cannot change between inspection and execution. Owns chat/facade.py, convert/, core/profile.py, tests. Other WU outcomes are out of scope.
 - **Done:** Public APIs inspect and execute the same preparation; mutable input changes cannot change approved payload, and foreign/stale preparation is rejected before I/O.
