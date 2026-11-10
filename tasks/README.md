@@ -27,6 +27,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 |---|---|
 | `task check` | The full gate, identical to CI (alias of py:check) |
 | `task default` | List every task |
+| `task env` | Activate an environment: copy .envs/.env.<ENV> to the root .env (task env -- <ENV>); with no argument, list the available ones |
 | `task setup` | One-time setup for a fresh clone — environment, docs group, gh auth check |
 
 ## Python workspace — environment, lint, types, tests, the gate

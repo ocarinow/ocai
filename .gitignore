@@ -43,3 +43,9 @@ node_modules/
 .output/
 platform/test-results/
 platform/playwright-report/
+
+# Local environment files: the root .env is the active one, .envs/ holds the
+# per-environment variants (`task env -- <ENV>` copies .envs/.env.<ENV> to .env).
+# Never committed: they hold credentials.
+/.env
+/.envs/

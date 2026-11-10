@@ -261,6 +261,11 @@ Several agents (and humans) work this repo concurrently. The protocol:
 - **Commit messages are plain.** `WU-NN: imperative summary` on the first
   line, the why in the body. See `CONTRIBUTING.md` for the sign-off
   requirement.
+- **Environment files stay local.** The root `.env` and the `.envs/` folder
+  (`.envs/.env.<ENV>`, one per environment) are gitignored and hold
+  credentials; `task env -- <ENV>` activates one by copying it to `.env`.
+  Never commit, print, or paste their contents; rule 13 still applies in
+  code (`ApiKey.from_env` reads a variable only when called).
 - **Never publish session or tool metadata — anywhere.** This repository is
   public. Nothing that leaves the local machine may contain: links to an AI
   coding session (`claude.ai/code/session_…`, Codex thread URLs, or any

@@ -42,6 +42,24 @@ tasks:
     cmds:
       - task: py:check
 
+  env:
+    desc: "Activate an environment: copy .envs/.env.<ENV> to the root .env (task env -- <ENV>); with no argument, list the available ones"
+    silent: true
+    cmds:
+      - |
+        env="{{.CLI_ARGS}}"
+        if [ -z "$env" ]; then
+          echo "available environments (.envs/.env.<ENV>):"
+          ls .envs/.env.* 2>/dev/null | sed 's|.envs/.env.|  |' || echo "  (none: create .envs/.env.<ENV>)"
+          [ -f .env ] && echo "active: .env ($(wc -l < .env | tr -d ' ') lines)" || echo "active: none"
+          exit 0
+        fi
+        src=".envs/.env.$env"
+        if [ ! -f "$src" ]; then
+          echo "no such environment: $src"; echo "available:"; ls .envs/.env.* 2>/dev/null | sed 's|.envs/.env.|  |'; exit 1
+        fi
+        cp "$src" .env && echo "activated $env -> .env ($(wc -l < .env | tr -d ' ') lines)"
+
   tasks:readme:
     desc: Regenerate tasks/README.md (the task catalogue every session reads) from the task definitions
     cmds:
