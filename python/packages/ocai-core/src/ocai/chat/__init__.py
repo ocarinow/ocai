@@ -194,8 +194,8 @@ def model(
         route = composed.resolve(CHAT, provider, interface=interface, tag=tag)
     else:
         # Unpinned: auto-select only among component-backed interfaces (the
-        # ones this catalog can serve), then apply resolve's own newest-wins
-        # ordering across the surviving candidates.
+        # ones this catalog can serve). Multiple eligible sibling APIs require
+        # an explicit pin; newer dates do not imply interface preference.
         routes: list[Route] = []
         for component in components:
             try:
@@ -209,7 +209,13 @@ def model(
             raise ResolutionError(
                 f"no serveable chat interface for provider {provider!r}{pin} in this catalog"
             )
-        route = max(routes, key=lambda r: (r.node.released, str(r.node)))
+        if len(routes) > 1:
+            names = ", ".join(sorted(route.node.interface for route in routes))
+            raise ResolutionError(
+                f"ambiguous serveable interfaces for {provider}: {names}; "
+                "pass interface= explicitly"
+            )
+        route = routes[0]
     codec = composed.component(provider, route.node.interface, CHAT)()
     if host is None:
         base_url = codec.dialect_traits().first_party_base_url

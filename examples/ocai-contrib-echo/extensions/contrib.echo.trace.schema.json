@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "contrib.echo.trace",
+  "description": "Synthetic request correlation metadata retained by the echo conversion example.",
+  "x-ocai-origin": "ocai-contrib-echo",
+  "x-ocai-promotion": "none expected",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id"
+  ],
+  "additionalProperties": false
+}

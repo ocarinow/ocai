@@ -399,6 +399,12 @@ author-declared. `Converted(value, report)` named result. `StreamEdge` is a
 so chunk-shape edges are planned by the same machinery — streaming conversion
 joins the graph instead of bypassing it.
 
+One graph admits one shape. Identical directed-edge registrations are idempotent;
+competing functions/factories, contracts, origins, or notes on a directed pair
+are rejected. A four-coordinate node cannot carry contradictory release/status
+metadata. Unary and streaming planners break equal-grade ties by destination
+coordinates, independently of registration order.
+
 ### 4.2 `contract.py` — EdgeContract
 An edge's declared per-field disposition census. Core derives the planner
 weight as a lexicographic `LossGrade` (unsupported+dropped, approximated,
@@ -414,8 +420,22 @@ traits) with **no import-time mutation**. Applications compose
 `Catalog.of(openai.FRAGMENT, ...)` — immutable, provenance-stamped;
 `Catalog.discover()` (entry points) is an opt-in convenience. `TrustPolicy.
 OWNED_ENDPOINTS` by default: a fragment may only register edges touching
-shapes it publishes or canonical — foreign bridging needs named opt-in.
+interfaces it publishes or canonical — foreign bridging needs named opt-in.
 `Catalog.lock()` emits a diffable lockfile whose hash lands in every `Route`.
+
+WU-20 rejects conflicting nodes, directed edges, same-pattern profiles, and
+component factories at composition. Builders snapshot declaration mappings;
+failed additions leave the builder usable. Profiles sort by literal-prefix
+specificity, then lexical pattern. Dates rank revisions within one interface;
+multiple eligible sibling interfaces require an explicit `interface=` pin.
+The chat front door applies this to serveable interfaces, excluding stubs.
+
+Lock format `ocai.catalog-lock/2` includes structured node/endpoint metadata,
+full contracts, traits, and optional conformance-resource locations. Reordering
+the same declarations does not change the hash. The new format changes hashes
+from the old format. Code, package artifacts, fixture contents, and schema
+contents are not hashed: this is a declaration fingerprint, not proof of binary
+reproducibility or certified behavior.
 
 ### 4.4 `migrate.py` — IR self-migration
 When canonical revision `ocai@2027-01` ships, this module registers certified
@@ -428,6 +448,16 @@ Pure-stdlib harness plugins import: golden-fixture runner, EdgeContract-vs-
 runtime-loss certifier, **fold triple** fixtures (wire event log → canonical
 chunks → folded response, asserted with `canonjson.semantic_equal`), and
 normative unknown-X fixtures every language port must pass.
+
+`check_fragment` matches fixture coordinates, requires every payload edge to
+have evidence, checks independent expected output/records, and certifies emitted
+records against declarations. Streaming edges still need fold triples.
+`resources.py` loads explicit `ConformanceResources` manifests from installed
+packages through `importlib.resources`; it rejects missing/malformed resources
+and conflicting extension schemas. The caller supplies a schema validator and
+selects the canonical extension bags to validate. No validation dependency
+enters runtime packages. Catalog discovery records locations without loading
+schemas or executing tests.
 
 ## 5. `ocai.runtime` — movement
 

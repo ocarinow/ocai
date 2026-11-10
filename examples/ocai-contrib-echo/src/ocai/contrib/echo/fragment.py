@@ -16,6 +16,7 @@ from ocai.convert.catalog import CatalogFragment
 from ocai.convert.contract import EdgeContract
 from ocai.convert.graph import Edge
 from ocai.convert.graph import EdgeOutput
+from ocai.convert.resources import ConformanceResources
 from ocai.core.identity import CHAT_REQUEST
 from ocai.core.identity import CHAT_RESPONSE
 from ocai.core.identity import NodeId
@@ -60,6 +61,9 @@ def _decode_response(payload: dict[str, Any]) -> EdgeOutput:
 
 FRAGMENT = CatalogFragment(
     origin=ECHO_ORIGIN,
+    conformance=ConformanceResources(
+        package="ocai.contrib.echo", extensions="conformance/extensions"
+    ),
     nodes=(ECHO_CHAT_REQUEST, ECHO_CHAT_RESPONSE),
     edges=(
         Edge(OCAI_CHAT_REQUEST, ECHO_CHAT_REQUEST, _encode_request, _CONTRACT, ECHO_ORIGIN),
