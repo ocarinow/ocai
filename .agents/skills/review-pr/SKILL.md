@@ -12,11 +12,10 @@ runtime loss, and privacy. This skill is the mechanics around it.
 ## 1. Fetch into a scratch worktree, never the shared checkout
 
 ```bash
-cd <repo> && git fetch origin
-git worktree add --detach <scratch>/review-pr-NN origin/<head branch>
-cd <scratch>/review-pr-NN
+task pr:review -- NN      # scratch worktree at the PR head, diff stat, the full gate
+cd ../ocai-worktrees/review-pr-NN
 gh pr view NN --json title,body,baseRefName,headRefName,files
-git diff origin/main...HEAD --stat && git diff origin/main...HEAD
+git diff origin/main...HEAD
 ```
 
 ## 2. Run the gate exactly as CI does
@@ -55,7 +54,7 @@ Save the review to a file first (the maintainer can post it if posting is
 blocked), run the privacy guard on it, then:
 
 ```bash
-gh pr review NN --comment --body-file <file>     # or --request-changes
+task pr:post-review -- NN <file>     # privacy scan, then a comment review
 ```
 
 End with one verdict line (ship / ship after fixes / do not ship) and the

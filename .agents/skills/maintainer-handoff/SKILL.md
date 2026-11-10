@@ -28,14 +28,12 @@ calls a careful colleague would make.
 2. File it:
 
    ```bash
-   gh issue create --template decision-needed.yml \
-     --title "Decision: <one line>" --body-file <file>
+   task board:decision -- "Decision: <one line>" <file>
    ```
 
-   The template carries the `decision` and `blocked-maintainer` labels; the
-   board sync moves the card. Public repository: run
-   `uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text <file>`
-   on the body first.
+   The task runs the privacy guard on the body, then files the issue with
+   the `decision` and `blocked-maintainer` labels; the board sync moves the
+   card.
 3. If the decision outlives the PR, note that the answer becomes an ADR in
    `docs/decisions/` (numbered after rebasing onto `main`).
 4. Continue with the parts of the WU that do not depend on the answer. If
