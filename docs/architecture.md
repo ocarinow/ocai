@@ -808,3 +808,26 @@ from different models do not "convert"); batch fan-out lives in facades;
 `Job`/`JobHandle` is the reserved name for the async-job vocabulary (never
 `Operation`); `Catalog.resolve` gains a `role=` kwarg when the first multi-op
 capability lands.
+
+## 12. Platform product boundary
+
+The accepted repository layout is recorded in
+[ADR 0006](decisions/0006-platform-product-layout.md). Top-level `python/`,
+`typescript/`, and `go/` hold independently distributed libraries. Deployable
+products belong under `platform/`: backend services in `services/`, user-facing
+applications in `apps/`, and internal reusable code in `packages/`. The gateway's
+target location is `platform/services/gateway/`; these locations do not imply
+that platform services are implemented yet.
+
+Platform products depend on public ocai libraries; those libraries never depend
+on platform implementation code. Independently usable satellite libraries may
+live under the language directories, while their consuming services remain under
+`platform/`. Provider conversion stays in plugins, and product administration,
+storage, authorization, and orchestration stay outside the kernel.
+
+Root `spec/` remains the canonical kernel contract source. Platform APIs, events,
+and configuration contracts live in `platform/spec/` and reference kernel
+contracts where needed. Platform dependency environments and lockfiles are
+separate from library development. The scaffolding WU must add the corresponding
+boundary and integration checks to repository verification. The broader product
+direction is documented in [the platform overview](platform/README.md).

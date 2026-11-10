@@ -44,6 +44,16 @@ nav = [
   ] },
   { "Platform" = [
     "platform/README.md",
+    { "Product portfolio" = "platform/products.md" },
+    { "AI Gateway" = "platform/gateway.md" },
+    { "Stack and console" = "platform/stack.md" },
+    { "Security and trust" = "platform/security.md" },
+    { "Evidence and observability" = "platform/evidence.md" },
+    { "Compartments and knowledge" = "platform/compartments.md" },
+    { "Catalogs and studios" = "platform/authoring.md" },
+    { "Agent execution" = "platform/execution.md" },
+    { "Delivery and qualification" = "platform/delivery.md" },
+    { "Direction and open decisions" = "platform/decisions.md" },
   ] },
   { "Spec" = [
     "spec/README.md",
