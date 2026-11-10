@@ -2,7 +2,7 @@
 
 Source: maintainer request to "produce docs/plans/integration-program.md" from
 [the capability roadmap](../capabilities/README.md), then implement one WU per
-PR, waiting for review and merge between WUs.
+PR. The maintainer subsequently authorized stacked PRs, retaining one WU per PR.
 
 ## Baseline and sequencing
 
@@ -18,9 +18,12 @@ and per-part `CacheHint` also exist. This program extends and qualifies them.
 
 WU-34/35 belong to the separate platform MVP track. This program owns WU-36–70.
 The plan PR is WU-36 only: future WU entries are contracts, not implementation.
-After its merge, execute entries in the order below, each from then-current main.
-Every implementation PR must merge before the next begins; no stacked PRs.
-Dependencies identify technical prerequisites in addition to that serial rule.
+Execute entries in dependency order with one WU per branch and PR. Stacked PRs
+are permitted: a dependent WU targets its predecessor branch so its diff contains
+only its own changes. Keep the stack rooted in current main; after a predecessor
+merges, rebase and retarget its successor onto main before merging it.
+Dependencies remain implementation prerequisites; they need not have merged before
+a dependent draft starts. Each WU is reviewed and merged separately.
 No TypeScript/Go implementation, gateway HTTP serving, identity administration,
 budget enforcement, persistence, agent orchestration, or other platform MVP work
 is included. The first satellites here are independently packaged libraries.
@@ -47,7 +50,7 @@ extension schemas, architecture sections and status rows. File estimates exclude
 mechanical regeneration; stop and split by a plan amendment before exceeding
 roughly 40 non-mechanical files or adding a second observable outcome. Shared
 files are edited only in the owning sections, in an isolated worktree. Rebase
-onto current main before opening each PR. Newly discovered kernel gaps go in
+the stack onto current main before opening each PR. Newly discovered kernel gaps go in
 `gaps.md`, not into a widened implementation.
 
 Use `wu-session`, `add-edge` for every changed/new edge, and `record-wire-pair`
@@ -66,7 +69,7 @@ live API tests. Unconfirmed claims stay excluded; if essential to Done, the WU
 is blocked and its Open item is updated. Every WU runs
 `uv run python scripts/check.py`, pastes its summary verbatim, and runs
 `scripts/privacy_check.py` before pushing. A checked box denotes completed WU
-work; PR review/merge is a separate prerequisite for starting its successor.
+work; each PR still requires its own review and merge.
 
 ### Hosting coverage inventory
 
@@ -174,7 +177,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-39 — Select framing independently of semantic conversion
 
-- [ ] **Status:** not started.
+- [ ] **Status:** in progress; stacked on WU-38 (PR #35).
 - **Scope:** `wire/hosting.py`, transport/framing contracts, both drivers and facade
   stream plumbing; 15–25 files. Add an optional host framing/envelope selection
   contract with SSE as the legacy default; codecs continue receiving decoded
