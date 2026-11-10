@@ -1,14 +1,16 @@
 # Horizon milestones
 
 **Historical ordering.** The [core modernization plan](core-modernization.md)
-now determines execution order and release gates. The descriptions below retain
-the July scope for reference. Responses alone no longer qualifies a contract
-freeze, and TypeScript/Go implementation is deferred.
+now determines execution order; the release gate is defined by
+[ADR 0005](../decisions/0005-revised-freeze-gate.md). The descriptions below
+retain the July scope for reference. The `/responses` proof (H1) remains
+required for the freeze but no longer qualifies it alone, and TypeScript/Go
+implementation is deferred.
 
 One paragraph each, detailed into WUs only when reached (the roadmap's
 anti-staleness rule: no pretend-detail a year out). Order is intent, not law.
 
-## H1 — `/responses` interface + the migration proof (v0.2 freeze gate)
+## H1 — `/responses` interface + the migration proof (required for the freeze gate)
 
 Implement `ocai.openai.responses` for real: msgspec wire structs, codec (the
 merged `PartReasoning` shape carrying summary + encrypted_content in one part;
@@ -23,8 +25,9 @@ for `previous_response_id` on the way *in*, not just the response id on the
 way out. The proof itself — the wedge feature: identical user code,
 catalog resolution flips `openai/chat_completions → openai/responses`,
 `Route.reason` shows the decision, and the `FidelityReport` shows exactly what
-the migration cost. Per architecture §9 this is a freeze-qualification gate;
-the v0.2 public release (data-contract freeze, first publish) cuts after it.
+the migration cost. Per architecture §9 and ADR 0005 this is one item of the freeze
+qualification; the data-contract freeze cuts after the whole qualification
+is met, not after H1 alone.
 
 ## H2 — Gemini (`ocai-gemini`)
 

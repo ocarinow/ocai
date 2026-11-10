@@ -6,15 +6,17 @@ implementation of this document; when they disagree, fix one *in the same PR*.
 The design was settled in July 2026 (multi-agent design review); the rationale
 for each decision is summarized inline.
 
-Status legend: **[frozen-candidate]** freezes additive-only at v0.2 ·
+Status legend: **[frozen-candidate]** freezes additive-only at the next
+release gate ([ADR 0005](decisions/0005-revised-freeze-gate.md)) ·
 **[provisional]** may still change until exercised · **[stub]** structure only,
 implementation pending.
 
 **November 2026 update:** M1–M3 implement Python chat and streaming for OpenAI
 Chat Completions and Anthropic Messages. The active IR remains `2026-07`.
-The [core modernization plan](plans/core-modernization.md) replaces the original
-freeze assumption: ordered interaction items, replay, and independent plugins
-must be exercised before the next contracts freeze. Draft schemas under
+[ADR 0005](decisions/0005-revised-freeze-gate.md) replaces the original freeze
+assumption: ordered interaction items, replay, and independent plugins must be
+exercised before the next contracts freeze, as sequenced in the
+[core modernization plan](plans/core-modernization.md). Draft schemas under
 `spec/proposals/` are not runtime support or registered graph nodes.
 See the [feature matrix](provider-feature-matrix.md) for implementation gaps.
 
@@ -531,18 +533,23 @@ local adapters: implement the port directly — same CallResult, no wire/runtime
 
 ## 9. Stability domains & freeze staging
 
-Freeze is **earned**: the next release gate follows the
-[modernization qualification](plans/core-modernization.md), including ordered
-item replay, migration, and independent plugin evidence. Only exercised data
-contracts freeze (`ocai.core`
-vocabulary, chat port + chat IR, their `spec/` schemas). `ocai.embedding` /
+Freeze is **earned**. The gate is defined by
+[ADR 0005](decisions/0005-revised-freeze-gate.md) and sequenced by the
+[core modernization plan](plans/core-modernization.md): data contracts
+(`ocai.core` vocabulary, chat port + chat IR, their `spec/` schemas) freeze
+additive-only at the first release after the modernization qualification —
+ordered-item migration evidence (ADR 0003), item-addressed streaming with
+fold parity, an independently packaged plugin passing conformance, and the
+`/responses` interface with its migration proof (H1), which remains required
+but is no longer sufficient on its own. `ocai.embedding` /
 `ocai.vectorstore` stay provisional until they carry `CallResult` in anger.
 Hook protocols, plugin ABI (`CatalogFragment`), profile keys, and observer
 events freeze at v1.0 **only after** the `/responses` migration and one real
-cross-provider failover have been exercised through them — the flagship WUs
-are the freeze qualification gate. Three version axes, never conflated:
-interface **tag** (provider wire), canonical **revision** (`ocai@YYYY-MM`),
-library **semver**.
+cross-provider failover have been exercised through them. A gate never
+changes without an ADR; a plan file sequences work toward a gate and never
+redefines one. Three version axes, never conflated: interface **tag**
+(provider wire), canonical **revision** (`ocai@YYYY-MM`), library
+**semver** — the freeze is a release gate, not a version number.
 
 ## 10. spec/ — the language-neutral truth
 

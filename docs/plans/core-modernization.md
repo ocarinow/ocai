@@ -14,7 +14,7 @@ milestones are split into small work units when reached.
 
 | Work unit | Deliverable | Status |
 |---|---|---|
-| WU-17 | Refresh status, record platform boundaries and revised freeze gates, publish the feature matrix | ✅ Complete |
+| WU-17 | Refresh status, record platform boundaries and revised freeze gates (ADR 0005), publish the feature matrix | ✅ Complete |
 | WU-18 | Repair the independent conversion plugin; test wheel installation, discovery, every edge, and unknown content in CI | ✅ Complete |
 | WU-19 | Draft item schemas and provenance-labelled design fixtures, schema-tested without changing runtime revision | ✅ Complete |
 | WU-20 | [Harden catalog composition and external plugin conformance](wu-20-catalog-conformance.md) | ✅ Complete |
@@ -24,7 +24,7 @@ Acceptance requires schema validity, preservation requirements, negative
 examples, and explicit unresolved decisions. It must not register a new canonical
 node, rewrite existing fixtures, or claim conversions/streaming are implemented.
 
-Completed work units are committed locally; no PRs have been merged. WU-17 follows M1–M3;
+WU-17–20 are merged on `main` (PRs #2, #4, #5, #6). WU-17 follows M1–M3;
 WU-18 and WU-19 depend on that baseline and are otherwise independent. Their
 scope and acceptance are the deliverables above. WU-19 records the candidate under `spec/proposals/ordered-items/` and its
 rationale in [proposed ADR 0003](../decisions/0003-ordered-item-modernization.md).
@@ -82,8 +82,9 @@ The item shape remains open to change before runtime implementation.
    migration, and an independently packaged plugin. Publish representation,
    conversion, and execution support separately. Freeze only exercised contracts.
 
-Implementation units run targeted behavioral tests, the full Python suite,
-Ruff, and import contracts. Schema changes require positive and negative cases.
+Implementation units run targeted behavioral tests, the full gate
+(`uv run python scripts/check.py`: ruff, import contracts, pyright strict, mypy
+strict, pytest — ADR 0002). Schema changes require positive and negative cases.
 Packaging changes require the isolated wheel job. Fixtures must distinguish live
 recordings, documentation examples, and synthetic cases. Schema-valid output
 does not establish a working adapter or fidelity guarantee.
