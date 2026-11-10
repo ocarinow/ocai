@@ -1,4 +1,4 @@
-"""The one verification command: lint, import contracts, tests.
+"""The one verification command: lint, import contracts, types, tests.
 
 Every agent and every human runs the same gate before calling a change done,
 and CI runs the same steps. Usage (from the repo root)::
@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Process exit code: 0 when every step passed.
     """
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--no-tests", action="store_true", help="skip pytest")
     parser.add_argument("--format", action="store_true", help="also run `ruff format --check`")
     args = parser.parse_args(argv)
@@ -96,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.format:
         steps.append(Step("format", ("ruff", "format", "--check")))
     steps.append(Step("import contracts", ("lint-imports",)))
+    steps.append(Step("pyright (strict)", ("pyright",)))
+    steps.append(Step("mypy (strict)", ("mypy",)))
     if not args.no_tests:
         steps.append(Step("pytest", ("pytest",)))
 

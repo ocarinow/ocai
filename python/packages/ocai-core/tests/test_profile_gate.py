@@ -21,6 +21,7 @@ Three tiers, bottom-up:
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -32,7 +33,9 @@ import ocai.openai
 from ocai.chat import CANONICAL_CHAT_REQUEST
 from ocai.chat import CANONICAL_CHAT_RESPONSE
 from ocai.chat import WireChatModel
-from ocai.chat.facade import _request_features
+
+# The gate's census helper is deliberately exercised directly (tier 3a below).
+from ocai.chat.facade import _request_features  # pyright: ignore[reportPrivateUsage]
 from ocai.chat.types import ChatConfig
 from ocai.chat.types import ChatRequest
 from ocai.chat.types import Message
@@ -57,6 +60,9 @@ from ocai.openai.chat_completions.codec import ChatCompletionsCodec
 from ocai.runtime.binding import Binding
 from ocai.wire.hosting import Direct
 from ocai.wire.transport import HttpxTransport
+
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
 
 URL = f"{OPENAI_BASE_URL}{CHAT_COMPLETIONS_PATH}"
 
@@ -263,7 +269,7 @@ def _temperature_request() -> ChatRequest:
 
 
 @respx.mock
-def test_strict_gate_refuses_before_encode_and_before_the_wire(load_http) -> None:
+def test_strict_gate_refuses_before_encode_and_before_the_wire(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_reasoning.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
     spy = _SpyCatalog(CATALOG)
@@ -284,7 +290,7 @@ def test_strict_gate_refuses_before_encode_and_before_the_wire(load_http) -> Non
 
 
 @respx.mock
-async def test_strict_gate_refuses_in_the_async_twin_too(load_http) -> None:
+async def test_strict_gate_refuses_in_the_async_twin_too(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_reasoning.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -294,13 +300,14 @@ async def test_strict_gate_refuses_in_the_async_twin_too(load_http) -> None:
 
 
 @respx.mock
-def test_annotate_gate_records_the_loss_and_sends_verbatim(load_http) -> None:
+def test_annotate_gate_records_the_loss_and_sends_verbatim(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion_reasoning.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
     res = _model(model_name="gpt-5", strict=False).chat(_temperature_request())
 
     # The gate leg leads the report, ahead of the encode leg, then decode.
+    assert res.report is not None
     assert [(e.src, e.dst) for e in res.report.edges] == [
         (CANONICAL_CHAT_REQUEST, CHAT_COMPLETIONS_REQUEST),  # feature gate
         (CANONICAL_CHAT_REQUEST, CHAT_COMPLETIONS_REQUEST),  # encode
@@ -324,7 +331,7 @@ def test_annotate_gate_records_the_loss_and_sends_verbatim(load_http) -> None:
 
 
 @respx.mock
-def test_gate_is_silent_when_the_profile_declares_support(load_http) -> None:
+def test_gate_is_silent_when_the_profile_declares_support(load_http: LoadHttp) -> None:
     # Same knob, non-reasoning model: temperature is NATIVE on the "*"
     # sheet, so no gate leg appears — the report is the plain two-leg one —
     # and strict mode does not bite.
@@ -333,6 +340,7 @@ def test_gate_is_silent_when_the_profile_declares_support(load_http) -> None:
 
     res = _model(model_name="gpt-4o", strict=True).chat(_temperature_request())
 
+    assert res.report is not None
     assert [(e.src, e.dst) for e in res.report.edges] == [
         (CANONICAL_CHAT_REQUEST, CHAT_COMPLETIONS_REQUEST),
         (CHAT_COMPLETIONS_RESPONSE, CANONICAL_CHAT_RESPONSE),

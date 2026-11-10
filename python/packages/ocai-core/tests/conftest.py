@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+from typing import cast
 
 import pytest
 
@@ -14,6 +17,13 @@ def _find_repo_root(start: Path) -> Path:
         if (parent / "spec" / "fixtures").is_dir():
             return parent
     raise RuntimeError("could not locate repo root (no spec/fixtures/ found)")
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    """Read `path` as JSON, requiring an object at the top level."""
+    document: Any = json.loads(path.read_text())
+    assert isinstance(document, dict), f"{path} must hold a JSON object at the top level"
+    return cast(dict[str, Any], document)
 
 
 @pytest.fixture(scope="session")
@@ -42,15 +52,17 @@ def anthropic_src(repo_root: Path) -> Path:
 
 
 @pytest.fixture
-def load_fixture(spec_dir: Path):
-    def _load(name: str) -> dict:
-        return json.loads((spec_dir / "fixtures" / name).read_text())
+def load_fixture(spec_dir: Path) -> Callable[[str], dict[str, Any]]:
+    """Load a golden fixture document from `spec/fixtures/` by relative name."""
+
+    def _load(name: str) -> dict[str, Any]:
+        return _read_json_object(spec_dir / "fixtures" / name)
 
     return _load
 
 
 @pytest.fixture
-def load_http():
+def load_http() -> Callable[[str], dict[str, Any]]:
     """Load a recorded HTTP request/response pair from `tests/http/`.
 
     These are VCR-style recordings replayed via respx (rule 10): no live API
@@ -58,7 +70,7 @@ def load_http():
     """
     http_dir = Path(__file__).resolve().parent / "http"
 
-    def _load(name: str) -> dict:
-        return json.loads((http_dir / name).read_text())
+    def _load(name: str) -> dict[str, Any]:
+        return _read_json_object(http_dir / name)
 
     return _load

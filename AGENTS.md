@@ -111,9 +111,11 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13+.
 
 ```bash
 uv sync                        # create env + install workspace distributions
-uv run python scripts/check.py # THE verification command: ruff + import contracts + pytest
+uv run python scripts/check.py # THE verification command: ruff + import contracts + pyright/mypy strict + pytest
 uv run ruff check              # lint only
 uv run lint-imports            # layer contracts only (architecture §1)
+uv run pyright                 # strict typing: nothing resolves to Unknown (rule 16)
+uv run mypy                    # strict typing, second opinion
 uv run pytest                  # tests only: invariants + conformance
 uv run python examples/cross_conversion_demo.py   # flagship demo #1
 ```
@@ -183,8 +185,10 @@ never a paraphrase of it.
     never by host.
 15. **Source-available, not open source** (FSL-1.1-ALv2). No OSI classifiers.
 16. **Full type hints, `py.typed` in every distribution, `ruff` clean
-    (including the Google-convention docstring rules), `pytest` green.** Mark
-    stubs with `# TODO:` and a one-line note.
+    (including the Google-convention docstring rules), `pyright --strict`
+    and `mypy --strict` clean, `pytest` green.** Nothing may resolve to
+    `Unknown` in an IDE; no `# type: ignore` without a reason code and a
+    comment. Mark stubs with `# TODO:` and a one-line note.
 17. **One work unit (WU) per PR.**
 18. **Docstrings are Google style** (`Args:`/`Returns:`/`Raises:`/`Yields:`),
     never reST field lists or NumPy sections; never repeat a type the

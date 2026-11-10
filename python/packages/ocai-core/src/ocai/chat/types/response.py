@@ -28,6 +28,7 @@ from ocai.chat.types.message import Message
 from ocai.chat.types.usage import Usage
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.core.refs import ProviderRef
 
 
@@ -70,7 +71,7 @@ class ResponseInfo(IRObject):
                 # to extensions) rather than silently dropped.
                 created = None
         return cls(
-            id=ProviderRef.from_dict(ref) if isinstance(ref, dict) else None,
+            id=ProviderRef.from_dict(ref) if is_json_object(ref) else None,
             model=data.get("model"),
             created=created,
             **cls._from_dict_common(data),
@@ -118,14 +119,15 @@ class ChatResponse(IRObject):
         Returns:
             The decoded `ChatResponse`.
         """
+        message: dict[str, Any] = data.get("message") or {}
         finish = data.get("finish")
         usage = data.get("usage")
         info = data.get("info")
         return cls(
-            message=Message.from_dict(data.get("message") or {}),
-            finish=FinishInfo.from_dict(finish) if isinstance(finish, dict) else None,
-            usage=Usage.from_dict(usage) if isinstance(usage, dict) else None,
-            info=ResponseInfo.from_dict(info) if isinstance(info, dict) else None,
+            message=Message.from_dict(message),
+            finish=FinishInfo.from_dict(finish) if is_json_object(finish) else None,
+            usage=Usage.from_dict(usage) if is_json_object(usage) else None,
+            info=ResponseInfo.from_dict(info) if is_json_object(info) else None,
             raw=data.get("raw"),
             **cls._from_dict_common(data),
         )

@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import unicodedata
 from typing import Any
+from typing import TypeIs
 
 # Suffix marking a field whose string value is embedded JSON (wire truth).
 _EMBEDDED_JSON_SUFFIX = "_json"
@@ -43,6 +44,16 @@ _EMBEDDED_JSON_SUFFIX = "_json"
 def _nfc(text: str) -> str:
     """Return `text` normalized to Unicode NFC."""
     return unicodedata.normalize("NFC", text)
+
+
+def _is_sequence(value: object) -> TypeIs[list[Any] | tuple[Any, ...]]:
+    """Narrow `value` to the two JSON-array forms the normalizer accepts."""
+    return isinstance(value, (list, tuple))
+
+
+def _is_mapping(value: object) -> TypeIs[dict[Any, Any]]:
+    """Narrow `value` to a dict whose keys are still unvalidated (checked below)."""
+    return isinstance(value, dict)
 
 
 def _normalize(value: Any, *, parse_embedded: bool, key: str | None = None) -> Any:
@@ -84,9 +95,9 @@ def _normalize(value: Any, *, parse_embedded: bool, key: str | None = None) -> A
                 return text
             return _normalize(parsed, parse_embedded=True)
         return text
-    if isinstance(value, (list, tuple)):
+    if _is_sequence(value):
         return [_normalize(item, parse_embedded=parse_embedded) for item in value]
-    if isinstance(value, dict):
+    if _is_mapping(value):
         out: dict[str, Any] = {}
         for k, item in value.items():
             if not isinstance(k, str):
@@ -142,4 +153,4 @@ def semantic_equal(a: Any, b: Any) -> bool:
     Returns:
         True when the two normalize to the same structure.
     """
-    return _normalize(a, parse_embedded=True) == _normalize(b, parse_embedded=True)
+    return bool(_normalize(a, parse_embedded=True) == _normalize(b, parse_embedded=True))

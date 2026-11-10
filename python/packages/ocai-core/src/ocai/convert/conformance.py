@@ -54,6 +54,7 @@ from ocai.core.canonjson import canonical
 from ocai.core.canonjson import semantic_equal
 from ocai.core.fidelity import FidelityReport
 from ocai.core.identity import NodeId
+from ocai.core.ir import is_json_object
 
 # A golden fixture: one of the JSON shapes documented in `spec/README.md` —
 # edge fixtures carry `{description, src, dst, input, expect, expect_losses,
@@ -79,7 +80,8 @@ def load_fixture(path: str | Path) -> Fixture:
     Returns:
         The parsed fixture object.
     """
-    return json.loads(Path(path).read_text())
+    fixture: Fixture = json.loads(Path(path).read_text())
+    return fixture
 
 
 def iter_fixtures(
@@ -560,12 +562,12 @@ def _walk(root: Any, segments: list[str | int]) -> Any:
         AssertionError: If a segment cannot be resolved — the value is
             missing material the fixture addresses.
     """
-    resolved = root
+    resolved: Any = root
     for segment in segments:
         try:
             if isinstance(segment, int):
                 resolved = resolved[segment]
-            elif isinstance(resolved, dict):
+            elif is_json_object(resolved):
                 resolved = resolved[segment]
             else:
                 resolved = getattr(resolved, segment)
@@ -600,7 +602,7 @@ def _apply_sweeps(document: dict[str, Any], sweeps: list[dict[str, Any]]) -> dic
     for sweep in sweeps:
         owner = _walk(expected, _split_path(sweep["owner"]))
         key = sweep["key"]
-        assert isinstance(owner, dict) and key in owner, (
+        assert is_json_object(owner) and key in owner, (
             f"malformed vector: sweep key {key!r} is not a member of the "
             f"document object at {sweep['owner']!r}"
         )
@@ -648,7 +650,8 @@ def assert_unknown_vector(fixture: Fixture, *, decode: Callable[[dict[str, Any]]
         raise AssertionError(
             f"total decode violated: decode raised {type(exc).__name__}: {exc}"
         ) from exc
-    for entry in expect.get("fallbacks") or []:
+    fallbacks: list[dict[str, Any]] = expect.get("fallbacks") or []
+    for entry in fallbacks:
         target = _walk(decoded, _split_path(entry["path"]))
         assert type(target).__name__ == entry["type"], (
             f"expected {entry['path'] or '<root>'} to decode to the "
@@ -661,7 +664,7 @@ def assert_unknown_vector(fixture: Fixture, *, decode: Callable[[dict[str, Any]]
         key = entry["key"]
         document_owner = _walk(document, owner_segments)
         reencoded_owner = _walk(reencoded, owner_segments)
-        bag = reencoded_owner.get("extensions") or {}
+        bag: dict[str, Any] = reencoded_owner.get("extensions") or {}
         assert key in bag and semantic_equal(bag[key], document_owner[key]), (
             f"expected key {key!r} at {entry['owner'] or '<root>'} to sweep "
             f"verbatim into its owner's extensions bag; bag holds {sorted(bag)}"
@@ -669,7 +672,8 @@ def assert_unknown_vector(fixture: Fixture, *, decode: Callable[[dict[str, Any]]
         assert key not in reencoded_owner, (
             f"swept key {key!r} must not also survive as a member of its owner"
         )
-    for entry in expect.get("preserved") or []:
+    preserved: list[dict[str, Any]] = expect.get("preserved") or []
+    for entry in preserved:
         segments = _split_path(entry["path"])
         expected_value = _walk(document, segments)
         actual_value = _walk(reencoded, segments)

@@ -38,7 +38,9 @@ import msgspec
 # tagged unions on `type`, transcribed from the openai-python type stubs.
 
 
-class _Wire(msgspec.Struct, kw_only=True, omit_defaults=True):
+# Stub base with no subclasses until the /responses item structs land (see the
+# TODO above); unused-by-construction, not dead code.
+class _Wire(msgspec.Struct, kw_only=True, omit_defaults=True):  # pyright: ignore[reportUnusedClass]
     """Base for every Responses wire struct: keyword-only, omit-defaults.
 
     Same tolerant-decode posture as the chat_completions wire base: unknown

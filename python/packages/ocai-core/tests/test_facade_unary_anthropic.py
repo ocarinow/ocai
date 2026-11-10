@@ -37,6 +37,7 @@ only the physical send differs.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -66,6 +67,7 @@ from ocai.chat.types import ToolChoice
 from ocai.chat.types import Usage
 from ocai.convert.catalog import Catalog
 from ocai.core import ApiKey
+from ocai.core import CallResult
 from ocai.core.canonjson import canonical
 from ocai.core.canonjson import semantic_equal
 from ocai.core.errors import AuthError
@@ -76,6 +78,9 @@ from ocai.core.refs import ProviderRef
 from ocai.runtime.binding import Binding
 from ocai.wire.hosting import Direct
 from ocai.wire.transport import HttpxTransport
+
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
 
 URL = f"{ANTHROPIC_BASE_URL}{MESSAGES_PATH}"
 
@@ -211,7 +216,7 @@ def _expected_tool_call(raw: dict[str, Any]) -> ChatResponse:
 
 
 def _assert_call_result(
-    res: Any,
+    res: CallResult[ChatResponse],
     *,
     pair: dict[str, Any],
     expected: ChatResponse,
@@ -257,7 +262,7 @@ def _assert_call_result(
 
 
 @respx.mock
-def test_chat_plain_pair(load_http) -> None:
+def test_chat_plain_pair(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -274,6 +279,7 @@ def test_chat_plain_pair(load_http) -> None:
     # the top-level `system` field and the wire-required `max_tokens` got the
     # injected default — both declared SHIFTS on the request leg, never
     # losses, so the report is honestly lossless AND honestly shifted.
+    assert res.report is not None
     assert res.report.lossless
     assert res.report.losses == []
     assert [(s.kind, s.path) for s in res.report.shifts] == [
@@ -283,7 +289,7 @@ def test_chat_plain_pair(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_plain_pair(load_http) -> None:
+async def test_achat_plain_pair(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -296,6 +302,7 @@ async def test_achat_plain_pair(load_http) -> None:
         input_tokens=14,
         sent=route.calls.last.request,
     )
+    assert res.report is not None
     assert res.report.lossless
     assert [s.kind for s in res.report.shifts] == [ShiftKind.RELOCATION, ShiftKind.EMULATION]
 
@@ -304,7 +311,7 @@ async def test_achat_plain_pair(load_http) -> None:
 
 
 @respx.mock
-def test_chat_tool_call_pair(load_http) -> None:
+def test_chat_tool_call_pair(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_tool_call.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -321,6 +328,7 @@ def test_chat_tool_call_pair(load_http) -> None:
     # canonical args_json wire-truth lane as this dialect's plugin-minted
     # shift (never a loss); the request leg carries only the max_tokens
     # emulation (no system turn here).
+    assert res.report is not None
     assert res.report.lossless
     assert res.report.losses == []
     assert [(s.kind, s.path) for s in res.report.shifts] == [
@@ -335,6 +343,7 @@ def test_chat_tool_call_pair(load_http) -> None:
     # The dimensional usage buckets, disjoint per the WU-13 decision:
     # cache_read -> the canonical cached bucket, cache_creation -> the open
     # `anthropic.cache_write` source, and total stays a plain sum.
+    assert res.usage is not None
     assert res.usage.input_tokens == 55
     assert res.usage.output_tokens == 17
     assert res.usage.cached_input_tokens == 10
@@ -344,7 +353,7 @@ def test_chat_tool_call_pair(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_tool_call_pair(load_http) -> None:
+async def test_achat_tool_call_pair(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_tool_call.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -363,7 +372,7 @@ async def test_achat_tool_call_pair(load_http) -> None:
 
 
 @respx.mock
-def test_chat_refines_529_overloaded_to_transient_error(load_http) -> None:
+def test_chat_refines_529_overloaded_to_transient_error(load_http: LoadHttp) -> None:
     # A 529 is coarsely transient by status alone, but the coarse error
     # carries no code: `code == "overloaded_error"` proves the codec's
     # body-aware map_error (layer 2) actually ran through the facade.
@@ -384,7 +393,7 @@ def test_chat_refines_529_overloaded_to_transient_error(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_refines_529_overloaded_to_transient_error(load_http) -> None:
+async def test_achat_refines_529_overloaded_to_transient_error(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_overloaded_error.json")
     respx.post(URL).mock(
         return_value=httpx.Response(pair["response"]["status"], json=pair["response"]["json"])
@@ -396,7 +405,7 @@ async def test_achat_refines_529_overloaded_to_transient_error(load_http) -> Non
 
 
 @respx.mock
-def test_chat_maps_401_to_auth_error(load_http) -> None:
+def test_chat_maps_401_to_auth_error(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_auth_error.json")
     respx.post(URL).mock(
         return_value=httpx.Response(pair["response"]["status"], json=pair["response"]["json"])
@@ -412,7 +421,7 @@ def test_chat_maps_401_to_auth_error(load_http) -> None:
 
 
 @respx.mock
-async def test_achat_maps_401_to_auth_error(load_http) -> None:
+async def test_achat_maps_401_to_auth_error(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages_auth_error.json")
     respx.post(URL).mock(
         return_value=httpx.Response(pair["response"]["status"], json=pair["response"]["json"])
@@ -427,7 +436,7 @@ async def test_achat_maps_401_to_auth_error(load_http) -> None:
 
 
 @respx.mock
-def test_front_door_spec_string_is_the_same_composition(load_http) -> None:
+def test_front_door_spec_string_is_the_same_composition(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -448,6 +457,7 @@ def test_front_door_spec_string_is_the_same_composition(load_http) -> None:
 
     # Same wire bytes, same route coordinates, same decoded canonical value.
     assert door_sent == hand_sent == pair["request"]["json"]
+    assert door_res.route is not None and hand_res.route is not None
     assert door_res.route.node == hand_res.route.node == MESSAGES_REQUEST
     assert door_res.route.host == hand_res.route.host == URL
     assert door_res.route.catalog_hash == CATALOG.lock().hash
@@ -458,7 +468,7 @@ def test_front_door_spec_string_is_the_same_composition(load_http) -> None:
 
 
 @respx.mock
-async def test_front_door_async_twin(load_http) -> None:
+async def test_front_door_async_twin(load_http: LoadHttp) -> None:
     pair = load_http("anthropic_messages.json")
     respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -466,6 +476,7 @@ async def test_front_door_async_twin(load_http) -> None:
     res = await door.achat(_plain_request())
 
     assert semantic_equal(res.value, _expected_plain(pair["response"]["json"]))
+    assert res.route is not None
     assert res.route.host == URL
 
 

@@ -16,6 +16,7 @@ from ocai.anthropic.messages.codec import MessagesCodec
 from ocai.anthropic.messages.codec import MessagesStreamTransducer
 from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChunkType
+from ocai.chat.types import DeltaText
 from ocai.openai.chat_completions.codec import ChatCompletionsCodec
 from ocai.openai.chat_completions.codec import ChatCompletionsStreamTransducer
 from ocai.wire import SSEParser
@@ -57,7 +58,13 @@ def _decode(codec: Any, body: bytes) -> list[ChatChunk]:
 
 
 def _text(chunks: list[ChatChunk]) -> str:
-    return "".join(c.delta.text for c in chunks if c.type == ChunkType.PART_DELTA)
+    """Concatenate the text deltas; every PART_DELTA on these recordings is one."""
+    fragments: list[str] = []
+    for chunk in chunks:
+        if chunk.type == ChunkType.PART_DELTA:
+            assert isinstance(chunk.delta, DeltaText)
+            fragments.append(chunk.delta.text)
+    return "".join(fragments)
 
 
 # --- OpenAI ----------------------------------------------------------------

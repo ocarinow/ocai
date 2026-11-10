@@ -17,6 +17,7 @@ from typing import ClassVar
 from typing import Self
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.core.usage import Usage
 from ocai.embedding.types.embedding import Embedding
 
@@ -38,7 +39,7 @@ class EmbeddingResponse(IRObject):
 
     object: ClassVar[str] = "embedding.response"
 
-    embeddings: list[Embedding] = field(default_factory=list)
+    embeddings: list[Embedding] = field(default_factory=list[Embedding])
     usage: Usage | None = None
     model: str | None = None
 
@@ -53,14 +54,11 @@ class EmbeddingResponse(IRObject):
         Returns:
             The decoded `EmbeddingResponse`.
         """
+        embeddings: list[Any] = data.get("embeddings") or []
         usage = data.get("usage")
         return cls(
-            embeddings=[
-                Embedding.from_dict(item)
-                for item in data.get("embeddings") or []
-                if isinstance(item, dict)
-            ],
-            usage=Usage.from_dict(usage) if isinstance(usage, dict) else None,
+            embeddings=[Embedding.from_dict(item) for item in embeddings if is_json_object(item)],
+            usage=Usage.from_dict(usage) if is_json_object(usage) else None,
             model=data.get("model"),
             **cls._from_dict_common(data),
         )

@@ -45,6 +45,6 @@ class DialectTraits:
     """
 
     vendor: str
-    first_party_headers: Mapping[str, str] = field(default_factory=dict)
+    first_party_headers: Mapping[str, str] = field(default_factory=dict[str, str])
     cloud_body_version: tuple[str, str] | None = None
     first_party_base_url: str | None = None

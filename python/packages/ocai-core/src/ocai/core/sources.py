@@ -195,7 +195,7 @@ class SourceUnknown(IRObject):
 
     object: ClassVar[str] = "source"
 
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict[str, Any])
     type: str = SourceType.UNDEFINED.value
 
     def to_dict(self) -> dict[str, Any]:

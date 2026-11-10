@@ -33,6 +33,7 @@ from enum import Enum
 from typing import Any
 from typing import Protocol
 from typing import Self
+from typing import TypeIs
 from typing import runtime_checkable
 
 from ocai.core.identity import CANONICAL_REVISION
@@ -68,6 +69,44 @@ class DataClassProto(Protocol):
         ...
 
 
+def is_json_object(value: object) -> TypeIs[dict[str, Any]]:
+    """Narrow `value` to a JSON object (a dict) for tolerant decoding.
+
+    The typed form of the `isinstance(value, dict)` check every `from_dict`
+    performs: a decoded JSON object is a `dict` whose keys are strings and
+    whose values are dynamic, and the narrowing says exactly that instead of
+    leaving the element types unknown. Only the container is checked; keys
+    are assumed to be strings, as JSON guarantees.
+
+    Args:
+        value: The dynamic value under inspection.
+
+    Returns:
+        Whether `value` is a dict.
+    """
+    return isinstance(value, dict)
+
+
+def is_json_array(value: object) -> TypeIs[list[Any]]:
+    """Narrow `value` to a JSON array (a list) for tolerant decoding.
+
+    The list counterpart of `is_json_object`: the narrowed element type is
+    dynamic, never unknown.
+
+    Args:
+        value: The dynamic value under inspection.
+
+    Returns:
+        Whether `value` is a list.
+    """
+    return isinstance(value, list)
+
+
+def _is_sequence(value: object) -> TypeIs[list[Any] | tuple[Any, ...]]:
+    """Narrow `value` to a list or tuple, the two sequence forms the encoder recurses into."""
+    return isinstance(value, (list, tuple))
+
+
 def _encode(value: Any) -> Any:
     """Recursively encode `value` into plain JSON-compatible data.
 
@@ -81,16 +120,16 @@ def _encode(value: Any) -> Any:
         return value.isoformat()
     if hasattr(value, "to_dict") and not isinstance(value, type):
         return value.to_dict()
-    if isinstance(value, (list, tuple)):
+    if _is_sequence(value):
         return [_encode(item) for item in value]
-    if isinstance(value, dict):
+    if is_json_object(value):
         return {key: _encode(item) for key, item in value.items()}
     return value
 
 
 def _is_empty_container(value: Any) -> bool:
     """Return whether `value` is an empty dict/list/tuple/set/frozenset."""
-    return isinstance(value, (dict, list, tuple, set, frozenset)) and len(value) == 0
+    return isinstance(value, (dict, list, tuple, set, frozenset)) and not value
 
 
 def _absent(f: Field[Any], value: Any) -> bool:
@@ -134,8 +173,8 @@ class IRObject:
     """
 
     version: str = field(default=CANONICAL_REVISION, kw_only=True)
-    provider_options: dict[str, Any] = field(default_factory=dict, kw_only=True)
-    extensions: dict[str, Any] = field(default_factory=dict, kw_only=True)
+    provider_options: dict[str, Any] = field(default_factory=dict[str, Any], kw_only=True)
+    extensions: dict[str, Any] = field(default_factory=dict[str, Any], kw_only=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict, omitting absent fields.

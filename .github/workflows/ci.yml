@@ -49,6 +49,16 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         run: uv run lint-imports
 
+      # Rule 16 for the IDE: pyright strict is what Pylance shows users —
+      # nothing may resolve to Unknown. mypy strict is the second opinion.
+      - name: Pyright (strict)
+        if: steps.changes.outputs.run == 'true'
+        run: uv run pyright
+
+      - name: Mypy (strict)
+        if: steps.changes.outputs.run == 'true'
+        run: uv run mypy
+
       - name: Pytest
         if: steps.changes.outputs.run == 'true'
         run: uv run pytest

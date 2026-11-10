@@ -38,6 +38,7 @@ from typing import Self
 
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
+from ocai.core.ir import is_json_object
 
 
 class FinishReason:
@@ -159,7 +160,7 @@ class SafetyDetail(IRObject):
         type: The detail discriminator, fixed to `DetailType.SAFETY`.
     """
 
-    ratings: list[SafetyRating] = field(default_factory=list)
+    ratings: list[SafetyRating] = field(default_factory=list[SafetyRating])
     block_source: str | None = None
     type: Literal[DetailType.SAFETY] = field(default=DetailType.SAFETY)
 
@@ -174,12 +175,9 @@ class SafetyDetail(IRObject):
         Returns:
             The decoded `SafetyDetail`.
         """
+        ratings: list[Any] = data.get("ratings") or []
         return cls(
-            ratings=[
-                SafetyRating.from_dict(item)
-                for item in data.get("ratings") or []
-                if isinstance(item, dict)
-            ],
+            ratings=[SafetyRating.from_dict(item) for item in ratings if is_json_object(item)],
             block_source=data.get("block_source"),
             **cls._from_dict_common(data),
         )
@@ -299,7 +297,7 @@ class DetailOpaque(IRObject):
         type: The original discriminator value, preserved verbatim.
     """
 
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict[str, Any])
     type: str = DetailType.UNDEFINED.value
 
     def to_dict(self) -> dict[str, Any]:
@@ -393,6 +391,6 @@ class FinishInfo(IRObject):
         return cls(
             reason=data.get("reason", FinishReason.UNKNOWN),
             native=data.get("native"),
-            detail=cast_detail(detail) if isinstance(detail, dict) else None,
+            detail=cast_detail(detail) if is_json_object(detail) else None,
             **cls._from_dict_common(data),
         )

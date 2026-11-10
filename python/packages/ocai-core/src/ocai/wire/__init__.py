@@ -16,8 +16,8 @@ peers at the capability port.
 
 from __future__ import annotations
 
+from ocai.core.traits import DialectTraits
 from ocai.wire.hosting import Custom
-from ocai.wire.hosting import DialectTraits
 from ocai.wire.hosting import Direct
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import EnvelopeTransform

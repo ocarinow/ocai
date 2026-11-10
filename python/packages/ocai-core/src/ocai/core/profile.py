@@ -68,7 +68,7 @@ class CapabilityProfile:
     provider: str
     interface: str
     model_pattern: str
-    features: dict[str, Support] = field(default_factory=dict)
+    features: dict[str, Support] = field(default_factory=dict[str, Support])
 
     def matches(self, model: str) -> bool:
         """Return whether this profile's `model_pattern` covers `model`.

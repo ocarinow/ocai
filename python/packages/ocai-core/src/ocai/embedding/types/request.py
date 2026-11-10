@@ -17,11 +17,14 @@ in real use.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Self
+from typing import overload
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.embedding.types.document import Document
 
 
@@ -49,6 +52,43 @@ class EmbeddingRequest(IRObject):
     inputs: list[Document]
     dimensions: int | None = None
 
+    if TYPE_CHECKING:
+        # The constructor's typed face (same pattern as chat's `Message`):
+        # the dataclass-generated `__init__` is untouched at runtime; these
+        # declarations only admit the documented sugar `__post_init__`
+        # normalizes, so the stored field stays `list[Document]`.
+        @overload
+        def __init__[T: Document | str](
+            self,
+            inputs: list[T],
+            dimensions: int | None = None,
+            *,
+            version: str = ...,
+            provider_options: dict[str, Any] = ...,
+            extensions: dict[str, Any] = ...,
+        ) -> None: ...
+
+        @overload
+        def __init__(
+            self,
+            inputs: str | Document | list[Document | str],
+            dimensions: int | None = None,
+            *,
+            version: str = ...,
+            provider_options: dict[str, Any] = ...,
+            extensions: dict[str, Any] = ...,
+        ) -> None: ...
+
+        def __init__(
+            self,
+            inputs: Any,
+            dimensions: int | None = None,
+            *,
+            version: str = ...,
+            provider_options: dict[str, Any] = ...,
+            extensions: dict[str, Any] = ...,
+        ) -> None: ...
+
     def __post_init__(self) -> None:
         """Normalize constructor sugar into the documents-only shape.
 
@@ -60,7 +100,7 @@ class EmbeddingRequest(IRObject):
         if isinstance(raw, str):
             self.inputs = [Document(content=raw)]
             return
-        if not isinstance(raw, list):
+        if not isinstance(raw, list):  # pyright: ignore[reportUnnecessaryIsInstance] -- constructor sugar: a single `Document` reaches here untyped
             self.inputs = [raw]
             return
         self.inputs = [
@@ -78,12 +118,9 @@ class EmbeddingRequest(IRObject):
         Returns:
             The decoded `EmbeddingRequest`.
         """
+        inputs: list[Any] = data.get("inputs") or []
         return cls(
-            inputs=[
-                Document.from_dict(item)
-                for item in data.get("inputs") or []
-                if isinstance(item, dict)
-            ],
+            inputs=[Document.from_dict(item) for item in inputs if is_json_object(item)],
             dimensions=data.get("dimensions"),
             **cls._from_dict_common(data),
         )

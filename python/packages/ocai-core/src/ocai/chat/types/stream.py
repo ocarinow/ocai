@@ -54,6 +54,7 @@ from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
+from ocai.core.ir import is_json_object
 
 # The censused extension key sealed onto every part an aborted stream left
 # open (no terminal STREAM_STOP arrived): the part's content is whatever had
@@ -284,7 +285,7 @@ class DeltaAnnotation(IRObject):
         """
         annotation = data.get("annotation")
         return cls(
-            annotation=Annotation.from_dict(annotation) if isinstance(annotation, dict) else None,
+            annotation=Annotation.from_dict(annotation) if is_json_object(annotation) else None,
             **cls._from_dict_common(data),
         )
 
@@ -356,7 +357,7 @@ class DeltaUnknown(IRObject):
         type: The unrecognized discriminator value, preserved verbatim.
     """
 
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict[str, Any])
     type: str = DeltaType.UNDEFINED.value
 
     def to_dict(self) -> dict[str, Any]:
@@ -512,9 +513,9 @@ class StreamEnd(IRObject):
         finish = data.get("finish")
         report = data.get("report")
         return cls(
-            usage=Usage.from_dict(usage) if isinstance(usage, dict) else None,
-            finish=FinishInfo.from_dict(finish) if isinstance(finish, dict) else None,
-            report=FidelityReport.from_dict(report) if isinstance(report, dict) else None,
+            usage=Usage.from_dict(usage) if is_json_object(usage) else None,
+            finish=FinishInfo.from_dict(finish) if is_json_object(finish) else None,
+            report=FidelityReport.from_dict(report) if is_json_object(report) else None,
             **cls._from_dict_common(data),
         )
 
@@ -592,13 +593,13 @@ class ChatChunk(IRObject):
             type=chunk_type,
             seq=data.get("seq"),
             index=data.get("index"),
-            part=cast_part(part) if isinstance(part, dict) else None,
-            delta=cast_delta(delta) if isinstance(delta, dict) else None,
-            usage=Usage.from_dict(usage) if isinstance(usage, dict) else None,
+            part=cast_part(part) if is_json_object(part) else None,
+            delta=cast_delta(delta) if is_json_object(delta) else None,
+            usage=Usage.from_dict(usage) if is_json_object(usage) else None,
             usage_cumulative=data.get("usage_cumulative"),
-            finish=FinishInfo.from_dict(finish) if isinstance(finish, dict) else None,
-            error=ErrorInfo.from_dict(error) if isinstance(error, dict) else None,
-            end=StreamEnd.from_dict(end) if isinstance(end, dict) else None,
+            finish=FinishInfo.from_dict(finish) if is_json_object(finish) else None,
+            error=ErrorInfo.from_dict(error) if is_json_object(error) else None,
+            end=StreamEnd.from_dict(end) if is_json_object(end) else None,
             raw_event=data.get("raw_event"),
             **cls._from_dict_common(data),
         )

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import ocai.anthropic
 import ocai.openai
@@ -54,9 +55,12 @@ def _repo_root() -> Path:
     raise RuntimeError("could not locate repo root (no spec/fixtures/ found)")
 
 
-def _fixture(relative: str) -> dict:
+def _fixture(relative: str) -> dict[str, Any]:
     """Load one golden fixture by its path under `spec/fixtures/`."""
-    return json.loads((_repo_root() / "spec" / "fixtures" / relative).read_text())
+    fixture: dict[str, Any] = json.loads(
+        (_repo_root() / "spec" / "fixtures" / relative).read_text()
+    )
+    return fixture
 
 
 def render_report(title: str, report: FidelityReport) -> str:

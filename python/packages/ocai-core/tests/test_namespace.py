@@ -8,6 +8,7 @@ sibling distributions' subpackages vanish.
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 
 # Every namespace subpackage the core distribution ships (architecture §1).
@@ -15,16 +16,17 @@ CORE_SUBPACKAGES = ("core", "chat", "embedding", "vectorstore", "convert", "runt
 
 
 def test_core_subpackage_imports() -> None:
-    from ocai.core import CallResult  # noqa: F401
+    core = importlib.import_module("ocai.core")
+    assert hasattr(core, "CallResult")
 
 
 def test_plugin_subpackages_import() -> None:
-    import ocai.anthropic  # noqa: F401
-    import ocai.openai  # noqa: F401
+    importlib.import_module("ocai.anthropic")
+    importlib.import_module("ocai.openai")
 
 
 def test_ocai_is_a_namespace_package() -> None:
-    import ocai
+    ocai = importlib.import_module("ocai")
 
     # A PEP 420 namespace package has no single __init__.py, so __file__ is None
     # (or absent) and __path__ spans multiple directories.
@@ -34,7 +36,7 @@ def test_ocai_is_a_namespace_package() -> None:
 
 
 def test_namespace_spans_all_distributions() -> None:
-    import ocai
+    ocai = importlib.import_module("ocai")
 
     # Each distribution contributes its own src/ocai directory to the namespace.
     paths = list(ocai.__path__)

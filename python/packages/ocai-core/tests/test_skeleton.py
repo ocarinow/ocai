@@ -79,7 +79,7 @@ def test_public_module_imports(module: str) -> None:
 
 
 def test_new_packages_keep_the_namespace_open() -> None:
-    import ocai
+    ocai = importlib.import_module("ocai")
 
     # The root stays a PEP 420 namespace package even with all the new
     # subpackages imported — no distribution collapsed it.

@@ -31,6 +31,8 @@ from typing import Self
 from ocai.core.identity import Capability
 from ocai.core.identity import NodeId
 from ocai.core.identity import Shape
+from ocai.core.ir import is_json_array
+from ocai.core.ir import is_json_object
 
 
 class Disposition(str, Enum):
@@ -362,13 +364,13 @@ class EdgeReport:
             dst=_node_from_label(str(data.get("dst", ""))),
             losses=tuple(
                 FieldLoss.from_dict(loss)
-                for loss in (raw_losses if isinstance(raw_losses, list) else [])
-                if isinstance(loss, dict)
+                for loss in (raw_losses if is_json_array(raw_losses) else [])
+                if is_json_object(loss)
             ),
             shifts=tuple(
                 SemanticShift.from_dict(shift)
-                for shift in (raw_shifts if isinstance(raw_shifts, list) else [])
-                if isinstance(shift, dict)
+                for shift in (raw_shifts if is_json_array(raw_shifts) else [])
+                if is_json_object(shift)
             ),
             note=str(data.get("note", "")),
         )
@@ -391,7 +393,7 @@ class FidelityReport:
         edges: One `EdgeReport` per traversed edge, in traversal order.
     """
 
-    edges: list[EdgeReport] = field(default_factory=list)
+    edges: list[EdgeReport] = field(default_factory=list[EdgeReport])
 
     @property
     def path(self) -> list[NodeId]:
@@ -486,8 +488,8 @@ class FidelityReport:
         return cls(
             edges=[
                 EdgeReport.from_dict(edge)
-                for edge in (raw_edges if isinstance(raw_edges, list) else [])
-                if isinstance(edge, dict)
+                for edge in (raw_edges if is_json_array(raw_edges) else [])
+                if is_json_object(edge)
             ]
         )
 

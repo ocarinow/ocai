@@ -28,12 +28,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from typing import cast
 
 import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
+from jsonschema.protocols import Validator
 from referencing import Registry
 from referencing import Resource
+from referencing.jsonschema import Schema
+from referencing.jsonschema import SchemaRegistry
 
 # The base every schema `$id` starts with (see spec/schema/README.md).
 SCHEMA_ID_BASE = "https://ocai.dev/spec/schema/"
@@ -61,9 +65,9 @@ FIXTURE_PATHS = sorted(FIXTURES_DIR.rglob("*.json"))
 
 def _load_json(path: Path) -> dict[str, Any]:
     """Read `path` and require a JSON object at the top level."""
-    data = json.loads(path.read_text())
+    data: Any = json.loads(path.read_text())
     assert isinstance(data, dict), f"{path} must contain a JSON object at the top level"
-    return data
+    return cast(dict[str, Any], data)
 
 
 def _schemas_by_id() -> dict[str, dict[str, Any]]:
@@ -79,9 +83,14 @@ SCHEMAS_BY_ID = _schemas_by_id()
 
 # One registry holding every spec schema, so relative cross-file $refs
 # (e.g. "parts.schema.json#/$defs/envelope") resolve against the $id base.
-REGISTRY: Registry = Registry().with_resources(
+REGISTRY: SchemaRegistry = Registry[Schema]().with_resources(
     (uri, Resource.from_contents(schema)) for uri, schema in SCHEMAS_BY_ID.items()
 )
+
+
+def _validator_for(schema: dict[str, Any]) -> Validator:
+    """Build the Draft 2020-12 validator for `schema` over the spec registry."""
+    return Draft202012Validator(schema, registry=REGISTRY)
 
 
 def _schema_id_for_shape(shape: str) -> str:
@@ -102,8 +111,7 @@ def _errors_for_shape(shape: str, payload: Any) -> list[ValidationError]:
             f"no schema for shape {shape!r}: expected {schema_id} "
             f"(file {schema_id.removeprefix(SCHEMA_ID_BASE)} in spec/schema/)"
         )
-    validator = Draft202012Validator(schema, registry=REGISTRY)
-    return list(validator.iter_errors(payload))
+    return list(_validator_for(schema).iter_errors(payload))
 
 
 def _assert_valid(shape: str, payload: Any, label: str) -> None:
@@ -232,7 +240,7 @@ def test_canonical_chat_response_fixture_exercises_finish_usage_info() -> None:
 def _errors_for_shape_raw(schema_stem: str, payload: Any) -> list[ValidationError]:
     """Validate against a schema by file stem (for schemas that are not shapes)."""
     schema = SCHEMAS_BY_ID[f"{SCHEMA_ID_BASE}{schema_stem}.schema.json"]
-    return list(Draft202012Validator(schema, registry=REGISTRY).iter_errors(payload))
+    return list(_validator_for(schema).iter_errors(payload))
 
 
 def test_unknown_part_tag_validates() -> None:
@@ -260,7 +268,7 @@ def test_unknown_role_and_open_codes_validate() -> None:
     """Enum-like fields are open string codes, never closed enums."""
     message = {"role": "narrator", "parts": [{"type": "text", "text": "hi"}]}
     assert not _errors_for_shape_raw("message", message)
-    request = {
+    request: dict[str, Any] = {
         "messages": [],
         "tool_choice": {"mode": "provider_specific_mode"},
         "config": {"reasoning": {"effort": "xtreme"}, "output": {"mode": "yaml"}},
@@ -345,7 +353,7 @@ def test_chat_response_requires_message_only() -> None:
     assert not _errors_for_shape_raw(
         "chat_response", {"message": {"role": "model", "parts": []}}
     )
-    unknown_role_and_raw = {
+    unknown_role_and_raw: dict[str, Any] = {
         "message": {"role": "narrator", "parts": []},
         "raw": {"anything": ["goes", 1, None]},
     }
@@ -354,7 +362,7 @@ def test_chat_response_requires_message_only() -> None:
 
 def test_edge_fixture_convention_maps_canonical_sides_only() -> None:
     """Only the `ocai`-provider sides of an edge fixture are validated."""
-    fixture = {
+    fixture: dict[str, Any] = {
         "description": "synthetic mapping check",
         "src": {"provider": "openai", "interface": "chat_completions", "shape": "chat.request"},
         "dst": {"provider": "ocai", "interface": "ocai", "shape": "chat.request"},

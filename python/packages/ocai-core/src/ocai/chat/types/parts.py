@@ -38,6 +38,7 @@ from ocai.chat.types.annotations import Annotation
 from ocai.chat.types.config import CacheHint
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
+from ocai.core.ir import is_json_object
 from ocai.core.refs import ProviderRef
 from ocai.core.sources import Source
 from ocai.core.sources import cast_source
@@ -196,8 +197,8 @@ class PartBase(IRObject):
         cache_hint = data.get("cache_hint")
         return {
             "id": data.get("id"),
-            "anchor": ProviderRef.from_dict(anchor) if isinstance(anchor, dict) else None,
-            "cache_hint": CacheHint.from_dict(cache_hint) if isinstance(cache_hint, dict) else None,
+            "anchor": ProviderRef.from_dict(anchor) if is_json_object(anchor) else None,
+            "cache_hint": CacheHint.from_dict(cache_hint) if is_json_object(cache_hint) else None,
             **cls._from_dict_common(data),
         }
 
@@ -218,7 +219,7 @@ class PartText(PartBase):
     """
 
     text: str = ""
-    annotations: list[Annotation] = field(default_factory=list)
+    annotations: list[Annotation] = field(default_factory=list[Annotation])
     type: Literal[PartType.TEXT] = field(default=PartType.TEXT)
 
     @classmethod
@@ -232,12 +233,11 @@ class PartText(PartBase):
         Returns:
             The decoded `PartText`.
         """
+        annotations: list[Any] = data.get("annotations") or []
         return cls(
             text=data.get("text", ""),
             annotations=[
-                Annotation.from_dict(item)
-                for item in data.get("annotations") or []
-                if isinstance(item, dict)
+                Annotation.from_dict(item) for item in annotations if is_json_object(item)
             ],
             **cls._from_dict_base(data),
         )
@@ -269,7 +269,7 @@ class PartImage(PartBase):
         """
         source = data.get("source")
         return cls(
-            source=cast_source(source) if isinstance(source, dict) else None,
+            source=cast_source(source) if is_json_object(source) else None,
             **cls._from_dict_base(data),
         )
 
@@ -301,7 +301,7 @@ class PartAudio(PartBase):
         """
         source = data.get("source")
         return cls(
-            source=cast_source(source) if isinstance(source, dict) else None,
+            source=cast_source(source) if is_json_object(source) else None,
             **cls._from_dict_base(data),
         )
 
@@ -344,7 +344,7 @@ class PartVideo(PartBase):
         """
         source = data.get("source")
         return cls(
-            source=cast_source(source) if isinstance(source, dict) else None,
+            source=cast_source(source) if is_json_object(source) else None,
             start_offset=data.get("start_offset"),
             end_offset=data.get("end_offset"),
             fps=data.get("fps"),
@@ -387,7 +387,7 @@ class PartDocument(PartBase):
         """
         source = data.get("source")
         return cls(
-            source=cast_source(source) if isinstance(source, dict) else None,
+            source=cast_source(source) if is_json_object(source) else None,
             title=data.get("title"),
             context=data.get("context"),
             **cls._from_dict_base(data),
@@ -440,8 +440,8 @@ class PartReasoning(PartBase):
         return cls(
             text=data.get("text"),
             summary=data.get("summary"),
-            signature=ProviderRef.from_dict(signature) if isinstance(signature, dict) else None,
-            opaque=ProviderRef.from_dict(opaque) if isinstance(opaque, dict) else None,
+            signature=ProviderRef.from_dict(signature) if is_json_object(signature) else None,
+            opaque=ProviderRef.from_dict(opaque) if is_json_object(opaque) else None,
             **cls._from_dict_base(data),
         )
 
@@ -539,7 +539,7 @@ class PartToolResult(PartBase):
     """
 
     call_id: str = ""
-    parts: list[Part] = field(default_factory=list)
+    parts: list[Part] = field(default_factory=list["Part"])
     is_error: bool = False
     type: Literal[PartType.TOOL_RESULT] = field(default=PartType.TOOL_RESULT)
 
@@ -557,9 +557,10 @@ class PartToolResult(PartBase):
         Returns:
             The decoded `PartToolResult`.
         """
+        parts: list[Any] = data.get("parts") or []
         return cls(
             call_id=data.get("call_id", ""),
-            parts=[cast_part(item) for item in data.get("parts") or [] if isinstance(item, dict)],
+            parts=[cast_part(item) for item in parts if is_json_object(item)],
             is_error=bool(data.get("is_error", False)),
             **cls._from_dict_base(data),
         )
@@ -588,7 +589,7 @@ class PartServerToolCall(PartBase):
     kind: str = ""
     call_id: str = ""
     status: str = ToolCallStatus.EXECUTING
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict[str, Any])
     type: Literal[PartType.SERVER_TOOL_CALL] = field(default=PartType.SERVER_TOOL_CALL)
 
     @classmethod
@@ -607,7 +608,7 @@ class PartServerToolCall(PartBase):
             kind=data.get("kind", ""),
             call_id=data.get("call_id", ""),
             status=data.get("status", ToolCallStatus.EXECUTING),
-            payload=dict(payload) if isinstance(payload, dict) else {},
+            payload=dict(payload) if is_json_object(payload) else {},
             **cls._from_dict_base(data),
         )
 
@@ -632,7 +633,7 @@ class PartServerToolResult(PartBase):
     kind: str = ""
     call_id: str = ""
     status: str = ToolCallStatus.OUTPUT_AVAILABLE
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict[str, Any])
     type: Literal[PartType.SERVER_TOOL_RESULT] = field(default=PartType.SERVER_TOOL_RESULT)
 
     @classmethod
@@ -651,7 +652,7 @@ class PartServerToolResult(PartBase):
             kind=data.get("kind", ""),
             call_id=data.get("call_id", ""),
             status=data.get("status", ToolCallStatus.OUTPUT_AVAILABLE),
-            payload=dict(payload) if isinstance(payload, dict) else {},
+            payload=dict(payload) if is_json_object(payload) else {},
             **cls._from_dict_base(data),
         )
 
@@ -704,7 +705,7 @@ class PartOpaque(PartBase):
     """
 
     kind: str = ""
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict[str, Any])
     type: Literal[PartType.OPAQUE] = field(default=PartType.OPAQUE)
 
     @classmethod
@@ -721,7 +722,7 @@ class PartOpaque(PartBase):
         payload = data.get("payload")
         return cls(
             kind=data.get("kind", ""),
-            payload=dict(payload) if isinstance(payload, dict) else {},
+            payload=dict(payload) if is_json_object(payload) else {},
             **cls._from_dict_base(data),
         )
 
@@ -740,7 +741,7 @@ class PartUnknown(PartBase):
         type: The unrecognized discriminator value, preserved verbatim.
     """
 
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict[str, Any])
     type: str = PartType.UNDEFINED.value
 
     def to_dict(self) -> dict[str, Any]:

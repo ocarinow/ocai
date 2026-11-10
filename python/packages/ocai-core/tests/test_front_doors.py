@@ -29,6 +29,7 @@ no live keys, no provider-SDK mocks.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -44,6 +45,9 @@ from ocai.core.result import CallResult
 from ocai.runtime.dual import from_async
 from ocai.runtime.dual import from_sync
 from ocai.runtime.interceptors import Call
+
+# The `load_http` conftest fixture: a recorded request/response pair by file name.
+type LoadHttp = Callable[[str], dict[str, Any]]
 
 # The first-party endpoint of the recorded pair — from the recording itself,
 # NOT from a plugin import (this module deliberately imports no provider
@@ -62,7 +66,7 @@ def _plain_request() -> ChatRequest:
 
 
 @respx.mock
-def test_five_liner_end_to_end_with_zero_provider_imports(load_http) -> None:
+def test_five_liner_end_to_end_with_zero_provider_imports(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -90,7 +94,7 @@ def test_five_liner_end_to_end_with_zero_provider_imports(load_http) -> None:
 
 
 @respx.mock
-async def test_five_liner_async_twin(load_http) -> None:
+async def test_five_liner_async_twin(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion.json")
     respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -98,6 +102,7 @@ async def test_five_liner_async_twin(load_http) -> None:
     res = await chat.achat(_plain_request())
 
     assert semantic_equal(res.value.message, Message.model("I am an AI assistant."))
+    assert res.route is not None
     assert res.route.host == URL
 
 
@@ -140,14 +145,14 @@ def test_pinned_stub_interface_fails_at_the_component_lookup() -> None:
 
 
 @respx.mock
-def test_plugin_sugar_is_the_same_composition_on_the_same_pair(load_http) -> None:
-    import ocai.openai
+def test_plugin_sugar_is_the_same_composition_on_the_same_pair(load_http: LoadHttp) -> None:
+    from ocai.openai import chat_model as openai_chat_model
 
     pair = load_http("openai_chat_completion.json")
     route = respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
     core_door = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"))
-    sugar_door = ocai.openai.chat_model("gpt-4o", credentials=ApiKey("sk-test"))
+    sugar_door = openai_chat_model("gpt-4o", credentials=ApiKey("sk-test"))
 
     # Identical composition, before any call.
     assert sugar_door.details == core_door.details
@@ -159,6 +164,7 @@ def test_plugin_sugar_is_the_same_composition_on_the_same_pair(load_http) -> Non
 
     # Same wire bytes, same route coordinates, same decoded canonical value.
     assert sugar_sent == core_sent == pair["request"]["json"]
+    assert sugar_res.route is not None and core_res.route is not None
     assert sugar_res.route.node == core_res.route.node
     assert sugar_res.route.host == core_res.route.host == URL
     assert sugar_res.route.reason == core_res.route.reason
@@ -166,10 +172,10 @@ def test_plugin_sugar_is_the_same_composition_on_the_same_pair(load_http) -> Non
 
 
 @respx.mock
-def test_anthropic_sugar_composes_the_messages_interface(load_http) -> None:
-    import ocai.anthropic
+def test_anthropic_sugar_composes_the_messages_interface(load_http: LoadHttp) -> None:
+    from ocai.anthropic import chat_model as anthropic_chat_model
 
-    chat = ocai.anthropic.chat_model(
+    chat = anthropic_chat_model(
         "claude-sonnet-4-5", credentials=ApiKey("sk-ant", header="x-api-key", scheme="")
     )
     assert chat.details["provider"] == "anthropic"
@@ -210,7 +216,7 @@ class _ShortCircuit:
 
 
 @respx.mock
-def test_interceptors_kwarg_applies_the_chain(load_http) -> None:
+def test_interceptors_kwarg_applies_the_chain(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion.json")
     respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
@@ -229,7 +235,7 @@ def test_interceptors_kwarg_applies_the_chain(load_http) -> None:
 
 
 @respx.mock
-async def test_interceptors_kwarg_applies_the_async_face(load_http) -> None:
+async def test_interceptors_kwarg_applies_the_async_face(load_http: LoadHttp) -> None:
     pair = load_http("openai_chat_completion.json")
     respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 

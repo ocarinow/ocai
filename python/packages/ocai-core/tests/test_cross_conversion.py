@@ -30,6 +30,7 @@ import importlib.util
 import json
 from pathlib import Path
 from typing import Any
+from typing import cast
 
 import pytest
 
@@ -98,6 +99,14 @@ def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
 
 
+def _expect_shifts(fixture: dict[str, Any]) -> list[dict[str, Any]]:
+    """The fixture's pinned shift records; an absent or null key means none."""
+    shifts: Any = fixture.get("expect_shifts")
+    if not shifts:
+        return []
+    return cast(list[dict[str, Any]], shifts)
+
+
 def _catalog() -> Catalog:
     return Catalog.of(ocai.openai.FRAGMENT, ocai.anthropic.FRAGMENT)
 
@@ -129,7 +138,7 @@ def test_cross_fixture_set_covers_the_wu15_story() -> None:
     shifts = [
         (entry["kind"], entry["path"])
         for path in CROSS_FIXTURES
-        for entry in _load(path).get("expect_shifts") or []
+        for entry in _expect_shifts(_load(path))
     ]
     # The system RELOCATION shift appears in the merged reports — both the
     # destination hoist (openai -> anthropic) and the source un-hoist.
@@ -174,7 +183,7 @@ def test_cross_fixture_output_and_merged_report(path: Path) -> None:
         (entry["path"], entry["disposition"]) for entry in fixture["expect_losses"]
     )
     expected_shifts = sorted(
-        (entry["kind"], entry.get("path", "")) for entry in fixture.get("expect_shifts") or []
+        (entry["kind"], entry.get("path", "")) for entry in _expect_shifts(fixture)
     )
     assert _sorted_losses(converted.report) == expected_losses
     assert _sorted_shifts(converted.report) == expected_shifts
@@ -262,7 +271,7 @@ def test_encode_response_direction_does_not_exist_yet() -> None:
     arrive.
     """
     catalog = _catalog()
-    response = {"message": {"role": "model", "parts": []}}
+    response: dict[str, Any] = {"message": {"role": "model", "parts": []}}
     with pytest.raises(ConversionError):
         catalog.convert(response, CANONICAL_CHAT_RESPONSE, MESSAGES_RESPONSE)
     with pytest.raises(ConversionError):

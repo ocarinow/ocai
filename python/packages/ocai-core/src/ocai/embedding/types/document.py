@@ -17,6 +17,7 @@ from typing import ClassVar
 from typing import Self
 
 from ocai.core.ir import IRObject
+from ocai.core.ir import is_json_object
 from ocai.core.sources import Source
 from ocai.core.sources import cast_source
 
@@ -63,7 +64,7 @@ class Document(IRObject):
         content: str | Source | None = None
         if isinstance(raw_content, str):
             content = raw_content
-        elif isinstance(raw_content, dict):
+        elif is_json_object(raw_content):
             content = cast_source(raw_content)
         return cls(
             id=data.get("id"),
