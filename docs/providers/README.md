@@ -21,6 +21,25 @@ design of the canonical IR (`docs/architecture.md` §3) and the per-interface pl
 | [feature-matrix.md](./feature-matrix.md) | Side-by-side comparison of every capability across all four providers |
 | [common-interface.md](./common-interface.md) | How a provider-neutral interface should look, mapped onto `ocai`'s canonical IR |
 
+Added 2026-11-10 (same 13-section skeleton, each with a Currency note, a
+mapping section with lane assignments and a priority, and a Sources list):
+
+| Doc | What it covers |
+|---|---|
+| [deepseek.md](./deepseek.md) | DeepSeek V3/R1: OpenAI-shaped API, mandatory `reasoning_content` replay with tools, prefix/FIM, disk cache — **P0** |
+| [qwen.md](./qwen.md) | Alibaba Model Studio / DashScope: compat mode and native envelope, Qwen3 thinking, VL, Omni — P1 |
+| [moonshot-kimi.md](./moonshot-kimi.md) | Moonshot Kimi K2/K3: compat API, reasoning replay without anchors, fixed sampling knobs — P1 |
+| [zhipu-glm.md](./zhipu-glm.md) | Z.ai / Zhipu GLM: compat API, mid-stream errors in `finish_reason`, search tool — P2 |
+| [xai-grok.md](./xai-grok.md) | xAI Grok: chat completions (legacy) and Responses, encrypted reasoning, live search — P2 |
+| [cohere.md](./cohere.md) | Cohere v2 chat: non-OpenAI message/tool shapes, span citations, documents — P3 |
+| [amazon-bedrock.md](./amazon-bedrock.md) | Bedrock Converse + InvokeModel, SigV4, binary event stream, guardrails, compat routes — **P0** host |
+| [azure-openai.md](./azure-openai.md) | Azure OpenAI v1 surface, Entra auth, content-filter annotations — **P0** host |
+| [google-vertex.md](./google-vertex.md) | Vertex generateContent vs Gemini API, OAuth/ADC, partner models (Claude on Vertex) — P1 host |
+
+The capability-level survey (embeddings, rerank, vector stores, image, speech,
+documents, search, files, jobs, moderation, and the platform ecosystem) is
+in [Capabilities](../capabilities/README.md).
+
 ## How to read these
 
 Each provider doc follows the same skeleton so they can be diffed against one another:

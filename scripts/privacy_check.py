@@ -144,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_files:
         files = [
-            f for f in _git("ls-files").split("\n") if f and Path(f).suffix in TEXT_FILE_SUFFIXES
+            f
+            for f in _git("ls-files", "--cached", "--others", "--exclude-standard").split("\n")
+            if f and Path(f).suffix in TEXT_FILE_SUFFIXES
         ]
         for rel in files:
             if rel == "scripts/privacy_check.py":
