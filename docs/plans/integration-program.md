@@ -50,8 +50,8 @@ extension schemas, architecture sections and status rows. File estimates exclude
 mechanical regeneration; stop and split by a plan amendment before exceeding
 roughly 40 non-mechanical files or adding a second observable outcome. Shared
 files are edited only in the owning sections, in an isolated worktree. Rebase
-the stack onto current main before opening each PR. Newly discovered kernel gaps go in
-`gaps.md`, not into a widened implementation.
+the stack onto current main before opening each PR. Newly discovered kernel gaps
+go in `gaps.md`, not into a widened implementation.
 
 Use `wu-session`, `add-edge` for every changed/new edge, and `record-wire-pair`
 for HTTP/SSE recordings. All edge WUs include a per-field census, exact expected
@@ -177,7 +177,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-39 — Select framing independently of semantic conversion
 
-- [ ] **Status:** in progress; stacked on WU-38 (PR #35).
+- [x] **Status:** complete; stacked on WU-38 (PR #35), awaiting PR review.
 - **Scope:** `wire/hosting.py`, transport/framing contracts, both drivers and facade
   stream plumbing; 15–25 files. Add an optional host framing/envelope selection
   contract with SSE as the legacy default; codecs continue receiving decoded
@@ -190,7 +190,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Freeze:** none changed: `ChatChunk`, `StreamEnd`, `StreamOutcome`, `CallContext`
   and their schemas remain intact; wire protocols are provisional.
 - **Decision:** Binary framing belongs beside SSE in wire, semantic decode stays
-  in plugins ([Bedrock §6/13(a)](../providers/amazon-bedrock.md)).
+  in plugins ([Bedrock §6/13(a)](../providers/amazon-bedrock.md)). The optional
+  selector, decoder ownership and approval identity are recorded in
+  [ADR 0011](../decisions/0011-host-selected-stream-framing.md).
 - **Open:** None; any need to change canonical chunk shape becomes a separate gap.
 
 ## WU-40 — Qualify URL citations on canonical text

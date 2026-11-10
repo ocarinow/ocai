@@ -20,7 +20,7 @@ synchronous, pure, and shared between them (the module-level helpers below):
    send_sync` (or the streaming twins). Errors are refined two-layer: the
    transport's coarse status-based taxonomy error, then the dialect's
    body-aware `map_error` (passed in by the facade as `refine_error`).
-6. **pump** — streaming bytes feed the sans-io `SSEParser`; parsed frames
+6. **pump** — streaming bytes feed the host-selected sans-io decoder (SSE by default); events
    flow through the facade-built `StreamPipeline` (conversion joins the
    graph, it does not bypass it). The seam (settled in WU-09): the driver
    yields the converted events and flushes the pipeline exactly once at
@@ -68,6 +68,8 @@ from ocai.runtime.observe import Observer
 
 if TYPE_CHECKING:
     from ocai.convert.graph import StreamPipeline
+    from ocai.wire.framing import StreamDecoder
+    from ocai.wire.framing import StreamFraming
     from ocai.wire.hosting import EndpointSpec
     from ocai.wire.hosting import EnvelopeTransform
     from ocai.wire.http import HttpRequest
@@ -333,6 +335,7 @@ class SyncDriver:
         request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
         pipeline: StreamPipeline | None = None,
+        framing: StreamFraming | None = None,
     ) -> Iterator[Any]:
         """Run one streaming operation, yielding stream events (blocking).
 
@@ -340,7 +343,7 @@ class SyncDriver:
         may defer a stream with `Retry`; admission retries happen before any
         byte flows, so the pipeline is never fed on a discarded attempt), the
         credential is applied at the leaf, then bytes are pumped through the
-        sans-io `SSEParser`. When a `pipeline` is bound, each parsed frame is
+        host-selected sans-io decoder. When a `pipeline` is bound, each parsed frame is
         fed through it and the converted events are yielded in its place; at
         end-of-stream the driver flushes the pipeline exactly once and yields
         the tail. The flush accounting then surfaces on `pipeline.reports` —
@@ -361,9 +364,10 @@ class SyncDriver:
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
                 never reused), or None to yield raw frames.
+            framing: Approved framing snapshot, or None to select from the host.
 
         Yields:
-            One raw `SSEvent` per server-sent event when `pipeline` is None;
+            The selected framing's events (SSE by default) when `pipeline` is None;
             the pipeline's converted events (canonical `ChatChunk`s when the
             planned path ends at the canonical chunk node) otherwise.
 
@@ -371,7 +375,7 @@ class SyncDriver:
             OcaiError: The refined taxonomy error on wire failure, or a
                 policy `Fail`.
         """
-        from ocai.wire.sse import SSEParser
+        from ocai.wire.hosting import stream_framing
 
         transport = self._sync_transport()
         ctx = deepcopy(ctx)
@@ -392,7 +396,7 @@ class SyncDriver:
                 raise decision.error
             if isinstance(decision, Return):
                 # TODO: replay a cached streaming body by feeding it through an
-                # SSEParser — needs the wire-cache policy to exist first.
+                # selected decoder — needs the wire-cache policy to exist first.
                 raise NotImplementedError("Return decisions for streams are not supported yet")
             if isinstance(decision, Retry):
                 budget.sleep(decision.after)
@@ -403,17 +407,23 @@ class SyncDriver:
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
-            authenticated = _transport_request(self._binding, request)
-            budget.remaining()
-            observation = Attempt(self._observers, ctx, spec.dialect, attempt, streaming=True)
+            selected = framing.snapshot() if framing is not None else stream_framing(
+                self._binding.host, spec)
+            observation: Attempt | None = None
             stream_error: BaseException | None = None
-            parser = SSEParser()
+            decoder: StreamDecoder | None = None
+            tail: list[Any] = []
             upstream: Iterator[bytes] | None = None
             try:
+                decoder = selected.build()
+                budget.remaining()
+                authenticated = _transport_request(self._binding, request)
+                budget.remaining()
+                observation = Attempt(self._observers, ctx, spec.dialect, attempt, streaming=True)
                 upstream = transport.stream_sync(authenticated)
                 for chunk in upstream:
                     budget.remaining()
-                    for event in parser.feed(chunk):
+                    for event in decoder.feed(chunk):
                         if pipeline is None:
                             budget.remaining()
                             yield event
@@ -421,12 +431,17 @@ class SyncDriver:
                             for converted in pipeline.feed(event):
                                 budget.remaining()
                                 yield converted
+                budget.remaining()
+                for event in decoder.finish():
+                    if pipeline is None:
+                        budget.remaining()
+                        yield event
+                    else:
+                        for converted in pipeline.feed(event):
+                            budget.remaining()
+                            yield converted
             except BaseException as err:
                 stream_error = err
-                if pipeline is not None and pipeline.reports is None:
-                    # Aborted stream: flush anyway (sealing in-flight state)
-                    # so the traversal's accounting survives the abort.
-                    pipeline.flush()
                 if isinstance(err, OcaiError):
                     raise _refine(refine_error, err) from err
                 raise
@@ -437,15 +452,22 @@ class SyncDriver:
                         if close is not None:
                             close()
                     finally:
-                        if pipeline is not None and pipeline.reports is None:
-                            tail, _ = pipeline.flush()
-                        else:
-                            tail = []
+                        try:
+                            if decoder is not None:
+                                decoder.close()
+                        finally:
+                            if pipeline is not None and pipeline.reports is None:
+                                tail, _ = pipeline.flush()
+                            else:
+                                tail = []
                 except BaseException as cleanup_error:
-                    observation.finish(stream_error or cleanup_error)
-                    raise
+                    if observation is not None:
+                        observation.finish(stream_error or cleanup_error)
+                    if stream_error is None:
+                        raise
                 else:
-                    observation.finish(stream_error)
+                    if observation is not None:
+                        observation.finish(stream_error)
             if pipeline is not None:
                 for converted in tail:
                     budget.remaining()
@@ -593,6 +615,7 @@ class AsyncDriver:
         request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
         pipeline: StreamPipeline | None = None,
+        framing: StreamFraming | None = None,
     ) -> AsyncIterator[Any]:
         """Run one streaming operation, yielding stream events (async).
 
@@ -616,16 +639,17 @@ class AsyncDriver:
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
                 never reused), or None to yield raw frames.
+            framing: Approved framing snapshot, or None to select from the host.
 
         Yields:
-            One raw `SSEvent` per server-sent event when `pipeline` is None;
+            The selected framing's events (SSE by default) when `pipeline` is None;
             the pipeline's converted events otherwise.
 
         Raises:
             OcaiError: The refined taxonomy error on wire failure, or a
                 policy `Fail`.
         """
-        from ocai.wire.sse import SSEParser
+        from ocai.wire.hosting import stream_framing
 
         transport = self._async_transport()
         ctx = deepcopy(ctx)
@@ -646,7 +670,7 @@ class AsyncDriver:
                 raise decision.error
             if isinstance(decision, Return):
                 # TODO: replay a cached streaming body by feeding it through an
-                # SSEParser — needs the wire-cache policy to exist first.
+                # selected decoder — needs the wire-cache policy to exist first.
                 raise NotImplementedError("Return decisions for streams are not supported yet")
             if isinstance(decision, Retry):
                 await budget.asleep(decision.after)
@@ -657,13 +681,19 @@ class AsyncDriver:
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
-            authenticated = _transport_request(self._binding, request)
-            budget.remaining()
-            observation = Attempt(self._observers, ctx, spec.dialect, attempt, streaming=True)
+            selected = framing.snapshot() if framing is not None else stream_framing(
+                self._binding.host, spec)
+            observation: Attempt | None = None
             stream_error: BaseException | None = None
-            parser = SSEParser()
+            decoder: StreamDecoder | None = None
+            tail: list[Any] = []
             upstream: AsyncIterator[bytes] | None = None
             try:
+                decoder = selected.build()
+                budget.remaining()
+                authenticated = _transport_request(self._binding, request)
+                budget.remaining()
+                observation = Attempt(self._observers, ctx, spec.dialect, attempt, streaming=True)
                 upstream = transport.stream(authenticated)
                 while True:
                     try:
@@ -674,7 +704,7 @@ class AsyncDriver:
                     except TimeoutError as exc:
                         raise DeadlineExceededError("whole-call deadline expired") from exc
                     budget.remaining()
-                    for event in parser.feed(chunk):
+                    for event in decoder.feed(chunk):
                         if pipeline is None:
                             budget.remaining()
                             yield event
@@ -682,12 +712,17 @@ class AsyncDriver:
                             for converted in pipeline.feed(event):
                                 budget.remaining()
                                 yield converted
+                budget.remaining()
+                for event in decoder.finish():
+                    if pipeline is None:
+                        budget.remaining()
+                        yield event
+                    else:
+                        for converted in pipeline.feed(event):
+                            budget.remaining()
+                            yield converted
             except BaseException as err:
                 stream_error = err
-                if pipeline is not None and pipeline.reports is None:
-                    # Aborted stream: flush anyway (sealing in-flight state)
-                    # so the traversal's accounting survives the abort.
-                    pipeline.flush()
                 if isinstance(err, OcaiError):
                     raise _refine(refine_error, err) from err
                 raise
@@ -698,15 +733,22 @@ class AsyncDriver:
                         if close is not None:
                             await close()
                     finally:
-                        if pipeline is not None and pipeline.reports is None:
-                            tail, _ = pipeline.flush()
-                        else:
-                            tail = []
+                        try:
+                            if decoder is not None:
+                                decoder.close()
+                        finally:
+                            if pipeline is not None and pipeline.reports is None:
+                                tail, _ = pipeline.flush()
+                            else:
+                                tail = []
                 except BaseException as cleanup_error:
-                    observation.finish(stream_error or cleanup_error)
-                    raise
+                    if observation is not None:
+                        observation.finish(stream_error or cleanup_error)
+                    if stream_error is None:
+                        raise
                 else:
-                    observation.finish(stream_error)
+                    if observation is not None:
+                        observation.finish(stream_error)
             if pipeline is not None:
                 for converted in tail:
                     budget.remaining()
