@@ -45,6 +45,7 @@ from collections.abc import AsyncIterator
 from collections.abc import Callable
 from collections.abc import Iterator
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -116,6 +117,18 @@ def _build_request(
         stream=spec.op.streaming,
     )
     return envelope, request
+
+
+def _transport_request(binding: Binding, request: HttpRequest) -> HttpRequest:
+    """Authenticate an independent transport-only copy after admission.
+
+    Headers are the only mutable HttpRequest field; body bytes and scalar
+    fields are immutable. Neither credentials nor a transport may mutate the
+    request retained by a policy. Rebuild this copy on every physical attempt.
+    """
+    authenticated = replace(request, headers=dict(request.headers))
+    binding.credentials.apply(authenticated)
+    return authenticated
 
 
 def _refine(refine_error: ErrorRefiner | None, err: OcaiError) -> OcaiError:
@@ -249,10 +262,10 @@ class SyncDriver:
                 attempt += 1
                 continue
             # Step 4: the leaf. After every hook, fresh on every attempt.
-            self._binding.credentials.apply(request)
+            authenticated = _transport_request(self._binding, request)
             response: HttpResponse | None = None
             try:
-                response = transport.send_sync(request)
+                response = transport.send_sync(authenticated)
                 outcome = Outcome(request=request, attempt=attempt, response=response)
             except OcaiError as err:
                 outcome = Outcome(
@@ -332,10 +345,10 @@ class SyncDriver:
                 time.sleep(decision.after or 0.0)
                 attempt += 1
                 continue
-            self._binding.credentials.apply(request)
+            authenticated = _transport_request(self._binding, request)
             parser = SSEParser()
             try:
-                for chunk in transport.stream_sync(request):
+                for chunk in transport.stream_sync(authenticated):
                     for event in parser.feed(chunk):
                         if pipeline is None:
                             yield event
@@ -425,9 +438,9 @@ class AsyncDriver:
                 attempt += 1
                 continue
             # Step 4: the leaf. After every hook, fresh on every attempt.
-            self._binding.credentials.apply(request)
+            authenticated = _transport_request(self._binding, request)
             try:
-                response = await transport.send(request)
+                response = await transport.send(authenticated)
                 outcome = Outcome(request=request, attempt=attempt, response=response)
             except OcaiError as err:
                 outcome = Outcome(
@@ -501,10 +514,10 @@ class AsyncDriver:
                 await asyncio.sleep(decision.after or 0.0)
                 attempt += 1
                 continue
-            self._binding.credentials.apply(request)
+            authenticated = _transport_request(self._binding, request)
             parser = SSEParser()
             try:
-                async for chunk in transport.stream(request):
+                async for chunk in transport.stream(authenticated):
                     for event in parser.feed(chunk):
                         if pipeline is None:
                             yield event

@@ -61,7 +61,7 @@ Files shared by WUs are sequenced, never concurrently edited.
 
 ## WU-22 — Isolate transport credentials
 
-- **Status:** ⬜ Planned
+- **Status:** ✅ Complete
 - **Workstream:** Execution.
 - **Scope:** Clone the wire request and its mutable fields before applying credentials on every driver path. Owns runtime/drivers.py, runtime/decisions.py, core/credentials.py, wire/http.py, driver tests. Other WU outcomes are out of scope.
 - **Done:** Recorded transports receive auth while request/outcome hooks and retained references stay unauthenticated on success, failure, retry, and concurrent sync/async calls.
