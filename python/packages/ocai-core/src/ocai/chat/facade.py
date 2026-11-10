@@ -63,6 +63,8 @@ from ocai.core.errors import StreamProtocolError
 from ocai.core.errors import UnsupportedFeatureError
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
+from ocai.core.fidelity import FidelityPolicy
+from ocai.core.fidelity import FidelityPolicyError
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import CHAT
@@ -434,6 +436,7 @@ class WireChatModel:
         policies: Sequence[WirePolicy] = (),
         strict: bool = False,
         attempt_observers: Sequence[Observer] = (),
+        conversion_policy: FidelityPolicy | None = None,
     ) -> None:
         """Compose the facade from its three values and the bound resource.
 
@@ -461,6 +464,8 @@ class WireChatModel:
                 eligible.
             policies: The wire-tier hooks (retry, rate-limit, wiretap) the
                 drivers consult on every attempt, in order.
+            conversion_policy: Enforce field and semantic acceptance before I/O
+                and after response conversion; stream output cannot be retracted.
             attempt_observers: Physical-attempt metadata observers. Wrap this
                 model in ObservedChatModel for logical invocation events; the
                 core model factory composes both automatically.
@@ -479,6 +484,7 @@ class WireChatModel:
         self._interface = interface
         self._tag = tag
         self._strict = strict
+        self._conversion_policy = conversion_policy
         self._sync_driver = SyncDriver(binding, policies=policies, observers=attempt_observers)
         self._async_driver = AsyncDriver(binding, policies=policies, observers=attempt_observers)
 
@@ -489,6 +495,7 @@ class WireChatModel:
             "wire": _wire_identity(request), "model": self._model_name,
             "interface": self._interface, "tag": self._tag, "strict": self._strict,
             "catalog": self._catalog.lock().hash,
+            "policy": id(self._conversion_policy) if self._conversion_policy else None,
         }).encode()).hexdigest()
 
     def prepare(self, request: ChatRequest, *, streaming: bool = False) -> PreparedChatCall:
@@ -518,6 +525,9 @@ class WireChatModel:
         normalized_headers = {name.casefold() for name in header_names}
 
         def guard(request: HttpRequest) -> None:
+            if self._conversion_policy is not None:
+                self._conversion_policy.enforce(prepared.report, phase="request",
+                                                route=prepared.route)
             # Explicit hooks may add transport metadata; changing approved fields
             # or effective host/configuration requires a fresh inspection.
             if any(name not in header_names and name.casefold() in normalized_headers
@@ -820,13 +830,12 @@ class WireChatModel:
             raw, self._response_node(prepared.route.node), CANONICAL_CHAT_RESPONSE
         )
         response: ChatResponse = decoded.value
-        return CallResult(
-            value=response,
-            route=prepared.route,
-            report=prepared.report.merge(decoded.report),
-            usage=response.usage,
-            raw=raw,
-        )
+        report = prepared.report.merge(decoded.report)
+        if self._conversion_policy is not None:
+            self._conversion_policy.enforce(report, phase="response", usage=response.usage,
+                                            route=prepared.route)
+        return CallResult(value=response, route=prepared.route, report=report,
+                          usage=response.usage, raw=raw)
 
     def _stamp_stream_report(
         self, terminal: ChatChunk, prepared: _PreparedCall, pipeline: StreamPipeline
@@ -884,6 +893,7 @@ class WireChatModel:
             the two-leg report stamped.
         """
         terminal: ChatChunk | None = None
+        delivered = 0
         try:
             for chunk in events:
                 if terminal is not None:
@@ -891,9 +901,15 @@ class WireChatModel:
                 if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
                     terminal = chunk
                 else:
+                    delivered += 1
                     yield chunk
             if terminal is not None:
                 self._stamp_stream_report(terminal, prepared, pipeline)
+                if self._conversion_policy is not None and terminal.end is not None:
+                    self._conversion_policy.enforce(
+                        terminal.end.report or FidelityReport(), phase="response",
+                        usage=terminal.end.usage, route=prepared.route, delivered_events=delivered,
+                    )
                 yield terminal
         finally:
             close = getattr(events, "close", None)
@@ -915,6 +931,7 @@ class WireChatModel:
             the two-leg report stamped.
         """
         terminal: ChatChunk | None = None
+        delivered = 0
         try:
             async for chunk in events:
                 if terminal is not None:
@@ -922,9 +939,15 @@ class WireChatModel:
                 if isinstance(chunk, ChatChunk) and chunk.type == ChunkType.STREAM_STOP:
                     terminal = chunk
                 else:
+                    delivered += 1
                     yield chunk
             if terminal is not None:
                 self._stamp_stream_report(terminal, prepared, pipeline)
+                if self._conversion_policy is not None and terminal.end is not None:
+                    self._conversion_policy.enforce(
+                        terminal.end.report or FidelityReport(), phase="response",
+                        usage=terminal.end.usage, route=prepared.route, delivered_events=delivered,
+                    )
                 yield terminal
         finally:
             close = getattr(events, "aclose", None)
@@ -1341,7 +1364,11 @@ class ObservedChatModel:
         try:
             result = self._inner.chat(request, ctx=scope.ctx)
         except BaseException as error:
-            scope.finish(status=failure_status(error), error=error)
+            if isinstance(error, FidelityPolicyError):
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            else:
+                scope.finish(status=failure_status(error), error=error)
             raise
         scope.finish(usage=result.usage, report=result.report, route=result.route)
         return result
@@ -1353,7 +1380,11 @@ class ObservedChatModel:
         try:
             result = await self._inner.achat(request, ctx=scope.ctx)
         except BaseException as error:
-            scope.finish(status=failure_status(error), error=error)
+            if isinstance(error, FidelityPolicyError):
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            else:
+                scope.finish(status=failure_status(error), error=error)
             raise
         scope.finish(usage=result.usage, report=result.report, route=result.route)
         return result
@@ -1364,7 +1395,11 @@ class ObservedChatModel:
         try:
             stream = self._inner.stream(request, ctx=scope.ctx)
         except BaseException as error:
-            scope.finish(status=failure_status(error), error=error)
+            if isinstance(error, FidelityPolicyError):
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            else:
+                scope.finish(status=failure_status(error), error=error)
             raise
         stream.on_termination(lambda outcome: scope.finish(
             status=(failure_status(outcome.error)
@@ -1380,7 +1415,11 @@ class ObservedChatModel:
         try:
             stream = await self._inner.astream(request, ctx=scope.ctx)
         except BaseException as error:
-            scope.finish(status=failure_status(error), error=error)
+            if isinstance(error, FidelityPolicyError):
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            else:
+                scope.finish(status=failure_status(error), error=error)
             raise
         stream.on_termination(lambda outcome: scope.finish(
             status=(failure_status(outcome.error)

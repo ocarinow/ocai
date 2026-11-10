@@ -452,6 +452,21 @@ hashes identify declarations/effective configuration, not executable artifacts.
 Response findings remain unknown until conversion occurs. ADR 0007 records why
 public detached preparation replaces gateway dependence on private `_prepare`.
 
+`FidelityPolicy` accepts explicit disposition/shift denials and pure predicates
+on detached `FieldLoss` and `SemanticShift` records. It never treats `lossless`
+as semantic acceptance. Prepared execution rechecks request policy before every
+physical attempt; a rejection or raising predicate prevents I/O. Changing policy
+identity invalidates preparation. Closures remain trusted application code.
+
+Response policy runs after the conversion ledger is complete. A
+`FidelityPolicyError` retains report, usage, route and phase without the rejected
+payload/raw body. Streaming checks the completed ledger before delivering
+`StreamEnd`; previous chunks cannot be retracted. A late rejection raises with
+`partial` and `delivered_events`, and stream outcome retains available accounting
+with failed status and no successful end. Aborts retain evidence under the
+separate stream outcome contract; they never synthesize policy approval. Gateway
+policies may independently enforce the ingress and client-egress leg reports.
+
 ### 4.1 `graph.py` [frozen-candidate mechanics]
 The Dijkstra planner survives. `Edge(src: NodeId, dst: NodeId, fn, contract,
 origin)`; planner cost is **derived** from the contract (§4.2), never
