@@ -513,6 +513,17 @@ request. `Outcome.request` and references retained by admission hooks stay
 unauthenticated for the lifetime of the call, including failures and retries
 (ADR 0007, WU-22). This boundary applies to unary and streaming in both modes.
 
+Port middleware implements both `CallInterceptor` and `StreamInterceptor` to
+govern all four call faces. Stream continuations return owned `SyncStream` or
+`AsyncStream` protocols; runtime remains capability-neutral. `StreamOutcome`
+lives in core result vocabulary and is re-exported by chat. Admission is eager,
+with the same snapshotted CallContext. A unary-only interceptor causes streaming
+to fail closed before invoking the inner port. Each stream continuation is
+single-use, preventing accidental generation restart. If middleware raises after
+acquiring a stream, composition closes it. Wrappers forward closure and terminal
+evidence; they do not buffer the response. This applies equally to local ports
+and wire-backed models (ADR 0007, WU-25).
+
 ## 6. `ocai.wire` — remote transport
 
 `http.py` (`HttpRequest/HttpResponse` value objects — also the audit-archive

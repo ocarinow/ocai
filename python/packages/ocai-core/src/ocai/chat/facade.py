@@ -69,9 +69,14 @@ from ocai.runtime.binding import CompositionError
 from ocai.runtime.deadline import Deadline
 from ocai.runtime.drivers import AsyncDriver
 from ocai.runtime.drivers import SyncDriver
+from ocai.runtime.interceptors import AsyncStream
 from ocai.runtime.interceptors import Call
+from ocai.runtime.interceptors import StreamInterceptor
+from ocai.runtime.interceptors import SyncStream
 from ocai.runtime.interceptors import acompose
+from ocai.runtime.interceptors import acompose_stream
 from ocai.runtime.interceptors import compose
+from ocai.runtime.interceptors import compose_stream
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
 
@@ -933,10 +938,9 @@ class InterceptedChatModel:
     wrapper satisfies the `ChatModel` protocol structurally, so interceptors
     stack: an `InterceptedChatModel` can wrap another.
 
-    `stream`/`astream` pass through to the inner port *unintercepted*:
-    `CallInterceptor` is a unary `Call -> CallResult` contract, and chunk
-    streams do not fit it — streaming interception is a later, explicit seam,
-    never a silent partial application.
+    `stream`/`astream` use the separate `StreamInterceptor` continuation.
+    Every configured interceptor must support it or streaming fails closed
+    before the inner port is invoked; unary-only governance is never bypassed.
     """
 
     def __init__(self, inner: ChatModel, interceptors: Sequence[CallInterceptor]) -> None:
@@ -952,6 +956,18 @@ class InterceptedChatModel:
         self._interceptors = tuple(interceptors)
         self._handler = compose(self._interceptors, self._terminal)
         self._ahandler = acompose(self._interceptors, self._aterminal)
+        stream_interceptors = [item for item in self._interceptors
+                               if isinstance(item, StreamInterceptor)]
+        self._stream_handler = (compose_stream(stream_interceptors, self._stream_terminal)
+                                if len(stream_interceptors) == len(self._interceptors) else None)
+        self._astream_handler = (acompose_stream(stream_interceptors, self._astream_terminal)
+                                 if len(stream_interceptors) == len(self._interceptors) else None)
+
+    def _stream_terminal(self, call: Call) -> SyncStream:
+        return self._inner.stream(call.request, ctx=call.ctx)
+
+    async def _astream_terminal(self, call: Call) -> AsyncStream:
+        return await self._inner.astream(call.request, ctx=call.ctx)
 
     def _terminal(self, call: Call) -> CallResult[ChatResponse]:
         """The innermost sync handler: the wrapped port's own `chat`."""
@@ -978,7 +994,7 @@ class InterceptedChatModel:
             The `CallResult` the chain hands back — the inner port's result,
             or an interceptor's short-circuit.
         """
-        return self._handler(Call(request=request, ctx=ctx))
+        return self._handler(Call(request=request, ctx=deepcopy(ctx)))
 
     async def achat(
         self,
@@ -995,7 +1011,7 @@ class InterceptedChatModel:
         Returns:
             The `CallResult` the chain hands back.
         """
-        return await self._ahandler(Call(request=request, ctx=ctx))
+        return await self._ahandler(Call(request=request, ctx=deepcopy(ctx)))
 
     def stream(
         self,
@@ -1003,7 +1019,7 @@ class InterceptedChatModel:
         *,
         ctx: CallContext | None = None,
     ) -> ChatStream:
-        """Delegate a streaming request to the inner port, unintercepted.
+        """Run eager streaming admission through every configured interceptor.
 
         Args:
             request: The canonical chat request.
@@ -1012,7 +1028,13 @@ class InterceptedChatModel:
         Returns:
             The inner port's canonical chunk stream.
         """
-        return self._inner.stream(request, ctx=ctx)
+        if self._stream_handler is None:
+            raise CompositionError("every interceptor must implement StreamInterceptor; "
+                                   "streaming cannot bypass unary governance")
+        stream = self._stream_handler(Call(request=request, ctx=deepcopy(ctx)))
+        if isinstance(stream, ChatStream):
+            return stream
+        return ChatStream(stream, report=lambda: stream.outcome.report if stream.outcome else None)
 
     async def astream(
         self,
@@ -1020,7 +1042,7 @@ class InterceptedChatModel:
         *,
         ctx: CallContext | None = None,
     ) -> AsyncChatStream:
-        """Delegate an async streaming request to the inner port, unintercepted.
+        """Run eager async streaming admission through every interceptor.
 
         Args:
             request: The canonical chat request.
@@ -1029,7 +1051,14 @@ class InterceptedChatModel:
         Returns:
             The inner port's async canonical chunk stream.
         """
-        return await self._inner.astream(request, ctx=ctx)
+        if self._astream_handler is None:
+            raise CompositionError("every interceptor must implement StreamInterceptor; "
+                                   "streaming cannot bypass unary governance")
+        stream = await self._astream_handler(Call(request=request, ctx=deepcopy(ctx)))
+        if isinstance(stream, AsyncChatStream):
+            return stream
+        return AsyncChatStream(stream,
+                               report=lambda: stream.outcome.report if stream.outcome else None)
 
     @property
     def details(self) -> dict[str, Any]:

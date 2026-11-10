@@ -51,7 +51,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-22 | Isolate transport credentials | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-23 | Propagate context and enforce deadlines | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-24 | Own and terminate streams explicitly | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
-| WU-25 | Govern streaming through port middleware | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
+| WU-25 | Govern streaming through port middleware | Gateway | [gateway](gateway-readiness.md) | ✅ Complete |
 | WU-26 | Emit correlated passive lifecycle events | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-27 | Expose immutable execution inspection | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
 | WU-28 | Enforce request and response fidelity policy | Gateway | [gateway](gateway-readiness.md) | ⬜ Planned |
