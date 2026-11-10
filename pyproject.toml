@@ -39,6 +39,8 @@ docs = [
 # ---------------------------------------------------------------------------
 [tool.ruff]
 line-length = 100
+# Vendored agent skills carry their own upstream scripts; they are not ocai code.
+extend-exclude = [".agents"]
 target-version = "py313"
 src = [
     "python/packages/ocai-core/src",

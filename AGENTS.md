@@ -198,9 +198,12 @@ never a paraphrase of it.
 
 1. Pick one WU from [`docs/plans/`](docs/plans/README.md); read its
    done-criteria and the relevant `docs/architecture.md` + `spec/` sections.
-   The procedure is the `wu-session` skill in `.agents/skills/`.
+   The procedure is the `wu-session` skill in `.agents/skills/`. If the work
+   has no WU entry yet, the `wu-define` skill writes one first; the skills
+   index is `.agents/skills/README.md`.
 2. Implement only that WU. Add/extend golden fixtures and recorded wire pairs
-   (the `add-edge` skill covers a new conversion edge end to end).
+   (the `add-edge` skill covers a new conversion edge end to end; the
+   `record-wire-pair` skill covers a new recorded HTTP/SSE pair).
 3. Verify: `uv run python scripts/check.py`. Report results.
 4. Update the WU checkbox AND any architecture.md section your change affects.
    A decision that outlives the PR (a shape, a policy, a boundary) gets an ADR
