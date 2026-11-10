@@ -99,7 +99,7 @@ class RetryPolicy:
 
 
 class RateLimitPolicy:
-    """Client-side rate limiting via `Retry`/`Fail` admission decisions. [stub]
+    """Client-side rate limiting via `Retry`/`Fail` admission decisions [stub].
 
     Will meter requests against a token bucket and defer admission with
     `Retry(after=…)` (or veto with `Fail` when a deadline makes waiting
@@ -143,7 +143,7 @@ class RateLimitPolicy:
 
 
 class WireTap:
-    """Post-redaction exchange capture feeding archive satellites. [stub]
+    """Post-redaction exchange capture feeding archive satellites [stub].
 
     Records each attempt's `(HttpRequest, HttpResponse | error)` pair — the
     audit-archive contract shape (`ocai.wire.http`) — and hands it to a

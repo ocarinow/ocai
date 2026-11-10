@@ -69,7 +69,7 @@ class SSEvent:
 
 
 class SSEParser:
-    """Incremental Server-Sent-Events parser, safe across network chunk splits.
+    r"""Incremental Server-Sent-Events parser, safe across network chunk splits.
 
     A **pure** SSE wire parser: feed raw bytes as they arrive, get back
     completed `SSEvent` frames. It handles:

@@ -2,7 +2,7 @@
 
 The implementation roadmap for the July 2026 re-architecture. The structural
 contract every WU implements is [`docs/architecture.md`](../architecture.md);
-the rules are [`CLAUDE.md`](../../CLAUDE.md). **One WU = one session = one PR**
+the rules are [`AGENTS.md`](../../AGENTS.md). **One WU = one session = one PR**
 (rule 17). Near-term WUs are fully specified; horizon milestones are one
 paragraph each and get detailed only when reached — no pretend-detail a year
 out.
@@ -71,8 +71,9 @@ introduced on the unary path, so the streaming-first ratchet is not violated.
 1. Pick the first unchecked WU whose dependencies are ✅ (prefer Track A).
 2. Read its entry in the milestone file + the architecture.md sections it cites.
 3. Implement only that WU; add the tests/fixtures its done-criteria name.
-4. `uv run ruff check && uv run pytest` — report results.
+4. `uv run python scripts/check.py` — report results.
 5. Check the WU off here and in the milestone file; update any architecture.md
    section the change affected (blueprint law: they must not drift).
 
+Kernel gaps found by consumers (satellites, spikes, ports): [`gaps.md`](gaps.md).
 Archived pre-rearchitecture plans: [`archive/`](archive/README.md).

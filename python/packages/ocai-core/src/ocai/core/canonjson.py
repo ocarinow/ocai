@@ -127,7 +127,7 @@ def canonical(obj: Any) -> str:
 
 
 def semantic_equal(a: Any, b: Any) -> bool:
-    """Return whether `a` and `b` are the same document, semantically.
+    r"""Return whether `a` and `b` are the same document, semantically.
 
     The single equality predicate conformance asserts with: both sides are
     normalized under the full rule set — including the parse-compare half of

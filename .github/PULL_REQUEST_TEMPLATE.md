@@ -1,0 +1,29 @@
+## Work unit
+
+WU-__ — <title from docs/plans/>. One WU per PR (rule 17).
+
+## What changed
+
+<two or three sentences: the behavior, not the diff>
+
+## Honesty ledger
+
+- [ ] Every new/changed edge has an `EdgeContract` census and golden fixtures in `spec/` (rule 9)
+- [ ] Runtime loss ⊆ declared census (`certify_edge` returns `[]`)
+- [ ] Nothing is silently dropped, clamped, or rescaled; new extension keys are schema-registered in `spec/extensions/` (rule 5)
+- [ ] Streaming changes ship delta type + fold law + fold-triple fixtures (rule 7)
+- [ ] Tests are recorded wire pairs; no live keys, no SDK mocks (rule 10)
+
+## Contracts
+
+- [ ] No new third-party dependency in `ocai.core` (rule 11); no provider SDK anywhere (rule 12)
+- [ ] Frozen-candidate surfaces changed additively only, or the change is before the v0.2 freeze and recorded in `docs/decisions/`
+- [ ] `docs/architecture.md` section(s) affected: §__ (updated in this PR)
+- [ ] WU checkbox flipped in `docs/plans/README.md` and the milestone file
+
+## Verification
+
+Paste the summary block of `uv run python scripts/check.py`:
+
+```
+```

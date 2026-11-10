@@ -1,0 +1,240 @@
+# AGENTS.md
+
+Instructions for every coding agent (Codex, Claude Code, Cursor, humans)
+working in this repo. This file is the single canonical instruction file;
+tool-specific files (`CLAUDE.md`) only import it. The structural contract —
+every layer, object, and interaction — lives in
+[`docs/architecture.md`](docs/architecture.md); milestone plans live in
+[`docs/plans/`](docs/plans/README.md); settled decisions live in
+[`docs/decisions/`](docs/decisions/README.md). When code and
+`docs/architecture.md` disagree, fix one in the same PR — stale constitution
+is how drift compounds in agent-driven development.
+
+## What ocai is
+
+**ocai** (short for **"Ocarinow AI"**) is **One Common interface for AI**: a
+single, stable, provider-neutral API in front of every AI capability (LLM
+chat/generation, embeddings, vector stores, monitoring) so user code never
+imports a provider SDK. Target users are enterprises putting GenAI in
+production; foundations (auditability, governance, determinism, honest
+reporting) are the product, not a nice-to-have.
+
+ocai is the **kernel of a larger platform**: satellite libraries (telemetry,
+eval, audit, registries of tools/skills/MCP servers, an agent runtime, a
+gateway) will be built on its contracts. The kernel stays one call → one
+`CallResult`; platform features land in satellites, never in core
+(architecture §11 scope litmus test).
+
+The differentiator is **honest, version-resilient conversion**: switching
+provider, provider *interface* (e.g. OpenAI `/chat/completions` →
+`/responses`), or provider *version* is ocai's problem, not the user's — and
+every conversion reports exactly what it cost (`FidelityReport`), never
+silently.
+
+ocai is **source-available** under FSL-1.1-ALv2, not open source — never
+describe it as "open source".
+
+**Status (Nov 2026):** milestones M1–M3 landed (unary + streaming through the
+facade on OpenAI and Anthropic, cross-conversion fidelity demo, front doors).
+The current program and its open WUs are in `docs/plans/README.md`; it is the
+only authoritative statement of what is next.
+
+## Architecture (five load-bearing ideas)
+
+1. **Contract kernel.** `ocai.core` is a pure-stdlib, zero-dependency,
+   zero-I/O data-contract layer (identity, fidelity, errors, `CallResult`,
+   credentials, `ProviderRef`, `CapabilityProfile`, IR envelope, canonical
+   JSON). Everything else is replaceable machinery behind it.
+2. **Four-level identity.** `Capability` (chat) → `Interface`
+   (openai/chat_completions and openai/responses are *sibling interfaces*, not
+   versions) → `tag` (dated revision) → `Shape` (chat.request…). A graph node
+   is `NodeId(provider, interface, tag, shape)`. The canonical IR is itself
+   the interface named `ocai` with dated revisions, so IR migration is
+   ordinary graph conversion.
+3. **Governed conversion catalog.** Immutable, provenance-stamped `Catalog`s
+   (no process-global registries). Edges declare an `EdgeContract` (per-field
+   disposition census); planner weights are *derived* from it and CI certifies
+   runtime loss never exceeds the declaration. `TrustPolicy.OWNED_ENDPOINTS`
+   by default; `Catalog.lock()` hashes into every `Route`.
+4. **Sans-io execution.** All logic that is not the physical I/O call is pure
+   and synchronous; two thin drivers (`SyncDriver`/`AsyncDriver`) execute it.
+   Policy hooks return Decisions (`Proceed|Retry|Fail|Return`). Credentials
+   are applied at the driver leaf, per attempt, *after* every hook — no
+   middleware can see a secret. Port-tier `CallInterceptor`s (fallback,
+   policy, cost, cache, tracing) work for local AND remote adapters; the port
+   is the only contract, wire-backed is one implementation.
+5. **Stream-first IR.** `fold(stream(request)) == complete(request)` is
+   normative. Streams end with `StreamEnd(usage, finish, report)`. No new part
+   type without its delta type, fold law, and paired fixtures.
+
+## Repository layout
+
+```
+AGENTS.md    this file — the one instruction file every agent reads
+spec/        language-neutral source of truth: canonical-json.md, JSON Schema,
+             golden fixtures (incl. fold triples), extension censuses
+docs/        architecture.md (structural contract) · plans/ (roadmap + WUs) ·
+             decisions/ (ADRs) · providers/ (provider wire research) · guides
+python/      uv workspace:
+  packages/ocai-core       dist "ocai": ocai.core / ocai.chat / ocai.embedding /
+                           ocai.vectorstore / ocai.convert / ocai.runtime / ocai.wire
+  packages/ocai-openai     ocai.openai.chat_completions + ocai.openai.responses
+  packages/ocai-anthropic  ocai.anthropic.messages
+typescript/  go/           placeholders — mirror spec/ (not yet implemented)
+examples/    cross_conversion_demo.py · ocai-contrib-echo (plugin template)
+scripts/     check.py — the one verification command
+.agents/skills/            procedures (Agent Skills format), shared by all tools
+.agents/roles/             sub-agent role bodies, shared by all tools
+.claude/                   Claude Code adapters: skills symlink, agents/*.md pointers
+.codex/                    Codex adapters: agents/*.toml pointers
+```
+
+Tool-neutral content lives in tool-neutral places; a tool's own directory holds
+only pointers (`docs/decisions/0001-agent-neutral-repo-layout.md`).
+
+Layer dependency arrows (enforced by import-linter; violations are build
+failures): capabilities → core; convert → core; runtime → core+convert;
+wire → runtime; `ocai.chat.facade` is the one chat module allowed to import
+convert/runtime/wire (a facade module never shares the front-door factory's
+name — `ocai.chat.model()` stays free for the factory); plugins →
+core+convert ONLY (never wire/httpx).
+
+## Three version axes — keep distinct, never conflate
+
+- **interface tag** — a provider interface's dated wire revision (`NodeId.tag`).
+- **canonical IR revision** — dated `ocai@YYYY-MM` (also a `NodeId.tag`).
+- **library public-API version** — semver of the shipped package.
+
+## Commands
+
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.13+.
+
+```bash
+uv sync                        # create env + install workspace distributions
+uv run python scripts/check.py # THE verification command: ruff + import contracts + pytest
+uv run ruff check              # lint only
+uv run lint-imports            # layer contracts only (architecture §1)
+uv run pytest                  # tests only: invariants + conformance
+uv run python examples/cross_conversion_demo.py   # flagship demo #1
+```
+
+A change is not done until `scripts/check.py` exits 0. Report its output,
+never a paraphrase of it.
+
+## Cross-cutting rules (apply to every change)
+
+1. **PEP 420 namespace:** never create `ocai/__init__.py` at the namespace
+   root in any distribution. Only subpackages get `__init__.py`.
+2. **Stability domains are earned.** At v0.2 only data contracts freeze
+   additive-only: `ocai.core` vocabulary + `ocai.chat` port and IR + their
+   spec/ schemas. `ocai.embedding`/`ocai.vectorstore` are provisional until
+   they carry `CallResult` in real use. Hook protocols, plugin ABI
+   (`CatalogFragment`), profile keys freeze at v1.0 only after the
+   `/responses` migration and one real cross-provider failover have been
+   exercised through them.
+3. **Three version axes stay distinct** (above).
+4. **Every port returns `CallResult(value, route, report, usage, raw)`** —
+   named result objects, never bare tuples. The FidelityReport lives on
+   `CallResult` only; IR payloads stay pure.
+5. **Honesty is structural.** Nothing is silently dropped, approximated,
+   clamped, or rescaled: unmapped fields ride namespaced `extensions`
+   (censused — schema-registered in `spec/extensions/`, unregistered keys fail
+   CI); semantic divergence is a `SemanticShift`; out-of-range values pass
+   verbatim with an `APPROXIMATED` report; `ProviderRef`s crossing a
+   `(provider, interface)` boundary are `UNSUPPORTED`-and-reported.
+6. **Total decode / forward compat.** No IR decode path may ever raise on
+   unknown input: unknown part tags → `PartUnknown`, unknown deltas →
+   `DeltaUnknown`, unknown envelope keys → swept into `extensions`, enums are
+   open string codes with the provider's verbatim value preserved in a
+   `native` lane. Nothing is ever renamed or removed; deprecations are
+   annotations; reform happens via dated canonical revisions with migration
+   edges.
+7. **Streaming has honesty parity.** One canonical `ChatChunk` event type;
+   every stream ends with `StreamEnd(usage, finish, report)`;
+   `StreamAccumulator.fold(chunks)` must equal the non-streaming response
+   (golden fold-triple fixtures per streaming edge); PART_STOP's final part
+   must equal its delta accumulation.
+8. **Errors map to the shared taxonomy** (`RateLimitError`, `AuthError`,
+   `ContextLengthError`, `ContentFilterError`, `TransientError`); mid-stream
+   errors have a wire shape (canonical code + native + retryable), not just a
+   Python exception.
+9. **Every edge ships an `EdgeContract` + golden fixtures** in `spec/`;
+   conformance certifies runtime loss ⊆ declared census. A change to `spec/**`
+   re-runs every language suite.
+10. **Tests are wire-level:** recorded HTTP/SSE pairs (respx-style), never
+    live keys, never provider-SDK mocks. CI must pass with no secrets.
+11. **No pydantic, no msgspec in `ocai.core`** — canonical types are stdlib
+    dataclasses, zero third-party deps. msgspec is sanctioned only at plugin
+    wire-decode boundaries. Pydantic users are served by duck-typed
+    `model_json_schema()` acceptance and optional satellite dists — never a
+    core dependency. The hand-authored JSON Schema in `spec/` is the neutral
+    source of truth; dataclasses are conformance-tested against it.
+12. **No provider SDKs anywhere.** ocai owns the wire via `ocai.wire`. The
+    only permitted provider-adjacent dependency is a narrow signing library
+    inside a cloud-hosting plugin.
+13. **Credentials are explicit-only** — no ambient discovery; only
+    `ApiKey.from_env/.from_file` may read env/filesystem and only when called.
+    Applied by the driver at the leaf, per attempt, after all hooks; redacted
+    in `repr`/logs; never in `raw`, reports, or `provider_options`.
+14. **Catalogs, not globals.** Plugins export a frozen declarative
+    `CatalogFragment`; no import-time mutation of shared state. Hosting is
+    composed (`Direct`/`Custom`/`Vertex` values reading `DialectTraits` as
+    data) — no `CloudProvider` base class; codecs are keyed by interface,
+    never by host.
+15. **Source-available, not open source** (FSL-1.1-ALv2). No OSI classifiers.
+16. **Full type hints, `py.typed` in every distribution, `ruff` clean
+    (including the Google-convention docstring rules), `pytest` green.** Mark
+    stubs with `# TODO:` and a one-line note.
+17. **One work unit (WU) per PR.**
+18. **Docstrings are Google style** (`Args:`/`Returns:`/`Raises:`/`Yields:`),
+    never reST field lists or NumPy sections; never repeat a type the
+    signature already declares; code references in prose are single-backtick.
+
+## How to work a session
+
+1. Pick one WU from [`docs/plans/`](docs/plans/README.md); read its
+   done-criteria and the relevant `docs/architecture.md` + `spec/` sections.
+   The procedure is the `wu-session` skill in `.agents/skills/`.
+2. Implement only that WU. Add/extend golden fixtures and recorded wire pairs
+   (the `add-edge` skill covers a new conversion edge end to end).
+3. Verify: `uv run python scripts/check.py`. Report results.
+4. Update the WU checkbox AND any architecture.md section your change affects.
+   A decision that outlives the PR (a shape, a policy, a boundary) gets an ADR
+   in `docs/decisions/`.
+
+## Working alongside other agents
+
+Several agents (and humans) work this repo concurrently. The protocol:
+
+- **One branch per WU, one PR per WU.** Agents sharing a checkout keep
+  their file sets disjoint and commit only their own paths; when the sets
+  would overlap, the second agent takes its own worktree
+  (`git worktree add ../ocai-<branch> -b <branch>`). Housekeeping that
+  touches no kernel code may land on the main branch directly when the
+  maintainer says so.
+- **Ownership by directory.** Kernel and plugin source (`python/packages/`)
+  is owned by the agent assigned the WU. Satellites, `spec/` additions,
+  `docs/`, `scripts/`, and skills are separate tracks. Do not edit another
+  track's files inside your WU; write the need down instead.
+- **Gaps are files, not chat.** Something the kernel lacks, discovered while
+  building on it, goes into [`docs/plans/gaps.md`](docs/plans/gaps.md) with
+  the evidence. It becomes a WU from there.
+- **Shared file etiquette.** `docs/architecture.md` is edited per section:
+  the WU owner edits the sections their change touches; new tiers and
+  positioning get new sections. `docs/plans/README.md` status rows are
+  flipped by the WU owner in the same PR.
+- **Review against the rules, not taste.** A review checks the eighteen
+  rules above, the freeze boundaries (rule 2), and that declared loss
+  matches runtime loss. Findings cite a rule or an architecture section.
+- **Commit messages are plain.** `WU-NN: imperative summary` on the first
+  line, the why in the body. No AI-attribution trailers. See
+  `CONTRIBUTING.md` for the sign-off requirement.
+
+## Sequencing principle
+
+Never build the wedge on shaky table stakes. The two flagship WUs **are** the
+product: the visible fidelity report and the interface-migration-with-no-user-
+code-change proof (`/responses`). The conformance fixture set is the moat and
+grows from day one. Three providers (OpenAI, Anthropic, Gemini) is plenty
+until v1. Rules that are tests survive; rules that are prose rot — when you
+add a rule, add its test.

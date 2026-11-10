@@ -211,9 +211,11 @@ def test_anthropic_decode_request_edge_certifies() -> None:
 
 
 def test_encode_edges_certify_over_the_cross_intermediates() -> None:
-    """The canonical intermediates (carrying the banked wire model in
-    `extensions`) stay within the encode censuses — the truth-up that made
-    the foreign-extension DROP declared, not silent."""
+    """The canonical intermediates stay within the encode censuses.
+
+    They carry the banked wire model in `extensions` — the truth-up that made
+    the foreign-extension DROP declared, not silent.
+    """
     openai_intermediate = OPENAI_DECODE_REQUEST.fn(_wire_payloads("openai")[0]).value
     anthropic_intermediate = ANTHROPIC_DECODE_REQUEST.fn(_wire_payloads("anthropic")[0]).value
     assert certify_edge(ANTHROPIC_ENCODE_REQUEST, [openai_intermediate]) == []
@@ -253,9 +255,12 @@ def test_response_decode_directions_exist_and_reports_merge() -> None:
 
 
 def test_encode_response_direction_does_not_exist_yet() -> None:
-    """The recorded WU-15 deviation: the response leg cannot run canonical ->
-    wire until encode-response edges land; the demo scopes to the decode
-    direction and this pin flips the day those edges arrive."""
+    """The recorded WU-15 deviation: the response leg runs decode-only.
+
+    It cannot run canonical -> wire until encode-response edges land; the demo
+    scopes to the decode direction and this pin flips the day those edges
+    arrive.
+    """
     catalog = _catalog()
     response = {"message": {"role": "model", "parts": []}}
     with pytest.raises(ConversionError):
@@ -282,9 +287,11 @@ def _unsupported_ref_losses(report: FidelityReport) -> list[str]:
 
 
 def test_interface_scoped_ref_crossing_providers_is_unsupported_and_reported() -> None:
-    """An interface-scoped SourceRef file id minted by openai/chat_completions
-    converted toward anthropic/messages is UNSUPPORTED — reported, never
-    silently dropped."""
+    """An interface-scoped file id crossing providers is UNSUPPORTED.
+
+    A SourceRef minted by openai/chat_completions converted toward
+    anthropic/messages is reported, never silently dropped.
+    """
     request = _request_with_file_ref(
         ProviderRef(provider="openai", interface="chat_completions", kind="file", id="file-abc123")
     )
@@ -293,9 +300,12 @@ def test_interface_scoped_ref_crossing_providers_is_unsupported_and_reported() -
 
 
 def test_provider_scoped_ref_crossing_sibling_interface_is_unreported() -> None:
-    """A provider-scoped OpenAI file id (valid across chat_completions /
-    responses / batch) crossing to a sibling OpenAI interface must NOT be
-    reported — the deliberate silence of the scoped rule."""
+    """A provider-scoped ref crossing a sibling interface is NOT reported.
+
+    An OpenAI file id valid across chat_completions / responses / batch
+    crossing to a sibling OpenAI interface stays silent — the deliberate
+    silence of the scoped rule.
+    """
     request = _request_with_file_ref(
         ProviderRef(
             provider="openai",
@@ -310,8 +320,10 @@ def test_provider_scoped_ref_crossing_sibling_interface_is_unreported() -> None:
 
 
 def test_interface_scoped_ref_crossing_sibling_interface_is_reported() -> None:
-    """The contrast case: the SAME sibling-interface crossing IS reported when
-    the ref is interface-scoped (the default, narrowest reading)."""
+    """The contrast case: an interface-scoped ref IS reported on the same crossing.
+
+    The default, narrowest reading of the scope.
+    """
     request = _request_with_file_ref(
         ProviderRef(provider="openai", interface="responses", kind="file", id="file-abc123")
     )

@@ -30,3 +30,7 @@ node_modules/
 .idea/
 .vscode/
 .DS_Store
+
+# Per-user agent settings (never commit personal permissions)
+.claude/settings.local.json
+.codex/config.toml

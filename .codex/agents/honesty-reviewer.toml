@@ -1,0 +1,10 @@
+# Codex adapter for the shared role in .agents/roles/honesty-reviewer.md.
+# The role body lives there so every coding agent reads one definition;
+# this file only registers it with Codex. Keep it a pointer.
+name = "honesty-reviewer"
+description = "Reviews an ocai change against the eighteen rules, the freeze boundaries, and declared-vs-runtime conversion loss. Read-only; use after a WU or before merging."
+developer_instructions = """
+Read .agents/roles/honesty-reviewer.md and follow it exactly. That file is the
+role definition shared with every other coding agent; nothing here overrides
+it. Do not edit files; report findings only.
+"""

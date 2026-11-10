@@ -512,8 +512,11 @@ def test_snapshot_covers_the_chat_unary_schema_files() -> None:
 
 
 def test_every_snapshotted_ref_still_resolves() -> None:
-    """A snapshotted schema node that vanishes (file rename, $defs removal)
-    is an additive-only violation and must fail loudly, not KeyError."""
+    """A vanished snapshot node is an additive-only violation, failing loudly.
+
+    A snapshotted schema node that vanishes (file rename, $defs removal) must
+    fail the test, not KeyError.
+    """
     for ref in PROPERTY_SNAPSHOT:
         try:
             _resolve(ref, SCHEMA_ID_BASE)

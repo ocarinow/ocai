@@ -53,8 +53,7 @@ class Embedding(IRObject):
 
     @property
     def dimensions(self) -> int:
-        """Return the vector length — derived, never stored, so it cannot
-        drift from `values`."""
+        """Return the vector length — derived, never stored, so it cannot drift from `values`."""
         return len(self.values)
 
     @classmethod

@@ -2,7 +2,8 @@
 
 Reference documentation for the LLM chat APIs `ocai` adapts: **OpenAI**, **Google
 Gemini**, **Anthropic (Claude)**, and **Mistral**. These are written to inform the
-design of the canonical IR and the provider adapters (`ocai.core.ports.ChatModel`).
+design of the canonical IR (`docs/architecture.md` §3) and the per-interface plugins
+(§7). They live under `docs/` so every coding agent and human finds them.
 
 > Currency: researched June 2026 against each provider's live docs. Model IDs and a
 > handful of fast-moving knobs (effort/thinking enums, cache minimums, exact model

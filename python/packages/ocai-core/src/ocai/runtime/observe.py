@@ -1,4 +1,4 @@
-"""Observability: the `Observer` protocol and its event shapes. [provisional]
+"""Observability: the `Observer` protocol and its event shapes [provisional].
 
 Observers are the *read-only* counterpart of interceptors and policies: they
 see what happened but can never change it — `on_event` returns nothing and a
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class CallStarted:
-    """A port-tier call entered the interceptor chain. [provisional]
+    """A port-tier call entered the interceptor chain [provisional].
 
     Emitted once per canonical call, before any interceptor runs, so a tracer
     can open a span that later `WireExchanged` and `CallFinished` events (same
@@ -61,7 +61,7 @@ class CallStarted:
 
 @dataclass(frozen=True, slots=True)
 class CallFinished:
-    """A port-tier call completed — successfully or not. [provisional]
+    """A port-tier call completed — successfully or not [provisional].
 
     Carries the whole `CallResult` on success so observers can meter usage,
     read the `FidelityReport`, and record the `Route` without re-deriving any
@@ -82,7 +82,7 @@ class CallFinished:
 
 @dataclass(frozen=True, slots=True)
 class WireExchanged:
-    """One wire attempt completed: a request/response (or error) pair. [provisional]
+    """One wire attempt completed: a request/response (or error) pair [provisional].
 
     Emitted by the drivers once per attempt — a call that retried twice emits
     three of these under one `call_id`. The `request` is the **post-redaction**
@@ -114,7 +114,7 @@ type ObserveEvent = CallStarted | CallFinished | WireExchanged
 
 @runtime_checkable
 class Observer(Protocol):
-    """A passive sink for runtime events. [provisional]
+    """A passive sink for runtime events [provisional].
 
     Registered at composition time on the components that emit events;
     called synchronously on the calling thread by drivers and interceptor

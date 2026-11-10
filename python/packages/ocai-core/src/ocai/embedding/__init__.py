@@ -1,4 +1,4 @@
-"""`ocai.embedding` — the embedding capability contract. [PROVISIONAL]
+"""`ocai.embedding` — the embedding capability contract [PROVISIONAL].
 
 Status (architecture §9): **provisional** — this package does NOT freeze at
 v0.2. The port and IR follow the uniform grammar (named request in,

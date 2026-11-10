@@ -1,4 +1,4 @@
-"""`ocai.vectorstore` — the vector store capability contract. [PROVISIONAL]
+"""`ocai.vectorstore` — the vector store capability contract [PROVISIONAL].
 
 Status (architecture §9): **provisional** — this package does NOT freeze at
 v0.2. The port and IR follow the uniform grammar (`CallResult`-wrapped

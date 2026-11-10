@@ -44,13 +44,14 @@ By signing off you agree to the full text of the DCO:
 
 ## Before you open a PR
 
-Read [`CLAUDE.md`](./CLAUDE.md) — it holds the cross-cutting rules every change
-must follow. In particular:
+Read [`AGENTS.md`](./AGENTS.md) — it holds the cross-cutting rules every change
+must follow (coding agents read the same file). In particular:
 
 - **One work unit per PR.** Keep diffs small and reviewable.
-- `uv run ruff check` is clean and `uv run pytest` is green.
+- `uv run python scripts/check.py` exits 0 (ruff, import contracts, pytest).
 - Tests use **recorded HTTP request/response pairs** (respx/VCR-style), never
   live API keys and never provider-SDK mocks.
 - No provider SDKs and no pydantic in `ocai-core`; credentials are explicit-only.
 
-See the milestone plans in [`plans/`](plans/README.md) to pick a work unit.
+See the milestone plans in [`docs/plans/`](docs/plans/README.md) to pick a work
+unit, and [`docs/decisions/`](docs/decisions/README.md) for settled decisions.

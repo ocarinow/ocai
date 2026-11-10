@@ -45,9 +45,15 @@ src = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "PERF"]
+# "D" makes rule 18 (Google-style docstrings) executable. The D1xx
+# undocumented-object rules stay off: coverage is a review judgment, style is
+# not (docs/decisions/0001-agent-neutral-repo-layout.md).
+select = ["E", "F", "I", "UP", "B", "PERF", "D"]
 # UP042: we use `(str, Enum)` deliberately rather than `StrEnum`.
-ignore = ["UP042"]
+ignore = ["UP042", "D1"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.isort]
 # ocai is a PEP 420 namespace split across distributions; treat it as first-party

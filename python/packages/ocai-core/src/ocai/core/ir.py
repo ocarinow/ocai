@@ -57,8 +57,7 @@ class DataClassProto(Protocol):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Build an instance from a serialized dict, totally (never raises
-        on unknown input).
+        """Build an instance from a serialized dict, totally (never raises on unknown input).
 
         Args:
             data: The serialized mapping to decode.
