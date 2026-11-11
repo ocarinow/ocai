@@ -182,6 +182,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-132 | Offer explicit semantic response reuse within isolated scopes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | WU-133 | Qualify multimodal chat inputs on supported gateway routes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | WU-134 | Serve the qualified OpenAI Responses compatibility endpoint | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-135 | Publish current user documentation with a verified audience boundary | Documentation | [documentation](documentation.md) | ⬜ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
