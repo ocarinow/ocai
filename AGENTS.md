@@ -289,14 +289,19 @@ Several agents (and humans) work this repo concurrently. The protocol:
   positioning get new sections. `docs/plans/README.md` status rows are
   flipped by the WU owner in the same PR.
 - **A PR follows the template from its first draft.** Title `WU-NN:
-  <imperative title>` (housekeeping: `<Topic>: …`); every section of
-  `.github/PULL_REQUEST_TEMPLATE.md` present; no unchecked box once ready
-  for review (check it or replace it with a one-line reason); the gate
-  output pasted; `Stacked on #N` when the base is not `main`. `task
-  pr:draft` generates the body from the WU entry, `task pr:ready` refuses
-  to mark a non-compliant PR ready, and the `pr-hygiene` CI check is
-  required on `main`. A PR whose body is a placeholder is not reviewable
-  and will not be reviewed.
+  <imperative title>` (housekeeping: `<Topic>: …`); every mandatory section
+  of `.github/PULL_REQUEST_TEMPLATE.md` present (Why, What changed, What
+  did not change, How to review, Evidence, Follow-ups, the ledgers,
+  Verification; Design when a frozen-candidate surface changes); once ready
+  for review every section has content, How to review names a file of the
+  diff, Evidence names the tests that prove each acceptance item, no
+  unchecked box remains (check it or replace it with a one-line reason),
+  and the pasted gate summary covers every step the diff needs and ends
+  with the `gate: <sha>` line of a commit in the PR; `Stacked on #N` when
+  the base is not `main`. `task pr:draft` generates the body from the WU
+  entry, `task pr:ready` refuses to mark a non-compliant PR ready, and the
+  `pr-hygiene` CI check is required on `main`. A PR whose body is a
+  placeholder is not reviewable and will not be reviewed.
 - **Review against the rules, not taste.** A review checks the nineteen
   rules above, the freeze boundaries (rule 2), and that declared loss
   matches runtime loss. Findings cite a rule or an architecture section.
@@ -332,11 +337,16 @@ only — no issues are created**:
 
 - One card per open WU, titled `WU-NN: <title>` exactly as the plan row.
   The WU's definition stays in `docs/plans/`, written to
-  `docs/plans/WU-TEMPLATE.md` and reviewed in a PR; the card's body (Goal,
-  Scope, Done, Deps, Architecture, Integration with its diagram, Freeze,
-  Decision, Open, links) and fields (Program, Area, Priority, Tier, Owner,
-  Kind, PR, Plan) are **generated from the entry** by the sync. Nobody edits
-  a card by hand; the plan file changes and the sync rewrites the card.
+  `docs/plans/WU-TEMPLATE.md` (filled example: `WU-EXAMPLE.md`) and
+  reviewed in a PR; the card's body (Status, Context, Goal, Scope,
+  Non-goals, Acceptance, Done, Deps, Architecture, Integration with its
+  diagram, Design sketch, the optional Before / after, Alternatives,
+  Reproduce and Dependency impact, Freeze, Decision, Risks, Open, Evidence,
+  links) and fields (Program, Area, Priority, Tier, Owner, Kind, PR, Plan)
+  are **generated from the entry** by the sync. `scripts/board_sync.py
+  lint` (a gate step) fails an open entry missing a mandatory bullet or a
+  Design sketch. Nobody edits a card by hand; the plan file changes and the
+  sync rewrites the card.
 - Cards move by automation only. `scripts/board_sync.py sync` (CI on every
   push to `main` touching the plan, nightly, and on demand; `task
   board:sync` locally) creates missing cards from the plan table and sets

@@ -48,11 +48,15 @@ stops there until the author fixes it.
   public name is not a `patch`), and its note is written for a user. `task
   release:check` runs the mechanical half.
 - The WU entry in `docs/plans/` follows `docs/plans/WU-TEMPLATE.md`: one
-  **Done** bullet that the PR satisfies, a **Goal**, an **Integration**
-  bullet that places the change in the architecture (layer, modules, flow;
-  diagram when more than one layer), and Area/Priority/Tier/Owner. Two
-  outcomes → finding (rule 17); a missing Integration bullet on a kernel
-  change → finding (the board card is the maintainer's only view).
+  **Done** bullet that the PR satisfies, an **Acceptance** list whose every
+  item names a test the PR contains, a **Design sketch** that matches what
+  landed, an **Integration** bullet that places the change in the
+  architecture (layer, modules, flow; diagram when more than one layer),
+  **Non-goals** and **Risks**, and Area/Priority/Tier/Owner. Two outcomes →
+  finding (rule 17); an Acceptance item with no test in the diff → finding;
+  a Design sketch the code contradicts → finding (the board card is the
+  maintainer's only view). `uv run python scripts/board_sync.py lint`
+  runs the mechanical half.
 - The plan row flips to ✅ in this PR; the architecture sections the entry
   names are updated in this PR; a lasting decision has an ADR numbered
   after rebase.

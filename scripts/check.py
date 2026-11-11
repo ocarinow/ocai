@@ -25,6 +25,7 @@ documented in platform/README.md; the platform uses its own uv environment.
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -175,6 +176,13 @@ def steps_for(no_tests: bool) -> list[Step]:
         steps.append(Step("pytest", ("pytest", "--cov", "--cov-report=term-missing")))
     steps.append(
         Step(
+            "plan entries",
+            ("python", "scripts/board_sync.py", "lint"),
+            paths=("docs/plans/", "scripts/board_sync.py"),
+        )
+    )
+    steps.append(
+        Step(
             "change files",
             ("python", "scripts/release.py", "check", "--base", BASE_REF),
             paths=("python/packages/", ".changeset/", "knope.toml"),
@@ -243,7 +251,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--no-tests", action="store_true", help="skip pytest and platform tests")
     parser.add_argument("--all", action="store_true", help="run every step regardless of the diff")
+    parser.add_argument(
+        "--list-json", action="store_true", help="print the steps (name, paths) as JSON and exit"
+    )
     args = parser.parse_args(argv)
+    if args.list_json:
+        print(
+            json.dumps([{"name": s.name, "paths": list(s.paths)} for s in steps_for(args.no_tests)])
+        )
+        return 0
 
     changed = None if args.all else changed_paths()
     if changed is None:
