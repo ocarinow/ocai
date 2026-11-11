@@ -14,6 +14,7 @@ in the `desc` itself (`task x -- ARGS`). Keep descriptions honest and short.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -60,8 +61,14 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 def render() -> str:
     """Build the catalogue text from the live task list."""
+    task = shutil.which("task")
+    if task is None:
+        sys.exit(
+            "tasks/render_readme.py: the `task` binary is not on PATH; install Task "
+            "(https://taskfile.dev, `brew install go-task`; CI uses arduino/setup-task)."
+        )
     raw = subprocess.run(
-        ["task", "--list-all", "--json"], cwd=ROOT, capture_output=True, text=True, check=True
+        [task, "--list-all", "--json"], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout
     tasks = json.loads(raw)["tasks"]
     groups: dict[str, list[tuple[str, str]]] = {k: [] for k in DOMAINS}
