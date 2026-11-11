@@ -97,6 +97,19 @@ answers so far so we do not loose this knowledge" before further implementation.
 
 ## Next slices to define
 
+Slices 3–5 below are defined in the proposed [WU-82–105 program](platform-gateway.md),
+including WU-82a–82i for the access contract, model migration, members, projects,
+teams, trusted attributes, ABAC, compartments and scoped invocation. WU-92a adds
+team/principal budget allocation. These prerequisites precede the gateway resource
+workflows; WU-101 qualifies access across resources rather than introducing it late.
+The program also covers alerts, capture, usage, catalogue, replay, bounded emergency
+recovery, qualification, migration and canary. No feature is implemented by a plan row.
+
+The [competitive feature program](platform-gateway-parity.md) additionally
+defines WU-107–134 for execution coverage, routing, caching, guardrails, operational
+visibility, prompt/evaluation workflows, enterprise integration and deployment
+operations. These are explicit follow-on workflows, not features already shipped.
+
 The first identity and machine-access slices below are now defined as
 [WU-73–80](platform-identity.md), with WU-72 recording their implementation plan.
 They remain unimplemented until their own acceptance criteria and PRs complete.
