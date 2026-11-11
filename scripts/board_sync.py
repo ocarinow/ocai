@@ -129,17 +129,58 @@ AREA_HINTS = (
     ("core/", "core"),
     ("ocai.core", "core"),
 )
+# Card body order = docs/plans/WU-TEMPLATE.md order. Optional bullets render
+# only when the entry has them.
 BODY_ORDER = (
+    "Status",
+    "Context",
     "Goal",
     "Scope",
+    "Non-goals",
+    "Acceptance",
     "Done",
     "Deps",
     "Architecture",
     "Integration",
+    "Design sketch",
+    "Before / after",
+    "Alternatives considered",
+    "Reproduce",
     "Freeze",
     "Decision",
+    "Risks",
+    "Dependency impact",
     "Open",
+    "Evidence",
 )
+# Entries from this WU number on are held to the full template (the v2
+# bullets); older open entries only need a Done bullet until they are
+# backfilled. Lower this constant as entries are brought up to date.
+TEMPLATE_V2_FROM = 82
+MANDATORY_V2 = (
+    "Status",
+    "Context",
+    "Goal",
+    "Scope",
+    "Non-goals",
+    "Acceptance",
+    "Done",
+    "Deps",
+    "Architecture",
+    "Integration",
+    "Design sketch",
+    "Freeze",
+    "Decision",
+    "Risks",
+    "Open",
+    "Evidence",
+    "Area",
+    "Priority",
+    "Tier",
+    "Owner",
+)
+ADR_RE = re.compile(r"\bADR\s*\d{4}\b")
+TEST_PATH_RE = re.compile(r"(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.(?:py|json|yaml|yml|md)")
 ID_RE = re.compile(r"^(WU-[0-9A-Za-z]+)\b")
 
 
@@ -332,6 +373,74 @@ def read_entry(row: PlanRow, ref: str | None = None) -> Entry | None:
         ):
             sections[current] += "\n" + (ln[2:] if ln.startswith("  ") and not fenced else ln)
     return Entry({k: v.strip() for k, v in sections.items()}, _anchor(lines[start].lstrip("# ")))
+
+
+def wu_number(wu: str) -> int:
+    """The numeric part of a WU id (`WU-44b` → 44; 0 when absent)."""
+    m = re.search(r"(\d+)", wu)
+    return int(m.group(1)) if m else 0
+
+
+def _has(entry: Entry, name: str) -> bool:
+    """Whether the entry has a bullet `name` (or `name (topic)`) with content."""
+    return any(
+        (k == name or k.startswith(name + " (")) and v.strip() for k, v in entry.sections.items()
+    )
+
+
+def lint_entry(row: PlanRow, entry: Entry | None) -> list[str]:
+    """Findings for one WU entry against docs/plans/WU-TEMPLATE.md.
+
+    Open rows (⬜/🔄) numbered from `TEMPLATE_V2_FROM` on must carry every
+    mandatory bullet, a Design sketch with a code block (or an explicit
+    "n/a"), an Acceptance list that names a test or fixture path, and an
+    Alternatives considered bullet when a Decision is not backed by an ADR.
+    Older open rows only need a Done bullet. Completed rows held to the
+    template must carry Evidence with the gate line.
+
+    Args:
+        row: The plan table row.
+        entry: The parsed entry, or None when the heading was not found.
+
+    Returns:
+        One finding per violation; empty when the entry complies.
+    """
+    if entry is None:
+        # Completed rows from before the template have no entry; only open work is held to it.
+        return [] if row.done else [f"{row.wu}: no entry heading in docs/plans/{row.file or '?'}"]
+    v2 = wu_number(row.wu) >= TEMPLATE_V2_FROM
+    if not v2:
+        return [] if row.done or _has(entry, "Done") else [f"{row.wu}: entry has no Done bullet"]
+    findings: list[str] = []
+    if row.done:
+        evidence = entry.sections.get("Evidence", "")
+        if "gate:" not in evidence:
+            findings.append(f"{row.wu}: row is ✅ but Evidence has no `gate: <sha>` line")
+        return findings
+    for name in MANDATORY_V2:
+        if name == "Evidence":
+            if "Evidence" not in entry.sections:
+                findings.append(f"{row.wu}: entry has no Evidence bullet (write the placeholder)")
+        elif not _has(entry, name):
+            findings.append(f"{row.wu}: entry has no {name} bullet")
+    sketch = entry.sections.get("Design sketch", "")
+    if sketch and "```" not in sketch and not sketch.lower().startswith("n/a"):
+        findings.append(f"{row.wu}: Design sketch needs a fenced code block or an explicit n/a")
+    acceptance = entry.sections.get("Acceptance", "")
+    if acceptance and not TEST_PATH_RE.search(acceptance):
+        findings.append(f"{row.wu}: Acceptance names no test module, fixture, or recorded pair")
+    decisions = [
+        v for k, v in entry.sections.items() if k == "Decision" or k.startswith("Decision (")
+    ]
+    if (
+        decisions
+        and not all(ADR_RE.search(d) for d in decisions)
+        and not _has(entry, "Alternatives considered")
+    ):
+        findings.append(
+            f"{row.wu}: a Decision bullet is not backed by an ADR; add Alternatives considered"
+        )
+    return findings
 
 
 def infer_area(entry: Entry | None) -> str:
@@ -645,11 +754,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 f"{row.wu}: plan row is ✅ but PR #{pull.number} is still open "
                 "(flip the row in the PR that merges)"
             )
-        if not row.done:  # historical rows predate the template; only open work is held to it
-            if entry is None:
-                findings.append(f"{row.wu}: no entry heading in docs/plans/{row.file or '?'}")
-            elif not entry.sections.get("Done"):
-                findings.append(f"{row.wu}: entry has no Done bullet")
+        findings.extend(lint_entry(row, entry))
         title = f"{row.wu}: {row.title}"
         body = card_body(row, entry, pull)
         if card.kind == "DraftIssue" and args.apply and (card.body != body or card.title != title):
@@ -724,6 +829,67 @@ def cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def _fill(body: str, heading: str, text: str) -> str:
+    """Replace the placeholder paragraph under `## heading` with `text` (no-op when empty)."""
+    if not text:
+        return body
+    marker = f"## {heading}\n"
+    start = body.find(marker)
+    if start < 0:
+        return body
+    start += len(marker)
+    end = body.find("\n## ", start)
+    end = len(body) if end < 0 else end
+    section = body[start:end]
+    lines = section.split("\n")
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.startswith("<") and s.endswith(">"):
+            lines[i] = text
+            break
+    return body[:start] + "\n".join(lines) + body[end:]
+
+
+def _section(entry: Entry | None, name: str) -> str:
+    """Full text of a bullet (or the concatenation of its topics), or empty."""
+    if entry is None:
+        return ""
+    parts = [v for k, v in entry.sections.items() if k == name or k.startswith(name + " (")]
+    return "\n\n".join(p for p in parts if p.strip())
+
+
+def cmd_entry(args: argparse.Namespace) -> int:
+    """Print a WU entry's bullets (JSON with --json), for other scripts and for a quick look."""
+    rows = {r.wu: r for r in read_plan()}
+    row = rows.get(args.wu)
+    entry = read_entry(row) if row else None
+    if entry is None:
+        print("{}" if args.json else f"no entry for {args.wu}")
+        return 1
+    if args.json:
+        print(json.dumps(entry.sections, ensure_ascii=False))
+    else:
+        for key, text in entry.sections.items():
+            print(f"### {key}\n{text}\n")
+    return 0
+
+
+def cmd_lint(args: argparse.Namespace) -> int:
+    """Check every plan entry against the template, offline (a gate step)."""
+    findings: list[str] = []
+    rows = read_plan()
+    for row in rows:
+        findings.extend(lint_entry(row, read_entry(row)))
+    if findings:
+        print(f"PLAN ENTRIES: {len(findings)} finding(s) (docs/plans/WU-TEMPLATE.md)")
+        for f in findings:
+            print("  - " + f)
+        return 1
+    held = sum(1 for r in rows if wu_number(r.wu) >= TEMPLATE_V2_FROM)
+    print(f"plan entries: ok ({len(rows)} rows; {held} held to the full template)")
+    return 0
+
+
 def cmd_pr_body(args: argparse.Namespace) -> int:
     """Print a PR body from the template, pre-filled from the WU entry."""
     rows = {r.wu: r for r in read_plan()}
@@ -732,17 +898,37 @@ def cmd_pr_body(args: argparse.Namespace) -> int:
         print(f"no plan row for {args.wu}")
         return 1
     entry = read_entry(row)
-    template = (ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
-    placeholder = "<two or three sentences: the behavior, not the diff>"
-    goal = _first(entry, "Goal") or _first(entry, "Scope") or placeholder
-    done = entry.sections.get("Done", "").replace("\n", " ") if entry else ""
-    body = template.replace("WU-__ — <title from docs/plans/>", f"{row.wu} — {row.title}")
-    body = body.replace(placeholder, goal + (f"\n\nDone when: {done}" if done else ""))
+    body = (ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+    anchor = entry.anchor if entry else "wu-__"
+    body = body.replace(
+        "WU-__ — <title from docs/plans/>. Entry: docs/plans/<file>.md#wu-__.",
+        f"{row.wu} — {row.title}. Entry: docs/plans/{row.file or '<file>.md'}#{anchor}.",
+    )
+    why = "\n\n".join(x for x in (_section(entry, "Context"), _section(entry, "Goal")) if x)
+    body = _fill(body, "Why", why)
+    body = _fill(body, "What did not change", _section(entry, "Non-goals"))
+    body = _fill(body, "Design", _section(entry, "Design sketch"))
+    body = _fill(body, "Before / after", _section(entry, "Before / after"))
+    body = _fill(body, "Try it", _section(entry, "Reproduce"))
+    body = _fill(body, "Alternatives considered", _section(entry, "Alternatives considered"))
+    acceptance = [
+        ln.strip()[2:]
+        for ln in _section(entry, "Acceptance").splitlines()
+        if ln.strip().startswith("- ")
+    ]
+    if acceptance:
+        boxes = "\n".join(f"- [ ] {item}" for item in acceptance)
+        body = re.sub(
+            r"- \[ \] <behavior>[^\n]*\n(?:- \[ \] <behavior>[^\n]*\n)*", boxes + "\n", body
+        )
     arch = _first(entry, "Architecture")
     if arch:
         body = body.replace("§__", arch)
     if args.stacked_on:
-        body = f"Stacked on #{args.stacked_on}.\n\n" + body
+        body = body.replace(
+            "<!-- Stacked on #N  (keep this line only when the base branch is not main) -->",
+            f"Stacked on #{args.stacked_on}.",
+        )
     print(body)
     return 0
 
@@ -802,8 +988,14 @@ def main(argv: list[str] | None = None) -> int:
     p_set.add_argument("--owner")
     p_set.add_argument("--tier")
     p_set.set_defaults(func=cmd_set)
+    p_lint = sub.add_parser("lint", help="check every plan entry against the template (offline)")
+    p_lint.set_defaults(func=cmd_lint)
+    p_entry = sub.add_parser("entry", help="print one WU entry's bullets (offline)")
+    p_entry.add_argument("wu")
+    p_entry.add_argument("--json", action="store_true")
+    p_entry.set_defaults(func=cmd_entry)
     args = parser.parse_args(argv)
-    if not args.project and args.command != "pr-body":
+    if not args.project and args.command not in ("pr-body", "lint", "entry"):
         print("no project number: pass --project or set BOARD_PROJECT_NUMBER")
         return 2
     try:

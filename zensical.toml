@@ -121,6 +121,7 @@ nav = [
     { "Integration program" = "plans/integration-program.md" },
     { "Platform MVP" = "plans/platform-mvp.md" },
     { "WU entry template" = "plans/WU-TEMPLATE.md" },
+    { "WU entry example" = "plans/WU-EXAMPLE.md" },
     { "Gateway readiness" = "plans/gateway-readiness.md" },
     { "Platform design" = "plans/platform-design.md" },
     { "Platform MVP" = "plans/platform-mvp.md" },

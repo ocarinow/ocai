@@ -75,7 +75,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | Task | Does |
 |---|---|
 | `task pr:body` | Print a PR body generated from the template and the WU entry (task pr:body -- WU-NN [PARENT_PR]) |
-| `task pr:check` | PR hygiene for an open PR — template sections, no unchecked boxes when ready, stacked note (task pr:check -- NN) |
+| `task pr:check` | PR hygiene for an open PR — template sections with content, review/evidence paths, gate summary, stacked note (task pr:check -- NN) |
 | `task pr:checks` | Watch the checks of a PR until they finish (task pr:checks -- NN) |
 | `task pr:draft` | Push and open a DRAFT PR with a body generated from the WU entry (task pr:draft -- "WU-NN: title" [PARENT_BRANCH]); stacked when a parent branch is given |
 | `task pr:open` | Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE) |
