@@ -705,7 +705,7 @@ the remaining deadline; sync reads cooperate through timeouts and checks, withou
 claiming preemption of arbitrary blocking code. Both check deadlines before
 accepting decoder output. The test-only length-prefixed envelope qualifies this
 seam, not AWS EventStream; no canonical shape or conversion edge changed.
-See [ADR 0011](decisions/0011-host-selected-stream-framing.md).
+See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
 

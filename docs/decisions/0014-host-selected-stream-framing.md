@@ -1,4 +1,4 @@
-# 0011 — Host-selected stream framing before semantic conversion
+# 0014 — Host-selected stream framing before semantic conversion
 
 - **Status:** proposed; implemented for review in WU-39
 - **Date:** 2026-11-10

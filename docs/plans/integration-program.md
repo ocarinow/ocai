@@ -198,7 +198,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Decision:** Binary framing belongs beside SSE in wire, semantic decode stays
   in plugins ([Bedrock §6/13(a)](../providers/amazon-bedrock.md)). The optional
   selector, decoder ownership and approval identity are recorded in
-  [ADR 0011](../decisions/0011-host-selected-stream-framing.md).
+  [ADR 0014](../decisions/0014-host-selected-stream-framing.md).
 - **Open:** None; any need to change canonical chunk shape becomes a separate gap.
 - **Area:** wire
 - **Priority:** P0
