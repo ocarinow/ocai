@@ -432,6 +432,38 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Tier:** 1
 - **Owner:** Codex
 
+## WU-46a — Preserve response identity through canonical streams
+
+- [ ] **Status:** in progress; carrier resolution approved by the maintainer.
+- **Goal:** Make streamed response identity usable through the same canonical
+  ResponseInfo contract as unary results, closing G-11 without weakening fold equality.
+- **Scope:** Add optional keyword-only ChatChunk.info, robust ResponseInfo decoding,
+  deterministic accumulation, OpenAI/Anthropic stream mappings and census/fixture
+  qualification; about 30–40 files. No new provider, node, capability or dependency.
+  DeepSeek streaming remains WU-46; other-capability designs remain out of scope.
+- **Done:** Recorded OpenAI and Anthropic streams fold to their paired unary
+  responses with only raw evidence excluded, while fixtures pass for absent,
+  repeated, late, conflicting, malformed and interrupted response metadata.
+- **Deps:** WU-45 (program sequence); ADR 0015.
+- **Architecture:** §3.1, §4.2/4.5, §7–8.
+- **Integration:** Provider plugins map wire identity to existing ResponseInfo on
+  canonical METADATA events; StreamAccumulator merges it into ChatResponse.info.
+  Conversion findings remain in the stream report. Gateway code never parses wire
+  metadata. Existing client encoding reports unsupported identity explicitly.
+- **Freeze:** Additive ChatChunk.info and its schema, tolerant ResponseInfo reader
+  and fold behavior under ADR 0015; no replacement of ChatResponse.info, no new
+  canonical revision, no change to StreamEnd or the capability port.
+- **Decision:** Maintainer approved the reusable carrier resolution on 2026-11-11.
+  Reuse ResponseInfo and the name info; merge absent fields, ignore equal repeats,
+  preserve conflicts as evidence with findings, retain metadata after interruption.
+  ADR 0015 records the concrete behavior. G-11 is the motivating reproduction.
+- **Open:** none for this approved chat-only scope; other capabilities require
+  independent design review, and multi-response aggregation is excluded.
+- **Area:** chat IR
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
+
 ## WU-46 — Qualify DeepSeek streaming
 
 - [ ] **Status:** not started.
@@ -441,7 +473,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Done:** Recorded DeepSeek SSE passes fold parity against paired unary responses with usage on
   the final content chunk retained alongside finish, exact tool identity/order and
   reasoning, and incomplete streams never gain a successful terminal record.
-- **Deps:** WU-45.
+- **Deps:** WU-45, WU-46a.
 - **Architecture:** §3.1, §4.1–4.2/4.5, §7–8.
 - **Freeze:** none changed: ChatChunk/StreamEnd/deltas and their schemas remain intact.
 - **Decision:** Usage is not required to arrive in a separate empty-choices chunk
