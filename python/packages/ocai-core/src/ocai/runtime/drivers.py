@@ -74,6 +74,7 @@ if TYPE_CHECKING:
     from ocai.wire.hosting import EnvelopeTransform
     from ocai.wire.http import HttpRequest
     from ocai.wire.http import HttpResponse
+    from ocai.wire.outcomes import HostErrorMapper
     from ocai.wire.transport import SyncTransport
     from ocai.wire.transport import Transport
 
@@ -139,8 +140,10 @@ def _transport_request(binding: Binding, request: HttpRequest) -> HttpRequest:
     return authenticated
 
 
-def _refine(refine_error: ErrorRefiner | None, err: OcaiError) -> OcaiError:
-    """Apply the dialect's body-aware refinement (layer 2) to a coarse error.
+def _refine(
+    refine_error: ErrorRefiner | None, err: OcaiError, mapping: HostErrorMapper | None = None
+) -> OcaiError:
+    """Apply optional host classification, then dialect refinement on decline.
 
     Ported from the reference `Engine._reraise_refined`, returning instead of
     raising so the refined error can ride an `Outcome` through the policy
@@ -150,17 +153,24 @@ def _refine(refine_error: ErrorRefiner | None, err: OcaiError) -> OcaiError:
     Args:
         refine_error: The facade-provided refiner, or `None` for no layer 2.
         err: The coarse, status-based error the transport raised.
+        mapping: Optional approved pure host mapper, applied before dialect refinement.
 
     Returns:
         The refined error, or `err` unchanged when no refinement applies.
     """
+    from ocai.wire.outcomes import preserve_error_evidence
+
+    if mapping is not None:
+        mapped = mapping.apply(err)
+        if mapped is not None:
+            return mapped
     if refine_error is None:
         return err
     refined = refine_error(err)
     if refined is None or refined is err:
         return err
     refined.__cause__ = err
-    return refined
+    return preserve_error_evidence(refined, err)
 
 
 def _request_decision(policies: Sequence[WirePolicy], request: HttpRequest) -> Decision:
@@ -244,6 +254,7 @@ class SyncDriver:
         budget: Deadline | None = None,
         request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
+        error_mapping: HostErrorMapper | None = None,
     ) -> dict[str, Any]:
         """Run one non-streaming operation through the full pipeline (blocking).
 
@@ -260,6 +271,7 @@ class SyncDriver:
             budget: Shared whole-call budget, or derived from ctx.
             request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
+            error_mapping: Approved host mapping snapshot, or select from the host.
 
         Returns:
             The raw response dict after the host envelope's `unwrap` — decode
@@ -269,6 +281,13 @@ class SyncDriver:
             OcaiError: The refined taxonomy error when the final attempt
                 fails, a policy `Fail`s, or the attempt ceiling is hit.
         """
+        from ocai.wire.hosting import host_error_mapper
+
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._sync_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -309,7 +328,7 @@ class SyncDriver:
                 observation.finish(http_status=response.status)
             except OcaiError as err:
                 outcome = Outcome(
-                    request=request, attempt=attempt, error=_refine(refine_error, err)
+                    request=request, attempt=attempt, error=_refine(refine_error, err, mapping)
                 )
             except BaseException as error:
                 observation.finish(error)
@@ -339,6 +358,7 @@ class SyncDriver:
         budget: Deadline | None = None,
         request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
+        error_mapping: HostErrorMapper | None = None,
         pipeline: StreamPipeline | None = None,
         framing: StreamFraming | None = None,
     ) -> Iterator[Any]:
@@ -366,6 +386,7 @@ class SyncDriver:
             budget: Shared whole-call budget, or derived from ctx.
             request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
+            error_mapping: Approved host mapping snapshot, or select from the host.
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
                 never reused), or None to yield raw frames.
@@ -380,8 +401,14 @@ class SyncDriver:
             OcaiError: The refined taxonomy error on wire failure, or a
                 policy `Fail`.
         """
+        from ocai.wire.hosting import host_error_mapper
         from ocai.wire.hosting import stream_framing
 
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._sync_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -451,7 +478,10 @@ class SyncDriver:
             except BaseException as err:
                 stream_error = err
                 if isinstance(err, OcaiError):
-                    raise _refine(refine_error, err) from err
+                    stream_error = _refine(refine_error, err, mapping)
+                    if stream_error is err:
+                        raise
+                    raise stream_error from err
                 raise
             finally:
                 try:
@@ -533,6 +563,7 @@ class AsyncDriver:
         budget: Deadline | None = None,
         request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
+        error_mapping: HostErrorMapper | None = None,
     ) -> dict[str, Any]:
         """Run one non-streaming operation through the full pipeline (async).
 
@@ -546,6 +577,7 @@ class AsyncDriver:
             budget: Shared whole-call budget, or derived from ctx.
             request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
+            error_mapping: Approved host mapping snapshot, or select from the host.
 
         Returns:
             The raw response dict after the host envelope's `unwrap`.
@@ -554,6 +586,13 @@ class AsyncDriver:
             OcaiError: The refined taxonomy error when the final attempt
                 fails, a policy `Fail`s, or the attempt ceiling is hit.
         """
+        from ocai.wire.hosting import host_error_mapper
+
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._async_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -597,7 +636,7 @@ class AsyncDriver:
                 observation.finish(http_status=response.status)
             except OcaiError as err:
                 outcome = Outcome(
-                    request=request, attempt=attempt, error=_refine(refine_error, err)
+                    request=request, attempt=attempt, error=_refine(refine_error, err, mapping)
                 )
             except BaseException as error:
                 observation.finish(error)
@@ -627,6 +666,7 @@ class AsyncDriver:
         budget: Deadline | None = None,
         request_guard: Callable[[HttpRequest], None] | None = None,
         refine_error: ErrorRefiner | None = None,
+        error_mapping: HostErrorMapper | None = None,
         pipeline: StreamPipeline | None = None,
         framing: StreamFraming | None = None,
     ) -> AsyncIterator[Any]:
@@ -649,6 +689,7 @@ class AsyncDriver:
             budget: Shared whole-call budget, or derived from ctx.
             request_guard: Enforce an approved wire snapshot before authentication.
             refine_error: The dialect's layer-2 error refiner, if any.
+            error_mapping: Approved host mapping snapshot, or select from the host.
             pipeline: The composite transducer the facade built for THIS
                 traversal via `Catalog.stream_converter` (fresh per stream,
                 never reused), or None to yield raw frames.
@@ -662,8 +703,14 @@ class AsyncDriver:
             OcaiError: The refined taxonomy error on wire failure, or a
                 policy `Fail`.
         """
+        from ocai.wire.hosting import host_error_mapper
         from ocai.wire.hosting import stream_framing
 
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._async_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -740,7 +787,10 @@ class AsyncDriver:
             except BaseException as err:
                 stream_error = err
                 if isinstance(err, OcaiError):
-                    raise _refine(refine_error, err) from err
+                    stream_error = _refine(refine_error, err, mapping)
+                    if stream_error is err:
+                        raise
+                    raise stream_error from err
                 raise
             finally:
                 try:

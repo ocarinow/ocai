@@ -51,4 +51,5 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0014](0014-host-selected-stream-framing.md) | Host-selected stream framing before semantic conversion | proposed (WU-39 implementation for review) |
 | [0015](0015-stream-response-info.md) | Preserve response identity through canonical streams | accepted direction; implementation for review |
 | [0016](0016-provider-authentication-packages.md) | Delegate authentication within external provider packages | accepted direction; WU-47 implementation for review |
+| [0017](0017-host-error-outcomes.md) | Preserve native evidence for reusable host error adaptation | accepted direction; WU-48a implementation for review |
 | [0020](0020-distribution-roles.md) | Distribution roles in the workspace gate | proposed (WU-47a) |

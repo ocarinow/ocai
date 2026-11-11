@@ -1,4 +1,4 @@
-"""The shared error taxonomy and its two-layer mapping.
+"""The shared error taxonomy and its layered mapping.
 
 Every failure ocai raises is one of these neutral classes (rule 8) so caller
 code, policy hooks, and interceptors (retry, fallback) branch on a neutral type,
@@ -14,7 +14,7 @@ never a provider exception. Mapping a raw failure onto the taxonomy happens in
    refines that coarse error using the provider's error *body*, where the precise
    meaning actually lives (`context_length_exceeded`, content-filter blocks —
    conditions status alone cannot express). The driver applies it on top of the
-   coarse error.
+   coarse error when an optional host mapper has not claimed classification.
 
 `OcaiError.code` carries the provider's machine-readable code, the extensibility
 hatch: a rare condition that doesn't merit its own subclass surfaces as a plain
@@ -23,6 +23,7 @@ hatch: a rare condition that doesn't merit its own subclass surfaces as a plain
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -43,7 +44,10 @@ class OcaiError(Exception):
             extracted one (e.g. `"context_length_exceeded"`). The extension point
             for conditions that don't have a dedicated subclass.
         raw: The provider's parsed error body, when one was returned. Never holds
-            an auth header or secret.
+            an outgoing auth header or secret.
+        response_headers: Detached incoming HTTP headers, or None if unavailable.
+            Application evidence; never automatically exported to observers.
+        response_body: Exact incoming body bytes, or None if unavailable.
     """
 
     def __init__(
@@ -55,6 +59,8 @@ class OcaiError(Exception):
         retry_after: float | None = None,
         code: str | None = None,
         raw: dict[str, Any] | None = None,
+        response_headers: Mapping[str, str] | None = None,
+        response_body: bytes | None = None,
     ) -> None:
         """Construct an error with optional neutral provider context.
 
@@ -66,6 +72,9 @@ class OcaiError(Exception):
             code: The provider's machine-readable error code, if known.
             raw: The provider's parsed error body, if one was returned. Must
                 never contain an auth header or secret.
+            response_headers: Detached native response headers, or None when unavailable.
+                Never outgoing authentication headers; not automatically logged.
+            response_body: Exact native response bytes, or None when unavailable.
         """
         super().__init__(message)
         self.provider = provider
@@ -73,6 +82,8 @@ class OcaiError(Exception):
         self.retry_after = retry_after
         self.code = code
         self.raw = raw
+        self.response_headers = dict(response_headers) if response_headers is not None else None
+        self.response_body = response_body
 
 
 class StreamProtocolError(OcaiError):

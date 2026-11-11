@@ -1,0 +1,33 @@
+{
+  "description": "WU-48a synthetic gateway host HTTP error for generic adapter qualification. Fictional gateway contract: x-service-failure=quota with millisecond pacing. Stream opening fails before any SSE output, so there is no successful fold triple. No live key or SDK mock.",
+  "request": {
+    "method": "POST",
+    "url": "https://gateway-host.test/v1/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "gpt-4o",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "x-service-failure": "quota",
+      "retry-after-ms": "1250"
+    },
+    "json": {
+      "message": "Synthetic host failure",
+      "future_native": {
+        "opaque": true
+      }
+    }
+  }
+}

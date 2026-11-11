@@ -289,7 +289,12 @@ WU-38 composes non-secret headers in order: dialect, host, then binding, with
 case-insensitive replacement; conflicting case aliases within one group fail.
 Host-specific body relocation still resolves trait declarations, not later binding
 overrides; concrete cloud hosts must qualify their relocation separately.
-Plus the survivors: `errors.py` (the taxonomy — unchanged),
+`errors.py` retains the shared taxonomy and adds optional keyword-only native
+`response_headers` (copied map) and `response_body` (bytes) on `OcaiError`.
+None means unavailable evidence, distinct from empty headers/body. `raw` remains
+best-effort parsed JSON. These contain incoming response evidence only, never
+outgoing authentication; they are not automatically logged (ADR 0017).
+Plus the survivors:
 `credentials.py` (`Credential` protocol + `ApiKey`, explicit-only, redacted,
 and additive `NoCredential()` for intentionally unauthenticated endpoints;
 *application* stays at the driver leaf, §5), `jsonschema.py`,
@@ -467,6 +472,10 @@ For streaming, preparation also pins a `StreamFraming` selection (§6); both the
 live selection and its factory/options identity must still match before I/O.
 Copying preparation copies configuration while preserving callable ownership.
 No decoder is created during inspection or for an unconsumed stream.
+Preparation also snapshots optional `HostErrorMapper` declarations and fingerprints
+name, JSON options and callable ownership. Changing effective mapping invalidates
+approval before I/O. Callbacks must declare configuration rather than depend on
+hidden mutable state, as for framing (§6).
 DeepSeek unary calls use this same public preparation/execution path: the approved
 snapshot binds the model below conversion, and explicit credentials remain at
 the transport leaf. Caller fidelity policies reject missing reasoning before I/O
@@ -768,6 +777,15 @@ URL, body bytes and CallContext stay unchanged. The SDK receives no governance
 context. Signer failures raise sanitized CredentialError without chaining SDK
 exceptions; the provider transport is never entered on signing failure.
 
+HTTP failure refinement first applies the invocation-local host mapper (§6).
+A claimed mapping is final; None declines to the dialect's body-aware refinement.
+Native evidence survives both paths and retry hooks receive the resulting taxonomy.
+Invalid/raising host callbacks fail closed with `host_error_adaptation_failed`,
+preserving native evidence but omitting callback exception text. Both drivers use
+the same pure mapping, including stream-opening failures. Streams retain cleanup
+and never restart a generation after output. Attempt observations see the mapped
+error class, not its response evidence.
+
 Port middleware implements both `CallInterceptor` and `StreamInterceptor` to
 govern all four call faces. Stream continuations return owned `SyncStream` or
 `AsyncStream` protocols; runtime remains capability-neutral. `StreamOutcome`
@@ -818,6 +836,18 @@ survives), and
 The physical transport remains ocai-owned when an external credential uses an
 SDK signer. AWS CRT request values are private signing inputs, never a replacement
 transport or a public wire type. No AWS client or network connection is created.
+
+`HttpxTransport` preserves detached response headers and exact bytes on HTTP
+errors before classification. Optional `ErrorMappingHost.error_mapper(spec)` returns
+`HostErrorMapper(name, mapper, options)`; legacy hosts need no new method.
+The pure callback receives a detached `OcaiError` and another options copy; it
+returns a shared-taxonomy error to claim the failure or None to decline.
+Connection failures without an HTTP status skip this mapping. Native status,
+provider, headers, bytes and parsed raw evidence survive a claimed classification;
+missing retry hints and native codes inherit the original evidence. No transport
+mutation or authenticated request crosses this contract. Error evidence is
+application data: authorized exporters must redact it explicitly. Successful
+metadata/fidelity accounting is a separate contract, not implied by this seam.
 
 WU-37 makes Direct/Custom consume resolved trait headers. Vertex consumes
 `body_fields("vertex")`, removes model/stream as before, and keeps the legacy
@@ -880,6 +910,12 @@ seam, not AWS EventStream; no canonical shape or conversion edge changed.
 See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
+
+External hosting adapters may implement the public `ErrorMappingHost` contract
+(§6), while semantic codec plugins retain their body-based `map_error`. Hosting
+classification has precedence and never requires provider branches in the kernel
+or a private transport override. This is a hosting adapter boundary, not a new
+conversion edge or permission for semantic codecs to import wire.
 
 `ocai-aws` is an independent cloud-authentication distribution rather than an AI
 interface fragment. It exports SigV4Credential, has no conversion edges/catalog

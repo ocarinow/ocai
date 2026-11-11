@@ -231,12 +231,15 @@ class HttpxTransport:
     def _error(self, status: int, body: bytes | str, headers: Any) -> OcaiError:
         """Map a non-2xx response onto the coarse taxonomy (layer 1)."""
         text = body.decode("utf-8", "replace") if isinstance(body, bytes) else body
-        return error_from_response(
+        error = error_from_response(
             status,
             _safe_json(text),
             provider=self._provider,
             retry_after=headers.get("retry-after"),
         )
+        error.response_headers = dict(headers)
+        error.response_body = body if isinstance(body, bytes) else body.encode("utf-8")
+        return error
 
     def _ok(self, resp: Any) -> HttpResponse:
         """Snapshot a successful httpx response into a detached `HttpResponse`."""
@@ -271,7 +274,7 @@ class HttpxTransport:
             raise TransientError(str(exc), provider=self._provider) from exc
         if resp.is_success:
             return self._ok(resp)
-        raise self._error(resp.status_code, resp.text, resp.headers)
+        raise self._error(resp.status_code, resp.content, resp.headers)
 
     def send_sync(self, request: HttpRequest) -> HttpResponse:
         """Send `request` once (sync); return the response or raise the taxonomy.
@@ -302,7 +305,7 @@ class HttpxTransport:
             raise TransientError(str(exc), provider=self._provider) from exc
         if resp.is_success:
             return self._ok(resp)
-        raise self._error(resp.status_code, resp.text, resp.headers)
+        raise self._error(resp.status_code, resp.content, resp.headers)
 
     async def stream(self, request: HttpRequest) -> AsyncIterator[bytes]:
         """Stream the response body as raw byte chunks, async (framing is above).
