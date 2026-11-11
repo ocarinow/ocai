@@ -371,3 +371,52 @@ Independent expected signatures come from the
 These are published synthetic credentials/vectors, not live AWS exchanges.
 Recorded application attempts verify the adapter and driver boundary, not live
 service availability. SDK native debug logging is never enabled by ocai.
+
+## 15. WU-48 host boundary research (2026-11-11)
+
+The [InvokeModel API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
+places the model identifier in the path and accepts an Anthropic-native body with
+`anthropic_version`. Its examples include the US Claude 3.5 Sonnet inference
+profile. It returns host-specific service-tier/performance headers and can include
+guardrail action/trace in the body. An intervened result is not by itself proof
+that the entire output was blocked; qualification must distinguish masked output.
+
+The [AWS restJson1 error rules](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html#operation-error-serialization)
+allow native error identity in `X-Amzn-Errortype`, `code` or `__type`. Header-only
+identity therefore cannot be reconstructed from a message-only JSON body.
+[Bedrock common errors](https://docs.aws.amazon.com/bedrock/latest/APIReference/CommonErrors.html)
+list ThrottlingException with HTTP 400, while InvokeModel lists HTTP 429. This
+confirms why exception-name mapping cannot rely on status alone.
+
+At WU-47 commit `81c79a7`, this offline reproduction prints `OcaiError None`
+instead of preserving the throttling identity (G-13):
+
+```python
+import httpx
+import respx
+from ocai.core.errors import OcaiError
+from ocai.wire.http import HttpRequest
+from ocai.wire.transport import HttpxTransport
+
+url = "https://bedrock-runtime.us-east-1.amazonaws.com/model/synthetic-model/invoke"
+with respx.mock:
+    respx.post(url).respond(
+        400,
+        headers={"x-amzn-ErrorType": "ThrottlingException"},
+        json={"message": "Synthetic throttled request"},
+    )
+    with HttpxTransport(provider="bedrock") as transport:
+        try:
+            transport.send_sync(HttpRequest.from_json("POST", url, {}))
+        except OcaiError as error:
+            print(type(error).__name__, error.code)
+```
+
+No live keys, provider I/O or SDK mocks are involved. The response is synthetic
+against the cited protocol/error definitions. The generic transport drops the
+header before host/dialect refinement. Separately, successful headers disappear
+when the driver returns only the unwrapped body, and envelopes have no fidelity
+channel (G-14). A wire policy could observe success headers, but that is not a
+supported host metadata/effect contract and cannot recover discarded error headers.
+Host implementation waits for those reusable seams; no private transport override
+or provider-specific driver branch is introduced here.

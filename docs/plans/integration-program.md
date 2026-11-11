@@ -853,24 +853,44 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 
-- [ ] **Status:** not started.
+- [ ] **Status:** research started; blocked on G-13/G-14 host outcome contracts.
+- **Goal:** A user composes an Anthropic model with Bedrock hosting and an ocai AWS
+  credential and receives standard ocai results, errors, usage and fidelity without
+  importing an SDK or interpreting AWS wire fields. Today the generic endpoint and
+  signing pieces exist, but host error headers and response effects lack a public
+  adaptation path; a plain endpoint wrapper cannot satisfy the full guarantee.
 - **First step:** Verify selected model/profile identifiers and InvokeModel feature
   header/body and error behavior; record results in the Bedrock provider page.
-- **Scope:** `wire.hosting.Bedrock` and InvokeModel envelope, Anthropic declarative
-  trait data and host metadata/error preservation; 18–28 files with recorded pairs.
-  Move model to the encoded path, select Bedrock version, relocate beta to body;
-  preserve host metadata through registered extensions, never copy codec mappings.
+  Section 15 records the first findings and a runnable G-13 reproduction.
+- **Scope:** External `python/packages/ocai-bedrock` host/envelope, Anthropic trait
+  data and censused host metadata/error preservation; 18–28 files with recordings.
+  Move model to the encoded path, select Bedrock version and relocate beta to body.
+  No new kernel workaround, provider-specific driver branch or duplicate codec.
+  Shared AWS authentication remains in ocai-aws; Converse is a later subpackage/WU.
 - **Done:** A recorded Anthropic-on-Bedrock unary test passes both drivers with
   exact signed envelope, canonical response/fidelity/usage and exception-name-based
   errors, including distinction between blocked and masked successful output.
-- **Deps:** WU-47.
-- **Architecture:** §2.9, §3.3, §5–7.
-- **Freeze:** none changed: existing traits/reference/error contracts are consumed;
-  added host extension schemas do not redefine canonical shapes.
-- **Decision:** InvokeModel is an envelope over Anthropic, not a new semantic
-  interface ([Bedrock §13(a/c/d)](../providers/amazon-bedrock.md)).
-- **Open:** Runtime/mantle compatibility routes and regional availability discovery
-  are excluded; only verified InvokeModel identifiers enter fixtures.
+- **Deps:** WU-47; prerequisite WUs for G-13/G-14 must be defined and reviewed.
+- **Architecture:** §1, §2.9, §3.3, §5–7.
+- **Integration:** Application composes Anthropic conversion → Bedrock host envelope
+  → explicit AWS Credential → generic transport. The host consumes trait data, not
+  private codec methods. Its implementation is external; Host/EnvelopeTransform and
+  general transport remain kernel contracts. The application owns composition, so
+  shared cloud-auth code never imports Bedrock and the Anthropic codec does not
+  depend on cloud credentials. Public users see ocai types and errors only.
+- **Freeze:** none changed in this WU: consume existing traits/reference/error
+  contracts; host extension schemas do not redefine canonical shapes. Any required
+  frozen-candidate addition belongs in a prerequisite WU and ADR, not this scope.
+- **Decision:** InvokeModel is a hosting envelope over Anthropic, not a new semantic
+  interface (Bedrock §13(a/c/d)). The maintainer selected provider-owned SDK auth
+  behind ocai contracts and separation of cloud access from services (ADR 0016).
+- **Open:** G-13 loses native error headers; G-14 lacks host metadata/effect accounting.
+  These block Done and require public contract design before implementation.
+  Runtime/mantle compatibility routes and availability discovery remain excluded.
+- **Area:** plugin: bedrock
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-49 — Parse AWS EventStream without I/O
 
