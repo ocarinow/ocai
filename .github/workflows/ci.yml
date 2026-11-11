@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
+    types: [opened, edited, synchronize, reopened]
   # Nightly full run on main: catches drift in pinned images, package indexes
   # and advisories that no commit triggered.
   schedule:
@@ -16,97 +16,14 @@ on:
 permissions:
   contents: read
 
-# One live run per pull request: a new push cancels the superseded run. Pushes
-# to main and the nightly run are never cancelled.
+# Metadata edits use a separate concurrency group so they cannot cancel code runs.
+# Every event reports the stable required job names. Base edits rerun all suites.
+# New code cancels obsolete PR code runs; main and full runs are never cancelled.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
+  group: ci-${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null && 'metadata' || 'code' }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Path-filtered per job, INSIDE the job: the required status checks on main
-# (python, python-next, privacy, pr-hygiene, platform, docs, workflows,
-# semgrep, dependency-review — ADR 0002) must report on every pull request, so
-# each job always starts, decides in seconds whether the change touches its
-# tree, and skips its heavy steps otherwise. The nightly run forces every
-# step. Every implementation job ALSO triggers on spec/** so that a change to
-# the language-neutral source of truth re-runs each conformance suite — the
-# intended cross-language drift alarm.
-#
-# Actions are pinned to a commit SHA with the version as a trailing comment;
-# Dependabot (.github/dependabot.yml) keeps both current. Checkouts never
-# persist credentials; nothing here pushes.
 jobs:
-  # Every PR follows .github/PULL_REQUEST_TEMPLATE.md: WU-NN title, every
-  # section present from the first draft, content once ready, a Stacked-on
-  # note when the base is not main (AGENTS.md). Required on main.
-  pr-hygiene:
-    name: pr-hygiene
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      # Branch names come from the PR author: they reach the script through the
-      # environment, never interpolated into it (actionlint: script injection).
-      - name: Change files (release intent travels with the change — ADR 0010)
-        env:
-          PR_HEAD: ${{ github.event.pull_request.head.ref }}
-          PR_BASE: ${{ github.event.pull_request.base.ref }}
-        run: |
-          flag=""; [ "$PR_HEAD" = "release" ] && flag="--release-pr"
-          python3 scripts/release.py check --base "origin/$PR_BASE" $flag
-      - name: Save PR body
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: printf '%s\n' "$PR_BODY" > /tmp/pr_body.md
-      - name: PR hygiene
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BASE: ${{ github.event.pull_request.base.ref }}
-          PR_DRAFT: ${{ github.event.pull_request.draft }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          flag=""; [ "$PR_DRAFT" = "true" ] && flag="--draft"
-          python3 scripts/pr_check.py --title "$PR_TITLE" --body-file /tmp/pr_body.md --base "$PR_BASE" --author "$PR_AUTHOR" --diff $flag
-      # Every WU entry in docs/plans/ follows WU-TEMPLATE.md (offline, no token).
-      - name: Plan entries
-        run: python3 scripts/board_sync.py lint
-
-  # The repository is public: no commit message, PR title, or PR body may carry
-  # an AI session link, an AI attribution footer/trailer, an agent identifier,
-  # or a local home path (AGENTS.md "Never publish session or tool metadata").
-  # Required status check on main; also runs on every push.
-  privacy:
-    name: privacy
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Save PR title and body
-        if: github.event_name == 'pull_request'
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > /tmp/pr_text.txt
-      - name: Privacy guard (commits + PR text + files)
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          if [ "$EVENT" = "pull_request" ]; then
-            python3 scripts/privacy_check.py --range "origin/$BASE_REF..HEAD" --text /tmp/pr_text.txt
-          elif [ -n "$BEFORE" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
-            python3 scripts/privacy_check.py --range "$BEFORE..HEAD"
-          else
-            python3 scripts/privacy_check.py --range "HEAD~1..HEAD"
-          fi
-
   # The kernel gate on every supported interpreter. `python` (3.13) and
   # `python-next` (3.14) are both required checks; the names stay fixed so the
   # ruleset does not change when a version rolls.
@@ -124,29 +41,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       # Cheap path filter: decide whether the rest of the job should run.
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: changes
-        if: github.event_name != 'schedule'
-        with:
-          filters: |
-            run:
-              - 'python/**'
-              - 'spec/**'
-              - 'examples/**'
-              - 'scripts/**'
-              - 'tasks/**'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - 'knope.toml'
-              - '.github/workflows/ci.yml'
-      - id: go
-        env:
-          CHANGED: ${{ steps.changes.outputs.run }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT" = "schedule" ] || [ "$CHANGED" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Select affected checks
+        id: go
+        run: python3 scripts/ci_scope.py --suite python
 
       - name: Install uv
         if: steps.go.outputs.run == 'true'
@@ -169,8 +69,16 @@ jobs:
           PY: ${{ matrix.python }}
         run: uv sync --locked --python "$PY"
 
+      - name: Verify lockfile
+        if: steps.go.outputs.run == 'true'
+        run: uv lock --check
+
       # Every distribution under python/packages must be wired into knope,
       # uv sources, mypy, import-linter, and the core extras (rules 1, 16, 19).
+      - name: Plan entries
+        if: steps.go.outputs.run == 'true'
+        run: uv run python scripts/board_sync.py lint
+
       - name: Workspace consistency
         if: steps.go.outputs.run == 'true'
         run: uv run python scripts/workspace_check.py
@@ -252,22 +160,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: changes
-        if: github.event_name != 'schedule'
-        with:
-          filters: |
-            run:
-              - 'platform/**'
-              - 'scripts/check_platform.py'
-              - '.github/workflows/ci.yml'
-      - id: go
-        env:
-          CHANGED: ${{ steps.changes.outputs.run }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT" = "schedule" ] || [ "$CHANGED" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Select affected checks
+        id: go
+        run: python3 scripts/ci_scope.py --suite platform
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.go.outputs.run == 'true'
@@ -331,14 +228,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+          fetch-depth: 0
+      - name: Select affected checks
+        id: go
+        run: python3 scripts/ci_scope.py --suite workflows
+      - if: steps.go.outputs.run == 'true'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
-      - name: zizmor
+      - if: steps.go.outputs.run == 'true'
+        name: zizmor
         env:
           GH_TOKEN: ${{ github.token }}
         run: uvx --from zizmor==1.32.0 zizmor --no-progress --persona regular .github/workflows
-      - name: actionlint
+      - if: steps.go.outputs.run == 'true'
+        name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color # 1.7.12
 
   # Static analysis with Semgrep Community Edition (LGPL, no account, no key):
@@ -352,10 +256,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+          fetch-depth: 0
+      - name: Select affected checks
+        id: go
+        run: python3 scripts/ci_scope.py --suite semgrep
+      - if: steps.go.outputs.run == 'true'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
-      - name: Semgrep CE
+      - if: steps.go.outputs.run == 'true'
+        name: Semgrep CE
         run: >-
           uvx semgrep==1.185.0 scan --metrics=off --error
           --config p/python --config p/typescript --config p/github-actions
@@ -374,6 +284,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
@@ -406,16 +317,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: changes
-        if: github.event_name != 'schedule'
-        with:
-          filters: |
-            run:
-              - 'typescript/**'
-              - 'spec/**'
+          fetch-depth: 0
+      - name: Select affected checks
+        id: go
+        run: python3 scripts/ci_scope.py --suite typescript
       - name: Not yet implemented
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: echo "typescript implementation not yet implemented (scaffold mirrors spec/)"
 
   go:
@@ -426,14 +333,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: changes
-        if: github.event_name != 'schedule'
-        with:
-          filters: |
-            run:
-              - 'go/**'
-              - 'spec/**'
+          fetch-depth: 0
+      - name: Select affected checks
+        id: go
+        run: python3 scripts/ci_scope.py --suite go
       - name: Not yet implemented
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: echo "go implementation not yet implemented (scaffold mirrors spec/)"

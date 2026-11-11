@@ -162,3 +162,51 @@ under a minute; the wheel and zizmor steps add a few seconds when their
 trees change. A warning in a dependency now fails the suite the day it
 appears. The S-rule exceptions name the production asserts that should
 become explicit raises; that is kernel work and is tracked as a follow-up.
+
+## Amendment 2026-11-11 (c) — preserve validation, reduce repeated waiting
+
+**Context.** PR metadata events restarted all code checks, while platform checks
+executed independently runnable commands in sequence. Workflow path lists and
+local gate paths could disagree. The maintainer requested one remediation PR
+without reducing quality (WU-106).
+
+**Decision.** Metadata validation has its own workflow and concurrency group.
+Required jobs remain directly in their event workflows with the original stable
+names. Title/body edits rerun affected checks; avoiding those reruns is deferred.
+Skipped reusable callers were rejected after the live rollout left required
+checks pending despite historical successful jobs. Conditional expressions in
+job names are prohibited; the Python matrix name is evaluated without a job-level
+skip condition. Ready/draft transitions do not restart code validation. Every
+new revision still receives affected validation, including drafts; base retargets
+force full validation.
+
+`ci_scope.py` owns conservative suite dependencies for CI, local optional gate
+steps and PR evidence checks. Full Git diffs include both sides of renames and
+deleted files; shared inputs select their consumers. Unknown paths or missing
+history run everything; selector execution errors fail the job. Nightly/manual
+full runs supplement, never replace, pre-merge checks. Kernel and spec changes
+select the platform conservatively.
+
+The platform executes backend and frontend lanes concurrently with separate
+logs and ordered dependencies. Browser tests follow the production build. Both
+Python versions and all existing checks remain. Timing reports distinguish queue
+time, elapsed time and summed runner usage. No result is cached across revisions.
+
+**Enforcement.** The nine validations from amendment (b) remain unchanged.
+The original contexts remain `python`, `python-next`, `platform`, `docs`,
+`workflows`, `semgrep`, `dependency-review`, `privacy`, and `pr-hygiene`. The
+read-only ruleset tool restores these names from the attempted caller prefixes,
+preserving app bindings, other protections and strict up-to-date enforcement.
+Live acceptance requires a `CLEAN` merge state, not only successful job records.
+See [CI verification](../ci.md).
+
+**Alternatives.** Disabling draft validation or moving affected integration to
+nightly would weaken pre-merge assurance. Reusing green statuses across changed
+bases risks stale evidence. Workflow-level path skipping can strand required
+checks; unconditional skipped results under existing names can mask failures.
+
+**Consequences.** Title/body edits still allocate affected code runners. Stable
+required names restore compatibility with existing PRs; ready/draft events remain
+limited to metadata/board work. Conservative classification may run extra suites. The impact policy and
+routing expressions are covered by `scripts/tests/`; rollback changes scheduling
+only and does not touch product data or contracts.

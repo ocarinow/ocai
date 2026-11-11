@@ -115,8 +115,10 @@ nav = [
     ] },
   ] },
   { "Architecture" = "architecture.md" },
+  { "CI verification" = "ci.md" },
   { "Roadmap" = [
     "plans/README.md",
+    { "CI latency" = "plans/ci-latency.md" },
     { "Core modernization" = "plans/core-modernization.md" },
     { "Integration program" = "plans/integration-program.md" },
     { "Platform MVP" = "plans/platform-mvp.md" },
