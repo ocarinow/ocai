@@ -13,7 +13,7 @@ organized one subpackage per wire interface:
   implemented and certified against recorded fixtures.
 - `ocai.openai.responses` — the `/v1/responses` interface. A **stub**: its
   nodes are declared so the interface exists in the graph, but it has no
-  edges, codec, or chat component yet. The front door never auto-selects it,
+  executable conversion edges or chat component yet. The front door never auto-selects it,
   and pinning `interface="responses"` raises `LookupError` until it lands.
 
 The two are sibling interfaces of the one chat capability, not versions of
@@ -34,7 +34,9 @@ from ocai.openai import chat_model
 from ocai.core import ApiKey
 
 model = chat_model("gpt-4o", credentials=ApiKey.from_env("OPENAI_API_KEY"))
-result = model.chat(...)   # needs ocai[http] and a real key
+from ocai.chat import ChatRequest, Message
+
+result = model.chat(ChatRequest(messages=[Message.user("Hello!")]))
 ```
 
 `chat_model` is sugar over `ocai.chat.model("openai/<model>", ...)` on a

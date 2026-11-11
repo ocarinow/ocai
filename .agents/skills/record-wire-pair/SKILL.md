@@ -55,7 +55,7 @@ the error mapping (rule 8), so the envelope must be wire-accurate.
 ## 3. Rules
 
 - **Wire-accurate or nothing.** Captured from a real call (preferred) or
-  hand-authored against the provider research in `docs/providers/` and the
+  hand-authored against the provider research in `docs/research/providers/` and the
   plugin's wire structs. A body a provider would never send is a lie the
   tests will defend. Say which in `description`.
 - **Redact before committing.** No API key, organization id, account email,
@@ -78,7 +78,7 @@ the error mapping (rule 8), so the envelope must be wire-accurate.
   not just the exception.
 - **Never edit a recording to make a test pass.** If the codec disagrees
   with the wire, the codec is wrong or the recording is; find out which
-  against `docs/providers/`.
+  against `docs/research/providers/`.
 
 ## 4. Mount it in a test
 

@@ -12,13 +12,17 @@ release gate ([ADR 0005](decisions/0005-revised-freeze-gate.md)) ·
 implementation pending.
 
 **November 2026 update:** M1–M3 implement Python chat and streaming for OpenAI
-Chat Completions and Anthropic Messages. The active IR remains `2026-07`.
+Chat Completions and Anthropic Messages. The integration program additionally
+qualifies DeepSeek unary/streaming, AWS SigV4 and Anthropic unary Bedrock hosting.
+Governed inspection, fidelity policies, stream ownership/middleware and metadata
+observers are implemented; the OTel satellite remains separate work. The active
+IR remains `2026-07`.
 [ADR 0005](decisions/0005-revised-freeze-gate.md) replaces the original freeze
 assumption: ordered interaction items, replay, and independent plugins must be
 exercised before the next contracts freeze, as sequenced in the
 [core modernization plan](plans/core-modernization.md). Draft schemas under
 `spec/proposals/` are not runtime support or registered graph nodes.
-See the [feature matrix](provider-feature-matrix.md) for implementation gaps.
+See the [feature matrix](user/provider-feature-matrix.md) for implementation gaps.
 
 ---
 
@@ -61,7 +65,7 @@ failure.
 └────────────────────────────────────────────────────────────────────────────┘
    ocai.chat.facade (the wire-backed facade) is the ONE chat module allowed to
    import convert/runtime/wire — the port and types never do. Convention: a
-   facade module never shares the front-door factory's name, so the future
+   facade module never shares the front-door factory's name, so the
    ocai.chat.model() factory (§3.4) is never shadowed by a module.
 
  Plugin dists (ocai-openai, ocai-anthropic, …): one subpackage PER INTERFACE
@@ -1150,7 +1154,7 @@ collisions; reverse fold triples qualify the mixed-content case.
 
 WU-32 qualifies the complete client → canonical → provider → canonical → client
 path with recorded OpenAI and Anthropic text/tool HTTP/SSE pairs on all four call
-faces. `examples/governed_gateway.py` and `docs/gateway-integration.md` demonstrate
+faces. `examples/governed_gateway.py` and `docs/user/gateway-integration.md` demonstrate
 public preparation, admission, policy enforcement, serving metadata and ownership.
 The combined ledger contains ingress + execution's two legs + egress exactly once.
 Client egress policy may fail after the kernel invocation succeeds; gateway
@@ -1363,7 +1367,7 @@ and configuration contracts live in `platform/spec/` and reference kernel
 contracts where needed. Platform dependency environments and lockfiles are
 separate from library development. The scaffolding WU must add the corresponding
 boundary and integration checks to repository verification. The broader product
-direction is documented in [the platform overview](platform/README.md).
+direction is documented in [the platform overview](design/platform/README.md).
 
 ### 12.1 Initial platform foundation [provisional]
 
@@ -1390,7 +1394,7 @@ and accounting are not implemented in this slice. Root verification includes
 platform typing, API drift, boundary/HTTP tests, production build, and a browser
 integration test against the real service.
 
-### 12.2 Identity boundaries [direction; not implemented]
+### 12.2 Identity boundaries [direction; staged implementation]
 
 [ADR 0013](decisions/0013-platform-identity.md) records the next identity boundary.
 Keycloak is the reference separately deployed provider for local accounts and
@@ -1404,14 +1408,16 @@ Identity integration stays in modular gateway application code until another
 backend consumer warrants extraction. Future services validate their own audience
 and permissions; machine authority and human-delegated authority stay distinct.
 These requirements do not change §12.1's implemented public status surface.
-See [identity and access](platform/identity.md) for protocol boundaries, frontend
+See [identity and access](design/platform/identity.md) for protocol boundaries, frontend
 reuse, non-human identities, qualification gates and operational responsibilities.
 
 The [authenticated console program](plans/platform-identity.md) sequences the
 first implementation; [ADR 0011](decisions/0011-authenticated-console-contract.md)
 proposes its persistence/session policy, operator bootstrap and transactional
-audit plus OpenFGA synchronization contract. These remain design requirements;
-subsequent WUs add the corresponding runtime evidence and update this section.
+audit plus OpenFGA synchronization contract. Sections 12.3–12.5 record implemented
+storage, issuer verification and organization authorization. Console sessions,
+protected organization HTTP workflows and machine credentials remain subsequent
+implementation; proposed production profiles are not qualification claims.
 
 ### 12.3 Platform identity persistence [provisional]
 

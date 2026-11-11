@@ -64,7 +64,7 @@ contract must add evidence to `gaps.md` and obtain a separately defined library 
 
 MCP/agent gateways, durable agent orchestration, RAG/source permissions, audiovisual
 generation, realtime sessions, batch/file APIs, a full asset catalog and hosted
-billing are adjacent products/capabilities in the [delivery sequence](../platform/delivery.md).
+billing are adjacent products/capabilities in the [delivery sequence](../design/platform/delivery.md).
 They are not implied by this inference-gateway feature set; each requires its own
 bounded program and qualified capability contracts before being advertised.
 Nested teams, a generic policy-expression editor, every cloud vault/IdP, and a

@@ -2,11 +2,13 @@
 
 **Current direction (November 2026):** the Python
 [governed gateway program](gateway-readiness.md) is merged, following WU-17–20;
-see the [integration guide](../gateway-integration.md). The proposed
+see the [integration guide](../user/gateway-integration.md). The active
 [tier 1–2 integration program](integration-program.md) sequences host foundations,
 chat completeness, provider qualification and the first telemetry/cost libraries.
-Its plan must merge before implementation; each WU then branches from current
-main and waits for review and merge before the next starts.
+DeepSeek unary/streaming, AWS signing, Anthropic unary Bedrock hosting and bounded
+EventStream framing are merged. The rows below track the remaining work. Independent
+WUs branch from current main; dependent work may use one-WU stacked PRs as defined
+in `AGENTS.md`.
 The release gate remains [ADR 0005](../decisions/0005-revised-freeze-gate.md).
 The platform vision includes agent execution/management, telemetry, auditing,
 evaluation, and typed registries. Other language implementations are deferred.
@@ -77,8 +79,8 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-42 | Preserve required server-tool replay anchors | Integration | [integration](integration-program.md) | ✅ |
 | WU-43 | Account for provider-executed search requests | Integration | [integration](integration-program.md) | ✅ |
 | WU-44a | Declare the DeepSeek compatible interface variant | Integration | [integration](integration-program.md) | ✅ |
-| WU-44b | Certify the DeepSeek compatible dialect variant | Integration | [integration](integration-program.md) | ✅ Complete (review pending; PR #91) |
-| WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ✅ Complete (review pending; PR #99) |
+| WU-44b | Certify the DeepSeek compatible dialect variant | Integration | [integration](integration-program.md) | ✅ Complete (PR #91 merged) |
+| WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ✅ Complete (PR #99 merged) |
 | WU-46a | Preserve response identity through canonical streams ([PR #101](https://github.com/ocarinow/ocai/pull/101)) | Integration | [integration](integration-program.md) | ✅ |
 | WU-46 | Qualify DeepSeek streaming ([#100](https://github.com/ocarinow/ocai/pull/100)) | Integration | [integration](integration-program.md) | ✅ |
 | WU-47a | Validate credential and host distribution roles | Integration | [integration](integration-program.md) | ✅ |
@@ -87,7 +89,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-48b | Account for host effects without inventing graph edges | Integration | [integration](integration-program.md) | ✅ |
 | WU-48c | Adapt unary host responses with governed evidence | Integration | [integration](integration-program.md) | ✅ |
 | WU-48 | Host Anthropic unary calls on Bedrock InvokeModel | Integration | [integration](integration-program.md) | ✅ |
-| WU-49 | Parse AWS EventStream without I/O | Integration | [integration](integration-program.md) | ✅ Complete (review pending; PR #130) |
+| WU-49 | Parse AWS EventStream without I/O | Integration | [integration](integration-program.md) | ✅ Complete (PR #130 merged) |
 | WU-50 | Stream Anthropic through Bedrock envelopes | Integration | [integration](integration-program.md) | ⬜ |
 | WU-51 | Declare the Bedrock Converse interface | Integration | [integration](integration-program.md) | ⬜ |
 | WU-52 | Certify Converse unary conversion | Integration | [integration](integration-program.md) | ⬜ |
@@ -182,6 +184,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-132 | Offer explicit semantic response reuse within isolated scopes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | WU-133 | Qualify multimodal chat inputs on supported gateway routes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | WU-134 | Serve the qualified OpenAI Responses compatibility endpoint | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-135 | Publish current user documentation with a verified audience boundary | Documentation | [documentation](documentation.md) | ✅ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones

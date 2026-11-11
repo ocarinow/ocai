@@ -56,7 +56,7 @@ discovery does not certify arbitrary plugin code.
 
 Copy the package into your own repository to develop a provider. Keep the
 `ocai.contrib.<name>` namespace, distribution entry point, compatible core
-range, and tests. See [the plugin guide](../../docs/writing-a-plugin.md) for
+range, and tests. See [the plugin guide](../../docs/user/writing-a-plugin.md) for
 the additional contracts required to serve live calls.
 
 The source `fixtures/` and `extensions/` directories are included as package data

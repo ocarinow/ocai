@@ -593,8 +593,8 @@ class Board:
                     elif fname and "text" in fv:
                         values[str(fname)] = str(fv["text"] or "")
                 kind = str(content.get("__typename", ""))
-                number = int(content.get("number") or 0)
-                key = f"PR#{number}" if kind == "PullRequest" else title
+                pull_number = int(content.get("number") or 0)
+                key = f"PR#{pull_number}" if kind == "PullRequest" else title
                 self.items[key] = Item(
                     str(node["id"]),
                     title,
@@ -603,7 +603,7 @@ class Board:
                     str(content.get("id") or ""),
                     str(content.get("body") or ""),
                     values,
-                    number,
+                    pull_number,
                 )
             page = project["items"]["pageInfo"]
             if not page["hasNextPage"]:

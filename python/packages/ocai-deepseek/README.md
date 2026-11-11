@@ -40,7 +40,7 @@ result = prepared.chat()          # or: await prepared.achat()
 
 `deepseek/chat_completions@2026-11` names ocai's documented-wire observation
 snapshot dated 2026-11-11. It is neither a vendor version header nor a model
-release. Model facts and exclusions are recorded in `docs/providers/deepseek.md`.
+release. Model facts and exclusions are recorded in `docs/research/providers/deepseek.md`.
 No provider SDK or ambient credential discovery is used.
 
 Tool histories require original reasoning text for every assistant turn. Missing

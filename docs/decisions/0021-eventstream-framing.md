@@ -1,6 +1,6 @@
 # 0021 — Bounded EventStream framing with explicit partial evidence
 
-- **Status:** proposed; implemented for review in WU-49
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer review of WU-49
 
@@ -9,7 +9,7 @@
 ADR 0014 permits host-selected framing without moving provider semantics into
 transport. Bedrock InvokeModel streaming uses binary Amazon EventStream, so
 WU-50 needs a parser before its host envelope can reach the Anthropic codec.
-The [provider research §17](../providers/amazon-bedrock.md) records the Smithy
+The [provider research §17](../research/providers/amazon-bedrock.md) records the Smithy
 wire format, CRC coverage, signed timestamp encoding and service-only size limits.
 
 ## Decision

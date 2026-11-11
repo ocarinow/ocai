@@ -77,7 +77,7 @@ PR that changes one adds a changeset in `.changeset/` (package, level, note);
 versions are bumped only by the release script when a release is cut.
 Every merge to `main` publishes an alpha of each package with pending change
 files; merging the standing Release PR publishes the stable release. See ADR
-0010 and [`docs/releasing.md`](docs/releasing.md).
+0010 and [`docs/development/releasing.md`](docs/development/releasing.md).
 
 ## Before you open a PR
 
@@ -111,5 +111,5 @@ PR text edits run privacy/template checks without restarting code validation.
 Push a coherent revision after local checks, and batch title/body edits together.
 For stacked branches, use `uv run python scripts/check.py --base origin/<parent>`.
 Drafts still run all affected checks. Base retargets force full validation.
-See [CI verification](docs/ci.md) for impact selection, timing comparisons, and
+See [CI verification](docs/development/ci.md) for impact selection, timing comparisons, and
 required-check rollout.

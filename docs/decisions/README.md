@@ -45,14 +45,14 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0008](0008-integration-contract-additions.md) | Additive integration contracts before the qualification gate | WU-37–38 and WU-40–43 accepted; remainder proposed |
 | [0010](0010-versioning-and-releases.md) | Versioning and releases: independent semver, changesets, two branches | accepted |
 | [0009](0009-platform-foundation.md) | Platform application and reusable layers | accepted for the first implementation slice |
-| [0013](0013-platform-identity.md) | Platform identity and session boundaries | accepted direction; implementation pending |
+| [0013](0013-platform-identity.md) | Platform identity and session boundaries | accepted direction; internal identity/authorization implemented, console/workloads pending |
 | [0011](0011-authenticated-console-contract.md) | First authenticated console implementation contract | accepted in place; staged implementation |
 | [0012](0012-shadcn-component-layer.md) | Full upstream shadcn-vue component layer | accepted |
-| [0014](0014-host-selected-stream-framing.md) | Host-selected stream framing before semantic conversion | proposed (WU-39 implementation for review) |
-| [0015](0015-stream-response-info.md) | Preserve response identity through canonical streams | accepted direction; implementation for review |
-| [0016](0016-provider-authentication-packages.md) | Delegate authentication within external provider packages | accepted direction; WU-47 implementation for review |
-| [0017](0017-host-error-outcomes.md) | Preserve native evidence for reusable host error adaptation | accepted direction; WU-48a implementation for review |
-| [0018](0018-host-fidelity-reports.md) | Keep host effects separate from conversion edges | accepted direction; WU-48b implementation for review |
-| [0019](0019-host-response-adaptation.md) | Adapt successful host responses through governed public contracts | accepted direction; WU-48c implementation for review |
-| [0020](0020-distribution-roles.md) | Distribution roles in the workspace gate | proposed (WU-47a) |
-| [0021](0021-eventstream-framing.md) | Bound EventStream framing and retain verified prefix evidence | proposed; WU-49 implementation for review |
+| [0014](0014-host-selected-stream-framing.md) | Host-selected stream framing before semantic conversion | accepted; implementation merged |
+| [0015](0015-stream-response-info.md) | Preserve response identity through canonical streams | accepted; implementation merged |
+| [0016](0016-provider-authentication-packages.md) | Delegate authentication within external provider packages | accepted; implementation merged |
+| [0017](0017-host-error-outcomes.md) | Preserve native evidence for reusable host error adaptation | accepted; implementation merged |
+| [0018](0018-host-fidelity-reports.md) | Keep host effects separate from conversion edges | accepted; implementation merged |
+| [0019](0019-host-response-adaptation.md) | Adapt successful host responses through governed public contracts | accepted; implementation merged |
+| [0020](0020-distribution-roles.md) | Distribution roles in the workspace gate | accepted; implementation merged |
+| [0021](0021-eventstream-framing.md) | Bound EventStream framing and retain verified prefix evidence | accepted; implementation merged |

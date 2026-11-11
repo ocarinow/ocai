@@ -1,6 +1,6 @@
 # 0017 — Preserve native evidence for reusable host error adaptation
 
-- **Status:** accepted direction; WU-48a implementation for review
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer
 

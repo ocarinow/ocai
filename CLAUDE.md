@@ -7,7 +7,7 @@ every agent. Claude-specific wiring only:
 
 - Skills live in `.agents/skills/` (Agent Skills format); `.claude/skills` is
   a symlink to that directory so they are discoverable here without a copy.
-- Provider wire research is in `docs/providers/` (moved out of `.claude/` so
+- Provider wire research is in `docs/research/providers/` (moved out of `.claude/` so
   every tool sees it).
 - Development commands: read `tasks/README.md` once per session; `task check`
   is the gate, `task` lists everything.

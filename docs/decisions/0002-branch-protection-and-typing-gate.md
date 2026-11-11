@@ -198,7 +198,7 @@ The original contexts remain `python`, `python-next`, `platform`, `docs`,
 read-only ruleset tool restores these names from the attempted caller prefixes,
 preserving app bindings, other protections and strict up-to-date enforcement.
 Live acceptance requires a `CLEAN` merge state, not only successful job records.
-See [CI verification](../ci.md).
+See [CI verification](../development/ci.md).
 
 **Alternatives.** Disabling draft validation or moving affected integration to
 nightly would weaken pre-merge assurance. Reusing green statuses across changed

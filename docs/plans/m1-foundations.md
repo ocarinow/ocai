@@ -1,5 +1,8 @@
 # M1 — Foundations: one provider end-to-end (unary)
 
+Historical completed milestone. The scope and original acceptance below are
+retained; current behavior is documented in [the user guides](../user/index.md).
+
 Goal: `WireChatModel.chat/achat` returns a `CallResult` with a real two-leg
 `FidelityReport` on a recorded OpenAI wire pair. Architecture refs: §2 (core
 contracts), §3.2–3.4 (port, facade, three-lane law), §4 (convert), §8
@@ -230,7 +233,7 @@ door.
   `ENCODE_REQUEST_CONTRACT` in `edges.py`.
 - **Decision (the implicit harness dependency):** the edge-fixture runner did
   not exist; implemented `check_edge` in `ocai/convert/conformance.py` (the
-  name `docs/writing-a-plugin.md` already advertised). It asserts output
+  name `docs/user/writing-a-plugin.md` already advertised). It asserts output
   equality under `semantic_equal` plus **exact** loss/shift match — records
   compare on `(path, disposition)` / `(kind, path)` as multisets; notes and
   severities are prose/diagnostics and are never compared, mirroring

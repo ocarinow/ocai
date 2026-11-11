@@ -1,6 +1,6 @@
 # 0013 — Platform identity and session boundaries
 
-- **Status:** accepted direction; implementation and qualification pending
+- **Status:** accepted direction; internal identity/authorization implemented, console/workloads pending
 - **Date:** 2026-11-10
 - **Deciders:** maintainer, following the platform identity design discussion
 
@@ -39,7 +39,7 @@ preview delegation for the initial production release. Exact versions, providers
 libraries, persistence, TTLs and revocation behavior require implementing WUs.
 
 The detailed requirements, protocol references, alternatives and acceptance matrix
-live in [the identity design](../platform/identity.md).
+live in [the identity design](../design/platform/identity.md).
 
 ## Alternatives considered
 

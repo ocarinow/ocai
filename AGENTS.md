@@ -34,8 +34,10 @@ silently.
 ocai is **source-available** under FSL-1.1-ALv2, not open source — never
 describe it as "open source".
 
-**Status (Nov 2026):** milestones M1–M3 landed (unary + streaming through the
-facade on OpenAI and Anthropic, cross-conversion fidelity demo, front doors).
+**Status (Nov 2026):** M1–M3 and the governed gateway library foundation landed.
+OpenAI, Anthropic and DeepSeek unary/streaming execution, AWS signing and
+Anthropic unary Bedrock hosting are qualified by recorded tests. The platform
+remains a foundation preview; its planned inference workflows are not shipped.
 The current program and its open WUs are in `docs/plans/README.md`; it is the
 only authoritative statement of what is next.
 
@@ -74,16 +76,19 @@ AGENTS.md    this file — the one instruction file every agent reads
 SECURITY.md  how to report a vulnerability (private advisory), scope, support
 spec/        language-neutral source of truth: canonical-json.md, JSON Schema,
              golden fixtures (incl. fold triples), extension censuses
-docs/        architecture.md (structural contract) · plans/ (roadmap + WUs) ·
-             decisions/ (ADRs) · providers/ (provider wire research) ·
-             platform/ (platform design) · releasing.md · guides; zensical.toml
-             at the root builds them into the docs site
+docs/        user/ (published site) · development/ · design/ · research/ ·
+             architecture.md (structural contract) · plans/ (roadmap + WUs) ·
+             decisions/ (ADRs) · research/providers/ (provider wire research) ·
+             design/platform/ (platform design) · development/releasing.md; zensical.toml
+             at the root publishes ONLY docs/user/
 python/      uv workspace (root pyproject.toml, uv.lock); one dist per package:
   packages/ocai-core       dist "ocai": ocai.core / ocai.chat / ocai.embedding /
                            ocai.vectorstore / ocai.convert / ocai.runtime / ocai.wire
   packages/ocai-openai     ocai.openai.chat_completions + ocai.openai.responses
   packages/ocai-anthropic  ocai.anthropic.messages
-  packages/ocai-deepseek   ocai.deepseek (interface descriptors; execution pending)
+  packages/ocai-deepseek   ocai.deepseek (qualified unary + streaming chat)
+  packages/ocai-aws       explicit AWS signing credentials
+  packages/ocai-bedrock   Anthropic unary InvokeModel host
 platform/    the product built on the kernel — own environments, never imported
              by the kernel: apps/console (Nuxt) · services/gateway (FastAPI, own
              uv.lock) · packages/ (nuxt-ui, nuxt-platform, management-client) ·
@@ -246,7 +251,7 @@ stale).
     (`knope.toml`) in the release workflows, never by hand; each package has
     its own version and tag `<name>/v<version>`; every merge to `main`
     publishes an alpha and refreshes the standing Release PR; merging that
-    PR is the stable release (ADR 0010, `docs/releasing.md`). Only change
+    PR is the stable release (ADR 0010, `docs/development/releasing.md`). Only change
     files may live in `.changeset/`: knope parses every `.md` there.
 
 ## How to work a session

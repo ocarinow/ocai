@@ -1,10 +1,11 @@
 # Platform development
 
-Implemented: the console-to-API foundation (WU-35) and internal PostgreSQL
-identity storage with transactional audit/outbox writes (WU-73). Storage has no
-protected HTTP surface yet. Organization access, OpenFGA enforcement, provider
-connections, inference and accounting remain subsequent slices. The HTTP service
-still exposes only public, non-sensitive health and system-status operations.
+Implemented on main: the console-to-API foundation, PostgreSQL identity storage,
+Keycloak/OIDC verification and internal organization/OpenFGA authorization services.
+The HTTP service still exposes only public health and non-sensitive system status.
+The console has no authenticated organization or inference workflow yet. See the
+[user guide](../docs/user/platform/README.md) for the available surface; the sections
+below document contributor/operator setup and internal services.
 
 ## Layout
 
@@ -356,4 +357,4 @@ installing the gateway environment. Each lane keeps its dependent commands in
 order; browser tests follow the production build. Any lane failure fails the
 gate, with both logs retained in its output. Use `--serial` for a timing baseline.
 Command/lane timings also appear in the Actions step summary. See
-[CI verification](../docs/ci.md) for the shared impact policy.
+[CI verification](../docs/development/ci.md) for the shared impact policy.

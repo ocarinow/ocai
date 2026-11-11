@@ -4,7 +4,7 @@ Source: maintainer request to "start the implementation of the MVP" and create
 reusable layers, including middleware, where necessary.
 
 The first release remains console plus management API and governed chat, as
-defined in [the product design](../platform/gateway.md). The foundation below
+defined in [the product design](../design/platform/gateway.md). The foundation below
 starts implementation; it does not itself constitute the release. No platform
 API is production-qualified until identity, authorization, persistence, evidence,
 and the supported inference paths have been exercised together.
@@ -119,7 +119,7 @@ workflow per PR. This ordering is a dependency guide, not completed scope:
 
 1. PostgreSQL migrations and an OIDC-backed organization/session workflow;
    implement the selected Keycloak reference and Nuxt server session boundary
-   from [the identity design](../platform/identity.md), with controlled bootstrap,
+   from [the identity design](../design/platform/identity.md), with controlled bootstrap,
    one protected operation, logout and durable audit.
 2. OpenFGA resource checks, organizations/teams/service accounts, and scoped-key
    administration with durable audit and tested revocation behavior. Include

@@ -1,5 +1,8 @@
 # M2 — Streaming with honesty parity
 
+Historical completed milestone. The scope and original acceptance below are
+retained; current behavior is documented in [the user guides](../user/index.md).
+
 Goal: the fold law demonstrated at the port —
 `fold(model.stream(req)) == model.chat(req).value` on a paired recorded
 exchange, with every stream ending in `StreamEnd(usage, finish, report)`.

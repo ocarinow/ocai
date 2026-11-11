@@ -58,5 +58,5 @@ wire behavior without live keys; they do not establish service/account access.
 | Excluded | Streaming, Converse, media, managed prompts, regional/model discovery, live availability |
 
 The recordings are synthetic, hand-authored against the AWS research sources in
-`docs/providers/amazon-bedrock.md` section 16. They reuse the existing Anthropic
+`docs/research/providers/amazon-bedrock.md` section 16. They reuse the existing Anthropic
 conversion graph. There is no new semantic edge or canonical revision.
