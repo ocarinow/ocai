@@ -1,6 +1,6 @@
 # 0002 — Branch protection and the strict typing gate
 
-- **Status:** accepted
+- **Status:** accepted; amended 2026-11-11 (required checks, path filtering, workflow hardening)
 - **Date:** 2026-11-10
 - **Deciders:** maintainer, with Claude Code
 
@@ -28,8 +28,9 @@ different class of errors. Baseline measured before enforcement:
 actors):
 
 - pull requests only; squash or rebase merges; linear history;
-- required status check `python` (the CI job), branch must be up to date
-  with `main` before merge;
+- required status checks `python`, `privacy`, `pr-hygiene`, `platform`, and
+  `docs` (the CI and Docs jobs), branch must be up to date with `main`
+  before merge (amended 2026-11-11; originally `python` alone);
 - review threads must be resolved; zero required approvals while there is
   one human maintainer;
 - no force push, no deletion.
@@ -68,3 +69,43 @@ actors):
 - Provider codecs carry explicit `dict[str, Any]` annotations at the wire
   boundary; that is the honest shape of wire JSON, not a weakening.
 - Branch names are convention (`wu-NN-short-slug`), not ruleset.
+
+## Amendment 2026-11-11 — required checks match the gate
+
+**Context.** `scripts/check.py` had grown to cover the platform (gateway,
+console, browser tests) and the docs site built on every docs change, but
+the ruleset still required only `python`, `privacy`, and `pr-hygiene`. A PR
+that broke the gateway or the Nuxt build could merge. Workflows also ran
+with the default token permissions, synced the uv workspace without
+`--locked`, had no timeouts, no concurrency groups, reinstalled Playwright
+on every run, and referenced actions by movable tag.
+
+**Decision.**
+
+- The required status checks on `main` are `python`, `privacy`,
+  `pr-hygiene`, `platform`, and `docs` — every job that `scripts/check.py`
+  runs locally, plus the docs build. The gate and the protection are the
+  same set.
+- A required check must report on every pull request, so **path filtering
+  happens inside the job**, never at the workflow trigger: each job starts,
+  runs `dorny/paths-filter`, and skips its heavy steps when the change does
+  not touch its tree, reporting success in seconds. A `paths:` filter on the
+  trigger would leave the check "expected" forever and block the merge.
+- Every workflow declares `permissions: contents: read` at the top; a job
+  that needs more (Pages deploy, release PR) declares it on the job.
+- Every action is pinned to a commit SHA with the version as a trailing
+  comment; Dependabot keeps both current. Floating refs such as
+  `release/v1` are not used.
+- `uv sync --locked` in CI: a lockfile that drifted from `pyproject.toml`
+  fails the run instead of being re-resolved silently.
+- Every job has a `timeout-minutes`; pull-request runs share a concurrency
+  group per PR with cancel-in-progress, pushes to `main` never cancel.
+  Pages deploys stay serialized under one group.
+- Playwright browsers are cached on the platform lockfile hash.
+
+**Consequences.** Kernel-only PRs still see the `platform` and `docs` checks,
+but they finish in under a minute. The `python` job's filter now also covers
+`scripts/`, `tasks/`, `uv.lock`, `knope.toml`, and all of `examples/`, since
+the gate reads them. The DCO question above is answered separately: the DCO
+GitHub App is the chosen enforcement, installed by the maintainer, and its
+check joins this list once it reports on pull requests.
