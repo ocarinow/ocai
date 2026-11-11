@@ -91,9 +91,11 @@ from ocai.runtime.interceptors import compose_stream
 from ocai.runtime.observe import Invocation
 from ocai.runtime.observe import Observer
 from ocai.runtime.observe import failure_status
+from ocai.wire.framing import StreamFraming
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
 from ocai.wire.hosting import profile_key
+from ocai.wire.hosting import stream_framing
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -277,14 +279,14 @@ class _PreparedCall:
         report: The request leg of the call's `FidelityReport` (led by the
             feature gate's record when annotate mode found `ABSENT`
             features); the response leg is merged onto it at assembly.
+        framing: Pinned host framing selection for streams; absent for unary calls.
     """
 
     route: Route
     spec: EndpointSpec
     payload: dict[str, Any]
     report: FidelityReport
-
-
+    framing: StreamFraming | None = None
 
 
 class StalePreparationError(OcaiError):
@@ -497,6 +499,8 @@ class WireChatModel:
             "interface": self._interface, "tag": self._tag, "strict": self._strict,
             "catalog": self._catalog.lock().hash,
             "profile_key": profile_key(self._binding.host, self._model_name),
+            "framing": (stream_framing(self._binding.host, prepared.spec).configuration_id
+                        if prepared.spec.op.streaming else None),
             "policy": id(self._conversion_policy) if self._conversion_policy else None,
         }).encode()).hexdigest()
 
@@ -539,6 +543,9 @@ class WireChatModel:
                     "approved header shadowed by a case alias; prepare again")
             checked = replace(request, headers={key: request.headers[key]
                                                 for key in header_names if key in request.headers})
+            if (prepared.framing is not None and prepared.framing.configuration_id !=
+                    stream_framing(self._binding.host, prepared.spec).configuration_id):
+                raise StalePreparationError("stream framing changed; prepare again")
             if (self._configuration(prepared) != identity
                     or _wire_identity(checked) != wire_identity):
                 raise StalePreparationError("configuration or wire request changed; prepare again")
@@ -738,7 +745,10 @@ class WireChatModel:
         # physically going (the audit joint's `host` lane) after the spec
         # exists, so resolution itself never knows clouds exist.
         route = replace(route, host=self._binding.host.endpoint(spec))
-        return _PreparedCall(route=route, spec=spec, payload=payload, report=report)
+        return _PreparedCall(
+            route=route, spec=spec, payload=payload, report=report,
+            framing=stream_framing(self._binding.host, spec) if streaming else None,
+        )
 
     def _response_node(self, request_node: NodeId) -> NodeId:
         """Return the response-shape sibling of a resolved request node.
@@ -1076,7 +1086,7 @@ class WireChatModel:
         The whole sans-io preamble (`_prepare`: resolve, gate, encode, bind)
         runs eagerly HERE, so a doomed request fails at the call site like
         `chat` does; only the wire attempt is lazy, opening on the first
-        chunk pulled. The driver pumps SSE frames through a fresh
+        chunk pulled. The driver pumps host-decoded events through a fresh
         `StreamPipeline` (`catalog.stream_converter`, wire chunk node →
         canonical — conversion joins the graph, §4.1) and flushes it exactly
         once at end-of-stream; the facade folds the flush accounting into
@@ -1118,6 +1128,7 @@ class WireChatModel:
             request_guard=bound.guard,
             refine_error=self._refine_error,
             pipeline=pipeline,
+            framing=prepared.framing,
         )
         return ChatStream(self._pump(events, prepared, pipeline),
                           report=lambda: self._stream_evidence(prepared, pipeline))
@@ -1169,6 +1180,7 @@ class WireChatModel:
             request_guard=bound.guard,
             refine_error=self._refine_error,
             pipeline=pipeline,
+            framing=prepared.framing,
         )
         return AsyncChatStream(self._apump(events, prepared, pipeline),
                                report=lambda: self._stream_evidence(prepared, pipeline))

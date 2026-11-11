@@ -75,14 +75,14 @@ class Transport(Protocol):
         ...
 
     def stream(self, request: HttpRequest) -> AsyncIterator[bytes]:
-        """Stream the response body as raw byte chunks (SSE parsing is above).
+        """Stream the response body as raw byte chunks (framing is above).
 
         Args:
             request: The authenticated, fully-built wire request.
 
         Returns:
             An async iterator of raw body chunks; the driver pumps them into
-            an `SSEParser`.
+            the host-selected sans-io stream decoder.
         """
         ...
 
@@ -127,8 +127,8 @@ class SyncTransport(Protocol):
             request: The authenticated, fully-built wire request.
 
         Returns:
-            An iterator of raw body chunks; the driver pumps them into an
-            `SSEParser`.
+            An iterator of raw body chunks; the driver pumps them into the
+            host-selected sans-io stream decoder.
         """
         ...
 
@@ -303,7 +303,7 @@ class HttpxTransport:
         raise self._error(resp.status_code, resp.text, resp.headers)
 
     async def stream(self, request: HttpRequest) -> AsyncIterator[bytes]:
-        """Stream the response body as raw byte chunks, async (SSE parsing is above).
+        """Stream the response body as raw byte chunks, async (framing is above).
 
         No retry: a partially consumed stream can't be safely replayed, which
         is also why the drivers ignore outcome-phase `Retry` decisions for

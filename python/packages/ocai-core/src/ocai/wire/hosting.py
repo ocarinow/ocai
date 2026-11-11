@@ -50,6 +50,8 @@ from ocai.convert.hosts import HostDescriptor
 from ocai.core._headers import merge_headers
 from ocai.core.identity import NodeId
 from ocai.core.traits import DialectTraits
+from ocai.wire.framing import StreamFraming
+from ocai.wire.framing import sse_framing
 
 
 @dataclass(frozen=True)
@@ -175,6 +177,25 @@ class Host(Protocol):
     def headers(self, spec: EndpointSpec) -> Mapping[str, str]:
         """Return the headers this host contributes for `spec` (before auth)."""
         ...
+
+
+@runtime_checkable
+class FramingHost(Protocol):
+    """Optional host selection of framing and stream-envelope removal.
+
+    Existing Host implementations need no new method. Selection is pure; its
+    factory is not invoked during preparation or for an unconsumed stream.
+    """
+
+    def stream_framing(self, spec: EndpointSpec) -> StreamFraming:
+        """Select non-secret decoder configuration for this streaming operation."""
+        ...
+
+
+def stream_framing(host: Host, spec: EndpointSpec) -> StreamFraming:
+    """Snapshot explicit host framing or retain SSE for legacy hosts."""
+    selected = host.stream_framing(spec) if isinstance(host, FramingHost) else sse_framing()
+    return selected.snapshot()
 
 
 @dataclass(frozen=True)

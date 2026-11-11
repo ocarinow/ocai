@@ -43,6 +43,17 @@ optional `input`/`preserved` pairs record design requirements. They are validate
 by a dedicated schema suite, not treated as certified conversion edges or fold
 triples. Promotion requires implemented converters and the ordinary gates below.
 
+### Recorded binary transport pairs
+
+Wire recordings under `python/packages/*/tests/http/` are transport tests, not new
+conversion edges. WU-39 adds `response.chunks_hex`: an ordered array of hexadecimal
+byte strings for a binary response, alongside HTTP status/headers and the exact
+request body. Replaying `bytes.fromhex` for each entry preserves network bytes;
+tests may split entries further to qualify incremental parsing. The description
+must state captured versus synthetic provenance, the framing grammar, the unary
+pair and the existing semantic fold triple. A synthetic framing adapter does not
+qualify a vendor format. Existing JSON and `response.sse` formats stay unchanged.
+
 ### Edge fixture (one per conversion-graph edge)
 
 ```jsonc

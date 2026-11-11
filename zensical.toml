@@ -146,6 +146,7 @@ nav = [
     { "0010 — Versioning and releases" = "decisions/0010-versioning-and-releases.md" },
     { "0013 — Platform identity and session boundaries" = "decisions/0013-platform-identity.md" },
     { "0011 — Authenticated console implementation contract" = "decisions/0011-authenticated-console-contract.md" },
+    { "0014 — Host-selected stream framing" = "decisions/0014-host-selected-stream-framing.md" },
   ] },
 ]
 

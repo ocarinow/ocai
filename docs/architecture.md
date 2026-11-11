@@ -76,6 +76,10 @@ failure.
  implement core/runtime hook protocols. The kernel never grows an opinion.
 ```
 
+The driver-to-wire exception remains narrow and deferred: HTTP/transport values
+and, in WU-39, the optional host framing selector. The import-linter exception
+names `runtime.drivers → wire.hosting`; plugins still cannot import wire.
+
 ## 2. `ocai.core` — the contract layer
 
 Nothing in this package performs I/O, imports a third-party module, or knows
@@ -354,6 +358,10 @@ knows where its wire carries the name) → driver executes → decode via graph 
 assemble `CallResult`. Host profile aliases affect capability lookup only; the
 configuration fingerprint includes the effective profile key as well as approved
 wire fields, so changing an alias cannot silently reuse a prepared approval.
+For streaming, preparation also pins a `StreamFraming` selection (§6); both the
+live selection and its factory/options identity must still match before I/O.
+Copying preparation copies configuration while preserving callable ownership.
+No decoder is created during inspection or for an unconsumed stream.
 
 ### 3.4 The front doors — simple facade, switchable by data
 
@@ -574,7 +582,7 @@ schemas or executing tests.
 | Module | Objects & purpose |
 |---|---|
 | `decisions.py` | The sans-io policy vocabulary: hooks are objects returning `Proceed | Retry(after) | Fail(error) | Return(response)` — pure, debuggable, one implementation serving both drivers. Effectful backends (redis cache, distributed limiter) declare sync and/or async faces. |
-| `drivers.py` | `SyncDriver` / `AsyncDriver` — the two thin executors of the one pipeline: encode (done by facade) → policy hooks → host envelope/endpoint → **credential.apply at the leaf, per attempt, after every hook has seen the request** (no hook, cache, or log can ever see a secret) → send → SSE/transducer pump → decode. All logic that is not the physical I/O call is synchronous and shared. |
+| `drivers.py` | `SyncDriver` / `AsyncDriver` — the two thin executors of the one pipeline: encode (done by facade) → policy hooks → host envelope/endpoint → **credential.apply at the leaf, per attempt, after every hook has seen the request** (no hook, cache, or log can ever see a secret) → send → selected framing/transducer pump → decode. All logic that is not the physical I/O call is synchronous and shared. |
 | `interceptors.py` | `CallInterceptor` — port-tier middleware operating on canonical IR calls: fallback, semantic cache, policy/governance, cost metering, tracing. Meaningful for local AND remote (that is the admission test for this tier). Wire-tier concerns live in `ocai.wire.policies`. |
 | `binding.py` | `Binding(host, credentials, transport, headers)` — the reusable remote nucleus, normally composed *internally* by the `ocai.chat.model()` front door (§3.4); power users build it by hand. `Binding.validate()` checks the whole stack against the chosen sync/async mode at **composition time** (`CompositionError` naming the offender — the mid-request TypeError class dies). There is deliberately no `Workspace`/container object: per-tenant isolation is several models built from different credentials/catalogs — plain Python, not a framework concept. |
 | `dual.py` | `from_sync(port)` / `from_async(port)` adapters (thread offload / portal) — visible composition decisions, never silent bridging. |
@@ -613,7 +621,9 @@ use the same outer wrapper with no wire events. No private methods are needed.
 is emitted exactly once on result, rejection, failure, cancellation or stream
 closure. Lazy unconsumed streams have no physical attempt and remain pending
 until explicitly closed. `WireStarted`/`WireExchanged` bracket actual transport
-attempts; admission retries emit neither. All events share the logical call id;
+attempts; admission retries emit neither. Framing decoder construction happens
+before authentication and before a physical-attempt event; construction failure
+therefore produces only the logical failure. All events share the logical call id;
 caller-supplied parent/correlation ids travel in the start context. Standalone
 drivers can receive a CallContext with an explicit call id for correlation.
 
@@ -664,6 +674,38 @@ No wire model name changes. `ProfileHost` is an optional structural protocol;
 existing `Host` implementations without it retain exact-resource lookup. Input
 maps are detached; changing effective configuration invalidates prepared calls.
 These generic recordings qualify composition, not any named cloud provider.
+
+WU-39 adds optional `FramingHost.stream_framing(spec) → StreamFraming`; legacy
+hosts keep SSE without implementing another method. `StreamFraming(name, factory,
+options)` carries detached, non-secret JSON configuration and a trusted factory
+that creates a fresh `StreamDecoder` per admitted physical stream. The factory
+receives another options copy; it must not depend on hidden mutable configuration
+or ambient discovery. Preparation identity hashes name/options and in-process
+callable identity (including bound-method owner), not executable artifacts.
+Factories are preserved, not cloned, across preparation snapshots. Replacing a
+factory or changing effective options invalidates approval even if HTTP is identical.
+
+The decoder owns `feed(bytes)`, `finish()` and `close()`. It removes transport
+framing and host envelopes, emitting the existing plugin input event representation.
+It never creates canonical parts or performs provider field mapping. Normal byte
+EOF invokes `finish` once, feeds its tail through the same graph, then closes the
+decoder and transport and flushes conversion evidence. Failure, explicit close,
+consumer cancellation and deadline expiry skip `finish`, close both resources and
+retain available pipeline accounting. Cleanup never replaces a primary execution
+error; a cleanup error on an otherwise normal path fails that stream. Closing an
+unconsumed stream allocates neither decoder nor provider attempt. No retries after
+I/O starts; admission retries do not allocate decoder state.
+
+SSE remains the default, with incremental UTF-8 decoding across byte boundaries;
+legacy SSE field/event dispatch rules remain in `SSEParser`. Semantic terminal
+validation remains in codecs/facade, so raw EOF or a framing tail cannot manufacture
+successful completion. Framing errors can invalidate a previously seen semantic
+terminal event before `StreamEnd` is released. Async pending reads are bounded by
+the remaining deadline; sync reads cooperate through timeouts and checks, without
+claiming preemption of arbitrary blocking code. Both check deadlines before
+accepting decoder output. The test-only length-prefixed envelope qualifies this
+seam, not AWS EventStream; no canonical shape or conversion edge changed.
+See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
 
@@ -760,7 +802,7 @@ user code
                  │      ├─ Decision hooks (wire policies: retry, rate-limit, wiretap)
                  │      ├─ Host.envelope/endpoint/headers (ocai.wire.hosting)
                  │      ├─ Credential.apply — at the leaf, per attempt
-                 │      └─ Transport.send / stream → SSEParser → transducer chain
+                 │      └─ Transport.send / stream → selected framing/envelope decoder → transducer chain
                  ├─ ConversionGraph.convert(wire response → ocai@rev)
                  └─ CallResult(value, route, report, usage, raw)
 streaming: chunks flow through StreamEdge transducers; the stream ends with

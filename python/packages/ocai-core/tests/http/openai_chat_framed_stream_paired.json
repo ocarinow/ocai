@@ -1,0 +1,53 @@
+{
+  "description": "Synthetic WU-39 unary twin of openai_chat_framed_stream.json. The test-only length-prefixed envelope preserves existing OpenAI Chat Completions events; no cloud framing qualification. Reuses spec/fixtures/openai/chat_completions/streams/stream_usage_final_chunk.json semantics.",
+  "request": {
+    "method": "POST",
+    "url": "https://framing.example.test/v1/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "vendor/model:fast"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "chatcmpl-host-composition-test",
+      "object": "chat.completion",
+      "created": 1767225600,
+      "model": "gpt-4o-2024-08-06",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Hello! How can I help you today?",
+            "refusal": null,
+            "annotations": []
+          },
+          "logprobs": null,
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 12,
+        "completion_tokens": 9,
+        "total_tokens": 21,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      }
+    }
+  }
+}

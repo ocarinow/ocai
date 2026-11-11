@@ -196,7 +196,8 @@ ignore_imports = [
     "ocai.chat -> ocai.wire.hosting",
     "ocai.chat -> ocai.wire.transport",
     "ocai.runtime.drivers -> ocai.wire.http",
-    "ocai.runtime.drivers -> ocai.wire.sse",
+    # WU-39: deferred host framing selection joins the existing driver/wire seam.
+    "ocai.runtime.drivers -> ocai.wire.hosting",
     "ocai.runtime.drivers -> ocai.wire.transport",
     "ocai.runtime.binding -> ocai.wire.transport",
 ]

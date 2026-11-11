@@ -17,10 +17,14 @@ peers at the capability port.
 from __future__ import annotations
 
 from ocai.core.traits import DialectTraits
+from ocai.wire.framing import StreamDecoder
+from ocai.wire.framing import StreamFraming
+from ocai.wire.framing import sse_framing
 from ocai.wire.hosting import Custom
 from ocai.wire.hosting import Direct
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import EnvelopeTransform
+from ocai.wire.hosting import FramingHost
 from ocai.wire.hosting import Host
 from ocai.wire.hosting import IdentityEnvelope
 from ocai.wire.hosting import Operation
@@ -42,6 +46,7 @@ __all__ = [
     "Direct",
     "EndpointSpec",
     "EnvelopeTransform",
+    "FramingHost",
     "Host",
     "HttpRequest",
     "HttpResponse",
@@ -52,6 +57,9 @@ __all__ = [
     "RetryPolicy",
     "SSEParser",
     "SSEvent",
+    "StreamDecoder",
+    "StreamFraming",
+    "sse_framing",
     "SyncTransport",
     "Transport",
     "Vertex",
