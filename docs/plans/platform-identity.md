@@ -8,8 +8,9 @@ This is the implementation sequence for [ADR 0013](../decisions/0013-platform-id
 It consumes the existing Nuxt/FastAPI foundation. Each WU has one observable
 workflow, one branch and one PR. This plan does not mark identity features as
 implemented. WU-72 records the plan; WU-73–80 implement it in order. Implementation
-starts after this entry PR merges or the maintainer approves the entries in place,
-as required by the repository's `wu-define` procedure.
+may proceed on stacked PRs: the maintainer approved proceeding in place on
+2026-11-11. Each implementation remains separately reviewable; plan merge is not
+a prerequisite for starting these approved entries.
 
 ## Acceptance workflow
 
@@ -106,7 +107,12 @@ change public liveness or foundation status to expose deployment secrets.
 
 ## WU-73 — Persist organization identity and transactional audit
 
-- [ ] **Status:** defined.
+- [x] **Status:** complete (implementation; review pending).
+- **Evidence:** Real PostgreSQL 16.15 tests cover migration/restart persistence,
+  audit and outbox rollback, identity uniqueness, scoped reads/composite foreign
+  keys, concurrent grant revision ordering, cancellation, stale writes and runtime
+  privilege/schema rejection. The full gate includes these tests and requires
+  Docker. See [operations](../../platform/README.md).
 - **Goal:** Provide durable organization identity state and atomic audit evidence so later authenticated operations cannot succeed without their recorded state transition.
 - **Scope:** Gateway `app/storage/`, initial `migrations/`, project/lock,
   PostgreSQL development/test provisioning, storage integration tests, platform

@@ -903,3 +903,34 @@ first implementation; [ADR 0011](decisions/0011-authenticated-console-contract.m
 proposes its persistence/session policy, operator bootstrap and transactional
 audit plus OpenFGA synchronization contract. These remain design requirements;
 subsequent WUs add the corresponding runtime evidence and update this section.
+
+### 12.3 Platform identity persistence [provisional]
+
+WU-73 adds internal `app/storage/` with explicit PostgreSQL connection settings,
+SQLAlchemy async transactions and reviewed Alembic migrations. Operator role
+bootstrap owns the `platform` schema separately from `ocai_gateway` runtime
+access. Opening storage verifies the exact schema revision and runtime privilege
+profile; migration ownership, audit mutation privileges or missing required grants
+are rejected. There is no import-time connection or automatic HTTP-startup migration.
+
+Stable principal IDs have unique exact issuer/subject bindings. Organization IDs
+scope memberships, audit reads and authorization-outbox reads; a composite foreign
+key prevents outbox entries referring to a membership in another organization.
+Repository results are immutable records, not mutable ORM entities. Organization
+creation/rename and membership grants include fixed-schema audit events in their
+transaction; failure rolls back state, evidence and any authorization intent.
+Organization versioning prevents stale overwrites; grants serialize on the
+organization row to assign ordered desired revisions. Applied revision stays zero
+until a subsequent WU implements OpenFGA projection.
+
+The runtime can append/read audit rows but cannot update/delete/truncate/alter
+them. These grants do not establish immutable-storage guarantees against database
+administrators. Repositories require authorized scope from a future application
+service; this storage WU does not implement RLS, authentication, protected HTTP
+endpoints or permission enforcement. Public foundation status/readiness is unchanged.
+
+The platform gate provisions a disposable digest-pinned PostgreSQL container and
+tests real migrations, restart persistence, concurrent transactions, audit rollback,
+constraint isolation and role enforcement. Missing Docker fails verification.
+See [platform operations](../platform/README.md) for bootstrap, migration and
+explicit connection configuration.
