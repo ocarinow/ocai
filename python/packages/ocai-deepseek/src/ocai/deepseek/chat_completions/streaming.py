@@ -25,14 +25,21 @@ from ocai.deepseek.chat_completions.evidence import retain
 from ocai.deepseek.chat_completions.usage import decode_usage
 from ocai.openai.chat_completions.codec import ChatCompletionsStreamTransducer
 
-_FINISH = {"stop": "complete", "length": "max_tokens", "content_filter": "content_filter",
-           "tool_calls": "tool_call", "aborted": "error", "insufficient_system_resource": "error"}
+_FINISH = {
+    "stop": "complete",
+    "length": "max_tokens",
+    "content_filter": "content_filter",
+    "tool_calls": "tool_call",
+    "aborted": "error",
+    "insufficient_system_resource": "error",
+}
 
 
 def _error(raw: Any = None) -> ChatChunk:
     """Retain an unqualified failure payload without inventing a native error taxonomy."""
-    return ChatChunk(type=ChunkType.ERROR, error=ErrorInfo(code="unknown", native=raw),
-                     raw_event=raw)
+    return ChatChunk(
+        type=ChunkType.ERROR, error=ErrorInfo(code="unknown", native=raw), raw_event=raw
+    )
 
 
 class DeepSeekStreamCodec(DeepSeekCodec):
@@ -45,14 +52,32 @@ class DeepSeekStreamCodec(DeepSeekCodec):
         try:
             raw: Any = json.loads(data)
         except (ValueError, TypeError):
-            return EdgeOutput([_error(data)], (FieldLoss(
-                "frame", Disposition.EXTENSIONS, note="invalid JSON retained in error evidence"),))
+            return EdgeOutput(
+                [_error(data)],
+                (
+                    FieldLoss(
+                        "frame",
+                        Disposition.EXTENSIONS,
+                        note="invalid JSON retained in error evidence",
+                    ),
+                ),
+            )
         if not is_json_object(raw):
-            return EdgeOutput([_error(raw)], (FieldLoss(
-                "frame", Disposition.EXTENSIONS, note="non-object frame retained in error"),))
+            return EdgeOutput(
+                [_error(raw)],
+                (
+                    FieldLoss(
+                        "frame", Disposition.EXTENSIONS, note="non-object frame retained in error"
+                    ),
+                ),
+            )
         evidence: Evidence = []
-        safe = fields(raw, {"id", "model", "created", "object", "system_fingerprint",
-                            "choices", "usage", "error"}, "", evidence)
+        safe = fields(
+            raw,
+            {"id", "model", "created", "object", "system_fingerprint", "choices", "usage", "error"},
+            "",
+            evidence,
+        )
         chunks: list[ChatChunk] = []
         errors: list[ChatChunk] = []
         losses: list[FieldLoss] = []
@@ -70,18 +95,29 @@ class DeepSeekStreamCodec(DeepSeekCodec):
         malformed_info = bool(info.extensions)
         if "system_fingerprint" in safe:
             info.extensions["deepseek.system_fingerprint"] = safe["system_fingerprint"]
-            losses.append(FieldLoss("system_fingerprint", Disposition.EXTENSIONS,
-                                    note="provider fingerprint retained as response metadata"))
+            losses.append(
+                FieldLoss(
+                    "system_fingerprint",
+                    Disposition.EXTENSIONS,
+                    note="provider fingerprint retained as response metadata",
+                )
+            )
         if any(safe.get(key) is not None for key in ("id", "model", "created")) or info.extensions:
             index = 1 if chunks and chunks[0].type == ChunkType.STREAM_START else 0
             chunks.insert(index, ChatChunk(type=ChunkType.METADATA, info=info, raw_event=raw))
             if malformed_info:
-                losses.append(FieldLoss("response_info", Disposition.EXTENSIONS,
-                                        note="malformed response metadata retained"))
+                losses.append(
+                    FieldLoss(
+                        "response_info",
+                        Disposition.EXTENSIONS,
+                        note="malformed response metadata retained",
+                    )
+                )
         usage = decode_usage(safe.get("usage"), losses)
         if usage is not None:
-            chunks.append(ChatChunk(type=ChunkType.USAGE, usage=usage,
-                                    usage_cumulative=True, raw_event=raw))
+            chunks.append(
+                ChatChunk(type=ChunkType.USAGE, usage=usage, usage_cumulative=True, raw_event=raw)
+            )
         if safe.get("object", "chat.completion.chunk") != "chat.completion.chunk":
             retain(evidence, "object", safe["object"])
         if event not in (None, "", "message"):
@@ -89,18 +125,35 @@ class DeepSeekStreamCodec(DeepSeekCodec):
         if "error" in safe or event == "error":
             errors.append(_error(raw))
         if evidence:
-            chunks.append(ChatChunk(type=ChunkType.RAW, raw_event=raw,
-                                    extensions={"deepseek.stream_unmapped": evidence}))
-            losses.append(FieldLoss("unmapped", Disposition.EXTENSIONS,
-                                    note="unqualified stream fields retained by source path"))
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.RAW,
+                    raw_event=raw,
+                    extensions={"deepseek.stream_unmapped": evidence},
+                )
+            )
+            losses.append(
+                FieldLoss(
+                    "unmapped",
+                    Disposition.EXTENSIONS,
+                    note="unqualified stream fields retained by source path",
+                )
+            )
         chunks.extend(errors)
         return EdgeOutput(chunks, tuple(losses))
 
-    def _choice(self, raw_choice: dict[str, Any], raw: dict[str, Any], chunks: list[ChatChunk],
-                evidence: Evidence, errors: list[ChatChunk]) -> None:
+    def _choice(
+        self,
+        raw_choice: dict[str, Any],
+        raw: dict[str, Any],
+        chunks: list[ChatChunk],
+        evidence: Evidence,
+        errors: list[ChatChunk],
+    ) -> None:
         """Split choice zero into reasoning, text, tool, finish and error signals."""
-        choice = fields(raw_choice, {"index", "delta", "finish_reason", "logprobs"},
-                        "choices[0]", evidence)
+        choice = fields(
+            raw_choice, {"index", "delta", "finish_reason", "logprobs"}, "choices[0]", evidence
+        )
         if choice.get("logprobs") is not None:
             retain(evidence, "choices[0].logprobs", choice["logprobs"])
         delta = choice.get("delta")
@@ -108,8 +161,12 @@ class DeepSeekStreamCodec(DeepSeekCodec):
             retain(evidence, "choices[0].delta", delta)
             errors.append(_error(raw))
             delta = {}
-        delta = fields(delta, {"role", "reasoning_content", "content", "tool_calls"},
-                       "choices[0].delta", evidence)
+        delta = fields(
+            delta,
+            {"role", "reasoning_content", "content", "tool_calls"},
+            "choices[0].delta",
+            evidence,
+        )
         if delta.get("role") == "assistant":
             chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
         elif delta.get("role") is not None:
@@ -120,8 +177,11 @@ class DeepSeekStreamCodec(DeepSeekCodec):
                 # Unary decoding omits empty content; reasoning is a distinct part even when empty.
                 if value or name == "reasoning_content":
                     fragment = DeltaReasoning(text=value) if slot == 0 else DeltaText(text=value)
-                    chunks.append(ChatChunk(type=ChunkType.PART_DELTA, index=slot,
-                                            delta=fragment, raw_event=raw))
+                    chunks.append(
+                        ChatChunk(
+                            type=ChunkType.PART_DELTA, index=slot, delta=fragment, raw_event=raw
+                        )
+                    )
             elif value is not None:
                 retain(evidence, f"choices[0].delta.{name}", value)
                 errors.append(_error(raw))
@@ -134,17 +194,28 @@ class DeepSeekStreamCodec(DeepSeekCodec):
             errors.append(_error(raw))
         finish = choice.get("finish_reason")
         if isinstance(finish, str):
-            chunks.append(ChatChunk(type=ChunkType.FINISH,
-                                    finish=FinishInfo(reason=_FINISH.get(finish, "unknown"),
-                                                      native=finish), raw_event=raw))
+            chunks.append(
+                ChatChunk(
+                    type=ChunkType.FINISH,
+                    finish=FinishInfo(reason=_FINISH.get(finish, "unknown"), native=finish),
+                    raw_event=raw,
+                )
+            )
             if finish in ("aborted", "insufficient_system_resource"):
                 errors.append(_error(raw))
         elif finish is not None:
             retain(evidence, "choices[0].finish_reason", finish)
             errors.append(_error(raw))
 
-    def _tool(self, raw_call: Any, position: int, raw: dict[str, Any], chunks: list[ChatChunk],
-              evidence: Evidence, errors: list[ChatChunk]) -> None:
+    def _tool(
+        self,
+        raw_call: Any,
+        position: int,
+        raw: dict[str, Any],
+        chunks: list[ChatChunk],
+        evidence: Evidence,
+        errors: list[ChatChunk],
+    ) -> None:
         """Reuse compatible tool framing only after validating its partial native shape."""
         path = f"choices[0].delta.tool_calls[{position}]"
         if not is_json_object(raw_call):
@@ -153,16 +224,25 @@ class DeepSeekStreamCodec(DeepSeekCodec):
             return
         call = fields(raw_call, {"index", "id", "type", "function"}, path, evidence)
         function = call.get("function")
-        valid = (type(call.get("index")) is int and call["index"] >= 0
-                 and call.get("type", "function") == "function" and is_json_object(function))
+        valid = (
+            type(call.get("index")) is int
+            and call["index"] >= 0
+            and call.get("type", "function") == "function"
+            and is_json_object(function)
+        )
         if not valid or not is_json_object(function):
             retain(evidence, path, raw_call)
             errors.append(_error(raw))
             return
         function = fields(function, {"name", "arguments"}, path + ".function", evidence)
-        if (any(not isinstance(function[key], str) for key in function)
-                or ("id" in call and (not isinstance(call["id"], str) or not call["id"]
-                                      or not isinstance(function.get("name"), str)))):
+        if any(not isinstance(function[key], str) for key in function) or (
+            "id" in call
+            and (
+                not isinstance(call["id"], str)
+                or not call["id"]
+                or not isinstance(function.get("name"), str)
+            )
+        ):
             retain(evidence, path, raw_call)
             errors.append(_error(raw))
             return
@@ -193,15 +273,20 @@ class DeepSeekStreamTransducer(ChatCompletionsStreamTransducer):
         if chunk.type == ChunkType.PART_START and isinstance(chunk.part, PartToolCall):
             if chunk.index in self._started:
                 return self._invalid("tool_order", chunk.raw_event)
-        if (chunk.type == ChunkType.PART_DELTA and chunk.index is not None
-                and chunk.index >= 2 and chunk.index not in self._started):
+        if (
+            chunk.type == ChunkType.PART_DELTA
+            and chunk.index is not None
+            and chunk.index >= 2
+            and chunk.index not in self._started
+        ):
             return self._invalid("tool_order", chunk.raw_event)
         return super()._admit(chunk)
 
     def _invalid(self, path: str, raw: Any = None) -> list[ChatChunk]:
         self._failed = True
-        self._losses.append(FieldLoss(path, Disposition.UNSUPPORTED,
-                                      note="stream cannot claim complete execution"))
+        self._losses.append(
+            FieldLoss(path, Disposition.UNSUPPORTED, note="stream cannot claim complete execution")
+        )
         return [self._stamp(_error(raw))]
 
     def _terminal(self, sentinel: str) -> list[ChatChunk]:
@@ -222,8 +307,9 @@ class DeepSeekStreamTransducer(ChatCompletionsStreamTransducer):
         first_seq = self._seq
         emitted = super().feed(event)
         # Preserve accounting from a multi-signal frame before exposing a failure.
-        emitted = ([chunk for chunk in emitted if chunk.type != ChunkType.ERROR]
-                   + [chunk for chunk in emitted if chunk.type == ChunkType.ERROR])
+        emitted = [chunk for chunk in emitted if chunk.type != ChunkType.ERROR] + [
+            chunk for chunk in emitted if chunk.type == ChunkType.ERROR
+        ]
         for index, chunk in enumerate(emitted, start=first_seq):
             chunk.seq = index
         distinct: list[FieldLoss] = []

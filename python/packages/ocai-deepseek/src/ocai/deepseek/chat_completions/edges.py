@@ -245,5 +245,12 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
     },
     note="DeepSeek reasoning, tools and final-choice usage with incomplete evidence",
 )
-TRANSDUCERS = (StreamEdge(CHAT_COMPLETIONS_CHUNK, canonical_node(CHAT_CHUNK),
-                          DeepSeekStreamTransducer, DECODE_CHUNK_CONTRACT, ORIGIN),)
+TRANSDUCERS = (
+    StreamEdge(
+        CHAT_COMPLETIONS_CHUNK,
+        canonical_node(CHAT_CHUNK),
+        DeepSeekStreamTransducer,
+        DECODE_CHUNK_CONTRACT,
+        ORIGIN,
+    ),
+)

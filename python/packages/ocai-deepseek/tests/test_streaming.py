@@ -75,14 +75,19 @@ def test_stream_edge_full_fold_and_independent_census(name: str) -> None:
             chunks.extend(transducer.feed(frame))
         return [_strip(chunk.to_dict()) for chunk in chunks]
 
-    assert_fold_triple(fixture, decode_event=decode,
+    assert_fold_triple(
+        fixture,
+        decode_event=decode,
         fold=lambda chunks: StreamAccumulator.fold(
-            ChatChunk.from_dict(c) for c in chunks).to_dict())
+            ChatChunk.from_dict(c) for c in chunks
+        ).to_dict(),
+    )
     tail, report = transducer.flush()
     assert not tail
     assert DECODE_CHUNK_CONTRACT.certify(report.losses, report.shifts) == []
     assert [(loss.path, loss.disposition.value) for loss in report.losses] == [
-        (loss["path"], loss["disposition"]) for loss in fixture["expect_losses"]]
+        (loss["path"], loss["disposition"]) for loss in fixture["expect_losses"]
+    ]
     pair = _load(HTTP / f"deepseek_chat_stream_{name}_paired.json")
     unary = DeepSeekCodec().decode_response(pair["response"]["json"]).value
     assert semantic_equal(fixture["response"], _strip(unary.to_dict()))
@@ -103,23 +108,31 @@ def test_stream_edge_full_fold_and_independent_census(name: str) -> None:
 async def test_recorded_public_unary_and_streaming_faces(name: str, asynchronous: bool) -> None:
     pair = _load(HTTP / f"deepseek_chat_stream_{name}.json")
     unary_pair = _load(HTTP / f"deepseek_chat_stream_{name}_paired.json")
-    streaming_route = respx.post(URL, json=pair["request"]["json"]).mock(return_value=
-        httpx.Response(200, headers=pair["response"]["headers"], content=_body(pair)))
-    unary_route = respx.post(URL, json=unary_pair["request"]["json"]).mock(return_value=
-        httpx.Response(200, json=unary_pair["response"]["json"]))
+    streaming_route = respx.post(URL, json=pair["request"]["json"]).mock(
+        return_value=httpx.Response(200, headers=pair["response"]["headers"], content=_body(pair))
+    )
+    unary_route = respx.post(URL, json=unary_pair["request"]["json"]).mock(
+        return_value=httpx.Response(200, json=unary_pair["response"]["json"])
+    )
     # Decode the pinned native request using the plugin's public audit direction.
     request: ChatRequest = DeepSeekCodec().decode_request(unary_pair["request"]["json"]).value
     request.extensions.clear()  # routing model echo is bound by the model front door
     transport = HttpxTransport(provider="deepseek")
-    model = ocai.chat.model("deepseek/deepseek-flash", credentials=ApiKey("sk-test-stream"),
-                           catalog=Catalog.of(ocai.deepseek.FRAGMENT), transport=transport)
-    ctx = CallContext(call_id=f"call-{name}", tenant="tenant-test",
-                      correlation_id="correlation-test")
+    model = ocai.chat.model(
+        "deepseek/deepseek-flash",
+        credentials=ApiKey("sk-test-stream"),
+        catalog=Catalog.of(ocai.deepseek.FRAGMENT),
+        transport=transport,
+    )
+    ctx = CallContext(
+        call_id=f"call-{name}", tenant="tenant-test", correlation_id="correlation-test"
+    )
     try:
         prepared = model.prepare(request, streaming=True)
         assert not streaming_route.calls
-        unary = (await model.achat(request, ctx=ctx) if asynchronous
-                 else model.chat(request, ctx=ctx))
+        unary = (
+            await model.achat(request, ctx=ctx) if asynchronous else model.chat(request, ctx=ctx)
+        )
         stream: ChatStream | AsyncChatStream
         if asynchronous:
             stream = await prepared.astream(ctx=ctx)
@@ -133,8 +146,9 @@ async def test_recorded_public_unary_and_streaming_faces(name: str, asynchronous
         assert stream.end.usage == unary.usage
         assert stream.end.report is not None and len(stream.end.report.edges) == 2
         assert stream.end.report.edges[-1].src.provider == "deepseek"
-        assert semantic_equal(_strip(StreamAccumulator.fold(chunks).to_dict()),
-                              _strip(unary.value.to_dict()))
+        assert semantic_equal(
+            _strip(StreamAccumulator.fold(chunks).to_dict()), _strip(unary.value.to_dict())
+        )
         assert stream.end.finish == unary.value.finish
     finally:
         transport.close()
@@ -150,21 +164,34 @@ async def test_recorded_public_unary_and_streaming_faces(name: str, asynchronous
 @pytest.mark.parametrize("failure", ["aborted", "truncated", "missing_finish"])
 @respx.mock
 async def test_partial_execution_never_manufactures_success(
-    failure: str, asynchronous: bool,
+    failure: str,
+    asynchronous: bool,
 ) -> None:
-    pair = _load(HTTP / ("deepseek_chat_stream_aborted.json" if failure == "aborted"
-                        else "deepseek_chat_stream_text.json"))
+    pair = _load(
+        HTTP
+        / (
+            "deepseek_chat_stream_aborted.json"
+            if failure == "aborted"
+            else "deepseek_chat_stream_text.json"
+        )
+    )
     if failure == "truncated":
         pair["response"]["sse"].pop()  # exact recording prefix: usage present, sentinel missing
     if failure == "missing_finish":
         pair["response"]["sse"].pop(-2)  # no final usage/finish frame before sentinel
-    route = respx.post(URL).mock(return_value=httpx.Response(
-        200, headers=pair["response"]["headers"], content=_body(pair)))
+    route = respx.post(URL).mock(
+        return_value=httpx.Response(200, headers=pair["response"]["headers"], content=_body(pair))
+    )
     transport = HttpxTransport(provider="deepseek")
-    model = ocai.chat.model("deepseek/deepseek-flash", credentials=ApiKey("sk-test"),
-                           catalog=Catalog.of(ocai.deepseek.FRAGMENT), transport=transport)
+    model = ocai.chat.model(
+        "deepseek/deepseek-flash",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.deepseek.FRAGMENT),
+        transport=transport,
+    )
     request = ChatRequest.from_dict(
-        {"messages": [{"role": "user", "parts": [{"type": "text", "text": "Hi"}]}]})
+        {"messages": [{"role": "user", "parts": [{"type": "text", "text": "Hi"}]}]}
+    )
     try:
         stream: ChatStream | AsyncChatStream
         if asynchronous:
@@ -190,10 +217,17 @@ async def test_partial_execution_never_manufactures_success(
     assert route.call_count == 1
 
 
-UNKNOWN_FRAMES: list[Any] = [None, [], 1, "future", {"choices": [None]},
+UNKNOWN_FRAMES: list[Any] = [
+    None,
+    [],
+    1,
+    "future",
+    {"choices": [None]},
     {"choices": [{"delta": {"tool_calls": [7]}, "finish_reason": []}]},
-    {"choices": [{"delta": {"content": 7}}]}, {"usage": ["future"]},
-    {"future_event": {"opaque": True}}]
+    {"choices": [{"delta": {"content": 7}}]},
+    {"usage": ["future"]},
+    {"future_event": {"opaque": True}},
+]
 
 
 @pytest.mark.parametrize("raw", UNKNOWN_FRAMES)
@@ -247,17 +281,27 @@ class _Capture:
 @respx.mock
 async def test_concurrent_streams_keep_context_and_credentials_isolated() -> None:
     pair = _load(HTTP / "deepseek_chat_stream_text.json")
-    routes = [respx.post(URL, headers={"authorization": f"Bearer sk-test-{index}"}).mock(
-        return_value=httpx.Response(200, headers=pair["response"]["headers"], content=_body(pair)))
-        for index in range(2)]
+    routes = [
+        respx.post(URL, headers={"authorization": f"Bearer sk-test-{index}"}).mock(
+            return_value=httpx.Response(
+                200, headers=pair["response"]["headers"], content=_body(pair)
+            )
+        )
+        for index in range(2)
+    ]
 
     async def consume(index: int) -> _Capture:
         capture = _Capture()
         ctx = CallContext(call_id=f"call-{index}", tenant=f"tenant-{index}")
         transport = HttpxTransport(provider="deepseek")
-        model = ocai.chat.model("deepseek/deepseek-flash", credentials=ApiKey(f"sk-test-{index}"),
-            catalog=Catalog.of(ocai.deepseek.FRAGMENT), transport=transport,
-            policies=[capture], observers=[capture])
+        model = ocai.chat.model(
+            "deepseek/deepseek-flash",
+            credentials=ApiKey(f"sk-test-{index}"),
+            catalog=Catalog.of(ocai.deepseek.FRAGMENT),
+            transport=transport,
+            policies=[capture],
+            observers=[capture],
+        )
         try:
             stream = await model.astream(ChatRequest(messages=[]), ctx=ctx)
             chunks = [chunk async for chunk in stream]
@@ -309,11 +353,16 @@ class _Recording(httpx.SyncByteStream, httpx.AsyncByteStream):
 async def test_explicit_close_releases_recorded_upstream(asynchronous: bool) -> None:
     pair = _load(HTTP / "deepseek_chat_stream_tools.json")
     recording = _Recording(pair["response"]["sse"])
-    respx.post(URL).mock(return_value=httpx.Response(
-        200, headers=pair["response"]["headers"], stream=recording))
+    respx.post(URL).mock(
+        return_value=httpx.Response(200, headers=pair["response"]["headers"], stream=recording)
+    )
     transport = HttpxTransport(provider="deepseek")
-    model = ocai.chat.model("deepseek/deepseek-flash", credentials=ApiKey("sk-test"),
-                           catalog=Catalog.of(ocai.deepseek.FRAGMENT), transport=transport)
+    model = ocai.chat.model(
+        "deepseek/deepseek-flash",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.deepseek.FRAGMENT),
+        transport=transport,
+    )
     try:
         stream: ChatStream | AsyncChatStream
         if asynchronous:

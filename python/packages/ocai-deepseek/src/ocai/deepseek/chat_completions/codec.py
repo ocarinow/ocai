@@ -162,8 +162,13 @@ class DeepSeekCodec(ChatCompletionsCodec):
         response.raw = deepcopy(payload)
         if has_fingerprint and response.info is not None:
             response.info.extensions["deepseek.system_fingerprint"] = fingerprint
-            losses.append(FieldLoss("system_fingerprint", Disposition.EXTENSIONS,
-                                    note="provider fingerprint retained as response metadata"))
+            losses.append(
+                FieldLoss(
+                    "system_fingerprint",
+                    Disposition.EXTENSIONS,
+                    note="provider fingerprint retained as response metadata",
+                )
+            )
         additional_evidence = bool(evidence)
         response.extensions = _bank(response.extensions, evidence, "deepseek.response_unmapped")
         if additional_evidence:

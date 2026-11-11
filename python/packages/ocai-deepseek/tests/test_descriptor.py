@@ -66,8 +66,11 @@ def test_streaming_preparation_is_pure(model: str, tag: str | None) -> None:
     catalog = Catalog.of(ocai.openai.FRAGMENT, ocai.deepseek.FRAGMENT)
     with respx.mock as router:
         prepared = ocai.chat.model(
-            "deepseek/" + model, interface="chat_completions", tag=tag,
-            credentials=ApiKey("sk-test"), catalog=catalog,
+            "deepseek/" + model,
+            interface="chat_completions",
+            tag=tag,
+            credentials=ApiKey("sk-test"),
+            catalog=catalog,
         ).prepare(ChatRequest(messages=[]), streaming=True)
         assert prepared.inspection.response_path.edges
         assert not router.calls
