@@ -58,6 +58,7 @@ from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import FieldLoss
+from ocai.core.fidelity import HostEffectReport
 from ocai.core.fidelity import Route
 from ocai.core.fidelity import SemanticShift
 from ocai.core.fidelity import ShiftKind
@@ -160,6 +161,7 @@ __all__ = [
     "ErrorDetail",
     "FidelityReport",
     "FieldLoss",
+    "HostEffectReport",
     "FinishDetail",
     "FinishInfo",
     "FinishReason",

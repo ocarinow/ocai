@@ -681,6 +681,86 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Tier:** 1
 - **Owner:** Codex
 
+## WU-48b — Account for host effects without inventing graph edges
+
+- [x] **Status:** ✅ implemented; PR #114 review pending.
+- **Context:** G-14 exposes a fidelity gap before Bedrock implementation: a host
+  can mask output while the semantic codec preserves every received field. An
+  unknown-field extension records data preservation, not that behavioral change.
+  FidelityReport currently accepts only EdgeReport, which requires graph nodes;
+  attaching a host effect there would falsely claim a conversion edge was traversed.
+- **Goal:** A host effect can be serialized, inspected and rejected by the same
+  fidelity policy as codec findings, with explicit host/adapter/contract provenance
+  and without altering the conversion path or claiming conformance qualification.
+- **Scope:** Core HostEffectReport and an additive FidelityReport.hosts lane;
+  aggregation, merge and policy enforcement; serialized StreamEnd report schema;
+  golden report records, behavior tests and architecture. Approximately 10 files.
+- **Non-goals:** No transport/host adapter emission, metadata carrier, provider
+  mapping, network request, graph edge or dependency. Follow-up G-14 WUs connect
+  unary response adaptation and streaming evidence; WU-48 remains blocked on those
+  required unary mechanisms. This WU alone does not close G-14.
+- **Acceptance:**
+  - A host-only masking shift rejects through FidelityPolicy despite lossless
+    data and an empty graph path — `python/packages/ocai-core/tests/test_host_fidelity.py`.
+  - Mixed edge/host reports merge once, aggregate field losses and shifts, and
+    preserve provenance/usage on policy rejection — the same test module.
+  - Golden serialized reports validate against the neutral schema, round-trip
+    through StreamEnd, and retain unknown shift/phase codes; old report wire forms
+    remain unchanged — the same test module and `spec/fixtures/fidelity/host-effects.json`.
+- **Done:** Golden report and policy tests pass showing host effects remain visible
+  and enforceable with preserved provenance and usage, while graph paths and old
+  report serialization remain unchanged.
+- **Deps:** WU-48a for program sequence; ADR 0018.
+- **Architecture:** §2.2, §3.1, §4 fidelity guarantees and §10.
+- **Integration:** Pure core records feed the existing report, policy and terminal
+  serialization. Producers must append each effect once; no provider code enters
+  core, and no graph node is manufactured for a hosting boundary.
+  ```mermaid
+  flowchart LR
+    HostEffectReport --> FidelityReport
+    EdgeReport --> FidelityReport
+    FidelityReport --> FidelityPolicy
+    FidelityReport --> StreamEnd
+  ```
+- **Design sketch:**
+  ```python
+  @dataclass(frozen=True, slots=True)
+  class HostEffectReport:
+      host: str
+      adapter: str
+      contract_id: str
+      phase: str  # open code: request or response initially
+      losses: tuple[FieldLoss, ...] = ()
+      shifts: tuple[SemanticShift, ...] = ()
+  # Existing positional edges remains compatible; hosts is keyword-only.
+  FidelityReport(edges=[], hosts=[])
+  # path derives only from edges; losses/shifts/cost include both lanes.
+  ```
+- **Before / after:** A host-only SemanticShift previously required a fake
+  EdgeReport. It now retains separate provenance and is included by policy without
+  changing path. Semantic shifts still do not imply field loss; lossless keeps its
+  existing meaning and is never sufficient to approve behavioral equivalence.
+- **Freeze:** Additive HostEffectReport and keyword-only FidelityReport.hosts on
+  frozen-candidate core vocabulary, plus additive serialized report schema under
+  ADR 0018. No canonical node/revision or existing fixture is rewritten.
+- **Decision:** The maintainer approved reusable host outcome contracts. ADR 0018
+  separates actual host findings from graph findings, declarations and qualification
+  evidence. Contract identity links to a declaration; it is not certification.
+- **Risks:** Consumers inspecting only edges miss host effects; documented aggregate
+  accessors and FidelityPolicy include both. Old readers may ignore the additive
+  lane and must not be used to approve new host effects; no cross-version approval
+  equivalence is claimed. Producers own exactly-once insertion; merge concatenates.
+- **Open:** None in the report vocabulary. Adapter declaration, conformance and
+  execution integration are intentionally separate G-14 work, not proven here.
+- **Evidence:** `test_host_fidelity.py` has 17 passing behavior cases, including
+  masking rejection, field/semantic predicates, mixed real-edge/host merge, known
+  usage retention, golden/schema parity, total decode and unchanged fold payload.
+  Full gate output is recorded verbatim in PR #114.
+- **Area:** core
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
+
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 
 - [ ] **Status:** not started.
