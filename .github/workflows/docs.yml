@@ -37,4 +37,5 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    uses: ./.github/workflows/docs-checks.yml
+    # Same-commit call; pinned actionlint does not yet recognize the $/ spelling.
+    uses: ./.github/workflows/docs-checks.yml # zizmor: ignore[self-repository]

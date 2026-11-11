@@ -1,4 +1,4 @@
-"""Prepare a minimal ruleset update after the CI workflows have landed.
+"""Prepare a one-to-one required-check migration for a verified workflow rollout.
 
 Default: check drift without mutation. --output writes the exact reviewable
 request body; applying it remains an explicit repository administration action.
@@ -13,21 +13,22 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-REQUIRED = (
-    "python",
-    "python-next",
-    "privacy",
-    "pr-hygiene",
-    "platform",
-    "docs",
-    "workflows",
-    "semgrep",
-    "dependency-review",
-)
+# Reusable workflows prefix leaf checks with their static caller label.
+# These are one-to-one renames, never an alternative or weaker check set.
+RENAMED = {
+    "python": "Code checks / python",
+    "python-next": "Code checks / python-next",
+    "platform": "Code checks / platform",
+    "docs": "Documentation / docs",
+    "workflows": "Code checks / workflows",
+    "semgrep": "Code checks / semgrep",
+    "dependency-review": "Code checks / dependency-review",
+}
+REQUIRED = (*RENAMED.values(), "privacy", "pr-hygiene")
 
 
 def reconcile(current: dict[str, Any]) -> dict[str, Any]:
-    """Preserve existing rules/check bindings while adding missing quality gates."""
+    """Rename known checks without changing their bindings or unrelated protections."""
     result = {
         key: copy.deepcopy(current[key])
         for key in ("name", "target", "enforcement", "bypass_actors", "conditions", "rules")
@@ -38,6 +39,8 @@ def reconcile(current: dict[str, Any]) -> dict[str, Any]:
             continue
         parameters = rule["parameters"]
         checks = parameters["required_status_checks"]
+        for check in checks:
+            check["context"] = RENAMED.get(check["context"], check["context"])
         names = {check["context"] for check in checks}
         checks.extend({"context": name} for name in REQUIRED if name not in names)
         parameters["strict_required_status_checks_policy"] = True
@@ -61,7 +64,9 @@ def main() -> int:
     if args.output:
         args.output.write_text(json.dumps(desired, indent=2) + "\n")
     print("Required checks: " + ", ".join(REQUIRED))
-    print("ruleset: drift (review and apply after merge)" if changed else "ruleset: current")
+    print(
+        "ruleset: drift (review the verified workflow rollout)" if changed else "ruleset: current"
+    )
     return 1 if changed else 0
 
 

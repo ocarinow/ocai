@@ -29,4 +29,5 @@ jobs:
   checks:
     name: Code checks
     if: github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.base != null
-    uses: ./.github/workflows/ci-checks.yml
+    # Same-commit call; pinned actionlint does not yet recognize the $/ spelling.
+    uses: ./.github/workflows/ci-checks.yml # zizmor: ignore[self-repository]

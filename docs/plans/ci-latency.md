@@ -48,7 +48,7 @@ Maintainer request: “Could you make all those changes in a single PR?”
   fail-open selection (run everything), and forced full runs bound that risk. Revert
   restores the previous scheduling without changing product data.
 - **Open:** none.
-- **Evidence:** 40 tooling regression cases pass; no fixtures or wire pairs added.
+- **Evidence:** 42 tooling regression cases pass; no fixtures or wire pairs added.
   Full gate baseline: `gate: 2018ee8` / `all checks passed.`; the final committed
   gate summary is pasted in PR #123. Both Python versions and all required live
   checks passed. A live body edit created no code/docs/board runner jobs and

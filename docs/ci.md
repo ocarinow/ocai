@@ -18,7 +18,8 @@ A body edit still appears as an Actions event, but skips only the statically
 named `Code checks` and `Documentation` caller jobs. Their reusable workflows
 are not expanded, so none of the required leaf checks is created or overwritten.
 No runner is allocated for a skipped caller, and no name expression is displayed.
-The leaf checks retain simple labels such as `python`, `platform`, and `docs`.
+The UI groups the leaf checks as `Code checks / python`, `Code checks / platform`,
+and `Documentation / docs`. Branch protection uses those exact names.
 
 Metadata events have separate concurrency groups: editing prose cannot cancel
 running tests. New code cancels superseded PR code runs. Main code runs use unique
@@ -86,10 +87,18 @@ required code checks. This was verified on PR #123: a body edit allocated no
 code/docs/board runners and preserved the previous code-check results. A ready transition must do the same. Base changes force a
 fresh full validation.
 
-The desired checks are `python`, `python-next`, `privacy`, `pr-hygiene`,
-`platform`, `docs`, `workflows`, `semgrep`, and `dependency-review`. A live read-only audit during WU-106 found all nine already required. The repository
-ruleset is external state and cannot be activated by a source-code PR alone.
-After the workflow change merges, prepare and review the minimal update:
+The nine desired checks are `Code checks / python`, `Code checks / python-next`,
+`Code checks / platform`, `Code checks / workflows`, `Code checks / semgrep`,
+`Code checks / dependency-review`, `Documentation / docs`, `privacy`, and
+`pr-hygiene`. These are the same nine validations with readable caller prefixes.
+
+The repository ruleset is external state. Moving jobs into reusable workflows
+requires a coordinated one-to-one rename of the required contexts, preserving
+all app bindings and unrelated protections. The drift tool generates that exact
+request body. Verify all new leaf checks on the rollout PR before applying it;
+then merge the workflow change before merging other PRs that use the old names.
+A stale branch must update to the new workflows under the existing strict
+up-to-date policy. Prepare the migration immediately before application:
 
 ```bash
 uv run python scripts/ci_rules.py --output /tmp/ocai-ruleset.json
@@ -99,8 +108,9 @@ uv run python scripts/ci_rules.py
 ```
 
 Do not apply a stale generated body: read and prepare again immediately before
-application. The update adds missing checks, keeps unrelated protections, and
-preserves strict up-to-date enforcement. It never removes checks or bypass rules.
+application. The update renames only the known legacy contexts, adds missing checks, and
+preserves unrelated protections, app bindings and strict up-to-date enforcement.
+It never removes a validation requirement or changes bypass rules.
 
 ## Working efficiently
 

@@ -191,10 +191,13 @@ logs and ordered dependencies. Browser tests follow the production build. Both
 Python versions and all existing checks remain. Timing reports distinguish queue
 time, elapsed time and summed runner usage. No result is cached across revisions.
 
-**Enforcement.** The required checks from amendment (b) remain unchanged. The
-source change includes a read-only ruleset drift check and request-body generator;
-the minimal update is applied after merge, preserving other protections and
-strict up-to-date enforcement. See [CI verification](../ci.md).
+**Enforcement.** The nine validations from amendment (b) remain unchanged.
+Reusable workflows prefix their required check contexts with `Code checks /`
+or `Documentation /`; privacy and hygiene retain their original names. The
+read-only ruleset tool prepares a one-to-one context migration, preserving app
+bindings, other protections and strict up-to-date enforcement. Apply it after
+verifying the new contexts on the rollout PR, then merge that PR before other
+branches using the old workflow names. See [CI verification](../ci.md).
 
 **Alternatives.** Disabling draft validation or moving affected integration to
 nightly would weaken pre-merge assurance. Reusing green statuses across changed

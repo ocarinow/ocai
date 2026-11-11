@@ -218,3 +218,18 @@ def test_documentation_permissions_remain_scoped_to_deployment() -> None:
     assert "pages: write" not in build and "id-token: write" not in build
     deploy = workflow_job("docs-checks.yml", "deploy")
     assert "pages: write" in deploy and "id-token: write" in deploy
+
+
+def test_required_contexts_match_the_real_caller_and_leaf_labels() -> None:
+    from ci_rules import RENAMED
+
+    for old, context in RENAMED.items():
+        stem = "docs" if old == "docs" else "ci"
+        label = value(workflow_job(f"{stem}.yml", "checks"), "name")
+        if old in {"python", "python-next"}:
+            leaf = expression(
+                value(workflow_job("ci-checks.yml", "python"), "name"), {"matrix": {"name": old}}
+            )
+        else:
+            leaf = value(workflow_job(f"{stem}-checks.yml", old), "name")
+        assert context == f"{label} / {leaf}"
