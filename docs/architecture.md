@@ -897,3 +897,9 @@ and permissions; machine authority and human-delegated authority stay distinct.
 These requirements do not change §12.1's implemented public status surface.
 See [identity and access](platform/identity.md) for protocol boundaries, frontend
 reuse, non-human identities, qualification gates and operational responsibilities.
+
+The [authenticated console program](plans/platform-identity.md) sequences the
+first implementation; [ADR 0011](decisions/0011-authenticated-console-contract.md)
+proposes its persistence/session policy, operator bootstrap and transactional
+audit plus OpenFGA synchronization contract. These remain design requirements;
+subsequent WUs add the corresponding runtime evidence and update this section.

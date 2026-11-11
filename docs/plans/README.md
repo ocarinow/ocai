@@ -104,6 +104,15 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-69 | Price measured usage in a cost satellite | Integration | [integration](integration-program.md) | ⬜ |
 | WU-70 | Pace requests from measured rate-limit signals | Integration | [integration](integration-program.md) | ⬜ |
 | WU-71 | Record platform identity and access design | Platform MVP | [MVP](platform-mvp.md) | ✅ Complete (documentation; review pending) |
+| WU-72 | Define the authenticated console program | Platform identity | [identity](platform-identity.md) | ✅ Complete (plan; review pending) |
+| WU-73 | Persist organization identity and transactional audit | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-74 | Authenticate API callers through the reference issuer | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-75 | Bootstrap an organization with synchronized access | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-76 | Establish durable OIDC console sessions | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-77 | Update an organization through the authenticated console | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-78 | Administer owned service-account principals | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-79 | Bind OAuth workloads to service accounts | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-80 | Issue and revoke scoped platform API keys | Platform identity | [identity](platform-identity.md) | ⬜ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones

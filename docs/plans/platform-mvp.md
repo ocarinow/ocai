@@ -97,6 +97,10 @@ answers so far so we do not loose this knowledge" before further implementation.
 
 ## Next slices to define
 
+The first identity and machine-access slices below are now defined as
+[WU-73–80](platform-identity.md), with WU-72 recording their implementation plan.
+They remain unimplemented until their own acceptance criteria and PRs complete.
+
 Define each as a separate WU before implementation, keeping one observable
 workflow per PR. This ordering is a dependency guide, not completed scope:
 
