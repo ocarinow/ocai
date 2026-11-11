@@ -66,6 +66,8 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
     census={
         "anchors[]": DeclaredDisposition(Disposition.UNSUPPORTED),
         "extensions[ocai.request_unparsed_anchors]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "messages[].parts[].extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "messages[].parts[].annotations[]": DeclaredDisposition(Disposition.UNSUPPORTED),
         "messages[].parts[].annotations[].opaque": DeclaredDisposition(Disposition.UNSUPPORTED),
         "messages[].role": DeclaredDisposition(Disposition.EXACT),
         # Leading system turns relocate to the top-level `system` field — a
@@ -94,6 +96,8 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         "tools[]": DeclaredDisposition(
             Disposition.UNSUPPORTED, "server or unknown intent requires a qualified mapping"
         ),
+        "tools[].extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "tools[].user_location": DeclaredDisposition(Disposition.UNSUPPORTED),
         "tool_choice": DeclaredDisposition(Disposition.RENAMED),
         "config.temperature": DeclaredDisposition(
             Disposition.APPROXIMATED, "range-limited (0..1): out-of-range passes verbatim"
@@ -164,7 +168,7 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
 DECODE_RESPONSE_CONTRACT = EdgeContract(
     census={
         "content[text]": DeclaredDisposition(Disposition.EXACT),
-        # TODO: re-anchor onto PartText.annotations after span validation.
+        "content[].citations[]": DeclaredDisposition(Disposition.EXTENSIONS),
         "content[text].citations": DeclaredDisposition(Disposition.EXTENSIONS),
         "content[thinking]": DeclaredDisposition(Disposition.EXACT),
         "content[redacted_thinking]": DeclaredDisposition(Disposition.EXACT),
@@ -181,6 +185,7 @@ DECODE_RESPONSE_CONTRACT = EdgeContract(
         # cache_creation_input_tokens → the open `anthropic.cache_write`
         # consumption source (WU-13 decision, see `codec._usage`).
         "usage": DeclaredDisposition(Disposition.RENAMED),
+        "usage.server_tool_use": DeclaredDisposition(Disposition.EXTENSIONS),
         "id": DeclaredDisposition(Disposition.EXACT),
         "model": DeclaredDisposition(Disposition.EXACT),
         "container": DeclaredDisposition(Disposition.EXTENSIONS),
@@ -224,8 +229,10 @@ DECODE_REQUEST_CONTRACT = EdgeContract(
             Disposition.EXTENSIONS, "non-text nested tool_result content rides PartOpaque"
         ),
         "tools[]": DeclaredDisposition(
-            Disposition.EXTENSIONS, "server-tool entries ride extensions['anthropic.tools']"
+            Disposition.EXTENSIONS, "unqualified server-tool entries retain native evidence"
         ),
+        "tools[].max_uses": DeclaredDisposition(Disposition.EXTENSIONS),
+        "messages[].content[].citations[]": DeclaredDisposition(Disposition.EXTENSIONS),
         "tool_choice": DeclaredDisposition(
             Disposition.EXTENSIONS,
             "inexpressible shapes ride extensions['anthropic.tool_choice']",
@@ -273,6 +280,9 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
         # The opening snapshot's running totals map onto the dimensional
         # Consumption model (cumulative USAGE chunk), same rename as unary.
         "message_start.usage": DeclaredDisposition(Disposition.RENAMED),
+        "message_start.usage.server_tool_use": DeclaredDisposition(Disposition.EXTENSIONS),
+        "message_delta.usage.server_tool_use": DeclaredDisposition(Disposition.EXTENSIONS),
+        "content[].citations[]": DeclaredDisposition(Disposition.EXTENSIONS),
         "content_block_start": DeclaredDisposition(Disposition.EXACT),
         # Start-block decode is total: unknown block types ride PartOpaque
         # and citations on a start block bank pending span validation —
@@ -285,10 +295,9 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
         ),
         "content_block_delta.text_delta": DeclaredDisposition(Disposition.EXACT),
         "content_block_delta.thinking_delta": DeclaredDisposition(Disposition.EXACT),
-        "content_block_delta.input_json_delta": DeclaredDisposition(Disposition.EXACT),
+        "content_block_delta.input_json_delta": DeclaredDisposition(Disposition.EXTENSIONS),
         "content_block_delta.signature_delta": DeclaredDisposition(Disposition.EXACT),
-        # TODO: DeltaAnnotation after span validation.
-        "content_block_delta.citations_delta": DeclaredDisposition(Disposition.DROPPED),
+        "content_block_delta.citations_delta": DeclaredDisposition(Disposition.EXTENSIONS),
         "content_block_stop": DeclaredDisposition(Disposition.EXACT),
         "message_delta.stop_reason": DeclaredDisposition(Disposition.EXACT),
         # The matched stop sequence rides the FINISH chunk's censused
@@ -301,6 +310,13 @@ DECODE_CHUNK_CONTRACT = EdgeContract(
         # canonical taxonomy code + verbatim native payload + retryability.
         "error": DeclaredDisposition(Disposition.EXACT),
     },
+    semantic_shifts=(
+        SemanticShift(
+            kind="anthropic.search_input_buffered",
+            path="content_block_start",
+            note="search input is emitted as one complete part at block stop",
+        ),
+    ),
     note="anthropic/messages -> canonical chat.chunk (per event)",
 )
 

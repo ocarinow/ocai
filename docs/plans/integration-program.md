@@ -303,7 +303,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-43 — Account for provider-executed search requests
 
-- [ ] **Status:** not started.
+- [x] **Status:** implemented; review in PR #87, stacked on WU-42 (PR #83).
+- **Goal:** Qualify one provider search surface with typed intent, replayable
+  evidence, stream fold parity and measured search accounting.
 - **First step:** Verify the selected Anthropic web-search tool version, replay
   fields and usage increments against vendor docs; record them in its provider page.
 - **Scope:** Anthropic request/response/stream edges and extension census, search
@@ -315,12 +317,25 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   consumption count that is neither token-counted nor inferred from tool-call count.
 - **Deps:** WU-40–42; accepted integration ADR.
 - **Architecture:** §2.8, §3.1, §4.2/4.5, §7, §10.
+- **Integration:** Anthropic request/response/stream codecs own the basic search
+  mapping. Existing server-tool parts carry native blocks; a required result
+  anchor scopes the complete payload, and citation opaque refs retain encrypted
+  indexes. Core only adds an open usage-unit constant. Public facade policies
+  govern unsupported replay, with no search executor or persistence in core.
 - **Freeze:** additive open Usage consumption unit `search_requests` and its spec;
   no new part type or revision (integration ADR).
-- **Decision:** Billable search operations and visible server-tool calls are
+- **Decision:** Vendor verification is recorded in Anthropic section 16. The selected
+  version is explicitly pinned web_search_20250305; complete-part publication buffers only a server
+  call input, without adding a canonical delta. Billable search operations and visible server-tool calls are
   different counts ([Search §1.1/1.4](../capabilities/web-search-and-retrieval.md)).
-- **Open:** Tool-version verification is a start gate; a version that cannot fit
-  the existing parts is a gap, not authority to promote ordered-item IR.
+- **Open:** No design blocker in the selected basic surface. Later tool versions,
+  dynamic filtering and programmatic callers remain excluded; synthetic recordings
+  establish documented-wire conformance, not live vendor certification.
+
+- **Area:** plugin: anthropic
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-44a — Declare the DeepSeek compatible interface variant
 

@@ -1,0 +1,310 @@
+{
+  "description": "WU-43 synthetic HTTP-200 search tool error paired response_web_search_error.json and anthropic_web_search_error_stream_paired.json; tool error remains native, distinct from transport failure.",
+  "node": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "event: message_start\ndata: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_synthetic_search\", \"type\": \"message\", \"role\": \"assistant\", \"model\": \"claude-opus-4-6\", \"content\": [], \"stop_reason\": null, \"stop_sequence\": null, \"usage\": {\"input_tokens\": 10, \"output_tokens\": 1}}}",
+    "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"server_tool_use\", \"id\": \"srvtoolu_synthetic_search\", \"name\": \"web_search\", \"input\": {}}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"{\\\"query\\\": \\\"ocai \"}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"documentation\\\"}\"}}",
+    "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 0}",
+    "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 1, \"content_block\": {\"type\": \"web_search_tool_result\", \"tool_use_id\": \"srvtoolu_synthetic_search\", \"content\": {\"type\": \"web_search_tool_result_error\", \"error_code\": \"max_uses_exceeded\"}}}",
+    "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 1}",
+    "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 2, \"content_block\": {\"type\": \"text\", \"text\": \"\"}}",
+    "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 2, \"delta\": {\"type\": \"text_delta\", \"text\": \"Search unavailable.\"}}",
+    "event: content_block_stop\ndata: {\"type\": \"content_block_stop\", \"index\": 2}",
+    "event: message_delta\ndata: {\"type\": \"message_delta\", \"delta\": {\"stop_reason\": \"end_turn\", \"stop_sequence\": null}, \"usage\": {\"output_tokens\": 17, \"server_tool_use\": {\"web_search_requests\": 0}}}",
+    "event: message_stop\ndata: {\"type\": \"message_stop\"}"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 1,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 10,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 1,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 2,
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "type": "server_tool_call",
+        "kind": "web_search",
+        "call_id": "srvtoolu_synthetic_search",
+        "status": "output_available",
+        "payload": {
+          "type": "server_tool_use",
+          "id": "srvtoolu_synthetic_search",
+          "name": "web_search",
+          "input": {
+            "query": "ocai documentation"
+          }
+        },
+        "anchor": {
+          "provider": "anthropic",
+          "interface": "messages",
+          "kind": "web_search_call",
+          "id": "srvtoolu_synthetic_search",
+          "replay": "required"
+        }
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 3,
+      "index": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 4,
+      "index": 1,
+      "part": {
+        "version": "2026-07",
+        "type": "server_tool_result",
+        "kind": "web_search",
+        "call_id": "srvtoolu_synthetic_search",
+        "status": "output_error",
+        "payload": {
+          "type": "web_search_tool_result",
+          "tool_use_id": "srvtoolu_synthetic_search",
+          "content": {
+            "type": "web_search_tool_result_error",
+            "error_code": "max_uses_exceeded"
+          }
+        },
+        "anchor": {
+          "provider": "anthropic",
+          "interface": "messages",
+          "kind": "web_search_result",
+          "id": "srvtoolu_synthetic_search",
+          "replay": "required"
+        }
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 5,
+      "index": 1
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "seq": 6,
+      "index": 2,
+      "part": {
+        "version": "2026-07",
+        "type": "text",
+        "text": ""
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 7,
+      "index": 2,
+      "delta": {
+        "version": "2026-07",
+        "type": "text",
+        "text": "Search unavailable."
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "seq": 8,
+      "index": 2
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "seq": 9,
+      "finish": {
+        "version": "2026-07",
+        "reason": "complete",
+        "native": "end_turn"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "seq": 10,
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 10,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 17,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          },
+          {
+            "value": 0,
+            "modality": "text",
+            "unit": "search_requests",
+            "source": "output"
+          }
+        ]
+      },
+      "usage_cumulative": true
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "seq": 11,
+      "end": {
+        "version": "2026-07",
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 10,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 17,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            },
+            {
+              "value": 0,
+              "modality": "text",
+              "unit": "search_requests",
+              "source": "output"
+            }
+          ]
+        },
+        "finish": {
+          "version": "2026-07",
+          "reason": "complete",
+          "native": "end_turn"
+        }
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "server_tool_call",
+          "kind": "web_search",
+          "call_id": "srvtoolu_synthetic_search",
+          "status": "output_available",
+          "payload": {
+            "type": "server_tool_use",
+            "id": "srvtoolu_synthetic_search",
+            "name": "web_search",
+            "input": {
+              "query": "ocai documentation"
+            }
+          },
+          "anchor": {
+            "provider": "anthropic",
+            "interface": "messages",
+            "kind": "web_search_call",
+            "id": "srvtoolu_synthetic_search",
+            "replay": "required"
+          }
+        },
+        {
+          "version": "2026-07",
+          "type": "server_tool_result",
+          "kind": "web_search",
+          "call_id": "srvtoolu_synthetic_search",
+          "status": "output_error",
+          "payload": {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_synthetic_search",
+            "content": {
+              "type": "web_search_tool_result_error",
+              "error_code": "max_uses_exceeded"
+            }
+          },
+          "anchor": {
+            "provider": "anthropic",
+            "interface": "messages",
+            "kind": "web_search_result",
+            "id": "srvtoolu_synthetic_search",
+            "replay": "required"
+          }
+        },
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "Search unavailable."
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "end_turn"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 10,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 17,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 0,
+          "modality": "text",
+          "unit": "search_requests",
+          "source": "output"
+        }
+      ]
+    }
+  }
+}

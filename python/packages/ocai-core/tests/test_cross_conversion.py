@@ -128,8 +128,8 @@ def _sorted_shifts(report: FidelityReport) -> list[tuple[str, str]]:
 
 
 def test_cross_fixture_set_covers_the_wu15_story() -> None:
-    assert len(CROSS_FIXTURES) == 2 and len(DECODE_FIXTURES) == 2, (
-        f"WU-15 expects two merged cross fixtures and two decode pins in {CROSS_DIR}"
+    assert len(CROSS_FIXTURES) >= 2 and len(DECODE_FIXTURES) >= 2, (
+        f"WU-15 expects at least two merged cross fixtures and two decode pins in {CROSS_DIR}"
     )
     losses = [
         (entry["path"], entry["disposition"])

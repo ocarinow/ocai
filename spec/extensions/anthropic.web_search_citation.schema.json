@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.web_search_citation",
+  "description": "Unknown citation fields or whole unqualified native citation retained on Annotation.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "none expected"
+}

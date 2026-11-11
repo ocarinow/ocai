@@ -507,6 +507,26 @@ class UserLocation(_Wire):
     timezone: str | None = None
 
 
+class BasicWebSearchTool(_Wire, tag_field="type", tag="web_search_20250305"):
+    """The explicitly qualified basic direct-search definition.
+
+    Attributes:
+        name: Tool name, always web_search.
+        allowed_domains: Optional inclusion restriction.
+        blocked_domains: Optional exclusion restriction, mutually exclusive with inclusion.
+        max_uses: Positive limit on search uses.
+        user_location: Approximate location hints.
+        allowed_callers: Only direct callers are qualified by WU-43.
+    """
+
+    name: str = "web_search"
+    allowed_domains: list[str] | None = None
+    blocked_domains: list[str] | None = None
+    max_uses: int | None = None
+    user_location: UserLocation | None = None
+    allowed_callers: list[str] | None = None
+
+
 class WebSearchTool(_Wire, tag_field="type", tag="web_search_20260209"):
     """The server-side `web_search` tool (`web_search_20260209`).
 
@@ -618,6 +638,7 @@ ToolUnion = (
     | TextEditorTool
     | MemoryTool
     | WebSearchTool
+    | BasicWebSearchTool
     | WebFetchTool
     | ToolSearchToolBm25
     | ToolSearchToolRegex

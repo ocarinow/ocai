@@ -26,10 +26,12 @@ The meeting point of the interface's three concerns:
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import date
 from typing import Any
 from typing import TypeIs
 
+from ocai.anthropic.messages import search
 from ocai.chat.types import ChatChunk
 from ocai.chat.types import ChatConfig
 from ocai.chat.types import ChatRequest
@@ -37,6 +39,7 @@ from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
 from ocai.chat.types import Consumption
 from ocai.chat.types import Delta
+from ocai.chat.types import DeltaAnnotation
 from ocai.chat.types import DeltaReasoning
 from ocai.chat.types import DeltaSignature
 from ocai.chat.types import DeltaText
@@ -56,6 +59,7 @@ from ocai.chat.types import PartToolResult
 from ocai.chat.types import ReasoningConfig
 from ocai.chat.types import RefusalDetail
 from ocai.chat.types import ResponseInfo
+from ocai.chat.types import ServerTool
 from ocai.chat.types import StreamEnd
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
@@ -234,6 +238,7 @@ def _stream_error(err: dict[str, Any]) -> ErrorInfo:
         retryable=issubclass(cls, TransientError),
     )
 
+
 # Wire `stop_reason` → canonical open `FinishInfo.reason` code. Unknown wire
 # values decode to `"unknown"` with the verbatim value in `native` (rule 6).
 _STOP_REASONS = {
@@ -336,7 +341,9 @@ def dialect_traits() -> DialectTraits:
     )
 
 
-def _usage(raw: dict[str, Any] | None) -> Usage | None:
+def _usage(
+    raw: dict[str, Any] | None, losses: list[FieldLoss] | None = None, path: str = "usage"
+) -> Usage | None:
     """Map an Anthropic `usage` object onto the dimensional model.
 
     Buckets per the documented disjoint-bucket rule for this provider:
@@ -354,6 +361,8 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
 
     Args:
         raw: The wire `usage` object, if present.
+        losses: Optional fidelity collector for unknown counters.
+        path: Usage object path in the source payload.
 
     Returns:
         The canonical `Usage`, or `None` when the wire reported nothing.
@@ -374,7 +383,34 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     _add("anthropic.cache_write", raw.get("cache_creation_input_tokens"))
     details: dict[str, Any] = raw.get("output_tokens_details") or {}
     _add("reasoning", details.get("thinking_tokens"))
-    return Usage(consumptions=consumptions)
+    extensions: dict[str, Any] = {}
+    server = raw.get("server_tool_use")
+    if server is not None:
+        extra = deepcopy(server)
+        if _is_obj(server):
+            measured = server.get("web_search_requests")
+            if type(measured) is int and measured >= 0:
+                consumptions.append(
+                    Consumption(
+                        modality="text", unit="search_requests", source="output", value=measured
+                    )
+                )
+                extra = {
+                    key: deepcopy(value)
+                    for key, value in server.items()
+                    if key != "web_search_requests"
+                }
+        if extra or not _is_obj(server):
+            extensions["anthropic.server_tool_usage"] = extra
+            if losses is not None:
+                losses.append(
+                    FieldLoss(
+                        path + ".server_tool_use",
+                        Disposition.EXTENSIONS,
+                        note="unqualified server-tool usage retained as native evidence",
+                    )
+                )
+    return Usage(consumptions=consumptions, extensions=extensions)
 
 
 def _thought_signature(signature: str) -> ProviderRef:
@@ -617,21 +653,33 @@ class MessagesCodec:
             for index, tool in enumerate(request.tools):
                 if isinstance(tool, Tool):
                     encoded_tools.append(self._encode_tool(tool))
+                elif isinstance(tool, ServerTool):
+                    mapped = search.encode_tool(tool, f"tools[{index}]", losses)
+                    if mapped is not None:
+                        encoded_tools.append(mapped)
                 else:
-                    losses.append(FieldLoss(
-                        path=f"tools[{index}]",
-                        disposition=Disposition.UNSUPPORTED,
-                        note=("server or unknown tool intent has no qualified mapping "
-                              "on this interface"),
-                    ))
+                    losses.append(
+                        FieldLoss(
+                            path=f"tools[{index}]",
+                            disposition=Disposition.UNSUPPORTED,
+                            note=(
+                                "server or unknown tool intent has no qualified mapping "
+                                "on this interface"
+                            ),
+                        )
+                    )
             if encoded_tools:
                 payload["tools"] = encoded_tools
         for index, anchor in enumerate(request.anchors or []):
-            losses.append(_foreign_ref_loss(f"anchors[{index}]", anchor) or FieldLoss(
-                path=f"anchors[{index}]", disposition=Disposition.UNSUPPORTED,
-                severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
-                note="request continuation anchor has no qualified wire lane on this interface",
-            ))
+            losses.append(
+                _foreign_ref_loss(f"anchors[{index}]", anchor)
+                or FieldLoss(
+                    path=f"anchors[{index}]",
+                    disposition=Disposition.UNSUPPORTED,
+                    severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
+                    note="request continuation anchor has no qualified wire lane on this interface",
+                )
+            )
         self._encode_tool_choice(request, payload, losses)
         self._encode_config(request, payload, losses, shifts)
         # Lane 3: expand only OUR destination namespace (three-lane law §3.4).
@@ -646,8 +694,11 @@ class MessagesCodec:
         losses.extend(
             FieldLoss(
                 path=f"extensions[{key}]",
-                disposition=(Disposition.UNSUPPORTED
-                             if key == "ocai.request_unparsed_anchors" else Disposition.DROPPED),
+                disposition=(
+                    Disposition.UNSUPPORTED
+                    if key == "ocai.request_unparsed_anchors"
+                    else Disposition.DROPPED
+                ),
                 severity=0.5,
                 note=f"extensions[{key!r}] has no {PROVIDER}/{INTERFACE} encode lane yet",
             )
@@ -700,9 +751,34 @@ class MessagesCodec:
             # The §2.4 scoped honesty rule: provider-anchored state leaving
             # its validity scope is UNSUPPORTED-and-reported before the part
             # itself is mapped (or dropped) below.
-            losses.extend(_part_ref_losses(path, part))
+            qualified_server = (
+                isinstance(part, (PartServerToolCall, PartServerToolResult))
+                and part.kind == "web_search"
+            )
+            if not qualified_server:
+                # Citation anchors are handled by the selected citation mapper below.
+                if isinstance(part, PartText):
+                    detached = deepcopy(part)
+                    detached.annotations = []
+                    losses.extend(_part_ref_losses(path, detached))
+                else:
+                    losses.extend(_part_ref_losses(path, part))
             if isinstance(part, PartText):
-                blocks.append({"type": "text", "text": part.text})
+                block: dict[str, Any] = {"type": "text", "text": part.text}
+                citations: list[dict[str, Any]] = []
+                for ci, annotation in enumerate(part.annotations):
+                    citation = search.encode_citation(
+                        annotation, f"{path}.annotations[{ci}]", losses
+                    )
+                    if citation is not None:
+                        citations.append(citation)
+                if citations:
+                    block["citations"] = citations
+                blocks.append(block)
+            elif qualified_server and isinstance(part, (PartServerToolCall, PartServerToolResult)):
+                server = search.encode_part(part, path, losses)
+                if server is not None:
+                    blocks.append(server)
             elif isinstance(part, PartToolCall):
                 blocks.append(
                     {
@@ -1204,7 +1280,19 @@ class MessagesCodec:
         btype = block.get("type")
         path = f"messages[{message_index}].content[{block_index}]"
         if btype == "text":
-            return PartText(text=block.get("text", ""))
+            return PartText(
+                text=block.get("text", ""),
+                annotations=[
+                    search.decode_citation(raw, f"{path}.citations[{i}]", losses)
+                    for i, raw in enumerate(
+                        block["citations"]
+                        if _is_list(block.get("citations"))
+                        else [block["citations"]]
+                        if "citations" in block
+                        else []
+                    )
+                ],
+            )
         if btype == "tool_use":
             # The wire carries a parsed object; canonical truth is the
             # string lane — serialization is a recorded shift, not a loss.
@@ -1253,6 +1341,10 @@ class MessagesCodec:
                 parts=nested,
                 is_error=bool(block.get("is_error", False)),
             )
+        if btype == "server_tool_use" and block.get("name") == "web_search":
+            return search.decode_call(block)
+        if btype == "web_search_tool_result":
+            return search.decode_result(block)
         if btype == "thinking":
             signature = block.get("signature")
             return PartReasoning(
@@ -1301,6 +1393,11 @@ class MessagesCodec:
         """
         tools: list[ToolDefinition] = []
         for i, entry in enumerate(_as_list(payload.get("tools"))):
+            if _is_obj(entry):
+                server = search.decode_tool(entry, f"tools[{i}]", losses)
+                if server is not None:
+                    tools.append(server)
+                    continue
             if _is_obj(entry) and entry.get("type", "custom") == "custom":
                 schema = entry.get("input_schema")
                 tools.append(
@@ -1472,7 +1569,7 @@ class MessagesCodec:
         role: str = payload.get("role", "assistant")
         message = Message(role=_ROLE_TO_CANONICAL.get(role, role), parts=parts)
         finish = self._decode_finish(payload, extensions, losses)
-        usage = _usage(payload.get("usage"))
+        usage = _usage(payload.get("usage"), losses)
         info = self._decode_info(payload)
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
             extensions[f"anthropic.{key}"] = payload[key]
@@ -1546,17 +1643,17 @@ class MessagesCodec:
         btype = block.get("type")
         path = f"content[{index}]"
         if btype == "text":
-            if block.get("citations"):
-                # TODO: re-anchor citations onto PartText.annotations once
-                # span offsets validate against the decoded text (§3.1).
-                losses.append(
-                    FieldLoss(
-                        path=f"{path}.citations",
-                        disposition=Disposition.EXTENSIONS,
-                        note="citations ride raw/extensions pending span validation",
-                    )
+            annotations = [
+                search.decode_citation(raw, f"{path}.citations[{i}]", losses)
+                for i, raw in enumerate(
+                    block["citations"]
+                    if _is_list(block.get("citations"))
+                    else [block["citations"]]
+                    if "citations" in block
+                    else []
                 )
-            return PartText(text=block.get("text", ""))
+            ]
+            return PartText(text=block.get("text", ""), annotations=annotations)
         if btype == "thinking":
             signature = block.get("signature")
             return PartReasoning(
@@ -1590,6 +1687,10 @@ class MessagesCodec:
                 status="input_complete",
                 executed_by="client",
             )
+        if btype == "server_tool_use" and block.get("name") == "web_search":
+            return search.decode_call(block)
+        if btype == "web_search_tool_result":
+            return search.decode_result(block)
         if btype == "server_tool_use":
             return PartServerToolCall(
                 kind=block.get("name", ""),
@@ -1706,7 +1807,7 @@ class MessagesCodec:
           `DeltaText`, `thinking_delta` → `DeltaReasoning`,
           `input_json_delta` → `DeltaToolArgs` raw fragments parsed once at
           PART_STOP, `signature_delta` → `DeltaSignature`); a delta type
-          with no canonical lane yet (`citations_delta`) is dropped with a
+          with no canonical lane yet is dropped with a
           reported `FieldLoss`, recoverable from the event log;
         - `content_block_stop` → a bare `PART_STOP` (this wire carries no
           authoritative final part — the delta accumulation is the only
@@ -1740,7 +1841,7 @@ class MessagesCodec:
         if etype == "message_start":
             chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
             message: dict[str, Any] = raw.get("message") or {}
-            usage = _usage(message.get("usage"))
+            usage = _usage(message.get("usage"), losses, "message_start.usage")
             if usage is not None:
                 chunks.append(
                     ChatChunk(
@@ -1839,6 +1940,12 @@ class MessagesCodec:
             typed = DeltaToolArgs(fragment=delta.get("partial_json", ""))
         elif dtype == "signature_delta":
             typed = DeltaSignature(signature=delta.get("signature", ""))
+        elif dtype == "citations_delta":
+            typed = DeltaAnnotation(
+                annotation=search.decode_citation(
+                    delta.get("citation"), "content_block_delta.citations_delta", losses
+                )
+            )
         if typed is not None:
             chunks.append(
                 ChatChunk(
@@ -1849,8 +1956,6 @@ class MessagesCodec:
                 )
             )
             return
-        # TODO: citations_delta → DeltaAnnotation after span validation
-        # (§3.1 — never emit a possibly-misattributed span).
         losses.append(
             FieldLoss(
                 path=f"content_block_delta.{dtype}",
@@ -1903,7 +2008,7 @@ class MessagesCodec:
                     )
                 )
             chunks.append(finish_chunk)
-        usage = _usage(raw.get("usage"))
+        usage = _usage(raw.get("usage"), losses, "message_delta.usage")
         if usage is not None:
             chunks.append(
                 ChatChunk(type=ChunkType.USAGE, usage=usage, usage_cumulative=True, raw_event=raw)
@@ -1960,8 +2065,8 @@ class MessagesStreamTransducer:
     - **Cumulative usage settlement.** `message_start` and `message_delta`
       report CUMULATIVE usage snapshots covering exactly the keys each names
       (`message_delta` typically carries only running `output_tokens`), so
-      the transducer merges per consumption source — last snapshot wins per
-      source, keys a later snapshot omits keep their earlier values — and
+      the transducer merges per (modality, unit, source) — last snapshot wins per
+      tuple, keys a later snapshot omits keep their earlier values — and
       the terminal `StreamEnd.usage` carries the settled totals.
     - **The terminal contract.** `message_stop` is this wire's terminal:
       any still-open slot (a block whose `content_block_stop` never came)
@@ -1986,7 +2091,10 @@ class MessagesStreamTransducer:
         self._codec = MessagesCodec()
         self._seq = 0
         self._losses: list[FieldLoss] = []
-        self._sources: dict[str, Consumption] = {}
+        self._sources: dict[tuple[str, str, str], Consumption] = {}
+        self._usage_extensions: dict[str, Any] = {}
+        self._search_inputs: dict[int, tuple[PartServerToolCall, list[str]]] = {}
+        self._shifts: list[SemanticShift] = []
         self._finish: FinishInfo | None = None
         self._open_slots: list[int] = []
         self._done = False
@@ -2020,6 +2128,28 @@ class MessagesStreamTransducer:
             The chunk (seq-stamped); for the terminal `STREAM_STOP`, any
             synthesized slot seals followed by the enriched terminal.
         """
+        if (
+            chunk.type == ChunkType.PART_START
+            and isinstance(chunk.part, PartServerToolCall)
+            and chunk.part.kind == "web_search"
+            and chunk.index is not None
+        ):
+            self._search_inputs[chunk.index] = (deepcopy(chunk.part), [])
+            self._shifts.append(
+                SemanticShift(
+                    kind="anthropic.search_input_buffered",
+                    path="content_block_start",
+                    note="search input is emitted as one complete part at block stop",
+                )
+            )
+            return []
+        if chunk.index in self._search_inputs:
+            assert chunk.index is not None
+            if chunk.type == ChunkType.PART_DELTA and isinstance(chunk.delta, DeltaToolArgs):
+                self._search_inputs[chunk.index][1].append(chunk.delta.fragment)
+                return []
+            if chunk.type == ChunkType.PART_STOP:
+                return self._finish_search(chunk.index, chunk.raw_event)
         if chunk.type == ChunkType.PART_START:
             if chunk.index is not None and chunk.index not in self._open_slots:
                 self._open_slots.append(chunk.index)
@@ -2030,12 +2160,66 @@ class MessagesStreamTransducer:
             # Cumulative snapshots merge per source: a later snapshot
             # overrides exactly the sources it names, nothing else.
             for consumption in chunk.usage.consumptions:
-                self._sources[consumption.source] = consumption
+                self._sources[(consumption.modality, consumption.unit, consumption.source)] = (
+                    consumption
+                )
+            self._usage_extensions.update(deepcopy(chunk.usage.extensions))
+            if self._usage_extensions or any(key[1] == "search_requests" for key in self._sources):
+                chunk.usage = self._settled_usage()
         elif chunk.type == ChunkType.FINISH and chunk.finish is not None:
             self._finish = chunk.finish
         elif chunk.type == ChunkType.STREAM_STOP:
             return self._terminal(chunk)
         return [self._stamp(chunk)]
+
+    def _finish_search(self, index: int, raw: Any, *, incomplete: bool = False) -> list[ChatChunk]:
+        """Publish one buffered search input; malformed input retains native evidence."""
+        part, fragments = self._search_inputs.pop(index)
+        if fragments and part.payload.get("input") not in ({}, None):
+            incomplete = True
+        if fragments and not incomplete:
+            try:
+                parsed = json.loads("".join(fragments))
+                if not _is_obj(parsed):
+                    incomplete = True
+                else:
+                    part.payload["input"] = parsed
+            except (ValueError, TypeError):
+                incomplete = True
+        if incomplete:
+            self._done = True
+            part.status = "input_incomplete"
+            part.anchor = None
+            part.extensions["anthropic.incomplete_search_input"] = {"partial_json": fragments}
+            self._losses.append(
+                FieldLoss(
+                    "content_block_delta.input_json_delta",
+                    Disposition.EXTENSIONS,
+                    note="incomplete search input retained without a replay anchor",
+                )
+            )
+        chunks = [
+            self._stamp(ChatChunk(type=ChunkType.PART_START, index=index, part=part, raw_event=raw))
+        ]
+        if incomplete:
+            chunks.append(
+                self._stamp(
+                    ChatChunk(
+                        type=ChunkType.ERROR,
+                        error=ErrorInfo(
+                            code="unknown",
+                            retryable=False,
+                            native={"type": "incomplete_search_input"},
+                        ),
+                        raw_event=raw,
+                    )
+                )
+            )
+        else:
+            chunks.append(
+                self._stamp(ChatChunk(type=ChunkType.PART_STOP, index=index, raw_event=raw))
+            )
+        return chunks
 
     def _terminal(self, chunk: ChatChunk) -> list[ChatChunk]:
         """Seal open slots and enrich the terminal with `StreamEnd`.
@@ -2051,10 +2235,14 @@ class MessagesStreamTransducer:
         if self._done:
             return []
         self._done = True
+        if self._search_inputs:
+            return [
+                item
+                for slot in list(self._search_inputs)
+                for item in self._finish_search(slot, chunk.raw_event, incomplete=True)
+            ]
         emitted = [
-            self._stamp(
-                ChatChunk(type=ChunkType.PART_STOP, index=slot, raw_event=chunk.raw_event)
-            )
+            self._stamp(ChatChunk(type=ChunkType.PART_STOP, index=slot, raw_event=chunk.raw_event))
             for slot in self._open_slots
         ]
         self._open_slots.clear()
@@ -2070,9 +2258,11 @@ class MessagesStreamTransducer:
             source, in first-appearance order (matching the unary decoder's
             bucket order).
         """
-        if not self._sources:
+        if not self._sources and not self._usage_extensions:
             return None
-        return Usage(consumptions=list(self._sources.values()))
+        return Usage(
+            consumptions=list(self._sources.values()), extensions=deepcopy(self._usage_extensions)
+        )
 
     def _stamp(self, chunk: ChatChunk) -> ChatChunk:
         """Stamp the next monotonic `seq` onto `chunk` and return it.
@@ -2088,23 +2278,17 @@ class MessagesStreamTransducer:
         return chunk
 
     def flush(self) -> tuple[list[ChatChunk], EdgeReport]:
-        """Seal the stream's accounting and report this edge's fidelity.
-
-        The terminal `STREAM_STOP` is emitted by `feed` when `message_stop`
-        arrives, so the tail here is always empty: a stream that never
-        reached its terminal event was aborted, and synthesizing a terminal
-        for it would pass accumulated content off as complete — the
-        accumulator's aborted-stream sealing owns that case.
-
-        Returns:
-            An empty tail and the edge's `EdgeReport` of accumulated
-            records (extension banks, dropped delta lanes).
-        """
+        """Return remaining incomplete search evidence and accumulated fidelity, never success."""
+        tail = [
+            item
+            for slot in list(self._search_inputs)
+            for item in self._finish_search(slot, None, incomplete=True)
+        ]
         report = EdgeReport(
             src=MESSAGES_CHUNK,
             dst=CANONICAL_CHUNK,
             losses=tuple(self._losses),
-            shifts=(),
+            shifts=tuple(self._shifts),
             note="anthropic/messages -> canonical chat.chunk",
         )
-        return [], report
+        return tail, report

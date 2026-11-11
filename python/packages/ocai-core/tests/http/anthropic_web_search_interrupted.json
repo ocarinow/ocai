@@ -1,0 +1,49 @@
+{
+  "description": "WU-43 synthetic interrupted basic search input SSE, prefix of stream_web_search.json followed by overloaded_error. No successful fold or terminal record is asserted.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Find ocai documentation."
+            }
+          ]
+        }
+      ],
+      "max_tokens": 128,
+      "tools": [
+        {
+          "type": "web_search_20250305",
+          "name": "web_search",
+          "max_uses": 5,
+          "allowed_domains": [
+            "example.com"
+          ],
+          "user_location": {
+            "type": "approximate",
+            "country": "FR"
+          }
+        }
+      ],
+      "stream": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "event: message_start\ndata: {\"type\": \"message_start\", \"message\": {\"id\": \"msg_synthetic_search\", \"type\": \"message\", \"role\": \"assistant\", \"model\": \"claude-opus-4-6\", \"content\": [], \"stop_reason\": null, \"stop_sequence\": null, \"usage\": {\"input_tokens\": 10, \"output_tokens\": 1}}}",
+      "event: content_block_start\ndata: {\"type\": \"content_block_start\", \"index\": 0, \"content_block\": {\"type\": \"server_tool_use\", \"id\": \"srvtoolu_synthetic_search\", \"name\": \"web_search\", \"input\": {}}}",
+      "event: content_block_delta\ndata: {\"type\": \"content_block_delta\", \"index\": 0, \"delta\": {\"type\": \"input_json_delta\", \"partial_json\": \"{\\\"query\\\": \\\"ocai \"}}",
+      "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}"
+    ]
+  }
+}

@@ -74,7 +74,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-40 | Qualify URL citations on canonical text | Integration | [integration](integration-program.md) | ✅ |
 | WU-41 | Admit server-tool definitions on ChatRequest | Integration | [integration](integration-program.md) | ✅ |
 | WU-42 | Preserve required server-tool replay anchors | Integration | [integration](integration-program.md) | ✅ |
-| WU-43 | Account for provider-executed search requests | Integration | [integration](integration-program.md) | ⬜ |
+| WU-43 | Account for provider-executed search requests | Integration | [integration](integration-program.md) | ✅ |
 | WU-44a | Declare the DeepSeek compatible interface variant | Integration | [integration](integration-program.md) | ⬜ |
 | WU-44b | Certify the DeepSeek compatible dialect variant | Integration | [integration](integration-program.md) | ⬜ |
 | WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ⬜ |

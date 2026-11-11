@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.incomplete_search_input",
+  "description": "Unterminated or invalid search input JSON fragments; carries no replay authority.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "none expected",
+  "type": "object"
+}

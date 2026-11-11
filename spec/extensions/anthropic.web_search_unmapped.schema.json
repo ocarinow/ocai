@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.web_search_unmapped",
+  "description": "Unknown native basic-search tool controls retained on ServerTool.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "none expected",
+  "type": "object"
+}

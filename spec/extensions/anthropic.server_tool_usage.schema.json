@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "anthropic.server_tool_usage",
+  "description": "Unqualified native server-tool usage counters, without fabricated measurements.",
+  "x-ocai-origin": "ocai-anthropic",
+  "x-ocai-promotion": "none expected"
+}
