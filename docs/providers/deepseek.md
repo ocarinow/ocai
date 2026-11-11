@@ -328,3 +328,19 @@ identifies hit/miss prompt buckets and reasoning as part of output tokens.
 Missing or inconsistent measurements retain evidence rather than inferred zero.
 Model-dependent top_p is conservatively unsupported in the model-independent
 conversion edge (G-10); no request body gains routing metadata to work around it.
+
+
+## 16. Streaming preflight verification (WU-46, 2026-11-11)
+
+Rechecked the official [Chat Completions API](https://api-docs.deepseek.com/api/create-chat-completion/)
+and [error-code reference](https://api-docs.deepseek.com/quick_start/error_codes/).
+The streaming contract supplies `id`, `model`, `created`, reasoning/content/tool
+fragments, finish state, and usage. Usage on the final content chunk must be
+processed alongside its finish; that final choice carries no new content. Do not
+assume a separate empty-choices usage event. The HTTP error reference still does not specify a
+stable SSE error-envelope schema: unknown error payloads must remain evidence,
+without asserting an undocumented provider-specific error-code mapping.
+
+Qualification is not complete. G-11 records that canonical stream folding loses
+response identity even when all wire frames carry it. Existing unary response
+fixtures retain those fields and must not be rewritten to conceal the gap.
