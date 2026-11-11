@@ -85,7 +85,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-48a | Preserve and adapt host error outcomes | Integration | [integration](integration-program.md) | ✅ |
 | WU-48b | Account for host effects without inventing graph edges | Integration | [integration](integration-program.md) | ✅ |
 | WU-48c | Adapt unary host responses with governed evidence | Integration | [integration](integration-program.md) | ✅ |
-| WU-48 | Host Anthropic unary calls on Bedrock InvokeModel | Integration | [integration](integration-program.md) | ⬜ |
+| WU-48 | Host Anthropic unary calls on Bedrock InvokeModel | Integration | [integration](integration-program.md) | ✅ |
 | WU-49 | Parse AWS EventStream without I/O | Integration | [integration](integration-program.md) | ⬜ |
 | WU-50 | Stream Anthropic through Bedrock envelopes | Integration | [integration](integration-program.md) | ⬜ |
 | WU-51 | Declare the Bedrock Converse interface | Integration | [integration](integration-program.md) | ⬜ |

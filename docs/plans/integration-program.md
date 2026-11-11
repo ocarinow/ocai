@@ -855,7 +855,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 
-- **Status:** 🔄 in progress; reusable prerequisites implemented in PRs #112/#114/#116.
+- **Status:** ✅ complete (PR #110); implementation ready for review.
 - **Context:** Existing Anthropic codecs and AWS signing cannot alone serve
   InvokeModel: its model is in the URL, version/beta declarations move into the body,
   error identity may be header-only, and successful guardrails can mask or block
@@ -934,7 +934,12 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   recorded qualification; no fixture claims live service access.
 - **Open:** None for this verified unary subset. Streaming requires generic host
   stream integration before WU-50; G-14 remains open for that portion.
-- **Evidence:** Pending implementation and full gate.
+- **Evidence:** `uv run python scripts/check.py` passed on implementation commit
+  57621b4 (all seven steps). `python/packages/ocai-bedrock/tests/test_host.py`
+  adds 43 cases and 11 synthetic HTTP recordings, including exact host census
+  assertions and public front-door execution. Wheel/sdist build succeeds;
+  namespace and py.typed verified. No kernel runtime or canonical schema change.
+  Final clean-head gate summary is in PR #110.
 - **Area:** plugin: bedrock
 - **Priority:** P0
 - **Tier:** 1
