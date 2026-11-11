@@ -1,0 +1,252 @@
+{
+  "description": "WU-43 synthetic unknown search citation and counter evidence: neither claims canonical qualification.",
+  "src": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "msg_synthetic_search",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-4-6",
+    "content": [
+      {
+        "type": "server_tool_use",
+        "id": "srvtoolu_synthetic_search",
+        "name": "web_search",
+        "input": {
+          "query": "ocai documentation"
+        }
+      },
+      {
+        "type": "web_search_tool_result",
+        "tool_use_id": "srvtoolu_synthetic_search",
+        "content": [
+          {
+            "type": "web_search_result",
+            "url": "https://example.com/ocai",
+            "title": "ocai",
+            "encrypted_content": "synthetic+/==search-A",
+            "page_age": "1 day ago"
+          },
+          {
+            "type": "web_search_result",
+            "url": "https://example.com/guide",
+            "title": "Guide",
+            "encrypted_content": "synthetic+/==search-B"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "ocai supports common interfaces.",
+        "citations": [
+          {
+            "type": "future_citation",
+            "opaque": "synthetic"
+          }
+        ]
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 10,
+      "output_tokens": 17,
+      "server_tool_use": {
+        "future_requests": 7
+      }
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "server_tool_call",
+          "kind": "web_search",
+          "call_id": "srvtoolu_synthetic_search",
+          "status": "output_available",
+          "payload": {
+            "type": "server_tool_use",
+            "id": "srvtoolu_synthetic_search",
+            "name": "web_search",
+            "input": {
+              "query": "ocai documentation"
+            }
+          },
+          "anchor": {
+            "provider": "anthropic",
+            "interface": "messages",
+            "kind": "web_search_call",
+            "id": "srvtoolu_synthetic_search",
+            "replay": "required"
+          }
+        },
+        {
+          "version": "2026-07",
+          "type": "server_tool_result",
+          "kind": "web_search",
+          "call_id": "srvtoolu_synthetic_search",
+          "status": "output_available",
+          "payload": {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_synthetic_search",
+            "content": [
+              {
+                "type": "web_search_result",
+                "url": "https://example.com/ocai",
+                "title": "ocai",
+                "encrypted_content": "synthetic+/==search-A",
+                "page_age": "1 day ago"
+              },
+              {
+                "type": "web_search_result",
+                "url": "https://example.com/guide",
+                "title": "Guide",
+                "encrypted_content": "synthetic+/==search-B"
+              }
+            ]
+          },
+          "anchor": {
+            "provider": "anthropic",
+            "interface": "messages",
+            "kind": "web_search_result",
+            "id": "srvtoolu_synthetic_search",
+            "replay": "required"
+          }
+        },
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "ocai supports common interfaces.",
+          "annotations": [
+            {
+              "version": "2026-07",
+              "extensions": {
+                "anthropic.web_search_citation": {
+                  "type": "future_citation",
+                  "opaque": "synthetic"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "end_turn"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 10,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 17,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        }
+      ],
+      "extensions": {
+        "anthropic.server_tool_usage": {
+          "future_requests": 7
+        }
+      }
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "msg_synthetic_search",
+        "replay": "optional"
+      },
+      "model": "claude-opus-4-6"
+    },
+    "raw": {
+      "id": "msg_synthetic_search",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-6",
+      "content": [
+        {
+          "type": "server_tool_use",
+          "id": "srvtoolu_synthetic_search",
+          "name": "web_search",
+          "input": {
+            "query": "ocai documentation"
+          }
+        },
+        {
+          "type": "web_search_tool_result",
+          "tool_use_id": "srvtoolu_synthetic_search",
+          "content": [
+            {
+              "type": "web_search_result",
+              "url": "https://example.com/ocai",
+              "title": "ocai",
+              "encrypted_content": "synthetic+/==search-A",
+              "page_age": "1 day ago"
+            },
+            {
+              "type": "web_search_result",
+              "url": "https://example.com/guide",
+              "title": "Guide",
+              "encrypted_content": "synthetic+/==search-B"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "ocai supports common interfaces.",
+          "citations": [
+            {
+              "type": "future_citation",
+              "opaque": "synthetic"
+            }
+          ]
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 17,
+        "server_tool_use": {
+          "future_requests": 7
+        }
+      }
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "content[2].citations[0]",
+      "disposition": "extensions"
+    },
+    {
+      "path": "usage.server_tool_use",
+      "disposition": "extensions"
+    }
+  ],
+  "expect_shifts": []
+}

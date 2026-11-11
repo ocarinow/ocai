@@ -176,12 +176,18 @@ reported billable search operations, not the number of tool-call parts or tokens
 Missing counts remain absent. Provider-native counters, different billing units
 and replay evidence retain registered extension lanes with their declared shifts.
 The concrete provider WU certifies these mappings before claiming compatibility.
-WU-43 selects basic `web_search_20250305`. A required result anchor uses the
+WU-43 selects basic `web_search_20250305` through an explicit per-tool
+`provider_options["anthropic.messages"]["type"]` pin. Unpinned generic intent
+remains unqualified instead of silently selecting a changing vendor default. A required result anchor uses the
 provider's `tool_use_id` to scope the entire verbatim result payload; encrypted
 content stays in that payload, without duplicated canonical scalar fields.
 Citation opaque refs carry encrypted indexes. Server-call input fragments are
 buffered within the plugin until block completion and then published as a complete
 part, with a declared timing shift; no new kernel delta or part shape is added.
+Malformed/unterminated input retains fragments without a replay anchor or success
+terminal. Search counters use text/search_requests/output and stream settlement
+keys the complete modality/unit/source tuple, so output tokens cannot be replaced
+by search counts. Unknown counters are censused evidence, not invented usage.
 
 Sources: [Web search §1.1/1.4](../capabilities/web-search-and-retrieval.md),
 [DeepSeek §5/7](../providers/deepseek.md), and gap G-01.

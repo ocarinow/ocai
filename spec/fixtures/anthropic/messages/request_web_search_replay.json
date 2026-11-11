@@ -1,0 +1,237 @@
+{
+  "description": "WU-43 synthetic basic web-search fixture, independently specified against docs/providers/anthropic.md section 16. Three measured search requests, one visible call and two results deliberately differ.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Find ocai documentation."
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "server_tool_call",
+            "kind": "web_search",
+            "call_id": "srvtoolu_synthetic_search",
+            "status": "output_available",
+            "payload": {
+              "type": "server_tool_use",
+              "id": "srvtoolu_synthetic_search",
+              "name": "web_search",
+              "input": {
+                "query": "ocai documentation"
+              }
+            },
+            "anchor": {
+              "provider": "anthropic",
+              "interface": "messages",
+              "kind": "web_search_call",
+              "id": "srvtoolu_synthetic_search",
+              "replay": "required"
+            }
+          },
+          {
+            "version": "2026-07",
+            "type": "server_tool_result",
+            "kind": "web_search",
+            "call_id": "srvtoolu_synthetic_search",
+            "status": "output_available",
+            "payload": {
+              "type": "web_search_tool_result",
+              "tool_use_id": "srvtoolu_synthetic_search",
+              "content": [
+                {
+                  "type": "web_search_result",
+                  "url": "https://example.com/ocai",
+                  "title": "ocai",
+                  "encrypted_content": "synthetic+/==search-A",
+                  "page_age": "1 day ago"
+                },
+                {
+                  "type": "web_search_result",
+                  "url": "https://example.com/guide",
+                  "title": "Guide",
+                  "encrypted_content": "synthetic+/==search-B"
+                }
+              ]
+            },
+            "anchor": {
+              "provider": "anthropic",
+              "interface": "messages",
+              "kind": "web_search_result",
+              "id": "srvtoolu_synthetic_search",
+              "replay": "required"
+            }
+          },
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "ocai supports common interfaces.",
+            "annotations": [
+              {
+                "version": "2026-07",
+                "kind": "url_citation",
+                "url": "https://example.com/ocai",
+                "title": "ocai",
+                "cited_text": "One common interface",
+                "opaque": {
+                  "provider": "anthropic",
+                  "interface": "messages",
+                  "kind": "web_search_citation",
+                  "id": "synthetic+/==citation",
+                  "replay": "required"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Continue."
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 128
+    },
+    "tools": [
+      {
+        "version": "2026-07",
+        "type": "server",
+        "kind": "web_search",
+        "allowed_domains": [
+          "example.com"
+        ],
+        "user_location": {
+          "version": "2026-07",
+          "country": "FR"
+        },
+        "extensions": {
+          "anthropic.web_search": {
+            "max_uses": 5
+          }
+        },
+        "provider_options": {
+          "anthropic.messages": {
+            "type": "web_search_20250305"
+          }
+        }
+      }
+    ]
+  },
+  "expect": {
+    "model": "claude-opus-4-6",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Find ocai documentation."
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "server_tool_use",
+            "id": "srvtoolu_synthetic_search",
+            "name": "web_search",
+            "input": {
+              "query": "ocai documentation"
+            }
+          },
+          {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_synthetic_search",
+            "content": [
+              {
+                "type": "web_search_result",
+                "url": "https://example.com/ocai",
+                "title": "ocai",
+                "encrypted_content": "synthetic+/==search-A",
+                "page_age": "1 day ago"
+              },
+              {
+                "type": "web_search_result",
+                "url": "https://example.com/guide",
+                "title": "Guide",
+                "encrypted_content": "synthetic+/==search-B"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "ocai supports common interfaces.",
+            "citations": [
+              {
+                "type": "web_search_result_location",
+                "url": "https://example.com/ocai",
+                "title": "ocai",
+                "encrypted_index": "synthetic+/==citation",
+                "cited_text": "One common interface"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Continue."
+          }
+        ]
+      }
+    ],
+    "max_tokens": 128,
+    "tools": [
+      {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 5,
+        "allowed_domains": [
+          "example.com"
+        ],
+        "user_location": {
+          "type": "approximate",
+          "country": "FR"
+        }
+      }
+    ]
+  },
+  "expect_losses": [],
+  "expect_shifts": []
+}

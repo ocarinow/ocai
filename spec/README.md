@@ -305,3 +305,14 @@ not a provider-search compatibility claim. Recorded Anthropic thinking replay
 pairs separately prove the qualified wire path and existing response fold law.
 `ocai.request_unparsed_anchors` retains indexed unknown/malformed continuation
 input without turning unknown replay obligations into optional ones.
+
+### Anthropic basic-search qualification (WU-43)
+
+`anthropic/messages/request_web_search*.json`, `response_web_search*.json`
+and `streams/stream_web_search*.json` qualify explicit `web_search_20250305`
+intent, whole-block citations, exact native replay and measured search units.
+`cross/decode_request_anthropic_web_search.json` pins request audit decoding.
+The paired HTTP/SSE transcript includes two turns, three measured operations,
+one visible call and two results; these counts must not be conflated. In-band
+tool failure and interrupted JSON input have separate recordings. All are
+synthetic, with opaque test values, and add no canonical revision or part type.

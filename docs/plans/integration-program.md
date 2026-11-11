@@ -303,7 +303,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-43 — Account for provider-executed search requests
 
-- [ ] **Status:** in progress; stacked on WU-42 (PR #83).
+- [x] **Status:** implemented; review in PR #87, stacked on WU-42 (PR #83).
 - **Goal:** Qualify one provider search surface with typed intent, replayable
   evidence, stream fold parity and measured search accounting.
 - **First step:** Verify the selected Anthropic web-search tool version, replay
@@ -325,11 +325,12 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Freeze:** additive open Usage consumption unit `search_requests` and its spec;
   no new part type or revision (integration ADR).
 - **Decision:** Vendor verification is recorded in Anthropic section 16. The selected
-  version is web_search_20250305; complete-part publication buffers only a server
+  version is explicitly pinned web_search_20250305; complete-part publication buffers only a server
   call input, without adding a canonical delta. Billable search operations and visible server-tool calls are
   different counts ([Search §1.1/1.4](../capabilities/web-search-and-retrieval.md)).
-- **Open:** Tool-version verification is a start gate; a version that cannot fit
-  the existing parts is a gap, not authority to promote ordered-item IR.
+- **Open:** No design blocker in the selected basic surface. Later tool versions,
+  dynamic filtering and programmatic callers remain excluded; synthetic recordings
+  establish documented-wire conformance, not live vendor certification.
 
 - **Area:** plugin: anthropic
 - **Priority:** P0

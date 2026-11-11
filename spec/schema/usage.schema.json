@@ -28,7 +28,7 @@
         },
         "unit": {
           "type": "string",
-          "description": "The open code for how the value is counted. Known canonical values: tokens, characters, requests, samples, currency (reserved for gateway-reported cost; the consumption's extensions carry the currency code). Unknown values are legal and preserved verbatim."
+          "description": "The open code for how the value is counted. Known canonical values: tokens, characters, requests, search_requests (measured billable searches), samples, currency (reserved for gateway-reported cost; the consumption's extensions carry the currency code). Unknown values are legal and preserved verbatim."
         },
         "source": {
           "type": "string",

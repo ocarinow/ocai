@@ -206,3 +206,11 @@ then emit a complete canonical part; do not add a kernel delta type. A result's
 required `anchor` scopes its complete native payload, identified by `tool_use_id`;
 multiple encrypted result strings remain verbatim inside that payload. Citation
 `opaque` stores its native encrypted index. Missing replay evidence is unsupported.
+
+WU-43 implementation qualification pins the basic version explicitly on each
+`ServerTool` through `provider_options["anthropic.messages"]["type"]`.
+Unpinned intent remains unsupported. `max_uses` uses the registered
+`anthropic.web_search` extension; absent usage remains unknown. Recordings are
+synthetic examples of the documented wire, not live-provider certification.
+Search input timing is reported as a semantic shift; incomplete input retains
+fragments without successful termination or replay authority.

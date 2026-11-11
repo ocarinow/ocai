@@ -232,6 +232,12 @@ first rerank/vectorstore implementation will force a hoist-or-duplicate
 decision on them while both packages are still provisional, decided then
 with real usage in hand.
 
+`UsageUnit.SEARCH_REQUESTS` names measured provider search operations. Anthropic
+`usage.server_tool_use.web_search_requests` maps to text/search_requests/output;
+it is not a token count and is never inferred from result or tool-call counts.
+Absent counts remain absent; unknown or malformed counters retain native evidence.
+Streaming settlement keys every bucket by modality, unit and source.
+
 ### 2.9 `traits.py` and survivors
 
 `DialectTraits` lives in the **contract layer**, not in `ocai.wire`: plugin
@@ -316,7 +322,11 @@ No tool definition executes code, fetches a URL, or implies an MCP registry.
 Request continuation uses `ChatRequest.anchors`; part replay state stays on
 `Part.anchor` and `Annotation.opaque`. A canonical response can be serialized and
 reused in request history without rewriting those opaque tokens. No automatic
-history persistence or continuation selection enters the kernel.
+history persistence or continuation selection enters the kernel. Anthropic basic
+search uses a required `web_search_call` or `web_search_result` anchor scoped by
+the native call id. The result's encrypted contents stay inside its verbatim
+payload. Whole-block URL citations use `Annotation.opaque` for encrypted indexes,
+without inventing spans or treating quoted source text as output text.
 
 **`types/config.py` — `ChatConfig`, shipped FULL** (the empty-scaffold failure
 is over). First-class by the three-lane law (§3.4): `temperature`, `top_p`,
@@ -623,6 +633,12 @@ When canonical revision `ocai@2027-01` ships, this module registers certified
 graph is the migration tool; archived transcripts convert forward through the
 same honest machinery.
 
+WU-43's Anthropic chunk edge declares `anthropic.search_input_buffered`: only
+one server-call input block is buffered until its stop event, then published as a
+complete part. Other content remains incremental. Missing or malformed input
+termination preserves fragments and reports an error without a success terminal.
+The census bounds qualified citation mapping and native fallback separately.
+
 ### 4.5 `conformance.py` — the moat as a product
 Pure-stdlib harness plugins import: golden-fixture runner, EdgeContract-vs-
 runtime-loss certifier, **fold triple** fixtures (wire event log → canonical
@@ -777,12 +793,19 @@ See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
 
-WU-41 qualifies safe fallback for server-tool request intent on Chat Completions
-and Anthropic Messages: only functions use the existing mapping; whole server or
-unknown entries are reported unsupported. No server-search version is claimed
-until its provider-specific WU qualifies mappings and replay. Request census and
-golden fixtures cover these exclusions; recorded unary/SSE pairs preserve the
-existing response fold law with the supported function lane intact.
+WU-43 qualifies Anthropic basic direct search when a `ServerTool("web_search")`
+explicitly pins `provider_options["anthropic.messages"]["type"]` to
+`web_search_20250305`. Domain and approximate location fields map directly;
+`extensions["anthropic.web_search"]["max_uses"]` carries the provider control.
+Unpinned intent, later tool versions and programmatic callers remain unsupported.
+Chat Completions still reports whole server-tool definitions unsupported.
+Request audit decoding preserves the selected definition and native search history.
+Whole-block citations use the existing annotation delta; HTTP-200 tool errors
+remain `output_error` server results with verbatim native error codes. Measured
+search usage stays separate from tokens; absence is never zero. Result/citation
+replay requires matching same-interface anchors and complete encrypted fields;
+caller fidelity policies can reject violations before I/O. Dynamic filtering,
+fetch, automatic search execution and cross-provider search replay are excluded.
 
 WU-42 qualifies existing Anthropic thinking-signature replay after canonical
 JSON serialization. Missing, empty, foreign-interface, wrong-kind and unqualified
@@ -790,8 +813,7 @@ model-scoped tokens produce unsupported findings; no foreign or fabricated
 signature is sent. Universal part anchors and citation opaque refs have explicit
 unsupported findings on unqualified request lanes. `FidelityPolicy` can deny
 these findings before every physical attempt, including streaming. Canonical
-server-tool transcript preservation does not qualify provider search replay;
-that remains WU-43.
+server-tool transcript preservation is qualified on the bounded WU-43 surface above.
 
 
 ```
@@ -930,7 +952,10 @@ WU-41 extends the request schema with a tool union and location definition, plus
 canonical round-trip and provider fallback fixtures; legacy function schemas
 remain valid and no canonical revision is registered. WU-42 adds continuation
 carrier/schema evidence and canonical transcript history alongside recorded
-thinking replay pairs. No existing canonical fixture is rewritten.
+thinking replay pairs. No existing canonical fixture is rewritten. WU-43 adds provider search request,
+audit, response and paired SSE fold fixtures, two-turn replay recordings, in-band
+tool failure and interrupted-input evidence. Its only core vocabulary addition is
+an open usage-unit constant; no new canonical node or part is registered.
 
 ## 11. Adding a capability (normative recipe)
 

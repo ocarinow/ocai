@@ -66,6 +66,7 @@ class UsageUnit:
             plural is canonical now).
         CHARACTERS: Counted in characters.
         REQUESTS: Counted in requests.
+        SEARCH_REQUESTS: Provider-reported billable search operations, not tokens or results.
         SAMPLES: Counted in samples.
         CURRENCY: Reserved for gateway-reported cost; the value is an
             amount and the consumption's `extensions` carry the currency
@@ -75,6 +76,7 @@ class UsageUnit:
     TOKENS: Final = "tokens"
     CHARACTERS: Final = "characters"
     REQUESTS: Final = "requests"
+    SEARCH_REQUESTS: Final = "search_requests"
     SAMPLES: Final = "samples"
     CURRENCY: Final = "currency"
 

@@ -1,0 +1,150 @@
+{
+  "description": "WU-43 synthetic wire-accurate basic search transcript against Anthropic section 16. Paired anthropic_web_search_stream and anthropic_web_search_stream_paired; fold triple streams/stream_web_search.json. Opaque tokens are synthetic.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "json": {
+      "model": "claude-opus-4-6",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Find ocai documentation."
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "server_tool_use",
+              "id": "srvtoolu_synthetic_search",
+              "name": "web_search",
+              "input": {
+                "query": "ocai documentation"
+              }
+            },
+            {
+              "type": "web_search_tool_result",
+              "tool_use_id": "srvtoolu_synthetic_search",
+              "content": [
+                {
+                  "type": "web_search_result",
+                  "url": "https://example.com/ocai",
+                  "title": "ocai",
+                  "encrypted_content": "synthetic+/==search-A",
+                  "page_age": "1 day ago"
+                },
+                {
+                  "type": "web_search_result",
+                  "url": "https://example.com/guide",
+                  "title": "Guide",
+                  "encrypted_content": "synthetic+/==search-B"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "ocai supports common interfaces.",
+              "citations": [
+                {
+                  "type": "web_search_result_location",
+                  "url": "https://example.com/ocai",
+                  "title": "ocai",
+                  "encrypted_index": "synthetic+/==citation",
+                  "cited_text": "One common interface"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Continue."
+            }
+          ]
+        }
+      ],
+      "max_tokens": 128,
+      "tools": [
+        {
+          "type": "web_search_20250305",
+          "name": "web_search",
+          "max_uses": 5,
+          "allowed_domains": [
+            "example.com"
+          ],
+          "user_location": {
+            "type": "approximate",
+            "country": "FR"
+          }
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_synthetic_search",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-opus-4-6",
+      "content": [
+        {
+          "type": "server_tool_use",
+          "id": "srvtoolu_synthetic_search",
+          "name": "web_search",
+          "input": {
+            "query": "ocai documentation"
+          }
+        },
+        {
+          "type": "web_search_tool_result",
+          "tool_use_id": "srvtoolu_synthetic_search",
+          "content": [
+            {
+              "type": "web_search_result",
+              "url": "https://example.com/ocai",
+              "title": "ocai",
+              "encrypted_content": "synthetic+/==search-A",
+              "page_age": "1 day ago"
+            },
+            {
+              "type": "web_search_result",
+              "url": "https://example.com/guide",
+              "title": "Guide",
+              "encrypted_content": "synthetic+/==search-B"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "ocai supports common interfaces.",
+          "citations": [
+            {
+              "type": "web_search_result_location",
+              "url": "https://example.com/ocai",
+              "title": "ocai",
+              "encrypted_index": "synthetic+/==citation",
+              "cited_text": "One common interface"
+            }
+          ]
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 17,
+        "server_tool_use": {
+          "web_search_requests": 3
+        }
+      }
+    }
+  }
+}
