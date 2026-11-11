@@ -399,8 +399,13 @@ def main() -> int:
                     *args.arguments,
                     "--local",
                 ]
+            # `operation` is restricted by argparse `choices` to the keys of `commands`;
+            # argv is ours, so Semgrep's tainted-subprocess rule does not apply here.
             return subprocess.run(
-                commands[args.operation], cwd=ROOT, env=env, check=False
+                commands[args.operation],  # nosemgrep
+                cwd=ROOT,
+                env=env,
+                check=False,
             ).returncode
     except KeyboardInterrupt:
         return 130

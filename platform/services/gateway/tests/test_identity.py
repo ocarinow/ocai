@@ -176,8 +176,8 @@ async def test_rotation_single_flight_and_refresh_limit(
     assert all(isinstance(result, InvalidToken) for result in results)
     assert issuer.calls == 2
     issuer.clock += 6
-    results = await asyncio.gather(*(verifier.verify(token) for _ in range(20)))
-    assert all(result.subject == "subject-one" for result in results)
+    verified = await asyncio.gather(*(verifier.verify(token) for _ in range(20)))
+    assert all(identity.subject == "subject-one" for identity in verified)
     assert issuer.calls == 4
 
 

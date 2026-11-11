@@ -31,12 +31,14 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, 'Release:')"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # This checkout keeps its credentials on purpose: create-pull-request pushes
+      # the `release` branch with them. zizmor: ignore[artipacked]
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
 
-      - uses: knope-dev/action@v2.1.0
+      - uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
         with:
           version: 0.23.2
 
@@ -45,6 +47,8 @@ jobs:
 
       - name: Describe the release
         id: describe
+        env:
+          RUN_ID: ${{ github.run_id }}
         run: |
           {
             echo "## Work unit"; echo
@@ -65,12 +69,12 @@ jobs:
             echo "## Privacy"; echo
             echo "- [x] Generated from change files that passed the privacy guard in their own PRs"; echo
             echo "## Verification"; echo
-            echo '```'; echo "knope prepare-release (CI run ${{ github.run_id }})"; echo '```'
+            echo '```'; echo "knope prepare-release (CI run $RUN_ID)"; echo '```'
           } > /tmp/release_pr_body.md
           echo "body=/tmp/release_pr_body.md" >> "$GITHUB_OUTPUT"
 
       - name: Open or update the Release PR
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
           token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
           branch: release

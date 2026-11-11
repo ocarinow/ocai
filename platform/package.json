@@ -14,14 +14,17 @@
     "dev": "npm run dev --workspace @ocarinow/console",
     "build": "npm run build --workspace @ocarinow/console",
     "typecheck": "npm run typecheck --workspace @ocarinow/console",
+    "lint": "eslint .",
     "test": "node --experimental-strip-types --test tests/integration/client.test.ts",
     "test:browser": "playwright test",
     "generate:client": "openapi-typescript spec/management.openapi.json -o packages/management-client/schema.d.ts",
     "check:client": "openapi-typescript spec/management.openapi.json -o packages/management-client/schema.d.ts --check"
   },
   "devDependencies": {
+    "@nuxt/eslint-config": "^1.17.0",
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.19.2",
+    "eslint": "^10.14.0",
     "openapi-typescript": "^7.10.0",
     "typescript": "~5.9.3",
     "vue-tsc": "^3.1.0"

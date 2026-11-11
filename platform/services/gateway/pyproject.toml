@@ -34,13 +34,15 @@ venv = ".venv"
 [tool.mypy]
 strict = true
 python_version = "3.13"
-files = ["app", "migrations"]
+files = ["app", "migrations", "tests"]
+explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --import-mode=importlib"
+addopts = "-q --import-mode=importlib --strict-markers --strict-config"
 asyncio_mode = "auto"
 pythonpath = ["."]
+filterwarnings = ["error"]
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "storage: real disposable PostgreSQL integration (requires Docker)",

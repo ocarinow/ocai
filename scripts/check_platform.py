@@ -16,11 +16,13 @@ def main() -> int:
     args = parser.parse_args()
     gateway = ("uv", "run", "--directory", "services/gateway", "--frozen")
     commands: list[tuple[str, ...]] = [
+        ("uv", "lock", "--check", "--directory", "services/gateway"),
         (*gateway, "ruff", "check"),
         (*gateway, "pyright"),
         (*gateway, "mypy"),
         ("npm", "run", "check:client"),
         ("npm", "run", "typecheck"),
+        ("npm", "run", "lint"),
     ]
     if not args.no_tests:
         commands.extend(

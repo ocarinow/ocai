@@ -6,6 +6,10 @@ on:
     branches: [main]
   pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
+  # Nightly full run on main: catches drift in pinned images, package indexes
+  # and advisories that no commit triggered.
+  schedule:
+    - cron: "41 4 * * *"
 
 # Least privilege: every job here only reads the repository. A job that needs
 # more declares it on the job, never here.
@@ -13,25 +17,27 @@ permissions:
   contents: read
 
 # One live run per pull request: a new push cancels the superseded run. Pushes
-# to main are never cancelled, so every merge commit keeps its full record.
+# to main and the nightly run are never cancelled.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Path-filtered per job, INSIDE the job: the required status checks on main
-# (python, privacy, pr-hygiene, platform, docs — ADR 0002) must report on
-# every pull request, so each job always starts, decides in seconds whether
-# the change touches its tree, and skips its heavy steps otherwise. Every
-# implementation job ALSO triggers on spec/** so that a change to the
-# language-neutral source of truth re-runs each conformance suite — the
+# (python, python-next, privacy, pr-hygiene, platform, docs, workflows,
+# semgrep, dependency-review — ADR 0002) must report on every pull request, so
+# each job always starts, decides in seconds whether the change touches its
+# tree, and skips its heavy steps otherwise. The nightly run forces every
+# step. Every implementation job ALSO triggers on spec/** so that a change to
+# the language-neutral source of truth re-runs each conformance suite — the
 # intended cross-language drift alarm.
 #
 # Actions are pinned to a commit SHA with the version as a trailing comment;
-# Dependabot (.github/dependabot.yml) keeps both current.
+# Dependabot (.github/dependabot.yml) keeps both current. Checkouts never
+# persist credentials; nothing here pushes.
 jobs:
   # Every PR follows .github/PULL_REQUEST_TEMPLATE.md: WU-NN title, every
-  # section present from the first draft, no unchecked box once ready, a
-  # Stacked-on note when the base is not main (AGENTS.md). Required on main.
+  # section present from the first draft, content once ready, a Stacked-on
+  # note when the base is not main (AGENTS.md). Required on main.
   pr-hygiene:
     name: pr-hygiene
     if: github.event_name == 'pull_request'
@@ -41,6 +47,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       # Branch names come from the PR author: they reach the script through the
       # environment, never interpolated into it (actionlint: script injection).
       - name: Change files (release intent travels with the change — ADR 0010)
@@ -79,6 +86,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Save PR title and body
         if: github.event_name == 'pull_request'
         env:
@@ -86,23 +94,41 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > /tmp/pr_text.txt
       - name: Privacy guard (commits + PR text + files)
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            python3 scripts/privacy_check.py --range "origin/${{ github.base_ref }}..HEAD" --text /tmp/pr_text.txt
+          if [ "$EVENT" = "pull_request" ]; then
+            python3 scripts/privacy_check.py --range "origin/$BASE_REF..HEAD" --text /tmp/pr_text.txt
+          elif [ -n "$BEFORE" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
+            python3 scripts/privacy_check.py --range "$BEFORE..HEAD"
           else
-            python3 scripts/privacy_check.py --range "${{ github.event.before }}..HEAD" || python3 scripts/privacy_check.py --range "HEAD~1..HEAD"
+            python3 scripts/privacy_check.py --range "HEAD~1..HEAD"
           fi
 
+  # The kernel gate on every supported interpreter. `python` (3.13) and
+  # `python-next` (3.14) are both required checks; the names stay fixed so the
+  # ruleset does not change when a version rolls.
   python:
-    name: python
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: python, python: "3.13" }
+          - { name: python-next, python: "3.14" }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       # Cheap path filter: decide whether the rest of the job should run.
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
+        if: github.event_name != 'schedule'
         with:
           filters: |
             run:
@@ -115,65 +141,87 @@ jobs:
               - 'uv.lock'
               - 'knope.toml'
               - '.github/workflows/ci.yml'
+      - id: go
+        env:
+          CHANGED: ${{ steps.changes.outputs.run }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "schedule" ] || [ "$CHANGED" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; fi
 
       - name: Install uv
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
       - name: Set up Python
-        if: steps.changes.outputs.run == 'true'
-        run: uv python install 3.13
+        if: steps.go.outputs.run == 'true'
+        env:
+          PY: ${{ matrix.python }}
+        run: uv python install "$PY"
 
       # --locked: a lockfile that no longer matches pyproject.toml is a failure,
       # never a silent re-resolution on the runner.
       - name: Sync workspace
-        if: steps.changes.outputs.run == 'true'
-        run: uv sync --locked
+        if: steps.go.outputs.run == 'true'
+        env:
+          PY: ${{ matrix.python }}
+        run: uv sync --locked --python "$PY"
 
       # Every distribution under python/packages must be wired into knope,
       # uv sources, mypy, import-linter, and the core extras (rules 1, 16, 19).
       - name: Workspace consistency
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run python scripts/workspace_check.py
 
+      - name: Task catalogue is current
+        if: steps.go.outputs.run == 'true'
+        run: uv run python tasks/render_readme.py --check
+
       - name: Ruff
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run ruff check
 
       - name: Ruff format
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run ruff format --check
 
       # Architecture §1 made executable: the layered + forbidden import
       # contracts in the root pyproject [tool.importlinter].
       - name: Import contracts
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run lint-imports
 
       # Rule 16 for the IDE: pyright strict is what Pylance shows users —
       # nothing may resolve to Unknown. mypy strict is the second opinion.
       - name: Pyright (strict)
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run pyright
 
       - name: Mypy (strict)
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run mypy
 
       # Coverage is informational (no threshold yet): the same flags as the gate.
       - name: Pytest
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: uv run pytest --cov --cov-report=term-missing
+
+      # What ships: every wheel built and opened (no namespace-root __init__,
+      # py.typed per portion, license and URLs in METADATA).
+      - name: Wheels
+        if: steps.go.outputs.run == 'true'
+        run: uv run python scripts/wheel_check.py
 
       # Build/install ordinary wheels in a fresh environment: source-path
       # injection would miss broken namespace packaging and entry points.
       - name: Independently installed community plugin
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
+        env:
+          PY: ${{ matrix.python }}
         run: >-
-          uv run --no-cache --isolated --no-project --python 3.13
+          uv run --no-cache --isolated --no-project --python "$PY"
           --with ./python/packages/ocai-core
           --with ./examples/ocai-contrib-echo --with pytest --with jsonschema
           python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib
@@ -188,48 +236,57 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
+        if: github.event_name != 'schedule'
         with:
           filters: |
             run:
               - 'platform/**'
               - 'scripts/check_platform.py'
               - '.github/workflows/ci.yml'
+      - id: go
+        env:
+          CHANGED: ${{ steps.changes.outputs.run }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "schedule" ] || [ "$CHANGED" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; fi
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: platform/package-lock.json
 
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         with:
           enable-cache: true
           cache-dependency-glob: platform/services/gateway/uv.lock
 
-      - if: steps.changes.outputs.run == 'true'
+      - if: steps.go.outputs.run == 'true'
         run: uv python install 3.13
 
-      - if: steps.changes.outputs.run == 'true'
+      - if: steps.go.outputs.run == 'true'
         run: uv sync --project platform/services/gateway --frozen
 
       # Missing Docker must fail the integration job, never silently skip integration.
       - name: Verify Docker for platform integration
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         run: docker info --format '{{.ServerVersion}}'
 
-      - if: steps.changes.outputs.run == 'true'
+      - if: steps.go.outputs.run == 'true'
         run: npm ci
         working-directory: platform
 
       # Browser binaries are keyed on the lockfile (which pins @playwright/test);
       # a hit skips the download and only installs the OS packages it needs.
       - name: Cache Playwright browsers
-        if: steps.changes.outputs.run == 'true'
+        if: steps.go.outputs.run == 'true'
         id: playwright
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -237,17 +294,95 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('platform/package-lock.json') }}
 
       - name: Install Playwright Chromium
-        if: steps.changes.outputs.run == 'true' && steps.playwright.outputs.cache-hit != 'true'
+        if: steps.go.outputs.run == 'true' && steps.playwright.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
         working-directory: platform
 
       - name: Install Playwright system dependencies (browsers cached)
-        if: steps.changes.outputs.run == 'true' && steps.playwright.outputs.cache-hit == 'true'
+        if: steps.go.outputs.run == 'true' && steps.playwright.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
         working-directory: platform
 
-      - if: steps.changes.outputs.run == 'true'
+      - if: steps.go.outputs.run == 'true'
         run: uv run --project platform/services/gateway python scripts/check_platform.py
+
+  # The workflows themselves: zizmor (security audit of GitHub Actions
+  # workflows) and actionlint (syntax, expressions, shellcheck). Both open
+  # source, keyless, pinned.
+  workflows:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uvx --from zizmor==1.32.0 zizmor --no-progress --persona regular .github/workflows
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color # 1.7.12
+
+  # Static analysis with Semgrep Community Edition (LGPL, no account, no key):
+  # the Python, TypeScript and GitHub Actions rulesets, blocking on findings.
+  # Suppressions are inline `# nosemgrep` with a reason on the line above.
+  semgrep:
+    name: semgrep
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
+      - name: Semgrep CE
+        run: >-
+          uvx semgrep==1.185.0 scan --metrics=off --error
+          --config p/python --config p/typescript --config p/github-actions
+          python scripts tasks examples
+          platform/services platform/apps platform/packages/nuxt-platform
+          platform/packages/management-client platform/tests .github
+
+  # A pull request may not add a dependency with a known vulnerability or a
+  # copyleft license (the repository is FSL; copyleft would leak into it).
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, SSPL-1.0
+          comment-summary-in-pr: on-failure
+
+  # Nightly only: known vulnerabilities in the platform's npm tree at high
+  # severity. Informational on PRs would train everyone to ignore red, so it
+  # runs once a day against main and fails that run.
+  audit:
+    name: audit (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - run: npm audit --audit-level=high
+        working-directory: platform
 
   typescript:
     name: typescript
@@ -255,8 +390,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
+        if: github.event_name != 'schedule'
         with:
           filters: |
             run:
@@ -272,8 +410,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
+        if: github.event_name != 'schedule'
         with:
           filters: |
             run:

@@ -51,9 +51,39 @@ src = ["python/packages/*/src"]
 # "D" makes rule 18 (Google-style docstrings) executable. The D1xx
 # undocumented-object rules stay off: coverage is a review judgment, style is
 # not (docs/decisions/0001-agent-neutral-repo-layout.md).
-select = ["E", "F", "I", "UP", "B", "PERF", "D"]
+# "S" is the flake8-bandit set: subprocess, SQL strings, hard-coded secrets,
+# bare `except: pass`, `assert` in production code (stripped under -O).
+select = ["E", "F", "I", "UP", "B", "PERF", "D", "S"]
 # UP042: we use `(str, Enum)` deliberately rather than `StrEnum`.
 ignore = ["UP042", "D1"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert (S101), build SQL for disposable databases from test constants
+# (S608), spawn Docker and tooling with trusted argv (S603/S607), and name a
+# fake secret (S105).
+"**/tests/**" = ["S101", "S105", "S603", "S607", "S608"]
+# The gate and task scripts exist to spawn git, gh, uv, npm and docker with
+# argv the script itself assembles (S603/S607).
+"scripts/**" = ["S603", "S607"]
+"tasks/**" = ["S603", "S607"]
+# The conformance harness is executed by tests and asserts by design.
+"python/packages/ocai-core/src/ocai/convert/conformance.py" = ["S101"]
+# Passive observers and stream notifications isolate callback failures on
+# purpose (comments at the sites); logging there would leak what the
+# callback saw (rule 13).
+"python/packages/ocai-core/src/ocai/chat/types/stream.py" = ["S110"]
+"python/packages/ocai-core/src/ocai/runtime/observe.py" = ["S110"]
+# Type-narrowing asserts in production paths; converting them to explicit
+# raises is a kernel change tracked as a follow-up, not a tooling change.
+"python/packages/ocai-anthropic/src/ocai/anthropic/messages/codec.py" = ["S101"]
+"python/packages/ocai-core/src/ocai/runtime/drivers.py" = ["S101"]
+# resources.py asserts that an extension key is registered: under `python -O`
+# that check vanishes, which is an honesty gap (rule 5) — tracked as a
+# follow-up kernel change, not silenced for good.
+"python/packages/ocai-core/src/ocai/convert/resources.py" = ["S101"]
+"python/packages/ocai-anthropic/src/ocai/anthropic/messages/search.py" = ["S101"]
+"platform/services/gateway/app/identity/issuer.py" = ["S101"]
+"platform/services/gateway/app/storage/repository.py" = ["S101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -131,9 +161,13 @@ precision = 1
 [tool.pytest.ini_options]
 testpaths = ["python/packages/*/tests"]
 # importlib mode lets sibling distributions ship same-named test modules
-# (every distribution carries a test_conformance.py).
-addopts = "-q --import-mode=importlib"
+# (every distribution carries a test_conformance.py). --strict-markers and
+# --strict-config refuse unknown markers and misspelt options.
+addopts = "-q --import-mode=importlib --strict-markers --strict-config"
 asyncio_mode = "auto"
+# A warning is a failure: deprecations in a dependency or in our own code
+# surface in the run that introduces them, not in the release that breaks.
+filterwarnings = ["error"]
 
 # ---------------------------------------------------------------------------
 # Import contracts (architecture §1) — run with `uv run lint-imports`.
