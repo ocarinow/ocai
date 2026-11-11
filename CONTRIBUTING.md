@@ -80,8 +80,11 @@ must follow (coding agents read the same file). In particular:
 - `uv run python scripts/check.py` exits 0 (privacy guard, ruff, import contracts,
   pyright, mypy, pytest) — or `task check` with [Task](https://taskfile.dev)
   installed; `task` lists every development command.
-- The gate also verifies the platform. Install its separate dependencies and
-  browser runtime as described in [platform development](platform/README.md).
+- The gate is path-aware: the kernel steps always run; the platform gate, the
+  docs build, the isolated plugin install, and the change-file policy run only
+  when your change touches their tree (`--all` forces them, `task check:all`).
+  A platform change needs Docker and the Node and browser runtime described in
+  [platform development](platform/README.md).
 - Tests use **recorded HTTP request/response pairs** (respx/VCR-style), never
   live API keys and never provider-SDK mocks.
 - No provider SDKs and no pydantic in `ocai-core`; credentials are explicit-only.

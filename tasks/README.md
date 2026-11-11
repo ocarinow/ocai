@@ -35,7 +35,8 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
-| `task py:check` | The full gate — privacy guard, workspace consistency, ruff, format, import contracts, pyright strict, mypy strict, pytest, platform |
+| `task py:check` | The gate — kernel steps always, platform/docs/echo/change-file steps when their tree changed (task check:all forces them) |
+| `task py:check:all` | The full gate with every path-aware step forced (platform, docs, echo plugin, change files) |
 | `task py:check:fast` | The gate without tests (lint, contracts, types) |
 | `task py:demo` | Flagship demo 1 — the cross-conversion fidelity report (no network) |
 | `task py:echo` | Run the community plugin template's own suite in isolation |
@@ -56,7 +57,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | Task | Does |
 |---|---|
 | `task docs:build` | Render the static site into ./site (gitignored), exactly as the deploy job does |
-| `task docs:check` | Build and fail on any warning (missing nav page, broken link) |
+| `task docs:check` | Build and fail on any warning (missing nav page, broken link) — the gate's docs step |
 | `task docs:clean` | Remove the built site |
 | `task docs:orphans` | List docs pages that are not in the zensical.toml nav |
 | `task docs:serve` | Live preview at http://127.0.0.1:8000 (rebuilds on save) |

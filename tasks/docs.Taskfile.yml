@@ -14,11 +14,9 @@ tasks:
       - uv run --group docs zensical build --clean
 
   check:
-    desc: Build and fail on any warning (missing nav page, broken link)
+    desc: Build and fail on any warning (missing nav page, broken link) — the gate's docs step
     cmds:
-      - |
-        out=$(uv run --group docs zensical build --clean 2>&1); echo "$out"
-        echo "$out" | grep -q "No issues found"
+      - uv run python scripts/docs_check.py
 
   orphans:
     desc: List docs pages that are not in the zensical.toml nav
