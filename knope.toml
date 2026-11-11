@@ -27,6 +27,10 @@ changelog = "python/packages/ocai-anthropic/CHANGELOG.md"
 versioned_files = ["python/packages/ocai-deepseek/pyproject.toml"]
 changelog = "python/packages/ocai-deepseek/CHANGELOG.md"
 
+[packages.ocai-aws]
+versioned_files = ["python/packages/ocai-aws/pyproject.toml"]
+changelog = "python/packages/ocai-aws/CHANGELOG.md"
+
 # Commit subjects are `WU-NN: …`, not conventional commits: only change files drive versions.
 [changes]
 ignore_conventional_commits = true

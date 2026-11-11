@@ -1,0 +1,5 @@
+AWS signing test vectors in aws_vectors.json are adapted from aws-c-auth.
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Licensed under Apache-2.0; see AWS-VECTORS-LICENSE.
+Source commit: bdb7cef99d8bd1ad3c189b1400140a7787e47105.
+Changes: selected header-signing vectors packaged as JSON; expected values unchanged.

@@ -27,6 +27,12 @@ principle applies to future Google authentication, Vertex hosting and Gemini
 conversion packages. This ADR does not implement those packages or approve any
 non-chat canonical interface design.
 
+Users install the ocai provider package; its SDK dependency installs transitively.
+They never import SDK clients, sessions, credentials or exceptions. Public APIs
+accept ocai types and plain configuration values; SDK objects remain private.
+The driver invokes existing contracts without provider-specific branches. A
+missing capability becomes a separately reviewed reusable contract gap.
+
 AI SDK clients remain excluded from conversion and execution: ocai owns the wire
 and per-edge fidelity. Explicit credential sourcing, per-attempt leaf application,
 redacted representations, and hook/observer isolation remain unchanged. Sanitize

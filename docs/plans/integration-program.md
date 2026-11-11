@@ -557,7 +557,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-47 — Sign independent transport attempts with SigV4
 
-- [ ] **Status:** in progress; provider authentication dependency approved.
+- [x] **Status:** complete; review pending in PR #106.
 - **Goal:** Authenticate AWS requests through the existing explicit Credential
   seam using AWS-maintained signing code. The current ApiKey can set a bearer
   header but cannot sign a final method, URI, headers and body; putting signing

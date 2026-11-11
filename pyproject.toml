@@ -11,6 +11,7 @@ ocai = { workspace = true }
 ocai-openai = { workspace = true }
 ocai-anthropic = { workspace = true }
 ocai-deepseek = { workspace = true }
+ocai-aws = { workspace = true }
 
 # Dev tooling for the whole workspace. Installed by `uv sync` by default.
 # respx records HTTP request/response pairs so adapter tests need no live keys
@@ -139,11 +140,12 @@ mypy_path = [
     "python/packages/ocai-openai/src",
     "python/packages/ocai-anthropic/src",
     "python/packages/ocai-deepseek/src",
+    "python/packages/ocai-aws/src",
 ]
 packages = [
     "ocai.contrib.echo",
     "ocai.core", "ocai.chat", "ocai.embedding", "ocai.vectorstore",
-    "ocai.convert", "ocai.runtime", "ocai.wire", "ocai.openai", "ocai.anthropic", "ocai.deepseek",
+    "ocai.convert", "ocai.runtime", "ocai.wire", "ocai.openai", "ocai.anthropic", "ocai.deepseek", "ocai.aws",
 ]
 
 # Coverage is INFORMATIONAL (no threshold yet): the gate's pytest step and CI
@@ -191,6 +193,7 @@ root_packages = [
     "ocai.openai",
     "ocai.anthropic",
     "ocai.deepseek",
+    "ocai.aws",
 ]
 include_external_packages = true
 exclude_type_checking_imports = true
@@ -254,7 +257,7 @@ ignore_imports = [
 [[tool.importlinter.contracts]]
 name = "Plugins never import ocai.wire, ocai.runtime, or httpx"
 type = "forbidden"
-source_modules = ["ocai.openai", "ocai.anthropic", "ocai.deepseek"]
+source_modules = ["ocai.openai", "ocai.anthropic", "ocai.deepseek", "ocai.aws"]
 forbidden_modules = ["ocai.wire", "ocai.runtime", "httpx"]
 ignore_imports = [
     "ocai.openai.chat_completions -> ocai.chat",

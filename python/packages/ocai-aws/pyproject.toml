@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ocai-aws"
+version = "0.1.0"
+description = "Explicit AWS authentication for ocai transport requests."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "FSL-1.1-ALv2"
+authors = [{ name = "ocai maintainers" }]
+dependencies = ["ocai>=0.1,<0.2", "awscrt>=0.38.1,<0.39"]
+
+[project.urls]
+Homepage = "https://github.com/ocarinow/ocai"
+Source = "https://github.com/ocarinow/ocai"
+Documentation = "https://ocarinow.github.io/ocai/"
+Changelog = "https://github.com/ocarinow/ocai/blob/main/python/packages/ocai-aws/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ocai"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["src"]
