@@ -1,0 +1,74 @@
+version: "3"
+
+tasks:
+  init:
+    internal: true
+    run: once
+    cmds:
+      - uv run python scripts/serve_platform.py init
+
+  install:gateway:
+    internal: true
+    run: once
+    cmds:
+      - uv sync --project platform/services/gateway --frozen
+
+  install:console:
+    internal: true
+    run: once
+    sources:
+      - platform/package-lock.json
+      - platform/package.json
+    generates:
+      - platform/node_modules/.package-lock.json
+    cmds:
+      - npm ci --prefix platform
+
+  postgres:
+    desc: Start isolated local PostgreSQL and wait until healthy (preserves development data)
+    deps: [init]
+    run: once
+    cmds:
+      - uv run python scripts/serve_platform.py postgres
+
+  keycloak:
+    desc: Start local Keycloak with its PostgreSQL dependency and wait for issuer discovery
+    deps: [postgres]
+    run: once
+    cmds:
+      - uv run python scripts/serve_platform.py keycloak
+
+  setup:
+    desc: Explicitly provision local infrastructure, install dependencies and apply platform migrations
+    deps: [keycloak, install:gateway, install:console]
+    cmds:
+      - uv run python scripts/serve_platform.py migrate
+
+  gateway:
+    desc: Launch FastAPI with local issuer configuration after infrastructure and Python dependencies
+    deps: [keycloak, install:gateway]
+    cmds:
+      - uv run python scripts/serve_platform.py gateway
+
+  console:
+    desc: Launch Nuxt with frontend dependencies installed (use serve:all for the gateway too)
+    deps: [init, install:console]
+    cmds:
+      - uv run python scripts/serve_platform.py console
+
+  all:
+    desc: Launch gateway and console together with their dependencies (Ctrl+C stops foreground apps)
+    cmds:
+      - task --parallel serve:gateway serve:console
+
+  status:
+    desc: Show the state of this checkout's managed development infrastructure
+    deps: [init]
+    cmds:
+      - uv run python scripts/serve_platform.py status
+
+  stop:
+    desc: Stop managed development infrastructure while preserving data (foreground apps use Ctrl+C)
+    deps: [init]
+    cmds:
+      - uv run python scripts/serve_platform.py stop

@@ -28,6 +28,7 @@ DOMAINS: dict[str, str] = {
     "privacy": "Privacy guard — nothing from a session goes public",
     "pr": "Branches, worktrees, pull requests, reviews",
     "board": "The GitHub Project board — cards, sync, maintainer handoffs",
+    "serve": "Local platform — services, dependencies and lifecycle",
     "spec": "spec/ — schema and fixture validation",
     "release": "Versions and releases — changesets, bumps, changelogs (ADR 0010)",
 }

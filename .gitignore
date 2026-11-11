@@ -53,3 +53,7 @@ platform/playwright-report/
 # Never committed: they hold credentials.
 /.env
 /.envs/
+.local/
+
+# Task execution fingerprints
+.task/

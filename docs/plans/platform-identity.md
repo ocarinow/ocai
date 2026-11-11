@@ -146,11 +146,17 @@ change public liveness or foundation status to expose deployment secrets.
 
 ## WU-74 — Authenticate API callers through the reference issuer
 
-- [ ] **Status:** defined.
+- [x] **Status:** complete (implementation; review pending).
+- **Evidence:** Real Keycloak Authorization Code + S256 PKCE login, access-token
+  acceptance and ID-token rejection; adversarial claims, headers, rotation/outage
+  tests; full repository gate passed. Local PostgreSQL-backed Keycloak and
+  gateway/console startup verified through `serve:*` tasks.
 - **Goal:** Verify reference-provider access tokens into a trusted external identity context before any protected API can resolve a platform principal.
 - **Scope:** Gateway `app/identity/` verifier/context, configured app lifecycle,
   Keycloak development/CI provisioning, token-validation tests, explicit runtime
-  dependencies and safe error handling.
+  dependencies and safe error handling. Include `tasks/serve.Taskfile.yml`, the
+  root include, local Compose/helper configuration and generated task catalogue
+  for service startup with infrastructure/package dependencies (maintainer request).
 - **Done:** A real Keycloak Authorization Code login yields an access token which
   the gateway authentication dependency validates; tests reject ID tokens, wrong
   issuer/audience/algorithm, expired or malformed tokens and forged headers, and

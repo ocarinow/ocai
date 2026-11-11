@@ -11,6 +11,9 @@
 version: "3"
 
 includes:
+  serve:
+    taskfile: ./tasks/serve.Taskfile.yml
+    desc: Local platform services and their dependencies
   py:
     taskfile: ./tasks/python.Taskfile.yml
     desc: Python workspace — sync, lint, types, tests, the gate
