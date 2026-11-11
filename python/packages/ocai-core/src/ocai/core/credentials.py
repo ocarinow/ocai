@@ -55,6 +55,19 @@ class Credential(Protocol):
         ...
 
 
+class NoCredential:
+    """Explicit anonymous execution; never discover or inject authentication."""
+
+    __slots__ = ()
+
+    def apply(self, request: HttpRequest) -> None:
+        """Leave the transport request unchanged."""
+
+    def __repr__(self) -> str:
+        """Return an unambiguous representation of the caller's explicit choice."""
+        return "NoCredential()"
+
+
 class ApiKey:
     """A bearer/API-key credential.
 

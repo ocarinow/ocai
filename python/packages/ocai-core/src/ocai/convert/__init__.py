@@ -53,6 +53,7 @@ from ocai.convert.graph import StreamConverter
 from ocai.convert.graph import StreamConverterFactory
 from ocai.convert.graph import StreamEdge
 from ocai.convert.graph import StreamPipeline
+from ocai.convert.hosts import HostDescriptor
 from ocai.convert.migrate import register_revision_migration
 from ocai.convert.resources import ConformanceResources
 
@@ -60,6 +61,7 @@ __all__ = [
     "ENTRY_POINT_GROUP",
     "AdmissionError",
     "Catalog",
+    "HostDescriptor",
     "CatalogBuilder",
     "CatalogFragment",
     "CatalogLock",

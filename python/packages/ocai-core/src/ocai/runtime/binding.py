@@ -27,6 +27,7 @@ from dataclasses import field
 from typing import TYPE_CHECKING
 from typing import Literal
 
+from ocai.core._headers import merge_headers
 from ocai.core.credentials import Credential
 from ocai.core.errors import OcaiError
 
@@ -70,13 +71,18 @@ class Binding:
         transport: The wire port the send goes through; a dual-face transport
             (e.g. `HttpxTransport`) serves both drivers.
         extra_headers: Static caller headers merged *over* the host's headers,
-            so they win on conflict. Defaults to empty.
+            so they win on case-insensitive conflict. Copied on construction;
+            authentication headers require credentials instead. Defaults to empty.
     """
 
     host: Host
     credentials: Credential
     transport: Transport | SyncTransport
     extra_headers: Mapping[str, str] = field(default_factory=dict[str, str])
+
+    def __post_init__(self) -> None:
+        """Detach and validate non-secret header declarations."""
+        object.__setattr__(self, "extra_headers", merge_headers(self.extra_headers))
 
     def validate(self, mode: Mode = "sync") -> None:
         """Check this binding can serve `mode`, at composition time.

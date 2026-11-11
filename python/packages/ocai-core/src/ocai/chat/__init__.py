@@ -91,7 +91,7 @@ def model(
     spec: str,
     *,
     credentials: Credential,
-    host: Host | None = None,
+    host: Host | str | None = None,
     catalog: Catalog | None = None,
     transport: Transport | SyncTransport | None = None,
     interceptors: Sequence[CallInterceptor] = (),
@@ -137,8 +137,8 @@ def model(
             the `interface`/`tag` kwargs.
         credentials: The credential the driver applies at the leaf, per
             attempt. Required — there is no ambient discovery (rule 13).
-        host: The hosting target, or None for first-party `Direct` at the
-            dialect's declared origin.
+        host: A hosting target, a host name explicitly declared in the catalog,
+            or None for first-party `Direct` at the dialect's declared origin.
         catalog: The governed conversion catalog, or None for the
             entry-point-discovered `default_catalog()`.
         transport: The wire transport, or None for a fresh `HttpxTransport`.
@@ -176,6 +176,7 @@ def model(
     from ocai.core.identity import CHAT
     from ocai.runtime.binding import Binding
     from ocai.runtime.binding import CompositionError
+    from ocai.wire.hosting import Custom
     from ocai.wire.hosting import Direct
 
     provider, slash, model_name = spec.partition("/")
@@ -228,6 +229,8 @@ def model(
             )
         route = routes[0]
     codec = composed.component(provider, route.node.interface, CHAT)()
+    if isinstance(host, str):
+        host = Custom.from_descriptor(composed.host(host))
     if host is None:
         base_url = codec.dialect_traits().first_party_base_url
         if base_url is None:

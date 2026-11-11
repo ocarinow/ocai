@@ -93,6 +93,7 @@ from ocai.runtime.observe import Observer
 from ocai.runtime.observe import failure_status
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
+from ocai.wire.hosting import profile_key
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -495,6 +496,7 @@ class WireChatModel:
             "wire": _wire_identity(request), "model": self._model_name,
             "interface": self._interface, "tag": self._tag, "strict": self._strict,
             "catalog": self._catalog.lock().hash,
+            "profile_key": profile_key(self._binding.host, self._model_name),
             "policy": id(self._conversion_policy) if self._conversion_policy else None,
         }).encode()).hexdigest()
 
@@ -503,7 +505,8 @@ class WireChatModel:
         snapshot = deepcopy(request)
         prepared = self._prepare(deepcopy(snapshot), streaming=streaming)
         profiles = self._catalog.profiles_for(
-            prepared.route.node.provider, prepared.route.node.interface, self._model_name,
+            prepared.route.node.provider, prepared.route.node.interface,
+            profile_key(self._binding.host, self._model_name),
         )
         coverage = tuple(FeatureCoverage(
             feature, path, declared_support(profiles, feature),
@@ -622,7 +625,8 @@ class WireChatModel:
         if not features:
             return FidelityReport()
         profiles = self._catalog.profiles_for(
-            route.node.provider, route.node.interface, self._model_name
+            route.node.provider, route.node.interface,
+            profile_key(self._binding.host, self._model_name)
         )
         if not profiles:
             return FidelityReport()

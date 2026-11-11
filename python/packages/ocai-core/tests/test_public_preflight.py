@@ -109,12 +109,15 @@ async def test_snapshot_survives_input_and_inspection_mutation(
 async def test_binding_change_requires_revalidation() -> None:
     headers = {"X-Deployment": "approved"}
     transport = HttpxTransport(provider="openai")
-    model = WireChatModel(ChatCompletionsCodec(), Binding(
+    binding = Binding(
         host=Direct("https://api.openai.com"), credentials=ApiKey("sk-test"),
         transport=transport, extra_headers=headers,
-    ), Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o")
+    )
+    model = WireChatModel(ChatCompletionsCodec(), binding,
+                         Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o")
     prepared = model.prepare(ChatRequest(messages=[]))
-    headers["X-Deployment"] = "changed"
+    assert isinstance(binding.extra_headers, dict)
+    binding.extra_headers["X-Deployment"] = "changed"
     with respx.mock as router:
         with pytest.raises(StalePreparationError, match="configuration"):
             await prepared.achat()
