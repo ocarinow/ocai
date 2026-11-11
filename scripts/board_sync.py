@@ -250,10 +250,26 @@ def _when(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def read_plan() -> list[PlanRow]:
-    """Parse the WU rows of the plan table."""
+def plan_text(ref: str | None) -> str:
+    """The plan table text: from a git ref (`origin/main`) when given, else the working tree."""
+    if ref:
+        rel = PLAN.relative_to(ROOT).as_posix()
+        return _gh_git("show", f"{ref}:{rel}")
+    return PLAN.read_text(encoding="utf-8")
+
+
+def _gh_git(*args: str) -> str:
+    """Run git in the repo root and return stdout (raises on failure)."""
+    proc = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or f"git {' '.join(args)} failed")
+    return proc.stdout
+
+
+def read_plan(ref: str | None = None) -> list[PlanRow]:
+    """Parse the WU rows of the plan table (from `ref` when given)."""
     rows: list[PlanRow] = []
-    for line in PLAN.read_text(encoding="utf-8").splitlines():
+    for line in plan_text(ref).splitlines():
         m = ROW_RE.match(line)
         if m:
             link = LINK_RE.search(m.group(4))
@@ -275,12 +291,21 @@ def _anchor(heading: str) -> str:
     return re.sub(r"\s", "-", text.strip())
 
 
-def read_entry(row: PlanRow) -> Entry | None:
+def read_entry(row: PlanRow, ref: str | None = None) -> Entry | None:
     """Parse the WU's entry (heading + bullets) from the plan file the table row links."""
-    path = (PLAN.parent / row.file) if row.file else None
-    if path is None or not path.exists():
+    if not row.file:
         return None
-    lines = path.read_text(encoding="utf-8").splitlines()
+    if ref:
+        try:
+            text = _gh_git("show", f"{ref}:{(PLAN.parent / row.file).relative_to(ROOT).as_posix()}")
+        except RuntimeError:
+            return None
+    else:
+        path = PLAN.parent / row.file
+        if not path.exists():
+            return None
+        text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
     start = next(
         (i for i, ln in enumerate(lines) if (m := HEADING_RE.match(ln)) and m.group(1) == row.wu),
         None,
@@ -384,13 +409,21 @@ def read_pulls() -> dict[str, Pull]:
 
 
 def desired_status(row: PlanRow, pull: Pull | None, current: str | None) -> str:
-    """Derive the status a WU card must show."""
-    if row.done or (pull is not None and pull.state == "MERGED"):
+    """Derive the status a WU card must show.
+
+    An open PR is the strongest fact: a plan row flipped to ✅ before its PR
+    merged does not make the card Done.
+    """
+    if pull is not None and pull.state == "MERGED":
+        return "Done"
+    if pull is not None and pull.state == "OPEN":
+        if current == "Blocked on maintainer":
+            return current
+        return "In progress" if pull.draft else "In review"
+    if row.done:
         return "Done"
     if current == "Blocked on maintainer":
         return current
-    if pull is not None and pull.state == "OPEN":
-        return "In progress" if pull.draft else "In review"
     return "Defined"
 
 
@@ -575,9 +608,10 @@ def _find_pr_item(board: Board, number: int) -> Item | None:
 
 def cmd_sync(args: argparse.Namespace) -> int:
     """Reconcile plan rows, PRs, and cards; create and move cards with --apply."""
-    rows = read_plan()
+    rows = read_plan(args.ref)
     pulls = read_pulls()
     board = Board(args.project)
+    notices: list[str] = []
     print(f"plan rows: {len(rows)}; cards: {len(board.items)}; WU-titled PRs: {len(pulls)}")
     findings: list[str] = []
     known: set[str] = set()
@@ -605,7 +639,11 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 continue
             card = board.add_draft(f"{row.wu}: {row.title}", "")
             print(f"created card for {row.wu}")
-        entry = read_entry(row)
+        entry = read_entry(row, args.ref)
+        if row.done and pull is not None and pull.state == "OPEN":
+            findings.append(
+                f"{row.wu}: plan row is ✅ but PR #{pull.number} is still open (flip the row in the PR that merges)"
+            )
         if not row.done:  # historical rows predate the template; only open work is held to it
             if entry is None:
                 findings.append(f"{row.wu}: no entry heading in docs/plans/{row.file or '?'}")
@@ -648,12 +686,24 @@ def cmd_sync(args: argparse.Namespace) -> int:
     for item in board.items.values():
         m = ID_RE.match(item.title)
         if m and m.group(1) not in known:
-            findings.append(f"{m.group(1)}: card has no plan row")
+            if item.kind == "PullRequest":
+                notices.append(
+                    f"{m.group(1)}: PR #{item.number} has no plan row yet (defined in its own PR?)"
+                )
+            elif args.apply:
+                board.delete_item(
+                    item
+                )  # created from a PR branch's plan table; the row is not on main
+                print(f"{m.group(1)}: stray draft card removed (no plan row on main)")
+            else:
+                findings.append(f"{m.group(1)}: draft card has no plan row")
+    for n in notices:
+        print("  note: " + n)
     if findings:
         print("\nBOARD OUT OF SYNC:")
         for f in findings:
             print("  " + f)
-        return 1
+        return 0 if args.lenient else 1
     print("board: in sync")
     return 0
 
@@ -730,6 +780,12 @@ def main(argv: list[str] | None = None) -> int:
     p_sync = sub.add_parser("sync", help="reconcile; --apply creates cards and sets statuses")
     p_sync.add_argument("--apply", action="store_true")
     p_sync.add_argument("--stale-days", type=int, default=7)
+    p_sync.add_argument(
+        "--ref", default=None, help="read the plan from this git ref (CI: origin/main)"
+    )
+    p_sync.add_argument(
+        "--lenient", action="store_true", help="report findings but exit 0 (PR events)"
+    )
     p_sync.set_defaults(func=cmd_sync)
     p_add = sub.add_parser("add", help="add one card")
     p_add.add_argument("kind", choices=("wu", "decision", "gap"))
