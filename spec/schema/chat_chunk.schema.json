@@ -49,6 +49,10 @@
       "$ref": "stream_end.schema.json",
       "description": "The authoritative terminal record (streamStop): final usage/finish and the stream's FidelityReport. A stream that ends without one was aborted, and the accumulator seals its open parts with extensions[\"ocai.incomplete\"]."
     },
+    "info": {
+      "$ref": "chat_response.schema.json#/$defs/responseInfo",
+      "description": "Partial response identity/provenance; absent fields can arrive later, equal repeats are idempotent, conflicts retain first value and reported extension evidence (ADR 0015)."
+    },
     "raw_event": {
       "description": "The untouched provider frame this chunk was decoded from, for power users and the wiretap archive. Verbatim, deliberately unconstrained, and excluded from semantic equality (spec/canonical-json.md §8)."
     }

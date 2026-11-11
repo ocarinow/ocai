@@ -156,6 +156,7 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
 
 DECODE_RESPONSE_CONTRACT = EdgeContract(
     census={
+        "response_info": DeclaredDisposition(Disposition.EXTENSIONS),
         "choices[0].message.content": DeclaredDisposition(Disposition.EXACT),
         "choices[0].message.tool_calls[]": DeclaredDisposition(Disposition.EXACT),
         "choices[0].message.refusal": DeclaredDisposition(Disposition.EXACT),
@@ -229,6 +230,10 @@ DECODE_REQUEST_CONTRACT = EdgeContract(
 
 DECODE_CHUNK_CONTRACT = EdgeContract(
     census={
+        "id": DeclaredDisposition(Disposition.EXACT),
+        "model": DeclaredDisposition(Disposition.EXACT),
+        "created": DeclaredDisposition(Disposition.RENAMED),
+        "response_info": DeclaredDisposition(Disposition.EXTENSIONS),
         "choices[0].delta.content": DeclaredDisposition(Disposition.EXACT),
         "choices[0].delta.tool_calls": DeclaredDisposition(Disposition.EXACT),
         "choices[0].delta.refusal": DeclaredDisposition(Disposition.EXACT),
@@ -283,6 +288,7 @@ ENCODE_RESPONSE_CONTRACT = EdgeContract(
 
 ENCODE_CHUNK_CONTRACT = EdgeContract(
     census={
+        "chunk.info": DeclaredDisposition(Disposition.UNSUPPORTED),
         **ENCODE_RESPONSE_CONTRACT.census,
         "chunk.extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
         "chunk.type": DeclaredDisposition(Disposition.UNSUPPORTED),

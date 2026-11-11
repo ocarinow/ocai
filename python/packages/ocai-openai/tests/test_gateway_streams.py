@@ -16,6 +16,7 @@ from ocai.chat.types import ChunkType
 from ocai.chat.types import DeltaText
 from ocai.chat.types import PartText
 from ocai.chat.types import PartToolCall
+from ocai.chat.types import ResponseInfo
 from ocai.chat.types import StreamAccumulator
 from ocai.chat.types import StreamEnd
 from ocai.convert.catalog import Catalog
@@ -123,4 +124,15 @@ def test_no_success_after_failure(failure: str) -> None:
     tail, report = encoder.flush()
     assert tail == []
     assert report.losses
+    assert ENCODE_CHUNK_CONTRACT.certify(report.losses, report.shifts) == []
+
+
+def test_response_info_is_explicitly_unsupported_in_client_stream_mapping() -> None:
+    encoder = ClientStreamTransducer()
+    assert encoder.feed(ChatChunk(type=ChunkType.METADATA, info=ResponseInfo(model="native"))) == []
+    encoder.feed(ChatChunk(type=ChunkType.STREAM_STOP, end=StreamEnd()))
+    _, report = encoder.flush()
+    assert [(loss.path, loss.disposition.value) for loss in report.losses] == [
+        ("chunk.info", "unsupported")
+    ]
     assert ENCODE_CHUNK_CONTRACT.certify(report.losses, report.shifts) == []

@@ -1,5 +1,5 @@
 {
-  "description": "Decode+fold, plain text stream: a recorded-shape Messages SSE event log crosses anthropic/messages -> canonical chat.chunk. message_start splits into ordered chunks — STREAM_START, then the opening snapshot's running totals as a cumulative USAGE chunk (usage_cumulative per the chunk vocabulary) — the keep-alive ping surfaces as a PING chunk, content_block_start opens the PartText skeleton (this wire signals every part boundary explicitly, unlike chat_completions), text_delta fragments append as DeltaText, content_block_stop seals the slot with a bare partStop (no authoritative final part — the delta accumulation is the only carrier, so the ratchet's strip-and-refold clause is vacuous), message_delta carries the accumulating finish (stop_reason `stop_sequence` maps to the canonical open code with the native lane verbatim; the matched stop sequence rides the FINISH chunk's censused anthropic.stop_sequence extension) plus the cumulative usage snapshot covering only the keys it names (output_tokens — the transducer merges per source, so input keeps its message_start value), and message_stop emits the terminal streamStop whose StreamEnd carries the settled usage and finish. Synthetic, wire-accurate, hand-authored against MessageStartEvent/ContentBlockDeltaEvent/MessageDeltaEvent (wire.py).",
+  "description": "Decode+fold, plain text stream: a recorded-shape Messages SSE event log crosses anthropic/messages -> canonical chat.chunk. message_start splits into ordered chunks — STREAM_START, then the opening snapshot's running totals as a cumulative USAGE chunk (usage_cumulative per the chunk vocabulary) — the keep-alive ping surfaces as a PING chunk, content_block_start opens the PartText skeleton (this wire signals every part boundary explicitly, unlike chat_completions), text_delta fragments append as DeltaText, content_block_stop seals the slot with a bare partStop (no authoritative final part — the delta accumulation is the only carrier, so the ratchet's strip-and-refold clause is vacuous), message_delta carries the accumulating finish (stop_reason `stop_sequence` maps to the canonical open code with the native lane verbatim; the matched stop sequence rides the FINISH chunk's censused anthropic.stop_sequence extension) plus the cumulative usage snapshot covering only the keys it names (output_tokens — the transducer merges per source, so input keeps its message_start value), and message_stop emits the terminal streamStop whose StreamEnd carries the settled usage and finish. Synthetic, wire-accurate, hand-authored against MessageStartEvent/ContentBlockDeltaEvent/MessageDeltaEvent (wire.py). WU-46a strengthens the canonical expectations with response info from the unchanged wire envelope.",
   "node": {
     "provider": "anthropic",
     "interface": "messages",
@@ -24,8 +24,24 @@
     },
     {
       "version": "2026-07",
+      "type": "metadata",
+      "info": {
+        "version": "2026-07",
+        "id": {
+          "provider": "anthropic",
+          "interface": "messages",
+          "kind": "response_id",
+          "id": "msg_01Stream0PlainTextAAAAAA",
+          "replay": "optional"
+        },
+        "model": "claude-opus-4-8"
+      },
+      "seq": 1
+    },
+    {
+      "version": "2026-07",
       "type": "usage",
-      "seq": 1,
+      "seq": 2,
       "usage": {
         "version": "2026-07",
         "consumptions": [
@@ -48,12 +64,12 @@
     {
       "version": "2026-07",
       "type": "ping",
-      "seq": 2
+      "seq": 3
     },
     {
       "version": "2026-07",
       "type": "partStart",
-      "seq": 3,
+      "seq": 4,
       "index": 0,
       "part": {
         "version": "2026-07",
@@ -64,7 +80,7 @@
     {
       "version": "2026-07",
       "type": "partDelta",
-      "seq": 4,
+      "seq": 5,
       "index": 0,
       "delta": {
         "version": "2026-07",
@@ -75,7 +91,7 @@
     {
       "version": "2026-07",
       "type": "partDelta",
-      "seq": 5,
+      "seq": 6,
       "index": 0,
       "delta": {
         "version": "2026-07",
@@ -86,13 +102,13 @@
     {
       "version": "2026-07",
       "type": "partStop",
-      "seq": 6,
+      "seq": 7,
       "index": 0
     },
     {
       "version": "2026-07",
       "type": "finish",
-      "seq": 7,
+      "seq": 8,
       "extensions": {
         "anthropic.stop_sequence": "###"
       },
@@ -105,7 +121,7 @@
     {
       "version": "2026-07",
       "type": "usage",
-      "seq": 8,
+      "seq": 9,
       "usage": {
         "version": "2026-07",
         "consumptions": [
@@ -122,7 +138,7 @@
     {
       "version": "2026-07",
       "type": "streamStop",
-      "seq": 9,
+      "seq": 10,
       "end": {
         "version": "2026-07",
         "usage": {
@@ -184,6 +200,17 @@
           "source": "output"
         }
       ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "msg_01Stream0PlainTextAAAAAA",
+        "replay": "optional"
+      },
+      "model": "claude-opus-4-8"
     }
   }
 }

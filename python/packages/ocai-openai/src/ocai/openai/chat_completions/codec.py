@@ -24,6 +24,7 @@ below the graph at send time by `ocai.wire.hosting`.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -1397,6 +1398,14 @@ class ChatCompletionsCodec:
         finish = self._decode_finish(choice, extensions, losses)
         usage = _usage(payload.get("usage"))
         info = self._decode_info(payload)
+        if info.extensions:
+            losses.append(
+                FieldLoss(
+                    "response_info",
+                    Disposition.EXTENSIONS,
+                    note="malformed response identity retained verbatim",
+                )
+            )
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
             extensions[f"{self.provider}.{key}"] = payload[key]
             losses.append(
@@ -1432,25 +1441,29 @@ class ChatCompletionsCodec:
         Returns:
             The canonical `ResponseInfo`.
         """
-        raw_id = payload.get("id")
         raw_created = payload.get("created")
-        return ResponseInfo(
-            id=(
-                ProviderRef(
-                    provider=self.provider,
-                    interface=self.interface,
-                    kind="response_id",
-                    id=raw_id,
-                )
-                if isinstance(raw_id, str)
-                else None
-            ),
-            model=payload.get("model"),
-            created=(
-                datetime.fromtimestamp(raw_created, tz=UTC)
-                if isinstance(raw_created, (int, float)) and not isinstance(raw_created, bool)
-                else None
-            ),
+        created: Any = raw_created
+        if isinstance(raw_created, (int, float)) and not isinstance(raw_created, bool):
+            try:
+                created = datetime.fromtimestamp(raw_created, tz=UTC).isoformat()
+            except (ValueError, OverflowError, OSError):
+                pass  # The tolerant reader retains the invalid native timestamp.
+        raw_id = payload.get("id")
+        return ResponseInfo.from_dict(
+            {
+                "id": (
+                    ProviderRef(
+                        provider=self.provider,
+                        interface=self.interface,
+                        kind="response_id",
+                        id=raw_id,
+                    ).to_dict()
+                    if isinstance(raw_id, str)
+                    else raw_id
+                ),
+                "model": payload.get("model"),
+                "created": created,
+            }
         )
 
     def _decode_message(
@@ -1657,6 +1670,18 @@ class ChatCompletionsCodec:
                 )
                 continue
             self._decode_choice_frame(choice, raw, chunks)
+        if any(raw.get(key) is not None for key in ("id", "model", "created")):
+            info = self._decode_info(raw)
+            if info.extensions:
+                losses.append(
+                    FieldLoss(
+                        "response_info",
+                        Disposition.EXTENSIONS,
+                        note="malformed response identity retained verbatim",
+                    )
+                )
+            position = 1 if chunks and chunks[0].type == ChunkType.STREAM_START else 0
+            chunks.insert(position, ChatChunk(type=ChunkType.METADATA, info=info, raw_event=raw))
         usage = _usage(raw.get("usage"))
         if usage is not None:
             # stream_options include_usage: the final chunk reports the whole
@@ -1832,6 +1857,7 @@ class ChatCompletionsStreamTransducer:
     def __init__(self) -> None:
         """Initialize per-stream state (codec, sequence counter, slots, records)."""
         self._codec = ChatCompletionsCodec()
+        self._last_info: dict[str, Any] | None = None
         self._seq = 0
         self._losses: list[FieldLoss] = []
         self._usage: Usage | None = None
@@ -1873,6 +1899,11 @@ class ChatCompletionsStreamTransducer:
             when it is the first delta into an unopened text/refusal slot.
         """
         emitted: list[ChatChunk] = []
+        if chunk.type == ChunkType.METADATA and chunk.info is not None:
+            snapshot = chunk.info.to_dict()
+            if snapshot == self._last_info:
+                return []
+            self._last_info = deepcopy(snapshot)
         if chunk.type == ChunkType.PART_START:
             if chunk.index is not None:
                 self._started.add(chunk.index)

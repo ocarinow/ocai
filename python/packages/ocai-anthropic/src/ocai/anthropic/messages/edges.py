@@ -167,6 +167,7 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
 
 DECODE_RESPONSE_CONTRACT = EdgeContract(
     census={
+        "response_info": DeclaredDisposition(Disposition.EXTENSIONS),
         "content[text]": DeclaredDisposition(Disposition.EXACT),
         "content[].citations[]": DeclaredDisposition(Disposition.EXTENSIONS),
         "content[text].citations": DeclaredDisposition(Disposition.EXTENSIONS),
@@ -276,6 +277,9 @@ DECODE_REQUEST_CONTRACT = EdgeContract(
 
 DECODE_CHUNK_CONTRACT = EdgeContract(
     census={
+        "message_start.message.id": DeclaredDisposition(Disposition.EXACT),
+        "message_start.message.model": DeclaredDisposition(Disposition.EXACT),
+        "response_info": DeclaredDisposition(Disposition.EXTENSIONS),
         "message_start": DeclaredDisposition(Disposition.EXACT),
         # The opening snapshot's running totals map onto the dimensional
         # Consumption model (cumulative USAGE chunk), same rename as unary.

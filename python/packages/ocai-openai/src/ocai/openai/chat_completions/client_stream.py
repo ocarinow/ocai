@@ -103,6 +103,12 @@ class ClientStreamTransducer:
         if not isinstance(event, ChatChunk):
             self._reject("client conversion requires canonical chunks")
             return []
+        if event.info is not None:
+            self._loss("chunk.info")
+        if event.type == ChunkType.METADATA and event.info is not None:
+            if event.extensions or event.provider_options:
+                self._loss("chunk.extensions")
+            return []
         if event.extensions or event.provider_options:
             self._loss("chunk.extensions")
         if event.type == ChunkType.ERROR:

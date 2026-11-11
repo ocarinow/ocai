@@ -1,0 +1,55 @@
+{
+  "description": "WU-46a canonical fold: metadata arrives in partial, repeated and late snapshots. No successful terminal is invented on the incomplete variant (covered by the behavior suite).",
+  "node": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.chunk"
+  },
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "metadata",
+      "info": {
+        "version": "2026-07",
+        "model": "model-synthetic"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "metadata",
+      "info": {
+        "version": "2026-07",
+        "model": "model-synthetic"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "metadata",
+      "info": {
+        "version": "2026-07",
+        "created": "2026-01-01T00:00:00+00:00"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "end": {
+        "version": "2026-07"
+      }
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": []
+    },
+    "info": {
+      "version": "2026-07",
+      "model": "model-synthetic",
+      "created": "2026-01-01T00:00:00+00:00"
+    }
+  }
+}

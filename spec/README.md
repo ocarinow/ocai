@@ -128,6 +128,13 @@ carries its chunks already canonical, so the decode leg is skipped and only
 the fold clauses run. No new part type is admissible without its delta
 type, its fold law, and paired chunks/response fixtures **in the same change**.
 
+Response info participates in fold equality (ADR 0015). Metadata snapshots may
+arrive late or repeat. Conflicting snapshots retain first values and extension
+evidence with fold findings. `canonical/response_info_fold.json` qualifies the
+carrier independently of any provider; OpenAI and Anthropic triples qualify wire
+mapping. Existing wire events remain unchanged when expected metadata and event
+sequence numbers are strengthened.
+
 ### Canonical document fixture (one canonical payload)
 
 For pinning a single canonical-IR document — a wire-accurate example of one

@@ -1,0 +1,58 @@
+{
+  "description": "Synthetic malformed response metadata: preserve native fields rather than inventing typed identity (WU-46a).",
+  "src": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": 7,
+    "model": [
+      "future"
+    ],
+    "choices": [],
+    "created": "invalid"
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": []
+    },
+    "info": {
+      "version": "2026-07",
+      "extensions": {
+        "ocai.response_info_unparsed": {
+          "id": 7,
+          "model": [
+            "future"
+          ],
+          "created": "invalid"
+        }
+      }
+    },
+    "raw": {
+      "id": 7,
+      "model": [
+        "future"
+      ],
+      "choices": [],
+      "created": "invalid"
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "response_info",
+      "disposition": "extensions"
+    }
+  ],
+  "expect_shifts": []
+}

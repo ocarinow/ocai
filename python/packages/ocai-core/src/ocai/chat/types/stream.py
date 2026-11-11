@@ -48,8 +48,10 @@ from ocai.chat.types.parts import PartToolCall
 from ocai.chat.types.parts import ToolCallStatus
 from ocai.chat.types.parts import cast_part
 from ocai.chat.types.response import ChatResponse
+from ocai.chat.types.response import ResponseInfo
 from ocai.chat.types.role import Role
 from ocai.chat.types.usage import Usage
+from ocai.core.canonjson import semantic_equal
 from ocai.core.errors import StreamProtocolError
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
@@ -59,6 +61,7 @@ from ocai.core.fidelity import FieldLoss
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import TagRegistry
+from ocai.core.ir import is_json_array
 from ocai.core.ir import is_json_object
 from ocai.core.result import StreamOutcome as StreamOutcome
 
@@ -74,6 +77,68 @@ INCOMPLETE_EXTENSION: Final = "ocai.incomplete"
 # verbatim concatenation rides the bag — recoverable, never dropped.
 # Registered in spec/extensions/.
 SIGNATURE_BUFFER_EXTENSION: Final = "ocai.signature_buffer"
+
+
+def _merge_response_info(
+    current: ResponseInfo | None,
+    incoming: ResponseInfo,
+) -> tuple[ResponseInfo, list[FieldLoss]]:
+    """Merge detached response metadata, retaining conflicting values and findings."""
+    losses: list[FieldLoss] = []
+    merged = deepcopy(current) if current is not None else ResponseInfo()
+    document = incoming.to_dict()
+    if current is None:
+        merged.version = incoming.version
+    conflicts: list[dict[str, Any]] = []
+
+    def conflict(path: str, value: Any) -> None:
+        record = {"path": path, "value": deepcopy(value)}
+        if not any(semantic_equal(record, old) for old in conflicts):
+            conflicts.append(record)
+        losses.append(
+            FieldLoss(
+                path,
+                Disposition.EXTENSIONS,
+                note="conflicting response metadata retained; first value kept",
+            )
+        )
+
+    for name in ("id", "model", "created", "version"):
+        value = getattr(incoming, name)
+        old = getattr(merged, name)
+        if value is None:
+            continue
+        if old is None:
+            setattr(merged, name, deepcopy(value))
+        elif not semantic_equal(document.get(name), merged.to_dict().get(name)):
+            conflict(f"info.{name}", document[name])
+    for name in ("extensions", "provider_options"):
+        target: dict[str, Any] = getattr(merged, name)
+        source: dict[str, Any] = getattr(incoming, name)
+        for key, value in source.items():
+            if key not in target:
+                target[key] = deepcopy(value)
+            elif not semantic_equal(target[key], value):
+                conflict(f"info.{name}[{key}]", value)
+            if key == "ocai.response_info_unparsed":
+                losses.append(
+                    FieldLoss(
+                        "info",
+                        Disposition.EXTENSIONS,
+                        note="unparsed response metadata retained verbatim",
+                    )
+                )
+    if conflicts:
+        key = "ocai.response_info_conflicts"
+        existing = merged.extensions.get(key)
+        records: list[Any] = deepcopy(existing) if is_json_array(existing) else []
+        if existing is not None and not is_json_array(existing):
+            records.append({"path": f"info.extensions[{key}]", "value": existing})
+        for record in conflicts:
+            if not any(semantic_equal(record, old) for old in records):
+                records.append(record)
+        merged.extensions[key] = records
+    return merged, losses
 
 
 class ChunkType(str, Enum):
@@ -551,6 +616,7 @@ class ChatChunk(IRObject):
         finish: The stop record (`FINISH`).
         error: The wire-shaped mid-stream error (`ERROR`).
         end: The authoritative terminal record (`STREAM_STOP`).
+        info: Partial response identity/provenance, accumulated independently of content.
         raw_event: The untouched provider frame this chunk was decoded
             from, for power users and the wiretap archive. Keyword-only.
     """
@@ -568,6 +634,7 @@ class ChatChunk(IRObject):
     finish: FinishInfo | None = None
     error: ErrorInfo | None = None
     end: StreamEnd | None = None
+    info: ResponseInfo | None = field(default=None, kw_only=True)
     raw_event: Any | None = field(default=None, kw_only=True)
 
     @classmethod
@@ -595,6 +662,10 @@ class ChatChunk(IRObject):
         finish = data.get("finish")
         error = data.get("error")
         end = data.get("end")
+        info = data.get("info")
+        common = cls._from_dict_common(data)
+        if info is not None and not is_json_object(info):
+            common["extensions"]["ocai.chunk_info_unparsed"] = deepcopy(info)
         return cls(
             type=chunk_type,
             seq=data.get("seq"),
@@ -607,7 +678,8 @@ class ChatChunk(IRObject):
             error=ErrorInfo.from_dict(error) if is_json_object(error) else None,
             end=StreamEnd.from_dict(end) if is_json_object(end) else None,
             raw_event=data.get("raw_event"),
-            **cls._from_dict_common(data),
+            info=ResponseInfo.from_dict(info) if is_json_object(info) else None,
+            **common,
         )
 
 
@@ -648,6 +720,7 @@ class StreamAccumulator:
         self._error: ErrorInfo | None = None
         self._end: StreamEnd | None = None
         self._reported = False
+        self._info: ResponseInfo | None = None
 
     def feed(self, chunk: ChatChunk) -> None:
         """Apply one chunk to the accumulation state.
@@ -655,6 +728,17 @@ class StreamAccumulator:
         Args:
             chunk: The next canonical chunk, in `seq` order.
         """
+        incoming = chunk.info
+        if "ocai.chunk_info_unparsed" in chunk.extensions:
+            incoming = deepcopy(incoming) if incoming is not None else ResponseInfo()
+            incoming.extensions["ocai.response_info_unparsed"] = {
+                "$chunk_info": deepcopy(chunk.extensions["ocai.chunk_info_unparsed"])
+            }
+        if incoming is not None:
+            self._info, findings = _merge_response_info(self._info, incoming)
+            for finding in findings:
+                if finding not in self._losses:
+                    self._losses.append(finding)
         if chunk.type == ChunkType.PART_START:
             self._start(chunk)
         elif chunk.type == ChunkType.PART_DELTA:
@@ -671,7 +755,7 @@ class StreamAccumulator:
             self._error = chunk.error
         elif chunk.type == ChunkType.STREAM_STOP:
             self._end = chunk.end
-        # STREAM_START / METADATA / RAW / PING carry no fold state.
+        # Event kind does not gate the independent response-info lane.
 
     def _start(self, chunk: ChatChunk) -> None:
         """Open the slot at `chunk.index` with the part skeleton.
@@ -912,6 +996,7 @@ class StreamAccumulator:
             message=Message(role=Role.MODEL, parts=parts),
             finish=finish,
             usage=usage,
+            info=deepcopy(self._info),
         )
 
     @classmethod

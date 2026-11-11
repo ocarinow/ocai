@@ -386,7 +386,7 @@ reported loss. `ResponseInfo` carries id/model echo as `ProviderRef` anchors
 (reusable as `previous_response_id`).
 
 **`types/stream.py`** — `ChatChunk(type, seq, index, part, delta, usage,
-finish, error, end, raw_event)`; `ChunkType` keeps the existing wire values +
+finish, error, end, info, raw_event)`; `ChunkType` keeps the existing wire values +
 terminal `streamStop` carrying **`StreamEnd(usage, finish, report)`** — the
 authoritative usage/finish and the stream's FidelityReport. Typed `Delta`
 union mirrors the part algebra (`DeltaText`, `DeltaToolArgs(fragment: str —
@@ -400,6 +400,17 @@ chunks/response fixtures in the same change** (the streaming-first ratchet).
 `StreamEnd` stays per-capability (terminal envelopes are duck-typed on
 `.usage`/`.finish`/`.report`; a premature generic `StreamEnd` would drag chat
 chunk semantics into core).
+
+**Response metadata in streams (ADR 0015).** Optional keyword-only `ChatChunk.info`
+reuses `ResponseInfo`; codecs emit METADATA events, while accumulation accepts the
+lane on any event kind. Missing fields may arrive later; identical repeats are
+idempotent. Conflicting populated fields keep their first value, retain distinct
+alternatives under `ocai.response_info_conflicts`, and add EXTENSIONS findings to
+the fold report. Metadata is detached from caller-owned chunks and returned folds.
+It survives interruption without creating StreamEnd, finish or usage. Unknown or
+malformed response-info fields ride `ocai.response_info_unparsed`; non-object
+chunk info rides `ocai.chunk_info_unparsed` and becomes reported fold evidence.
+This is response identity/provenance, not caller context or arbitrary event logs.
 
 ### 3.2 `protocol.py` — the port
 
@@ -691,7 +702,9 @@ semantic JSON equality alone cannot establish position correctness.
 
 `check_fragment` matches fixture coordinates, requires every payload edge to
 have evidence, checks independent expected output/records, and certifies emitted
-records against declarations. Streaming edges still need fold triples.
+records against declarations. Streaming edges still need fold triples. Paired comparisons include ResponseInfo;
+only raw wire evidence is excluded. WU-46a strengthens existing OpenAI/Anthropic
+expectations without rewriting their wire recordings.
 `resources.py` loads explicit `ConformanceResources` manifests from installed
 packages through `importlib.resources`; it rejects missing/malformed resources
 and conflicting extension schemas. The caller supplies a schema validator and
@@ -942,6 +955,12 @@ Authentication, compartments, deployment selection, budgets, persistence and HTT
 serving remain satellite responsibilities. Qualification does not promote a new
 canonical revision or alter the ADR 0005 freeze gate.
 
+OpenAI and Anthropic stream decoders emit typed response metadata from the same
+wire fields as their unary decoders. Their censuses also cover malformed metadata
+fallback. The existing canonical-to-client OpenAI stream edge reports `chunk.info`
+as UNSUPPORTED: client envelope binding remains explicit and must not silently
+forward a provider-scoped identity into a different client identity.
+
 ## 8. Request lifecycle (how it all interacts)
 
 The merged [governed gateway program](plans/gateway-readiness.md) implements
@@ -968,7 +987,8 @@ user code
                  ├─ ConversionGraph.convert(wire response → ocai@rev)
                  └─ CallResult(value, route, report, usage, raw)
 streaming: chunks flow through StreamEdge transducers; the stream ends with
-StreamEnd(usage, finish, report); StreamAccumulator.fold(chunks) == ChatResponse.
+StreamEnd(usage, finish, report); StreamAccumulator.fold(chunks) == ChatResponse,
+including info accumulated from metadata events.
 local adapters: implement the port directly — same CallResult, no wire/runtime.
 ```
 
