@@ -450,9 +450,25 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
         every ref (if any) is valid here.
     """
     losses: list[FieldLoss] = []
-    anchor_loss = _foreign_ref_loss(f"{path}.anchor", getattr(part, "anchor", None))
+    anchor = getattr(part, "anchor", None)
+    anchor_loss = _foreign_ref_loss(f"{path}.anchor", anchor)
+    if anchor is not None and anchor_loss is None:
+        anchor_loss = FieldLoss(
+            path=f"{path}.anchor", disposition=Disposition.UNSUPPORTED,
+            severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
+            note="part replay anchor has no qualified wire lane on this interface",
+        )
     if anchor_loss is not None:
         losses.append(anchor_loss)
+    if isinstance(part, PartText):
+        for index, annotation in enumerate(part.annotations):
+            if annotation.opaque is not None:
+                citation_path = f"{path}.annotations[{index}].opaque"
+                losses.append(_foreign_ref_loss(citation_path, annotation.opaque) or FieldLoss(
+                    path=citation_path, disposition=Disposition.UNSUPPORTED,
+                    severity=2.0 if annotation.opaque.replay is Replay.REQUIRED else 1.0,
+                    note="citation replay anchor has no qualified wire lane on this interface",
+                ))
     source = getattr(part, "source", None)
     if isinstance(source, SourceRef):
         source_loss = _foreign_ref_loss(f"{path}.source", source.ref)
@@ -610,6 +626,12 @@ class MessagesCodec:
                     ))
             if encoded_tools:
                 payload["tools"] = encoded_tools
+        for index, anchor in enumerate(request.anchors or []):
+            losses.append(_foreign_ref_loss(f"anchors[{index}]", anchor) or FieldLoss(
+                path=f"anchors[{index}]", disposition=Disposition.UNSUPPORTED,
+                severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
+                note="request continuation anchor has no qualified wire lane on this interface",
+            ))
         self._encode_tool_choice(request, payload, losses)
         self._encode_config(request, payload, losses, shifts)
         # Lane 3: expand only OUR destination namespace (three-lane law §3.4).
@@ -624,7 +646,8 @@ class MessagesCodec:
         losses.extend(
             FieldLoss(
                 path=f"extensions[{key}]",
-                disposition=Disposition.DROPPED,
+                disposition=(Disposition.UNSUPPORTED
+                             if key == "ocai.request_unparsed_anchors" else Disposition.DROPPED),
                 severity=0.5,
                 note=f"extensions[{key!r}] has no {PROVIDER}/{INTERFACE} encode lane yet",
             )
@@ -694,7 +717,9 @@ class MessagesCodec:
             elif isinstance(part, PartToolResult):
                 blocks.append(self._encode_tool_result(path, part, losses))
             elif isinstance(part, PartReasoning):
-                blocks.append(self._encode_reasoning(path, part, losses))
+                reasoning = self._encode_reasoning(path, part, losses)
+                if reasoning is not None:
+                    blocks.append(reasoning)
             else:
                 # TODO: encode PartImage/PartDocument via the Source union
                 # (base64/url/file_id sources are all native here).
@@ -748,15 +773,13 @@ class MessagesCodec:
 
     def _encode_reasoning(
         self, path: str, part: PartReasoning, losses: list[FieldLoss]
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """Encode a `PartReasoning` as a `thinking`/`redacted_thinking` block.
 
         A part carrying an `opaque` anchor minted here replays as
         `redacted_thinking`; a text part replays as `thinking` with its
-        signature anchor verbatim. A part whose anchors were minted by a
-        *different* interface must already have been reported `UNSUPPORTED`
-        by the graph's ref rule (§2.4) — this encoder still refuses to
-        fabricate a signature.
+        signature anchor verbatim. Foreign, absent or unqualified anchors are
+        reported and omitted; no empty or foreign token is manufactured.
 
         Args:
             path: The loss path prefix for this part.
@@ -764,23 +787,33 @@ class MessagesCodec:
             losses: The edge's loss accumulator, appended in place.
 
         Returns:
-            The wire thinking block.
+            The qualified wire thinking block, or None with an unsupported finding.
         """
         opaque = part.opaque
-        if opaque is not None and opaque.provider == PROVIDER and opaque.interface == INTERFACE:
-            return {"type": "redacted_thinking", "data": opaque.id}
         signature = part.signature
-        if signature is None or signature.provider != PROVIDER:
-            losses.append(
-                FieldLoss(
-                    path=f"{path}.signature",
-                    disposition=Disposition.UNSUPPORTED,
-                    severity=2.0,
-                    note="thinking replay requires this interface's REQUIRED signature anchor",
-                )
-            )
-            return {"type": "thinking", "thinking": part.text or "", "signature": ""}
-        return {"type": "thinking", "thinking": part.text or "", "signature": signature.id}
+        chosen = opaque if opaque is not None else signature
+        field = "opaque" if opaque is not None else "signature"
+        if (chosen is None or chosen.provider != PROVIDER or chosen.interface != INTERFACE
+            or chosen.scope == RefScope.MODEL or not chosen.id
+            or chosen.kind != ("redacted_thinking" if opaque is not None else "thought_signature")):
+            losses.append(FieldLoss(
+                path=f"{path}.{field}", disposition=Disposition.UNSUPPORTED, severity=2.0,
+                note="thinking replay requires a nonempty, qualified same-interface anchor",
+            ))
+            return None
+        if opaque is not None:
+            if signature is not None:
+                losses.append(FieldLoss(
+                    path=f"{path}.signature", disposition=Disposition.UNSUPPORTED, severity=2.0,
+                    note="redacted thinking cannot also replay a visible thinking signature",
+                ))
+            if part.text is not None:
+                losses.append(FieldLoss(
+                    path=f"{path}.text", disposition=Disposition.DROPPED, severity=1.0,
+                    note="redacted thinking has no visible text lane",
+                ))
+            return {"type": "redacted_thinking", "data": opaque.id}
+        return {"type": "thinking", "thinking": part.text or "", "signature": chosen.id}
 
     def _encode_tool(self, tool: Tool) -> dict[str, Any]:
         """Encode one canonical `Tool` as a custom tool definition.

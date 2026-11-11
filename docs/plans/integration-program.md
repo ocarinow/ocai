@@ -270,7 +270,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-42 — Preserve required server-tool replay anchors
 
-- [ ] **Status:** not started.
+- [x] **Status:** implemented; stacked PR #83, pending review.
+- **Goal:** Requests preserve scoped continuation data and expose replay failures
+  through the conversion ledger before a governed call reaches the provider.
 - **Scope:** Existing PartServerToolResult/Annotation reference lanes, request
   continuation anchors, ref guards, canonical schemas and transcript fixtures;
   15–25 files. Add ChatRequest.anchors for request-side continuation (G-01), reuse
@@ -281,13 +283,23 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   provider I/O without losing the original evidence.
 - **Deps:** WU-41; accepted integration ADR.
 - **Architecture:** §2.4, §3.1, §3.5, §4.5, §10.
+- **Integration:** ChatRequest owns optional anchors; existing part/annotation refs
+  remain the replay carriers. Request codecs enforce scope and report unavailable
+  lanes; public prepared execution applies the caller's fidelity policy. Canonical
+  transcript fixtures preserve server-tool tokens; recorded Anthropic thinking
+  replay proves the already-qualified wire lane. Search wire replay is WU-43.
 - **Freeze:** additive ChatRequest.anchors and request schema; existing ProviderRef,
   part.anchor and Annotation.opaque semantics preserved (integration ADR).
-- **Decision:** Encrypted search tokens and continuation ids are scoped replay
+- **Decision:** ADR 0008 accepts request anchors. Encrypted search tokens and continuation ids are scoped replay
   anchors, not portable content ([Search §1.4](../capabilities/web-search-and-retrieval.md));
   this closes the data-carrier part of G-01, not the deferred Responses interface.
 - **Open:** None for the canonical contract; provider-specific replay qualification
   remains the responsibility of each codec WU.
+
+- **Area:** chat IR
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-43 — Account for provider-executed search requests
 

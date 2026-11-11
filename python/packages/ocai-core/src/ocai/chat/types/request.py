@@ -19,6 +19,7 @@ Its `from_dict` is a **true inverse** of `to_dict`: every nested payload
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 from typing import ClassVar
@@ -34,6 +35,7 @@ from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
 from ocai.core.ir import is_json_array
 from ocai.core.ir import is_json_object
+from ocai.core.refs import ProviderRef
 
 
 @dataclass
@@ -53,6 +55,7 @@ class ChatRequest(IRObject):
         tools: The tools the model may call, if any.
         tool_choice: The whether/which tool policy, if constrained.
         config: The typed generation configuration, if any.
+        anchors: Scoped continuation references; availability requires a qualified codec.
     """
 
     object: ClassVar[str] = "chat.request"
@@ -62,6 +65,7 @@ class ChatRequest(IRObject):
     tools: list[ToolDefinition] | None = None
     tool_choice: ToolChoice | None = None
     config: ChatConfig | None = None
+    anchors: list[ProviderRef] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -82,7 +86,24 @@ class ChatRequest(IRObject):
         tools = data.get("tools")
         choice = data.get("tool_choice")
         config = data.get("config")
-        return cls(
+        raw_anchors = data.get("anchors")
+        anchors: list[ProviderRef] = []
+        unparsed: list[dict[str, Any]] = []
+        if is_json_array(raw_anchors):
+            for index, anchor in enumerate(raw_anchors):
+                if (is_json_object(anchor)
+                    and all(isinstance(anchor.get(key), str)
+                            for key in ("provider", "interface", "kind", "id"))
+                    and anchor.get("replay", "optional") in ("optional", "required")
+                    and set(anchor) <= {"provider", "interface", "kind", "id",
+                                        "replay", "scope", "qualifier"}):
+                    anchors.append(ProviderRef.from_dict(anchor))
+                else:
+                    unparsed.append({"index": index, "value": deepcopy(anchor)})
+        elif raw_anchors is not None:
+            unparsed.append({"value": deepcopy(raw_anchors)})
+        result = cls(
+            anchors=anchors or None,
             messages=[Message.from_dict(item) for item in messages if is_json_object(item)],
             tools=(
                 [decode_tool(item) for item in tools]
@@ -93,3 +114,11 @@ class ChatRequest(IRObject):
             config=ChatConfig.from_dict(config) if is_json_object(config) else None,
             **cls._from_dict_common(data),
         )
+        if unparsed:
+            key = "ocai.request_unparsed_anchors"
+            previous = result.extensions.get(key)
+            records = deepcopy(previous) if is_json_array(previous) else []
+            if previous is not None and not is_json_array(previous):
+                records.append({"value": deepcopy(previous)})
+            result.extensions[key] = records + unparsed
+        return result

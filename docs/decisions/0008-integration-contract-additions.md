@@ -1,10 +1,10 @@
 # 0008 — Additive integration contracts before the qualification gate
 
-- **Status:** WU-37–38 and WU-40–41 chat additions accepted; remaining proposals pending
+- **Status:** WU-37–38 and WU-40–42 chat additions accepted; remaining proposals pending
 - **Date:** 2026-11-10
 - **Deciders:** maintainer authorized WU-37 after PR #27 and WU-38 after PR #30
   merged; directed execution of assigned integration WUs on 2026-11-11.
-  WU-40–41 acceptance is recorded here; other implementation portions remain pending.
+  WU-40–42 acceptance is recorded here; other implementation portions remain pending.
 
 ## Context
 
@@ -150,7 +150,7 @@ The survey's sketch mentions max_uses/search_context_size as possible fields;
 its explicit three-lane mapping places them in extensions. That narrower mapping
 is the proposal here.
 
-### Replay and search accounting (WU-42–43)
+### Replay anchors (WU-42 accepted) and search accounting (WU-43 proposed)
 
 Add optional ChatRequest.anchors for request-side ProviderRef continuation.
 Use existing part.anchor and Annotation.opaque for server-tool replay tokens.
@@ -159,6 +159,17 @@ scope and replay obligations. Cross-scope reuse is UNSUPPORTED with evidence;
 missing required replay fails governed preparation before I/O. A plain reasoning
 text history, such as DeepSeek reasoning_content, remains PartReasoning text;
 it is not converted into a fictitious opaque signature.
+
+WU-42 adds the request-side carrier without claiming a continuation wire lane on
+Chat Completions or Messages. These interfaces report each request anchor as
+unsupported; same scope is necessary but does not prove that a mapping exists.
+Malformed/future reference documents retain original evidence under a registered
+request extension rather than degrading an unknown replay requirement to optional.
+Existing Anthropic thinking signatures qualify byte-preserving replay; foreign,
+missing or unqualified model-scoped references are reported without forwarding a
+foreign or fabricated token. A fidelity policy denying unsupported conversion
+prevents all four call faces from sending such a request. Canonical server-tool
+transcript evidence does not claim provider search qualification before WU-43.
 
 Add search_requests as a named open consumption unit. It measures the provider's
 reported billable search operations, not the number of tool-call parts or tokens.

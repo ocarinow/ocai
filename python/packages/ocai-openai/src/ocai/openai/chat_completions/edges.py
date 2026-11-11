@@ -70,6 +70,11 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
     # the wire member is injected by the facade from the bound resource via
     # `ChatCompletionsCodec.bind_resource`, below this edge.
     census={
+        "messages[].parts[].signature": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "messages[].parts[].opaque": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "anchors[]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "extensions[ocai.request_unparsed_anchors]": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "messages[].parts[].annotations[].opaque": DeclaredDisposition(Disposition.UNSUPPORTED),
         "messages[].role": DeclaredDisposition(Disposition.EXACT),
         "messages[].parts[text]": DeclaredDisposition(Disposition.EXACT),
         "messages[].parts[tool_call]": DeclaredDisposition(Disposition.EXACT),

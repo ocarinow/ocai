@@ -1,0 +1,68 @@
+{
+  "description": "WU-42 synthetic request: a scoped request continuation reference is preserved on input but has no qualified wire lane on this interface.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "anthropic",
+    "interface": "messages",
+    "tag": "2023-06",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Say hello.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 1024
+    },
+    "anchors": [
+      {
+        "provider": "anthropic",
+        "interface": "messages",
+        "kind": "response_id",
+        "id": "resp-test",
+        "replay": "required"
+      }
+    ]
+  },
+  "expect": {
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Say hello."
+          }
+        ]
+      }
+    ]
+  },
+  "expect_losses": [
+    {
+      "path": "anchors[0]",
+      "disposition": "unsupported",
+      "severity": 2.0,
+      "note": "request continuation anchor has no qualified wire lane on this interface"
+    }
+  ],
+  "expect_shifts": []
+}
