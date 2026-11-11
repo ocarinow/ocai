@@ -413,8 +413,11 @@ class HostEffectReport:
     def to_dict(self) -> dict[str, Any]:
         """Serialize provenance and findings without inventing graph coordinates."""
         return {
-            "host": self.host, "adapter": self.adapter, "contract_id": self.contract_id,
-            "phase": self.phase, "cost": self.cost,
+            "host": self.host,
+            "adapter": self.adapter,
+            "contract_id": self.contract_id,
+            "phase": self.phase,
+            "cost": self.cost,
             "losses": [loss.to_dict() for loss in self.losses],
             "shifts": [shift.to_dict() for shift in self.shifts],
         }
@@ -425,14 +428,20 @@ class HostEffectReport:
         raw_losses = data.get("losses")
         raw_shifts = data.get("shifts")
         return cls(
-            host=str(data.get("host", "")), adapter=str(data.get("adapter", "")),
-            contract_id=str(data.get("contract_id", "")), phase=str(data.get("phase", "")),
-            losses=tuple(FieldLoss.from_dict(loss)
+            host=str(data.get("host", "")),
+            adapter=str(data.get("adapter", "")),
+            contract_id=str(data.get("contract_id", "")),
+            phase=str(data.get("phase", "")),
+            losses=tuple(
+                FieldLoss.from_dict(loss)
                 for loss in (raw_losses if is_json_array(raw_losses) else [])
-                if is_json_object(loss)),
-            shifts=tuple(SemanticShift.from_dict(shift)
+                if is_json_object(loss)
+            ),
+            shifts=tuple(
+                SemanticShift.from_dict(shift)
                 for shift in (raw_shifts if is_json_array(raw_shifts) else [])
-                if is_json_object(shift)),
+                if is_json_object(shift)
+            ),
         )
 
 
@@ -470,14 +479,16 @@ class FidelityReport:
     @property
     def losses(self) -> list[FieldLoss]:
         """Return graph then host field records, preserving order within each lane."""
-        return ([loss for edge in self.edges for loss in edge.losses]
-                + [loss for host in self.hosts for loss in host.losses])
+        return [loss for edge in self.edges for loss in edge.losses] + [
+            loss for host in self.hosts for loss in host.losses
+        ]
 
     @property
     def shifts(self) -> list[SemanticShift]:
         """Return graph then host semantic records, preserving order within each lane."""
-        return ([shift for edge in self.edges for shift in edge.shifts]
-                + [shift for host in self.hosts for shift in host.shifts])
+        return [shift for edge in self.edges for shift in edge.shifts] + [
+            shift for host in self.hosts for shift in host.shifts
+        ]
 
     @property
     def dropped(self) -> list[FieldLoss]:
@@ -560,9 +571,11 @@ class FidelityReport:
                 for edge in (raw_edges if is_json_array(raw_edges) else [])
                 if is_json_object(edge)
             ],
-            hosts=[HostEffectReport.from_dict(host)
+            hosts=[
+                HostEffectReport.from_dict(host)
                 for host in (raw_hosts if is_json_array(raw_hosts) else [])
-                if is_json_object(host)],
+                if is_json_object(host)
+            ],
         )
 
 
@@ -670,15 +683,15 @@ class FidelityPolicy:
         accepted = True
         try:
             for loss in report.losses:
-                    if loss.disposition in self.forbidden_dispositions:
-                        accepted = False
-                    if self.allow_loss is not None and not self.allow_loss(deepcopy(loss)):
-                        accepted = False
+                if loss.disposition in self.forbidden_dispositions:
+                    accepted = False
+                if self.allow_loss is not None and not self.allow_loss(deepcopy(loss)):
+                    accepted = False
             for shift in report.shifts:
-                    if shift.kind in self.forbidden_shifts:
-                        accepted = False
-                    if self.allow_shift is not None and not self.allow_shift(deepcopy(shift)):
-                        accepted = False
+                if shift.kind in self.forbidden_shifts:
+                    accepted = False
+                if self.allow_shift is not None and not self.allow_shift(deepcopy(shift)):
+                    accepted = False
         except Exception:
             accepted = False
         if not accepted:

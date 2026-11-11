@@ -41,7 +41,8 @@ def test_host_only_shift_is_lossless_but_enforceable() -> None:
     assert report.shifts == list(report.hosts[0].shifts)
     with pytest.raises(FidelityPolicyError) as raised:
         FidelityPolicy(forbidden_shifts=frozenset({"test.masking"})).enforce(
-            report, phase="response")
+            report, phase="response"
+        )
     assert raised.value.report.to_dict() == report.to_dict()
     assert raised.value.report is not report
     assert raised.value.usage is None
@@ -51,20 +52,31 @@ def test_host_only_shift_is_lossless_but_enforceable() -> None:
 @pytest.mark.parametrize("predicate", [False, True])
 @pytest.mark.parametrize("semantic", [False, True])
 def test_host_loss_and_shift_policy_retains_provenance_and_accounting(
-    predicate: bool, semantic: bool,
+    predicate: bool,
+    semantic: bool,
 ) -> None:
     report = _report()
-    report.hosts.append(HostEffectReport("other-host", "adapter@2", "declaration-2", "response",
-        losses=(FieldLoss("tool.id", Disposition.DROPPED, 2.0, "Synthetic host effect"),)))
-    usage = Usage.from_dict({"consumptions": [{"modality": "text", "unit": "tokens",
-                                              "source": "input", "value": 7}]})
-    policy = (FidelityPolicy(allow_shift=lambda shift: shift.kind != "test.masking")
-              if predicate and semantic else
-              FidelityPolicy(allow_loss=lambda loss: loss.disposition != Disposition.DROPPED)
-              if predicate else
-              FidelityPolicy(forbidden_shifts=frozenset({"test.masking"}))
-              if semantic else
-              FidelityPolicy(forbidden_dispositions=frozenset({Disposition.DROPPED})))
+    report.hosts.append(
+        HostEffectReport(
+            "other-host",
+            "adapter@2",
+            "declaration-2",
+            "response",
+            losses=(FieldLoss("tool.id", Disposition.DROPPED, 2.0, "Synthetic host effect"),),
+        )
+    )
+    usage = Usage.from_dict(
+        {"consumptions": [{"modality": "text", "unit": "tokens", "source": "input", "value": 7}]}
+    )
+    policy = (
+        FidelityPolicy(allow_shift=lambda shift: shift.kind != "test.masking")
+        if predicate and semantic
+        else FidelityPolicy(allow_loss=lambda loss: loss.disposition != Disposition.DROPPED)
+        if predicate
+        else FidelityPolicy(forbidden_shifts=frozenset({"test.masking"}))
+        if semantic
+        else FidelityPolicy(forbidden_dispositions=frozenset({Disposition.DROPPED}))
+    )
     with pytest.raises(FidelityPolicyError) as raised:
         policy.enforce(report, phase="response", usage=usage, delivered_events=3)
     assert not report.lossless and report.total_cost == 2.0
@@ -80,7 +92,8 @@ def test_host_loss_and_shift_policy_retains_provenance_and_accounting(
 def test_host_report_merge_preserves_real_conversion_path() -> None:
     pair = json.loads((Path(__file__).parent / "http/openai_chat_completion.json").read_text())
     decoded = Catalog.of(ocai.openai.FRAGMENT).convert(
-        pair["response"]["json"], CHAT_COMPLETIONS_RESPONSE, CANONICAL_CHAT_RESPONSE)
+        pair["response"]["json"], CHAT_COMPLETIONS_RESPONSE, CANONICAL_CHAT_RESPONSE
+    )
     report = decoded.report
     original = deepcopy(report)
     host_report = _report()
@@ -105,7 +118,12 @@ def test_golden_terminal_round_trip_and_schema_fields() -> None:
     properties = schema["$defs"]["hostEffectReport"]["properties"]
     assert {item.name for item in fields(HostEffectReport)} | {"cost"} == set(properties)
     assert set(schema["$defs"]["fidelityReport"]["properties"]) == {
-        "path", "lossless", "total_cost", "edges", "hosts"}
+        "path",
+        "lossless",
+        "total_cost",
+        "edges",
+        "hosts",
+    }
 
 
 def test_old_reports_keep_wire_form_and_positional_constructor() -> None:
@@ -142,6 +160,7 @@ def test_malformed_host_lanes_decode_without_raising(value: Any) -> None:
 def test_raising_predicate_cannot_approve_host_findings() -> None:
     def unavailable(shift: SemanticShift) -> bool:
         raise RuntimeError("private policy state")
+
     with pytest.raises(FidelityPolicyError) as raised:
         FidelityPolicy(allow_shift=unavailable).enforce(_report(), phase="response")
     assert "private policy state" not in str(raised.value)
