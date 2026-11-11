@@ -38,15 +38,29 @@ tasks:
     cmds:
       - uv run python scripts/serve_platform.py keycloak
 
+  openfga:
+    desc: Start authenticated local OpenFGA after PostgreSQL (run serve:setup once for migrations)
+    deps: [postgres]
+    run: once
+    cmds:
+      - uv run python scripts/serve_platform.py openfga
+
+  authorization:
+    desc: Run the bounded authorization outbox worker after OpenFGA and Python dependencies
+    deps: [openfga, install:gateway]
+    cmds:
+      - uv run python scripts/serve_platform.py authorization
+
   setup:
     desc: Explicitly provision local infrastructure, install dependencies and apply platform migrations
     deps: [keycloak, install:gateway, install:console]
     cmds:
       - uv run python scripts/serve_platform.py migrate
+      - uv run python scripts/serve_platform.py authorization-setup
 
   gateway:
     desc: Launch FastAPI with local issuer configuration after infrastructure and Python dependencies
-    deps: [keycloak, install:gateway]
+    deps: [keycloak, openfga, install:gateway]
     cmds:
       - uv run python scripts/serve_platform.py gateway
 
@@ -56,10 +70,16 @@ tasks:
     cmds:
       - uv run python scripts/serve_platform.py console
 
-  all:
-    desc: Launch gateway and console together with their dependencies (Ctrl+C stops foreground apps)
+  operator:
+    desc: "Run a local operator command with private configuration (task serve:operator -- status|bootstrap|reconcile ARGS)"
+    deps: [openfga, install:gateway]
     cmds:
-      - task --parallel serve:gateway serve:console
+      - uv run python scripts/serve_platform.py operator {{.CLI_ARGS}}
+
+  all:
+    desc: Launch gateway, console and authorization worker with their dependencies (Ctrl+C stops foreground apps)
+    cmds:
+      - task --parallel serve:gateway serve:console serve:authorization
 
   status:
     desc: Show the state of this checkout's managed development infrastructure

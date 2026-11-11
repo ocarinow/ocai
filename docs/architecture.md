@@ -920,8 +920,7 @@ Repository results are immutable records, not mutable ORM entities. Organization
 creation/rename and membership grants include fixed-schema audit events in their
 transaction; failure rolls back state, evidence and any authorization intent.
 Organization versioning prevents stale overwrites; grants serialize on the
-organization row to assign ordered desired revisions. Applied revision stays zero
-until a subsequent WU implements OpenFGA projection.
+organization row to assign ordered desired revisions. WU-73 leaves applied revision zero; §12.5 adds the confirmed OpenFGA projection.
 
 The runtime can append/read audit rows but cannot update/delete/truncate/alter
 them. These grants do not establish immutable-storage guarantees against database
@@ -955,7 +954,7 @@ fail closed. Invalid credentials receive sanitized 401 with a Bearer challenge;
 unavailable verification infrastructure receives sanitized 503.
 
 Authentication establishes external identity only. Binding to an active platform
-principal, current membership and OpenFGA enforcement belong to the following WU;
+principal, current membership and OpenFGA enforcement are described in §12.5;
 successful login never provisions membership or grants access by itself. Existing
 foundation status and readiness retain their earlier meaning.
 
@@ -965,3 +964,42 @@ requires HTTPS; the separate loopback development profile is not production
 qualification. Tests exercise Authorization Code with PKCE against digest-pinned
 Keycloak and adversarial signed credentials, key rotation, outage and forged
 headers. See [platform operations](../platform/README.md).
+
+
+### 12.5 Bootstrap and authorization [provisional]
+
+WU-75 adds a migrated singleton installation identity, consumed by explicit
+operator bootstrap. First-owner identity, organization, membership, audit and
+outbox intent commit together. The consumed state pins the OpenFGA store/model;
+replays and concurrent claims cannot create another bootstrap owner. There is
+no bootstrap HTTP endpoint or first-login provisioning path.
+
+The authorization adapter validates the reviewed immutable owner/viewer model,
+uses explicit authenticated HTTP and requests higher-consistency checks. PostgreSQL
+remains authoritative: active principal/membership and matching desired/applied
+revisions are required before a permission can be used. Organization and principal
+locks remain held through the authorized operation and its audit commit.
+
+Projection serializes on the organization row, writes one idempotent tuple change
+at a time and advances applied revision only after confirmation. A crash between
+tuple write and acknowledgement leaves requests blocked and retries the same
+revision. Revocation marks membership inactive transactionally before projection.
+A bounded maintenance worker discovers pending organization IDs, processes up to
+ten revisions for each of ten organizations per pass, and retries unavailable
+projection after two seconds. Its structured records report progress/failure
+without credentials or raw relationship payloads. This maintenance scan is not a
+tenant read API. Multiple workers serialize through the same row locks.
+
+Operator commands inspect installation state, consume bootstrap explicitly or
+reconcile one organization. Local setup separately provisions OpenFGA's PostgreSQL
+role/database, applies its migrations and creates/verifies the pinned model.
+Starting applications does not run platform or OpenFGA migrations. Production
+uses explicit HTTPS service configuration and an authenticated, private OpenFGA
+endpoint; the console never receives its credentials.
+
+The transaction wrapper is for short management operations, not for holding
+organization locks across model generation or agent execution. Data-plane admission
+and in-flight execution policies require their own qualification. Tests cover real
+PostgreSQL/OpenFGA bootstrap races, crash recovery, permission isolation, suspension,
+model rejection, provisioning and mutation/revocation serialization. See
+[platform operations](../platform/README.md) for configuration and recovery limits.

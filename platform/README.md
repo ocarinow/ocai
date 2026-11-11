@@ -106,8 +106,8 @@ The storage layer persists principals, exact issuer/subject bindings,
 organizations, scoped memberships, pending authorization changes and allowlisted
 audit events. Organization creation/rename and membership grant methods write
 their audit evidence within the same transaction. Membership grants also increase
-the desired authorization revision and append an ordered outbox entry. OpenFGA
-projection is not implemented yet; an unapplied grant does not establish access.
+the desired authorization revision and append an ordered outbox entry. WU-75 implements OpenFGA
+projection as described below; an unapplied grant does not establish access.
 
 Repository methods require explicit organization scope. They are internal storage
 operations, not an authorization boundary; a later application service must
@@ -220,7 +220,7 @@ redirects/ambient proxies and at most 32 keys. Fresh keys are cached for at most
 five minutes; refresh is single-flight with a five-second retry interval. An
 outage can use fresh known keys but cannot extend their freshness; unavailable
 verification returns sanitized 503. Token revocation at the IdP is not immediate
-offline JWT revocation; platform membership enforcement follows in WU-75.
+offline JWT revocation; platform membership enforcement is described in WU-75 below.
 
 Focused identity qualification:
 
@@ -232,5 +232,116 @@ The real Keycloak test runs Authorization Code + PKCE and token exchange with
 disposable accounts, then verifies access-token acceptance and ID-token rejection.
 It uses ephemeral H2 storage for protocol qualification; the development Compose
 service uses a separate PostgreSQL database/role. Missing Docker fails the gate.
-For unit-only iteration, use `pytest -m 'not storage and not identity'`; this is not
+For unit-only iteration, use `pytest -m 'not storage and not identity and not authorization'`; this is not
 full verification. No live user or provider credentials are required.
+
+
+## Organization bootstrap and OpenFGA authorization (WU-75)
+
+OpenFGA runs separately from the gateway. Keycloak verifies identity; the platform
+owns principals, memberships and grants in PostgreSQL; OpenFGA evaluates a reviewed
+relationship model. The gateway combines all three. End users never call OpenFGA
+or obtain its service credential. Future access-management screens will operate
+through our management API; this WU provides internal services and operator
+commands, not a role-editor UI.
+
+The first model gives organization owners read/update and viewers read only.
+Relationships identify stable platform principal UUIDs, not email addresses or
+provider usernames. The adapter verifies the exact reviewed model at startup and
+pins every request to its immutable model ID. `HIGHER_CONSISTENCY` checks do not
+replace the platform's transactional synchronization checks. There is no positive
+permission cache. Future team/resource relationships and conditional policies
+require versioned model changes and their own qualification.
+
+`task serve:setup` now provisions a separate OpenFGA PostgreSQL role/database,
+runs its migrations explicitly, starts authenticated OpenFGA on loopback port
+18081, and creates/verifies one pinned store/model. Their IDs and generated service
+credentials stay in the private local settings. Rerunning setup preserves them.
+Ordinary `serve:openfga` startup assumes this setup has already run. PostgreSQL-backed
+state persists across stops/restarts. The tests use disposable in-memory OpenFGA
+storage for protocol/race tests; local smoke verification also exercises PostgreSQL.
+
+`task serve:all` starts gateway, console and the authorization projector.
+`task serve:authorization` runs the projector by itself. It discovers a bounded
+batch of pending organizations, applies changes in revision order, and records
+acknowledgement only after OpenFGA confirms the tuple write. Multiple instances
+serialize on organization locks. Structured logs report projected revision counts
+or retrying dependency failures; no tokens, DSNs or raw tuples are logged.
+
+For a new local installation, inspect its one-use state:
+
+```bash
+task serve:operator -- status
+```
+
+Inspect the intended user's exact subject in the trusted Keycloak realm. Then
+explicitly consume the installation identity returned above:
+
+```bash
+task serve:operator -- bootstrap --installation INSTALLATION_UUID --subject TRUSTED_SUBJECT --name 'Example organization'
+```
+
+The configured issuer and that subject bind to a new platform principal. Initial
+organization, owner membership, audit events and projection intent commit atomically.
+Concurrent or repeated bootstrap is rejected. A rollback leaves bootstrap available;
+a successful bootstrap followed by projection failure remains consumed, with pending
+work safely recoverable. Do not reset installation state to recover projection.
+The local developer account receives no authority until this command is run.
+
+Start the worker or explicitly reconcile one organization:
+
+```bash
+task serve:operator -- reconcile --organization ORGANIZATION_UUID
+```
+
+The explicit command applies at most 100 revisions per invocation; repeat until
+no pending work remains. The worker handles up to ten organizations and ten
+revisions each per pass, then sleeps two seconds. A crash after a tuple write but
+before acknowledgement replays that revision with OpenFGA's duplicate/missing
+ignore semantics. Older grants cannot be replayed after later acknowledged
+revocations. A dependency outage never becomes an implicit permission grant.
+
+Production operators supply `OCAI_DATABASE_URL` with the gateway runtime role,
+`OCAI_FGA_ENDPOINT` (HTTPS), `OCAI_FGA_STORE_ID`, `OCAI_FGA_MODEL_ID` and
+`OCAI_FGA_TOKEN` explicitly. The OpenFGA API must be private and access-controlled;
+the initial adapter uses a service bearer credential, not the user's login token.
+Provision OpenFGA storage and migrate it separately with the pinned server version,
+then use `python -m app.authorization.provision` to create/qualify a model and print
+its non-secret IDs. Preserve these IDs in deployment configuration. Partial failed
+provisioning may leave an unreferenced store; inspect it before operator cleanup.
+No application startup creates stores or chooses a latest model implicitly.
+
+Run `python -m app.authorization.operator status|bootstrap|reconcile|worker` from
+the gateway environment; production omits `--local`. Bootstrap additionally requires
+the explicit issuer/audience/console-client configuration from WU-74. A changed
+store/model cannot reuse an old deployment's acknowledged revisions: the database
+binding check fails closed. Model upgrades and coordinated multi-database restore
+need a separately reviewed migration/reprojection procedure; automatic production
+upgrade/restore is not claimed by this WU.
+
+Backend handlers use `Authorization.transaction(identity, organization_id, action)`
+for short management operations. It checks the current active principal and
+membership, pinned deployment, matching desired/applied revisions and OpenFGA
+permission. The yielded scope supplies actor/resource IDs and a transaction-bound
+repository; changes and their audit commit before locks are released. Missing or
+inaccessible resources raise the same `AccessDenied` category. Pending/unavailable
+authorization raises `AuthorizationUnavailable`. HTTP error mapping and the first
+protected console operation arrive in WU-77. Never keep this transaction open across
+model generation, agent runs or arbitrary tool execution.
+
+Revocation becomes effective in platform state immediately, independently of token
+or tuple lifetime. A concurrent administrative mutation either commits under its
+existing authorization before revocation or observes revocation and is denied.
+Repository CRUD alone is not an authorization boundary; request handlers must use
+the authorized scope. Maintenance bootstrap/projection paths are explicitly separate.
+
+Focused qualification:
+
+```bash
+uv run --directory platform/services/gateway pytest tests/test_authorization.py
+```
+
+The suite exercises real OpenFGA and PostgreSQL, concurrent/replayed bootstrap,
+rollback, owner/viewer isolation, current principal suspension, bounded projection,
+crashes around tuple acknowledgement, concurrent reconcilers and revocation races.
+No live user/provider credentials are required. Missing Docker fails verification.

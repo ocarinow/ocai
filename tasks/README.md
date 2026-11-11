@@ -104,10 +104,13 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
-| `task serve:all` | Launch gateway and console together with their dependencies (Ctrl+C stops foreground apps) |
+| `task serve:all` | Launch gateway, console and authorization worker with their dependencies (Ctrl+C stops foreground apps) |
+| `task serve:authorization` | Run the bounded authorization outbox worker after OpenFGA and Python dependencies |
 | `task serve:console` | Launch Nuxt with frontend dependencies installed (use serve:all for the gateway too) |
 | `task serve:gateway` | Launch FastAPI with local issuer configuration after infrastructure and Python dependencies |
 | `task serve:keycloak` | Start local Keycloak with its PostgreSQL dependency and wait for issuer discovery |
+| `task serve:openfga` | Start authenticated local OpenFGA after PostgreSQL (run serve:setup once for migrations) |
+| `task serve:operator` | Run a local operator command with private configuration (task serve:operator -- status|bootstrap|reconcile ARGS) |
 | `task serve:postgres` | Start isolated local PostgreSQL and wait until healthy (preserves development data) |
 | `task serve:setup` | Explicitly provision local infrastructure, install dependencies and apply platform migrations |
 | `task serve:status` | Show the state of this checkout's managed development infrastructure |

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.storage.models import AuditEvent
 from app.storage.models import AuthorizationChange
 from app.storage.models import IdentityBinding
+from app.storage.models import Installation
 from app.storage.models import Membership
 from app.storage.models import Organization
 from app.storage.models import Principal
@@ -53,6 +54,18 @@ class AuthorizationRecord:
     operation: str
 
 
+@dataclass(frozen=True)
+class InstallationRecord:
+    installation_id: UUID
+    organization_id: UUID | None
+    store_id: str | None
+    model_id: str | None
+
+
+class BootstrapConsumed(Exception):
+    """Bootstrap state is absent, mismatched or consumed; never claim a second owner."""
+
+
 class StaleWrite(Exception):
     """Resource version changed before the requested write."""
 
@@ -75,6 +88,125 @@ class Repository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def pending_authorization(self) -> tuple[UUID, ...]:
+        """Maintenance-only discovery of at most ten organization IDs; not a tenant query."""
+        identifiers = await self._session.scalars(
+            select(Organization.id)
+            .where(Organization.desired_revision > Organization.applied_revision)
+            .order_by(Organization.id)
+            .limit(10)
+        )
+        return tuple(identifiers)
+
+    async def installation(self) -> InstallationRecord:
+        """Read immutable installation identity and pinned authorization deployment."""
+        row = await self._session.get(Installation, 1)
+        if row is None:
+            raise ValueError("Installation state is absent.")
+        return InstallationRecord(
+            row.installation_id, row.organization_id, row.store_id, row.model_id
+        )
+
+    async def lock_organization(self, organization_id: UUID) -> OrganizationRecord | None:
+        """Serialize permission-sensitive operations with membership/projection changes."""
+        row = await self._session.scalar(
+            select(Organization).where(Organization.id == organization_id).with_for_update()
+        )
+        return None if row is None else _organization(row)
+
+    async def lock_identity(self, *, issuer: str, subject: str) -> UUID | None:
+        """Keep the active-principal decision stable through the caller's transaction."""
+        return await self._session.scalar(
+            select(Principal.id)
+            .join(IdentityBinding, IdentityBinding.principal_id == Principal.id)
+            .where(
+                IdentityBinding.issuer == issuer,
+                IdentityBinding.subject == subject,
+                Principal.active.is_(True),
+            )
+            .with_for_update(of=Principal)
+        )
+
+    async def acknowledge(self, organization_id: UUID, revision: int) -> None:
+        """Advance exactly one confirmed revision under the organization's lock."""
+        row = await self._session.scalar(
+            select(Organization).where(Organization.id == organization_id).with_for_update()
+        )
+        if row is None or row.applied_revision + 1 != revision or revision > row.desired_revision:
+            raise ValueError("Authorization revision is out of order.")
+        row.applied_revision = revision
+        await self._session.flush()
+
+    async def bootstrap(
+        self,
+        installation_id: UUID,
+        *,
+        issuer: str,
+        subject: str,
+        display_name: str,
+        store_id: str,
+        model_id: str,
+        request_id: UUID,
+    ) -> OrganizationRecord:
+        """Consume operator-selected installation state and create the first owner atomically."""
+        state = await self._session.scalar(
+            select(Installation).where(Installation.singleton == 1).with_for_update()
+        )
+        if (
+            state is None
+            or state.installation_id != installation_id
+            or state.organization_id is not None
+        ):
+            raise BootstrapConsumed("Installation bootstrap is unavailable or already consumed.")
+        principal = await self.create_principal("user")
+        await self.bind_identity(principal, issuer=issuer, subject=subject)
+        organization = await self.create_organization(
+            display_name, actor_id=principal, request_id=request_id
+        )
+        await self.grant_membership(
+            organization.id, principal, role="owner", actor_id=principal, request_id=request_id
+        )
+        state.organization_id = organization.id
+        state.store_id, state.model_id = store_id, model_id
+        self._audit(
+            organization.id, principal, organization.id, request_id, "installation.bootstrapped"
+        )
+        await self._session.flush()
+        result = await self.organization(organization.id)
+        assert result is not None
+        return result
+
+    async def revoke_membership(
+        self,
+        organization_id: UUID,
+        principal_id: UUID,
+        *,
+        actor_id: UUID,
+        request_id: UUID,
+    ) -> None:
+        """Make revocation effective in PostgreSQL immediately and queue ordered tuple deletion."""
+        row = await self._session.scalar(
+            select(Organization).where(Organization.id == organization_id).with_for_update()
+        )
+        member = await self._session.get(Membership, (organization_id, principal_id))
+        if row is None or member is None:
+            raise ValueError("Membership does not exist.")
+        if not member.active:
+            return
+        member.active = False
+        row.desired_revision += 1
+        self._session.add(
+            AuthorizationChange(
+                organization_id=organization_id,
+                revision=row.desired_revision,
+                principal_id=principal_id,
+                role=member.role,
+                operation="revoke",
+            )
+        )
+        self._audit(organization_id, actor_id, principal_id, request_id, "membership.revoked")
+        await self._session.flush()
 
     async def create_principal(self, kind: Literal["user", "service_account"]) -> UUID:
         """Create a principal without granting organization access."""
@@ -251,7 +383,13 @@ class Repository:
         actor_id: UUID,
         target_id: UUID,
         request_id: UUID,
-        action: Literal["organization.created", "organization.renamed", "membership.granted"],
+        action: Literal[
+            "organization.created",
+            "organization.renamed",
+            "membership.granted",
+            "membership.revoked",
+            "installation.bootstrapped",
+        ],
     ) -> None:
         self._session.add(
             AuditEvent(
