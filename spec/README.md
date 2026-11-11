@@ -347,3 +347,21 @@ contradictory native usage. These banks preserve future fields without minting
 uncensused extension keys. Provider-scoped aggregate usage source codes retain
 measured totals when disjoint details are missing; they are not zero-valued
 cache/reasoning buckets and must not be treated as qualified prices.
+
+
+## Recorded binary wire bodies
+
+WU-49 extends the existing recorded HTTP pair convention for binary streams.
+`request` keeps method, URL and exact JSON or bytes; `response` keeps status,
+headers and `body: {"encoding": "base64", "data": "..."}`. Data is strict RFC 4648
+base64 representing the exact concatenated wire bytes, including framing/CRCs;
+it is not provider-level blob encoding. Chunk boundaries are replay choices and
+must not alter decoded frames. A description states synthetic versus captured,
+source references and scope. Optional expected typed frames and corrupt vectors
+are test assertions, not provider response members.
+
+`python/packages/ocai-core/tests/http/eventstream_frames.json` is a synthetic
+protocol recording; it makes no capability or semantic fold claim. It covers
+all typed headers, future event names, opaque payload bytes and an empty frame.
+Its corrupt cases deliberately violate framing. This is a documented fixture
+convention, not the full cross-language archive schema still tracked by G-02.

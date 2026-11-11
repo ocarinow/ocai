@@ -1026,7 +1026,10 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   Revert is sufficient; no persisted format or canonical migration changes.
 - **Open:** None for byte-level parsing. Semantic stream evidence remains outside
   this WU and must be qualified before enabling the Bedrock stream surface.
-- **Evidence:** Pending implementation and full gate.
+- **Evidence:** Parser implementation and recorded binary vectors are present.
+  `uv run pytest python/packages/ocai-core/tests/test_eventstream.py -q` and
+  `uv run pyright` pass. Expanded full gate, stack refresh and ADR close-out
+  remain pending; this WU is not complete.
 - **Area:** wire
 - **Priority:** P0
 - **Tier:** 1
@@ -1042,7 +1045,8 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Done:** Recorded binary Anthropic streams pass fold parity against paired InvokeModel unary
   responses with exact usage/replay evidence, and close/cancellation/mid-stream
   exceptions release transport resources while preserving partial accounting.
-- **Deps:** WU-49 and the generic streaming host-outcome prerequisite tracked by G-14.
+- **Deps:** WU-49, generic streaming host outcomes (G-14), and chunk-independent
+  framing failure accounting (G-16).
 - **Architecture:** §3.3, §4.5, §5–7, §10.
 - **Freeze:** none changed: StreamEnd/StreamOutcome/ChatChunk and schemas remain intact.
 - **Decision:** Reuse Anthropic semantics after envelope decoding
