@@ -45,4 +45,8 @@ jobs:
             echo "::notice::BOARD_TOKEN secret is not set; the board cannot be reached from CI. Set a token with the project scope: gh secret set BOARD_TOKEN -R ${{ github.repository }}"
             exit 0
           fi
-          GH_TOKEN="$BOARD_TOKEN" python3 scripts/board_sync.py sync --apply
+          # The plan is always read from main: a PR branch's plan table is a proposal, not a fact.
+          # PR events report findings without failing; pushes to main and the nightly run are strict.
+          git fetch -q origin main
+          lenient=""; [ "${{ github.event_name }}" = "pull_request" ] && lenient="--lenient"
+          GH_TOKEN="$BOARD_TOKEN" python3 scripts/board_sync.py sync --apply --ref origin/main $lenient
