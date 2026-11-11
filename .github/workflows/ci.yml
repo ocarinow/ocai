@@ -160,9 +160,10 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         run: uv run mypy
 
+      # Coverage is informational (no threshold yet): the same flags as the gate.
       - name: Pytest
         if: steps.changes.outputs.run == 'true'
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=term-missing
 
       # Build/install ordinary wheels in a fresh environment: source-path
       # injection would miss broken namespace packaging and entry points.
@@ -197,7 +198,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.changes.outputs.run == 'true'
         with:
-          node-version: '24.15.0'
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: platform/package-lock.json
 

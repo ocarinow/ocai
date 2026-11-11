@@ -53,6 +53,14 @@ CI check; a server-side rule also rejects pushes whose commit messages carry
 such content. If you use a coding agent, this applies to it too — see
 `AGENTS.md`.
 
+## Clone setup
+
+`task setup` creates the environment, installs the docs group, points git at
+the repository's hooks (`.githooks/`: a `commit-msg` hook runs the privacy
+guard on every commit message before it can leave your machine), and checks
+`gh` authentication. `.editorconfig`, `.python-version` (3.13), and
+`.node-version` (the Node release CI uses) are honoured by the usual tools.
+
 ## Editor setup
 
 The repository holds several Python environments (the root uv workspace for
