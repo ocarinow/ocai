@@ -217,7 +217,9 @@ separate product programs, not implied market-parity claims.
 - **Risks:** Entries drift from the mockup as the design iterates; bounded by
   the rule that the plan is the source and the mockup follows. Rollback: revert.
 - **Open:** none.
-- **Evidence:** `scripts/board_sync.py lint` validates every definition; the
+- **Evidence:** Initial planning verification: `gate: dfb6612+dirty` (all checks
+  passed before tracking; the PR supplies the subsequent clean-commit gate).
+  `scripts/board_sync.py lint` validates every definition; the
   roadmap and both program files have matching IDs/titles and an acyclic dependency
   graph. `scripts/check.py` verifies the planning diff; the PR carries its clean
   commit gate summary. Runtime features remain pending in their own WUs.
