@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "ocai",
     "ocai-anthropic",
+    "ocai-deepseek",
     "ocai-openai",
 ]
 
@@ -619,6 +620,21 @@ dependencies = [
 requires-dist = [
     { name = "msgspec", specifier = ">=0.18" },
     { name = "ocai", editable = "python/packages/ocai-core" },
+]
+
+[[package]]
+name = "ocai-deepseek"
+version = "0.1.0"
+source = { editable = "python/packages/ocai-deepseek" }
+dependencies = [
+    { name = "ocai" },
+    { name = "ocai-openai" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ocai", editable = "python/packages/ocai-core" },
+    { name = "ocai-openai", editable = "python/packages/ocai-openai" },
 ]
 
 [[package]]

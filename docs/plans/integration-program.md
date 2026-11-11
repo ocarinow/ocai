@@ -339,7 +339,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-44a — Declare the DeepSeek compatible interface variant
 
-- [ ] **Status:** in progress; stacked on WU-43 (PR #87).
+- [x] **Status:** implemented; review in PR #89, stacked on WU-43 (PR #87).
 - **Goal:** Make DeepSeek's compatible interface independently attributable without
   claiming execution or conversion qualification.
 - **First step:** Verify the chosen model ids and Chat Completions revision,
@@ -356,7 +356,8 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   ChatRequest/PartReasoning and their schemas stay intact.
 - **Decision:** Share the compatible wire implementation but preserve DeepSeek
   vendor identity and replay scope ([DeepSeek §13(a)](../providers/deepseek.md));
-  declaring the graph identity and certifying its edges are separate WUs.
+  declaring the graph identity and certifying its edges are separate WUs
+  (ADR 0008, compatible interface identity).
 - **Integration:** A separate ocai-deepseek distribution exports descriptor-only
   nodes, traits and conservative profiles. OpenAI wire DTOs are reused by import;
   no codec factory, payload edge or stream transducer is registered yet.

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ocai-deepseek"
+version = "0.1.0"
+description = "DeepSeek interface descriptors for ocai; execution qualification pending."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "FSL-1.1-ALv2"
+authors = [{ name = "ocai maintainers" }]
+dependencies = ["ocai>=0.1,<0.2", "ocai-openai>=0.1,<0.2"]
+
+[project.entry-points."ocai.fragments"]
+deepseek = "ocai.deepseek:FRAGMENT"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ocai"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["src"]

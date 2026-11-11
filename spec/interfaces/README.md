@@ -1,6 +1,12 @@
 # `spec/interfaces/` — catalog descriptors as data
 
-**Status: placeholder — format normative, descriptor population pending.**
+**Status: partially populated — DeepSeek Chat Completions (WU-44a).**
+
+`deepseek.chat_completions.json` records a descriptor-only interface. Its
+`2026-11` tag orders ocai's observation snapshot, not a vendor or model release.
+A stable descriptor is not evidence that a codec, edge or executable binding
+exists. Other interface descriptors remain pending; current tests verify the
+DeepSeek descriptor against its installed fragment.
 
 One JSON document per **provider interface** — the wire protocols the
 conversion catalog is built from (`openai/chat_completions`,
