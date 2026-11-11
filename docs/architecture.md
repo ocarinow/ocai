@@ -95,8 +95,11 @@ no AWS dependency. SDK types, sessions and exceptions are private implementation
 details: public callers use ocai credentials and errors. Runtime code branches
 on contracts, never on the provider or its SDK. Hosting and semantic conversion
 remain separate responsibilities, with no reverse dependency from cloud access
-to a service package. A future Bedrock/Vertex host belongs in its service package;
-general host protocols and transport mechanics remain here.
+to a service package. `ocai-bedrock` now owns the Bedrock service host; future Vertex hosting belongs
+in its service package. General host protocols and transport mechanics remain here.
+Unlike semantic codec modules, external host modules may import public pure wire
+values, never the HTTP client. Import contracts prohibit reverse kernel/codec
+imports and keep Bedrock hosting independent from AWS signing and Anthropic codecs.
 
 ## 2. `ocai.core` — the contract layer
 
@@ -920,6 +923,24 @@ evidence. Policy rejection intentionally omits host_evidence, which may include
 rejected content. Legacy hosts without this protocol keep their existing behavior.
 This contract is unary-only; stream-head capture and incremental effects are a
 required follow-up, not implied by HostResponseAdapter.
+
+`ocai.bedrock.Bedrock` (external ocai-bedrock, WU-48) implements these public
+contracts for Anthropic InvokeModel. Region is explicit, the model occupies one
+encoded path segment, and trait-declared versions/beta values move into the body.
+It composes a separate credential such as `ocai.aws.SigV4Credential`; it neither
+imports an SDK nor copies Anthropic conversion logic. Its unary outcome adapter
+preserves all amazon-bedrock-* body fields and selected latency/tier headers in
+HostEvidence metadata with declared RENAMED findings. Native HTTP error codes map
+to the shared taxonomy before retry policy; unknown codes remain verbatim.
+Explicit guardrail BLOCKED assessments raise ContentFilterError; output ANONYMIZED
+assessments report bedrock.masked_output. INTERVENED without a recognized effect
+reports bedrock.guardrail_intervened. Model output is never interpreted as trace
+assessment data. Native traces may contain original sensitive content; passive
+events carry only accounting, not native evidence. Fidelity rejection retains
+usage/report while withholding response evidence. Streaming is rejected before
+I/O until its separate outcome path is qualified. Dialect wildcard profiles are
+not host/model qualification (G-15); the recorded matrix in the package README
+is the initial claim, with no implied service availability.
 
 WU-37 makes Direct/Custom consume resolved trait headers. Vertex consumes
 `body_fields("vertex")`, removes model/stream as before, and keeps the legacy

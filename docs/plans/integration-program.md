@@ -100,11 +100,13 @@ are preserved and tested, not renamed or replaced.
 | 15 | Dual `reasoning` / `reasoning_content` decode | WU-44b, WU-58 | Hosting, Mapping (c) |
 | 16 | Host error/metadata preservation, including HTTP-200 stream errors | WU-48/56/58/59/60 | Hosting, Mapping (c–d); Azure §13; Bedrock §13 |
 
-Items 15–16 are semantic conversion work owned by plugins, not host-side copies
-of codecs. All new hosts depend on the shared foundation WU-37–39. Hosts live in
-`ocai.wire`; plugins declare pure traits/data and never import wire or HTTPX.
-The stdlib AWS credential lives in an independent `ocai-aws` package importing
-core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
+Items 15–16 use provider-owned outcome mappings through public host contracts,
+not host-side copies of semantic codecs. All new hosts depend on WU-37–39.
+Generic host contracts live in `ocai.wire`; cloud service hosts live in external
+packages and may import pure public wire values. Semantic codecs still import
+core/convert only. `ocai-aws` delegates signing to AWS-maintained code behind an
+ocai credential (ADR 0016); `ocai-bedrock` owns service hosting and later Converse
+conversion, with acyclic dependencies and no SDK objects in public APIs.
 
 ## WU-36 — Define the tier 1–2 integration program
 
@@ -875,7 +877,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   examples establish fixture identifiers, not current account/region availability.
 - **Acceptance:**
   - Text and tool calls traverse signed exact InvokeModel envelopes in sync/async
-    through ocai.chat.model, retaining usage and known profile uncertainty —
+    through ocai.chat.model, retaining usage and explicit dialect-versus-host coverage limits —
     `python/packages/ocai-bedrock/tests/test_host.py` and its HTTP recordings.
   - Explicit body versions/beta declarations and encoded identifiers survive;
     conflicting declarations and unsupported streaming fail before I/O — same tests.

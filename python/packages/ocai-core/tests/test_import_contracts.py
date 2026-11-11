@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # The number of contracts declared in [tool.importlinter]; keep in sync with
 # the root pyproject.toml. Asserted exactly so a lost contract fails loudly.
-DECLARED_CONTRACTS = 4
+DECLARED_CONTRACTS = 6
 
 # A config exercising the same namespace portions as the real one, but with a
 # contract the codebase deliberately violates everywhere: ocai.convert *must*

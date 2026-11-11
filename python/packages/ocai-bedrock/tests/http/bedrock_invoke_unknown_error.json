@@ -1,0 +1,38 @@
+{
+  "description": "Synthetic AWS InvokeModel unknown_error error pair for WU-48 / rule 8; documented native error shape, with future code explicitly an unknown-input probe. See Bedrock research section 16.",
+  "request": {
+    "method": "POST",
+    "url": "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-5-sonnet-20241022-v2%3A0/invoke",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello, who are you?"
+            }
+          ]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024,
+      "anthropic_version": "bedrock-2023-05-31"
+    },
+    "headers": {
+      "accept": "application/json",
+      "content-type": "application/json"
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/json",
+      "x-amzn-requestid": "synthetic-error-request",
+      "x-amzn-errortype": "FutureException:detail"
+    },
+    "json": {
+      "message": "Synthetic provider failure"
+    }
+  }
+}

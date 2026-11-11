@@ -1,0 +1,88 @@
+{
+  "description": "Synthetic AWS InvokeModel text pair, hand-authored against docs/providers/amazon-bedrock.md section 16 for WU-48. Existing Anthropic codec semantics, explicit body version and encoded model path; no live service availability is asserted.",
+  "request": {
+    "method": "POST",
+    "url": "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-5-sonnet-20241022-v2%3A0/invoke",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello, who are you?"
+            }
+          ]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024,
+      "anthropic_version": "bedrock-2023-05-31"
+    },
+    "headers": {
+      "accept": "application/json",
+      "content-type": "application/json"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01XYZ",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20241022",
+      "content": [
+        {
+          "type": "text",
+          "text": "I am Claude, an AI assistant."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 14,
+        "output_tokens": 9
+      }
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-amzn-requestid": "synthetic-bedrock-request"
+    }
+  },
+  "expect_host": {
+    "paths": [],
+    "shifts": [],
+    "metadata": {
+      "body": {},
+      "headers": {}
+    }
+  },
+  "host_contract": {
+    "census": {
+      "body[]": {
+        "disposition": "renamed",
+        "note": "Only amazon-bedrock-* body members move into HostEvidence.metadata"
+      },
+      "headers[]": {
+        "disposition": "renamed",
+        "note": "Selected service-tier/performance headers copy into HostEvidence.metadata"
+      }
+    },
+    "semantic_shifts": [
+      {
+        "kind": "bedrock.guardrail_blocked",
+        "path": "response",
+        "note": ""
+      },
+      {
+        "kind": "bedrock.masked_output",
+        "path": "response",
+        "note": ""
+      },
+      {
+        "kind": "bedrock.guardrail_intervened",
+        "path": "response",
+        "note": ""
+      }
+    ]
+  }
+}

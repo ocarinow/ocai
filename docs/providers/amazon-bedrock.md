@@ -418,15 +418,19 @@ header before host/dialect refinement. Separately, successful headers disappear
 when the driver returns only the unwrapped body, and envelopes have no fidelity
 channel (G-14). A wire policy could observe success headers, but that is not a
 supported host metadata/effect contract and cannot recover discarded error headers.
-Host implementation waits for those reusable seams; no private transport override
-or provider-specific driver branch is introduced here.
+This was the pre-WU-48a–c reproduction. Those WUs now provide reusable unary
+seams; WU-48 uses them without a private transport override or provider-specific
+driver branch. Streaming host outcomes remain the open portion of G-14.
 
 
 ## 16. WU-48 verified unary subset (2026-11-11)
 
 The [InvokeModel operation](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
 verifies path placement, service-tier/performance response headers and the documented
-US Claude 3.5 Sonnet profile used by recordings. These establish wire examples,
+US Claude 3.5 Sonnet profile shape. The
+[AWS CDK Bedrock examples](https://docs.aws.amazon.com/cdk/api/v2/docs/%40aws-cdk_aws-bedrock-alpha-readme.html)
+list the us.anthropic.claude-3-5-sonnet-20241022-v2:0 profile used by the recordings.
+These establish wire examples,
 not account access or regional availability. The
 [Anthropic request/response reference](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages-request-response.html)
 requires the Bedrock version and describes beta as a body string array. Existing

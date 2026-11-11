@@ -18,8 +18,8 @@ an `ocai/__init__.py`; each contributes only its own subpackages.
 | `ocai-openai` | [`packages/ocai-openai`](packages/ocai-openai/) | `ocai.openai.chat_completions` (implemented), `ocai.openai.responses` (stub) | `ocai>=0.1,<0.2`, `msgspec` |
 | `ocai-anthropic` | [`packages/ocai-anthropic`](packages/ocai-anthropic/) | `ocai.anthropic.messages` | `ocai>=0.1,<0.2`, `msgspec` |
 | `ocai-deepseek` | [`packages/ocai-deepseek`](packages/ocai-deepseek/) | `ocai.deepseek` (interface descriptors; execution qualification pending) | `ocai>=0.1,<0.2`, `ocai-openai>=0.1,<0.2` |
-
 | `ocai-aws` | [`packages/ocai-aws`](packages/ocai-aws/) | `ocai.aws` credentials | `ocai>=0.1,<0.2`, AWS CRT signing library |
+| `ocai-bedrock` | [`packages/ocai-bedrock`](packages/ocai-bedrock/) | `ocai.bedrock` hosting | `ocai>=0.1,<0.2`; optional AWS credentials and Anthropic codec |
 
 ocai owns the wire through `ocai.wire`. Semantic codecs depend on core/convert,
 never wire/httpx. The independent cloud credential package delegates signing to

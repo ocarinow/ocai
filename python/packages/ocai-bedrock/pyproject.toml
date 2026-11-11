@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ocai-bedrock"
+version = "0.1.0"
+description = "Bedrock hosting through public ocai contracts."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "FSL-1.1-ALv2"
+authors = [{ name = "ocai maintainers" }]
+dependencies = ["ocai>=0.1,<0.2"]
+
+[project.optional-dependencies]
+aws = ["ocai-aws>=0.1,<0.2"]
+anthropic = ["ocai-anthropic>=0.1,<0.2"]
+
+[project.urls]
+Homepage = "https://github.com/ocarinow/ocai"
+Source = "https://github.com/ocarinow/ocai"
+Documentation = "https://ocarinow.github.io/ocai/"
+Changelog = "https://github.com/ocarinow/ocai/blob/main/python/packages/ocai-bedrock/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ocai"]
+
+[tool.hatch.build]
+dev-mode-dirs = ["src"]
+
+[tool.ocai]
+role = "host"
