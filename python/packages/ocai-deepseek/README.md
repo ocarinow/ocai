@@ -10,8 +10,12 @@ Unknown native data remains recoverable in registered extension banks.
 
 Public sync/async unary calls use the standard chat facade. Compatible mapping
 code and wire DTOs reuse ocai-openai, while DeepSeek retains its own identity,
-profiles and contracts. Streaming preparation currently fails before provider I/O;
-WU-46 owns that qualification.
+profiles and contracts. Sync/async streaming uses its own censused graph edge over
+shared compatible framing machinery, with reasoning, text, indexed tools, native
+finish values, full response identity and usage on the final choice qualified.
+`model.prepare(request, streaming=True)` supports the same public inspection
+before `.stream()` or `await .astream()`. Own streams with `with` / `async with`,
+or call `.close()` / `await .aclose()` when stopping consumption early.
 
 ```python
 import ocai.chat
@@ -45,3 +49,17 @@ explicit policy above rejects those findings before sending; without a caller
 policy the facade retains its ordinary permissive/reporting behavior. Media,
 beta strict tools, FIM, prefix completion, JSON-schema output, Responses and
 Anthropic-compatible endpoints are outside this initial surface.
+
+The provider backend fingerprint is retained in `ResponseInfo.extensions` under
+`deepseek.system_fingerprint`, with an EXTENSIONS finding in both directions of
+execution. Unknown native fields remain available on canonical event extensions
+(`deepseek.stream_unmapped`) and raw events with findings; they are not advertised
+as portable first-class features. Full response fold parity is qualified for the
+recorded supported surface; unknown-event extension folding is tracked as G-12.
+
+A successful stream requires both a finish signal and `[DONE]`. An aborted finish,
+malformed frame, missing tool identity, missing finish or missing sentinel cannot
+produce successful StreamEnd. Available usage and reports remain in the execution
+outcome. No generation is retried after partial delivery. Undocumented native
+in-stream error codes remain `unknown` with verbatim evidence; no stable vendor
+error schema is claimed.

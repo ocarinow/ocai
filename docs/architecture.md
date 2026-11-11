@@ -629,7 +629,7 @@ weight as a lexicographic `LossGrade` (unsupported+dropped, approximated,
 emulated, hops) — impossible to game with a magic float. The conformance
 harness certifies at build time that an edge's *runtime* `FieldLoss` never
 exceeds its declaration: **an edge claiming lossless that drops a field cannot
-ship.** DeepSeek declares its own unary census and semantic effects despite
+ship.** DeepSeek declares its own unary/streaming census and semantic effects despite
 sharing compatible mapping code. Ignored parameters, effort aliases, explicit
 thinking precedence and reasoning concatenation have separate shift records.
 Model-dependent `top_p` remains verbatim with an unsupported finding (G-10);
@@ -703,7 +703,9 @@ semantic JSON equality alone cannot establish position correctness.
 `check_fragment` matches fixture coordinates, requires every payload edge to
 have evidence, checks independent expected output/records, and certifies emitted
 records against declarations. Streaming edges still need fold triples. Paired comparisons include ResponseInfo;
-only raw wire evidence is excluded. WU-46a strengthens existing OpenAI/Anthropic
+only raw wire evidence is excluded. WU-46 qualifies DeepSeek reasoning, text,
+indexed tools, metadata, unknown finish values and final-choice usage against
+paired unary recordings. WU-46a strengthens existing OpenAI/Anthropic
 expectations without rewriting their wire recordings.
 `resources.py` loads explicit `ConformanceResources` manifests from installed
 packages through `importlib.resources`; it rejects missing/malformed resources
@@ -851,7 +853,13 @@ configuration retains its original behavior. DeepSeek supplies independent
 identity, field lanes, finish mappings, request policies, usage normalization,
 profiles and edge contracts. WU-44b qualifies three unary edges with golden
 fixtures. WU-45 registers its serving component and qualifies public sync/async
-unary execution with recorded HTTP pairs. WU-46 owns streaming.
+unary and streaming execution with recorded HTTP/SSE pairs. Its stream edge uses
+the compatible transducer with a DeepSeek frame decoder and strict terminal
+validation: reason/text/tool slots are ordered, final-choice usage is processed
+alongside finish, and incomplete execution gets no success terminal. The provider
+fingerprint uses a censused ResponseInfo extension on unary and streaming paths.
+Unknown native frame fields retain event-level evidence and findings; generic
+folding of unknown response extensions is tracked in G-12.
 
 Measured prompt cache hits and misses, and output/reasoning tokens, become
 disjoint usage buckets only when their breakdown is available and consistent.
@@ -992,7 +1000,7 @@ including info accumulated from metadata events.
 local adapters: implement the port directly — same CallResult, no wire/runtime.
 ```
 
-DeepSeek unary wire pairs exercise this lifecycle end to end, including exact
+DeepSeek unary and streaming wire pairs exercise this lifecycle end to end, including exact
 request bytes as JSON, all prior reasoning in tool histories, scoped result ids,
 measured usage, both conversion legs, correlated metadata and safe retained policy
 references. Preparation itself performs no provider I/O (WU-45).

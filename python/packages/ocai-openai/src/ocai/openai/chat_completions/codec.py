@@ -38,6 +38,7 @@ from ocai.chat.types import ChatResponse
 from ocai.chat.types import ChunkType
 from ocai.chat.types import Consumption
 from ocai.chat.types import Delta
+from ocai.chat.types import DeltaReasoning
 from ocai.chat.types import DeltaRefusal
 from ocai.chat.types import DeltaText
 from ocai.chat.types import DeltaToolArgs
@@ -1854,9 +1855,9 @@ class ChatCompletionsStreamTransducer:
     the same visible toll as non-streaming (§4.1).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, codec: ChatCompletionsCodec | None = None) -> None:
         """Initialize per-stream state (codec, sequence counter, slots, records)."""
-        self._codec = ChatCompletionsCodec()
+        self._codec = codec if codec is not None else ChatCompletionsCodec()
         self._last_info: dict[str, Any] | None = None
         self._seq = 0
         self._losses: list[FieldLoss] = []
@@ -1949,6 +1950,8 @@ class ChatCompletionsStreamTransducer:
         """
         if isinstance(delta, DeltaText):
             return PartText(text="")
+        if isinstance(delta, DeltaReasoning):
+            return PartReasoning(text="")
         if isinstance(delta, DeltaRefusal):
             return PartRefusal(text="")
         return None
@@ -2011,10 +2014,10 @@ class ChatCompletionsStreamTransducer:
             losses (dropped foreign choices).
         """
         report = EdgeReport(
-            src=CHAT_COMPLETIONS_CHUNK,
+            src=self._codec.chunk_node,
             dst=CANONICAL_CHUNK,
             losses=tuple(self._losses),
             shifts=(),
-            note="openai/chat_completions -> canonical chat.chunk",
+            note=f"{self._codec.provider}/{self._codec.interface} -> canonical chat.chunk",
         )
         return [], report

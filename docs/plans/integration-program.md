@@ -466,7 +466,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-46 — Qualify DeepSeek streaming
 
-- [ ] **Status:** in progress in PR #100; G-11 resolved by WU-46a.
+- [x] **Status:** implemented; review pending in PR #100. G-11 resolved by WU-46a.
 - **Goal:** Qualify DeepSeek streaming through public chat execution with honest
   reasoning, tools, usage and incomplete-stream evidence.
 - **Scope:** DeepSeek-configured Chat Completions transducer, census, SSE pairs and
@@ -484,7 +484,8 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Decision:** Usage is not required to arrive in a separate empty-choices chunk
   ([DeepSeek §6/13](../providers/deepseek.md)); pattern replay of WU-14b.
 - **Open:** none for the qualified scope; ADR 0015/WU-46a supplies response-info
-  folding. Unknown finish values retain native strings.
+  folding. Unknown finish values retain native strings. G-12 separately tracks
+  folding unknown response-envelope extensions; event-level evidence is retained.
 - **Area:** plugin: deepseek
 - **Priority:** P0
 - **Tier:** 1

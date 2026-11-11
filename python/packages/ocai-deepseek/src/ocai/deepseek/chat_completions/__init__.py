@@ -1,4 +1,4 @@
-"""Qualified DeepSeek unary execution through the standard chat front door."""
+"""Qualified DeepSeek unary and streaming execution through the standard chat front door."""
 
 from ocai.convert.catalog import CatalogFragment
 from ocai.convert.catalog import Component
@@ -11,6 +11,7 @@ from ocai.deepseek.chat_completions.descriptor import PROFILES
 from ocai.deepseek.chat_completions.descriptor import PROVIDER
 from ocai.deepseek.chat_completions.descriptor import TRAITS
 from ocai.deepseek.chat_completions.edges import EDGES
+from ocai.deepseek.chat_completions.edges import TRANSDUCERS
 
 __all__ = ["FRAGMENT"]
 
@@ -20,6 +21,7 @@ FRAGMENT = CatalogFragment(
     profiles=PROFILES,
     traits=(TRAITS,),
     edges=EDGES,
+    transducers=TRANSDUCERS,
     components=(
         Component(provider=PROVIDER, interface=INTERFACE, capability=CHAT, factory=DeepSeekCodec),
     ),

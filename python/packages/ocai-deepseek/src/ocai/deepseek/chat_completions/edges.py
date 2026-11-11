@@ -3,15 +3,19 @@
 from ocai.convert.contract import DeclaredDisposition
 from ocai.convert.contract import EdgeContract
 from ocai.convert.graph import Edge
+from ocai.convert.graph import StreamEdge
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import SemanticShift
+from ocai.core.identity import CHAT_CHUNK
 from ocai.core.identity import CHAT_REQUEST
 from ocai.core.identity import CHAT_RESPONSE
 from ocai.core.identity import canonical_node
 from ocai.deepseek.chat_completions.codec import DeepSeekCodec
+from ocai.deepseek.chat_completions.descriptor import CHAT_COMPLETIONS_CHUNK
 from ocai.deepseek.chat_completions.descriptor import CHAT_COMPLETIONS_REQUEST
 from ocai.deepseek.chat_completions.descriptor import CHAT_COMPLETIONS_RESPONSE
 from ocai.deepseek.chat_completions.descriptor import ORIGIN
+from ocai.deepseek.chat_completions.streaming import DeepSeekStreamTransducer
 
 _CODEC = DeepSeekCodec()
 
@@ -180,6 +184,7 @@ DECODE_REQUEST_CONTRACT = EdgeContract(
 )
 DECODE_RESPONSE_CONTRACT = EdgeContract(
     census={
+        "system_fingerprint": DeclaredDisposition(Disposition.EXTENSIONS),
         "choices[0].message.content": DeclaredDisposition(Disposition.EXACT),
         "choices[0].message.reasoning_content": DeclaredDisposition(Disposition.EXACT),
         "choices[0].message.tool_calls[]": DeclaredDisposition(Disposition.EXACT),
@@ -219,3 +224,26 @@ EDGES = (
         ORIGIN,
     ),
 )
+
+
+DECODE_CHUNK_CONTRACT = EdgeContract(
+    census={
+        "id": DeclaredDisposition(Disposition.EXACT),
+        "model": DeclaredDisposition(Disposition.EXACT),
+        "created": DeclaredDisposition(Disposition.RENAMED),
+        "system_fingerprint": DeclaredDisposition(Disposition.EXTENSIONS),
+        "response_info": DeclaredDisposition(Disposition.EXTENSIONS),
+        "choices[0].delta.reasoning_content": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].delta.content": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].delta.tool_calls[]": DeclaredDisposition(Disposition.EXACT),
+        "choices[0].finish_reason": DeclaredDisposition(Disposition.EXACT),
+        "usage": DeclaredDisposition(Disposition.EXTENSIONS),
+        "unmapped": DeclaredDisposition(Disposition.EXTENSIONS),
+        "frame": DeclaredDisposition(Disposition.EXTENSIONS),
+        "termination": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "tool_order": DeclaredDisposition(Disposition.UNSUPPORTED),
+    },
+    note="DeepSeek reasoning, tools and final-choice usage with incomplete evidence",
+)
+TRANSDUCERS = (StreamEdge(CHAT_COMPLETIONS_CHUNK, canonical_node(CHAT_CHUNK),
+                          DeepSeekStreamTransducer, DECODE_CHUNK_CONTRACT, ORIGIN),)

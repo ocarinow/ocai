@@ -1,0 +1,48 @@
+{
+  "description": "WU-46 synthetic documented-wire SSE parallel; paired with deepseek_chat_stream_parallel_paired.json and the stream_parallel.json fold triple. Final choice carries no new content, but finish and measured usage together. Research section 16; no live keys.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.deepseek.com/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Look it up."
+        }
+      ],
+      "max_tokens": 128,
+      "model": "deepseek-flash",
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "lookup",
+            "parameters": {
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      ": keep-alive",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"reasoning_content\": \"Check\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"reasoning_content\": \" the record.\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call_synthetic\", \"type\": \"function\", \"function\": {\"name\": \"lookup\", \"arguments\": \"{\"}}, {\"index\": 1, \"id\": \"call_second\", \"type\": \"function\", \"function\": {\"name\": \"lookup\", \"arguments\": \"{\"}}]}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"}\"}}, {\"index\": 1, \"function\": {\"arguments\": \" \\\"key\\\": \\\"second\\\" }\"}}]}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {}, \"finish_reason\": \"tool_calls\", \"logprobs\": null}], \"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 6, \"total_tokens\": 16, \"prompt_cache_hit_tokens\": 4, \"prompt_cache_miss_tokens\": 6, \"prompt_tokens_details\": {\"cached_tokens\": 4}, \"completion_tokens_details\": {\"reasoning_tokens\": 2}}}",
+      "data: [DONE]"
+    ]
+  }
+}

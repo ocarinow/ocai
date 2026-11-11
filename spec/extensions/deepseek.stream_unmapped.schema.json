@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "deepseek.stream_unmapped",
+  "description": "Unqualified DeepSeek stream fields retained by exact source path.",
+  "x-ocai-origin": "ocai-deepseek",
+  "x-ocai-promotion": "none expected",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "path",
+      "value"
+    ],
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "value": {}
+    },
+    "additionalProperties": false
+  }
+}
