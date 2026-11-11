@@ -341,6 +341,6 @@ assume a separate empty-choices usage event. The HTTP error reference still does
 stable SSE error-envelope schema: unknown error payloads must remain evidence,
 without asserting an undocumented provider-specific error-code mapping.
 
-Qualification is not complete. G-11 records that canonical stream folding loses
-response identity even when all wire frames carry it. Existing unary response
-fixtures retain those fields and must not be rewritten to conceal the gap.
+WU-46a resolves G-11 with a reusable response-info carrier under ADR 0015.
+DeepSeek streaming qualification uses that carrier and must compare full
+canonical responses; existing unary expectations retain their response identity.
