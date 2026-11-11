@@ -192,6 +192,19 @@ by search counts. Unknown counters are censused evidence, not invented usage.
 Sources: [Web search §1.1/1.4](../capabilities/web-search-and-retrieval.md),
 [DeepSeek §5/7](../providers/deepseek.md), and gap G-01.
 
+### Compatible interface identity (WU-44a)
+
+A compatible wire format does not collapse vendor identity. The DeepSeek package
+publishes its own provider/interface nodes, traits and conservative model profiles,
+while reusing OpenAI wire DTOs through an explicit plugin dependency. No new core
+contract is needed. Descriptor registration, payload-edge qualification and public
+execution are separate steps: WU-44a has no codec factory, edge or transducer.
+The `2026-11` tag orders the ocai observation snapshot dated 2026-11-11; it is not a
+vendor version header or model release date. Stable node metadata alone grants no
+execution eligibility. Unverified historical model retirement dates are omitted.
+
+Source: [DeepSeek §14](../providers/deepseek.md#14-wu-44a-descriptor-verification-2026-11-11).
+
 ### Payment and trace vocabulary (WU-59/61)
 
 Add the non-retryable payment_required open error code; do not rename existing

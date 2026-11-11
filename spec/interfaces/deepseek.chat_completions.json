@@ -1,0 +1,19 @@
+{
+  "provider": "deepseek",
+  "interface": "chat_completions",
+  "capability": "chat",
+  "description": "DeepSeek POST /chat/completions; descriptor only, no qualified execution. Tag/released identify the ocai observation snapshot, not a vendor version or model release.",
+  "docs_url": "https://api-docs.deepseek.com/api/create-chat-completion/",
+  "shapes": [
+    "chat.request",
+    "chat.response",
+    "chat.chunk"
+  ],
+  "tags": [
+    {
+      "tag": "2026-11",
+      "released": "2026-11-11",
+      "status": "stable"
+    }
+  ]
+}

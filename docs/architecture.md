@@ -97,6 +97,11 @@ Four-level identity. Each level owns exactly one kind of change:
 | `NodeId` | **The graph node**: `(provider, interface, tag, shape, released, status)`. `interface` is the coordinate the old `SchemaVersion` was missing — `openai/chat_completions` and `openai/responses` are *concurrent sibling interfaces* of one capability, not versions of each other. `tag` is an opaque dated revision (never parsed; ordered by `released`). `status` ∈ `STABLE/PREVIEW/DEPRECATED/RETIRED` drives resolution. |
 | `Origin` | Provenance stamp `(distribution, version)` carried by every node/edge a plugin registers; surfaces in reports and audit records. |
 
+DeepSeek's descriptor-only `deepseek/chat_completions@2026-11` has independent
+provider identity and ocai-deepseek provenance. Its tag/date identify an ocai
+observation snapshot, not an undocumented vendor version or model release.
+A descriptor's stable status alone is not proof of executable conversion.
+
 The canonical IR is **just another interface**, named `ocai`, with dated
 revisions (`ocai@2026-07`). IR migration therefore *is* graph conversion
 (§4.4) — no special case.
@@ -188,7 +193,9 @@ Feature keys are namespaced open data, not a frozen taxonomy.
 Hosts may supply an optional `profile_key(resource)` lookup alias (§6). The gate
 and public inspection use the same key; codecs still bind the original resource.
 Aliases do not establish qualification: undeclared feature coverage remains
-unknown in inspection.
+unknown in inspection. WU-44a's DeepSeek profiles name only the verified absence
+of JSON-schema response output on the two selected model ids; positive coverage
+is deliberately not inherited from OpenAI or claimed before edge qualification.
 
 ### 2.6 `ir.py` — the IR envelope and total decode [frozen-candidate]
 
@@ -239,6 +246,9 @@ Absent counts remain absent; unknown or malformed counters retain native evidenc
 Streaming settlement keys every bucket by modality, unit and source.
 
 ### 2.9 `traits.py` and survivors
+
+The DeepSeek descriptor declares its own vendor and first-party origin, with no
+fabricated version header. Credentials and transport remain outside descriptors.
 
 `DialectTraits` lives in the **contract layer**, not in `ocai.wire`: plugin
 interface subpackages declare data; wire hosts consume it. WU-37 adds
@@ -607,6 +617,9 @@ failed additions leave the builder usable. Profiles sort by literal-prefix
 specificity, then lexical pattern. Dates rank revisions within one interface;
 multiple eligible sibling interfaces require an explicit `interface=` pin.
 The chat front door applies this to serveable interfaces, excluding stubs.
+WU-44a proves this with the installed DeepSeek descriptor: entry-point discovery,
+lock composition and identity resolution work, but public chat composition raises
+before provider I/O because no component or conversion edge is registered.
 WU-38 adds provisional `HostDescriptor` data in `ocai.convert.hosts`; plugins can
 publish it through `CatalogFragment.hosts` without importing wire. Conflicting
 same-name hosts fail admission; equal declarations are idempotent. `Catalog.host`
@@ -793,6 +806,14 @@ See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
 
+`ocai-deepseek` is separately packaged and attributable. Its Chat Completions
+variant reuses wire DTOs from `ocai-openai` through a bounded plugin dependency;
+this is data-shape reuse, not a provider SDK or inherited conversion promise.
+WU-44a exports only nodes, traits and conservative profiles. WU-44b owns edge
+qualification and WU-45 owns enabling public unary execution. No new core type
+or non-chat capability schema is introduced.
+
+
 WU-43 qualifies Anthropic basic direct search when a `ServerTool("web_search")`
 explicitly pins `provider_options["anthropic.messages"]["type"]` to
 `web_search_20250305`. Domain and approximate location fields map directly;
@@ -938,6 +959,10 @@ redefines one. Three version axes, never conflated: interface **tag**
 **semver** — the freeze is a release gate, not a version number.
 
 ## 10. spec/ — the language-neutral truth
+
+`spec/interfaces/deepseek.chat_completions.json` is the first populated interface
+descriptor. Its identity, shapes and observation tag are checked against the
+installed fragment; it is not a conformance certificate or a model catalogue.
 
 `spec/canonical-json.md` (the equality predicate — write FIRST),
 `spec/schema/` (JSON Schema per core contract + capability IR),
