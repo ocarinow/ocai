@@ -162,3 +162,43 @@ under a minute; the wheel and zizmor steps add a few seconds when their
 trees change. A warning in a dependency now fails the suite the day it
 appears. The S-rule exceptions name the production asserts that should
 become explicit raises; that is kernel work and is tracked as a follow-up.
+
+## Amendment 2026-11-11 (c) — preserve validation, reduce repeated waiting
+
+**Context.** PR metadata events restarted all code checks, while platform checks
+executed independently runnable commands in sequence. Workflow path lists and
+local gate paths could disagree. The maintainer requested one remediation PR
+without reducing quality (WU-106).
+
+**Decision.** Metadata validation has its own workflow and concurrency group.
+Code workflows retain base-edit handling; ordinary title/body edits publish only
+distinctly named skipped jobs, never required code-check names. Ready/draft
+transitions do not restart code validation. Every new revision still receives
+affected validation, including drafts; base retargets force full validation.
+
+`ci_scope.py` owns conservative suite dependencies for CI, local optional gate
+steps and PR evidence checks. Full Git diffs include both sides of renames and
+deleted files; shared inputs select their consumers. Unknown paths or missing
+history run everything; selector execution errors fail the job. Nightly/manual
+full runs supplement, never replace, pre-merge checks. Kernel and spec changes
+select the platform conservatively.
+
+The platform executes backend and frontend lanes concurrently with separate
+logs and ordered dependencies. Browser tests follow the production build. Both
+Python versions and all existing checks remain. Timing reports distinguish queue
+time, elapsed time and summed runner usage. No result is cached across revisions.
+
+**Enforcement.** The required checks from amendment (b) remain unchanged. The
+source change includes a read-only ruleset drift check and request-body generator;
+the minimal update is applied after merge, preserving other protections and
+strict up-to-date enforcement. See [CI verification](../ci.md).
+
+**Alternatives.** Disabling draft validation or moving affected integration to
+nightly would weaken pre-merge assurance. Reusing green statuses across changed
+bases risks stale evidence. Workflow-level path skipping can strand required
+checks; unconditional skipped results under existing names can mask failures.
+
+**Consequences.** Administrative edits allocate only lightweight metadata/board
+work. Conservative classification may run extra suites. The impact policy and
+routing expressions are covered by `scripts/tests/`; rollback changes scheduling
+only and does not touch product data or contracts.

@@ -43,6 +43,8 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+from ci_scope import affected
+
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
 TITLE_RE = re.compile(r"^(WU-[0-9A-Za-z]+): \S|^[A-Z][A-Za-z0-9 /&-]{1,40}: \S")
@@ -182,8 +184,8 @@ def check_verification(text: str, files: tuple[str, ...]) -> list[str]:
         return findings
     for step in gate_steps():
         name = str(step.get("name", ""))
-        prefixes = [str(p) for p in step.get("paths", [])]  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-        relevant = not prefixes or any(f == p or f.startswith(p) for f in files for p in prefixes)
+        suite = step.get("suite")
+        relevant = affected(str(suite), frozenset(files)) if suite else True
         status = steps.get(name)
         if status is None:
             findings.append(f"Verification is missing the `{name}` step (stale gate output?)")

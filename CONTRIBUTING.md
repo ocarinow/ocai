@@ -104,3 +104,12 @@ must follow (coding agents read the same file). In particular:
 
 See the milestone plans in [`docs/plans/`](docs/plans/README.md) to pick a work
 unit, and [`docs/decisions/`](docs/decisions/README.md) for settled decisions.
+
+## CI feedback
+
+PR text edits run privacy/template checks without restarting code validation.
+Push a coherent revision after local checks, and batch title/body edits together.
+For stacked branches, use `uv run python scripts/check.py --base origin/<parent>`.
+Drafts still run all affected checks. Base retargets force full validation.
+See [CI verification](docs/ci.md) for impact selection, timing comparisons, and
+required-check rollout.

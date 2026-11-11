@@ -27,12 +27,13 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: board-sync
+  group: board-sync-${{ github.event.action == 'edited' && github.event.changes.title == null && github.event.changes.base == null && 'metadata' || 'updates' }}
   cancel-in-progress: false
 
 jobs:
   sync:
     name: board sync
+    if: github.event.action != 'edited' || github.event.changes.title != null || github.event.changes.base != null
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

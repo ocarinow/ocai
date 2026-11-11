@@ -13,9 +13,10 @@ The expensive steps are **path-aware**: the platform gate (Docker, Node,
 Playwright, ESLint), the docs build, the wheel build, the workflow audit
 (zizmor), the plan-entry lint, the independently installed plugin, and the
 change-file policy run only when the change touches their tree, where "the
-change" is everything on this branch since it left `origin/main` plus the
+change" is everything on this branch since it left the comparison base plus the
 working tree (staged, unstaged, and untracked files). `--all` forces every
-step; CI always runs every job and filters inside the job the same way
+step. `--base origin/<parent>` selects a stacked PR base. Impact selection is
+shared with CI through `scripts/ci_scope.py`; uncertainty runs every suite
 (ADR 0002).
 
 The summary ends with the commit the gate ran on and whether the tree was
@@ -36,6 +37,10 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
+from ci_scope import PATHS
+from ci_scope import affected
+from ci_scope import git_paths
+
 ROOT = Path(__file__).resolve().parent.parent
 BASE_REF = "origin/main"
 
@@ -47,6 +52,7 @@ class Step:
     Attributes:
         name: Short label printed in the summary.
         argv: The command to run, first element resolved on PATH.
+        suite: Shared impact-policy suite, when this step is path-aware.
         paths: Path prefixes (repo-relative, forward slashes) that make this
             step relevant. Empty means the step always runs.
     """
@@ -54,6 +60,7 @@ class Step:
     name: str
     argv: tuple[str, ...]
     paths: tuple[str, ...] = field(default=())
+    suite: str | None = None
 
     def relevant(self, changed: frozenset[str] | None) -> bool:
         """Whether this step runs for the given change set.
@@ -65,6 +72,8 @@ class Step:
             True when the step always runs, everything is forced, or a changed
             path lies under one of the step's prefixes.
         """
+        if self.suite is not None:
+            return affected(self.suite, changed)
         if not self.paths or changed is None:
             return True
         return any(p == prefix or p.startswith(prefix) for p in changed for prefix in self.paths)
@@ -115,18 +124,7 @@ def changed_paths() -> frozenset[str] | None:
         The repo-relative paths, or None when the base cannot be determined
         (no `origin/main`, detached history), in which case every step runs.
     """
-    base = _git("merge-base", BASE_REF, "HEAD")
-    if base is None:
-        return None
-    parts = [
-        _git("diff", "--name-only", base, "HEAD"),
-        _git("diff", "--name-only"),
-        _git("diff", "--name-only", "--cached"),
-        _git("ls-files", "--others", "--exclude-standard"),
-    ]
-    if any(p is None for p in parts):
-        return None
-    return frozenset(line for part in parts if part for line in part.splitlines() if line)
+    return git_paths(ROOT, BASE_REF, working=True)
 
 
 def head_label() -> str:
@@ -164,7 +162,6 @@ def steps_for(no_tests: bool) -> list[Step]:
     Returns:
         The ordered steps; path-aware ones carry their prefixes.
     """
-    platform_paths = ("platform/", "scripts/check_platform.py")
     steps = [
         Step("privacy guard", ("python", "scripts/privacy_check.py")),
         Step("workspace", ("python", "scripts/workspace_check.py")),
@@ -182,35 +179,40 @@ def steps_for(no_tests: bool) -> list[Step]:
         Step(
             "plan entries",
             ("python", "scripts/board_sync.py", "lint"),
-            paths=("docs/plans/", "scripts/board_sync.py"),
+            paths=PATHS["plans"],
+            suite="plans",
         )
     )
     steps.append(
         Step(
             "wheels",
             ("python", "scripts/wheel_check.py"),
-            paths=("python/packages/", "scripts/wheel_check.py"),
+            paths=PATHS["wheels"],
+            suite="wheels",
         )
     )
     steps.append(
         Step(
             "workflows (zizmor)",
             ("uvx", "--from", "zizmor==1.32.0", "zizmor", "--no-progress", ".github/workflows"),
-            paths=(".github/",),
+            paths=PATHS["workflows"],
+            suite="workflows",
         )
     )
     steps.append(
         Step(
             "change files",
             ("python", "scripts/release.py", "check", "--base", BASE_REF),
-            paths=("python/packages/", ".changeset/", "knope.toml"),
+            paths=PATHS["changesets"],
+            suite="changesets",
         )
     )
     steps.append(
         Step(
             "docs build",
             ("python", "scripts/docs_check.py"),
-            paths=("docs/", "zensical.toml", "scripts/docs_check.py"),
+            paths=PATHS["docs"],
+            suite="docs",
         )
     )
     steps.append(
@@ -243,7 +245,8 @@ def steps_for(no_tests: bool) -> list[Step]:
                 "examples/ocai-contrib-echo/tests",
                 "-q",
             ),
-            paths=("examples/ocai-contrib-echo/", "python/packages/ocai-core/", "pyproject.toml"),
+            paths=PATHS["echo"],
+            suite="echo",
         )
     )
     platform_args = ("--no-tests",) if no_tests else ()
@@ -251,7 +254,8 @@ def steps_for(no_tests: bool) -> list[Step]:
         Step(
             "platform",
             ("python", "scripts/check_platform.py", *platform_args),
-            paths=platform_paths,
+            paths=PATHS["platform"],
+            suite="platform",
         )
     )
     return steps
@@ -267,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         Process exit code: 0 when every step passed.
     """
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
+    parser.add_argument("--base", default=BASE_REF, help="comparison base, including stacked PRs")
     parser.add_argument("--no-tests", action="store_true", help="skip pytest and platform tests")
     parser.add_argument("--all", action="store_true", help="run every step regardless of the diff")
     parser.add_argument(
@@ -275,21 +280,28 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.list_json:
         print(
-            json.dumps([{"name": s.name, "paths": list(s.paths)} for s in steps_for(args.no_tests)])
+            json.dumps(
+                [
+                    {"name": s.name, "paths": list(s.paths), "suite": s.suite}
+                    for s in steps_for(args.no_tests)
+                ]
+            )
         )
         return 0
 
-    changed = None if args.all else changed_paths()
+    changed = None if args.all else git_paths(ROOT, args.base, working=True)
     if changed is None:
         scope = "every step (forced)" if args.all else "every step (no origin/main to diff against)"
     else:
         scope = (
-            f"{len(changed)} changed path(s) vs {BASE_REF}; expensive steps run only when touched"
+            f"{len(changed)} changed path(s) vs {args.base}; expensive steps run only when touched"
         )
     print(f"=== gate scope: {scope}", flush=True)
 
     results: list[StepResult] = []
     for step in steps_for(args.no_tests):
+        if step.name == "change files":
+            step = Step(step.name, (*step.argv[:-1], args.base), step.paths, step.suite)
         if step.relevant(changed):
             results.append(_run(step))
         else:

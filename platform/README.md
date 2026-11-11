@@ -348,3 +348,12 @@ The suite exercises real OpenFGA and PostgreSQL, concurrent/replayed bootstrap,
 rollback, owner/viewer isolation, current principal suspension, bounded projection,
 crashes around tuple acknowledgement, concurrent reconcilers and revocation races.
 No live user/provider credentials are required. Missing Docker fails verification.
+
+### Verification scheduling
+
+The platform gate runs independent backend and frontend lanes concurrently after
+installing the gateway environment. Each lane keeps its dependent commands in
+order; browser tests follow the production build. Any lane failure fails the
+gate, with both logs retained in its output. Use `--serial` for a timing baseline.
+Command/lane timings also appear in the Actions step summary. See
+[CI verification](../docs/ci.md) for the shared impact policy.

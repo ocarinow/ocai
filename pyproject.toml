@@ -119,7 +119,7 @@ include = [
     "tasks",
 ]
 exclude = ["**/__pycache__", "**/.venv"]
-extraPaths = ["examples/ocai-contrib-echo/src"]
+extraPaths = ["examples/ocai-contrib-echo/src", "scripts"]
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
@@ -163,7 +163,8 @@ show_missing = true
 precision = 1
 
 [tool.pytest.ini_options]
-testpaths = ["python/packages/*/tests"]
+testpaths = ["python/packages/*/tests", "scripts/tests"]
+pythonpath = ["scripts"]
 # importlib mode lets sibling distributions ship same-named test modules
 # (every distribution carries a test_conformance.py). --strict-markers and
 # --strict-config refuse unknown markers and misspelt options.
