@@ -407,7 +407,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-45 — Qualify DeepSeek unary execution
 
-- [ ] **Status:** not started.
+- [x] **Status:** complete; review pending in PR #99.
+- **Goal:** Execute the qualified DeepSeek unary subset through public preparation
+  and the standard facade, retaining credentials, governance and conversion evidence.
 - **Scope:** DeepSeek binding/front-door data and recorded HTTP pairs through the
   public facade; 8–15 files. Pattern replay of WU-14a, using WU-44b conversions,
   declared profile coverage and explicit credentials; no new conversion edge.
@@ -416,11 +418,19 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   including zero-I/O rejection of incomplete tool history.
 - **Deps:** WU-44b.
 - **Architecture:** §3.3–3.4, §7–8.
+- **Integration:** The DeepSeek fragment registers its codec component; the public
+  chat factory composes the existing facade, direct host, credential and transport.
+  Tests exercise prepare → conversion policy → transport → response conversion
+  through those public seams. No kernel mapping or provider SDK is introduced.
 - **Freeze:** none changed: chat port/IR, CallContext, credentials and schemas stay intact.
 - **Decision:** Missing tool-history reasoning is a correctness failure, not a
   summary substitution ([DeepSeek §5/7/13](../providers/deepseek.md)).
 - **Open:** None once WU-44b's verified subset is fixed; FIM, media, Responses and
   Anthropic compatibility routes are excluded.
+- **Area:** plugin: deepseek
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-46 — Qualify DeepSeek streaming
 
