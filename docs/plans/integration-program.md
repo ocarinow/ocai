@@ -466,7 +466,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-46 — Qualify DeepSeek streaming
 
-- [ ] **Status:** not started.
+- [ ] **Status:** in progress; full fold qualification awaits the G-11 design decision.
+- **Goal:** Qualify DeepSeek streaming through public chat execution with honest
+  reasoning, tools, usage and incomplete-stream evidence.
 - **Scope:** DeepSeek-configured Chat Completions transducer, census, SSE pairs and
   fold triples; 15–25 files. Reasoning/content/tool deltas, keepalives, final-content
   usage, error/truncation evidence and all four public call faces.
@@ -475,10 +477,19 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   reasoning, and incomplete streams never gain a successful terminal record.
 - **Deps:** WU-45, WU-46a.
 - **Architecture:** §3.1, §4.1–4.2/4.5, §7–8.
+- **Integration:** DeepSeek plugin → core/convert and the compatible OpenAI codec;
+  the existing facade and SSE transport execute the registered stream edge. No
+  wire import or provider SDK enters the plugin.
 - **Freeze:** none changed: ChatChunk/StreamEnd/deltas and their schemas remain intact.
 - **Decision:** Usage is not required to arrive in a separate empty-choices chunk
   ([DeepSeek §6/13](../providers/deepseek.md)); pattern replay of WU-14b.
-- **Open:** None for verified SSE; unknown finish values retain native strings.
+- **Open:** G-11 prevents full response-info fold equality. A separate additive
+  kernel ADR/WU is recommended; no weakened acceptance or schema change is approved.
+  Unknown finish values retain native strings.
+- **Area:** plugin: deepseek
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-47 — Sign independent transport attempts with SigV4
 
