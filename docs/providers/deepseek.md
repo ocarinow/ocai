@@ -311,7 +311,7 @@ that thinking defaults on, effort aliases have provider-defined effects, and
 sampling controls can be ignored or bounded differently by model and mode.
 Values must pass unchanged with visible findings. With tools present, prior
 reasoning accompanies history; without tools the provider ignores that lane.
-The [tool guide](https://api-docs.deepseek.com/guides/tool_calls/) requires retaining
+The [thinking tool guide](https://api-docs.deepseek.com/guides/thinking_mode/#tool-calls) requires retaining
 prior reasoning across subsequent requests, including turns without tool calls.
 Missing required history is unsupported, never reconstructed from final text.
 

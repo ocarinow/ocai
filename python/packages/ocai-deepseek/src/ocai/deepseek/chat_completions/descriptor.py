@@ -27,14 +27,17 @@ CHAT_COMPLETIONS_RESPONSE = NodeId(PROVIDER, INTERFACE, TAG, CHAT_RESPONSE, RELE
 CHAT_COMPLETIONS_CHUNK = NodeId(PROVIDER, INTERFACE, TAG, CHAT_CHUNK, RELEASED, Status.STABLE)
 NODES = (CHAT_COMPLETIONS_REQUEST, CHAT_COMPLETIONS_RESPONSE, CHAT_COMPLETIONS_CHUNK)
 TRAITS = DialectTraits(vendor=PROVIDER, first_party_base_url=BASE_URL)
-# A negative documented fact is useful before payload mapping qualification.
-# Positive feature coverage remains unknown, not inherited from OpenAI.
+# Only independently qualified features are declared; media remains unknown.
 PROFILES = tuple(
     CapabilityProfile(
         provider=PROVIDER,
         interface=INTERFACE,
         model_pattern=model,
-        features={"chat.config.output.json_schema": Support.ABSENT},
+        features={
+            "chat.config.output.json_schema": Support.ABSENT,
+            "chat.config.output.json": Support.NATIVE,
+            "chat.parts.reasoning.replay": Support.NATIVE,
+        },
     )
     for model in MODEL_IDS
 )

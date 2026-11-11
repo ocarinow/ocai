@@ -79,6 +79,7 @@ from ocai.core.refs import RefScope
 from ocai.core.refs import Replay
 from ocai.core.sources import SourceRef
 from ocai.core.traits import DialectTraits
+from ocai.openai.chat_completions.variant import ChatCompletionsVariant
 
 # Interface coordinates. `TAG` is an opaque dated revision token — the GA wire
 # of `/v1/chat/completions` — ordered by `released`, never parsed.
@@ -223,7 +224,9 @@ def _is_array(value: object) -> TypeIs[list[Any]]:
     return isinstance(value, list)
 
 
-def _request_unmapped(payload: dict[str, Any]) -> dict[str, Any]:
+def _request_unmapped(
+    payload: dict[str, Any], reasoning_field: str | None = None
+) -> dict[str, Any]:
     """Preserve unknown nested input and malformed containers by source path.
 
     This evidence is never replayed into a different provider. Known JSON
@@ -248,7 +251,14 @@ def _request_unmapped(payload: dict[str, Any]) -> dict[str, Any]:
 
     for i, message in enumerate(array(payload.get("messages"), "messages")):
         path = f"messages[{i}]"
-        extra(message, path, {"role", "content", "tool_calls", "tool_call_id", "refusal"})
+        known = {"role", "content", "tool_calls", "tool_call_id", "refusal"}
+        if (
+            reasoning_field
+            and _is_object(message)
+            and isinstance(message.get(reasoning_field), str)
+        ):
+            known.add(reasoning_field)
+        extra(message, path, known)
         if not _is_object(message):
             continue
         content = message.get("content")
@@ -269,8 +279,9 @@ def _request_unmapped(payload: dict[str, Any]) -> dict[str, Any]:
     for i, tool in enumerate(array(payload.get("tools"), "tools")):
         if _is_object(tool) and tool.get("type") == "function":
             extra(tool, f"tools[{i}]", {"type", "function"})
-            extra(tool.get("function"), f"tools[{i}].function",
-                  {"name", "parameters", "description"})
+            extra(
+                tool.get("function"), f"tools[{i}].function", {"name", "parameters", "description"}
+            )
     choice = payload.get("tool_choice")
     if _is_object(choice):
         extra(choice, "tool_choice", {"type", "function"})
@@ -280,8 +291,9 @@ def _request_unmapped(payload: dict[str, Any]) -> dict[str, Any]:
     if _is_object(fmt):
         extra(fmt, "response_format", {"type", "json_schema"})
         if fmt.get("type") == "json_schema":
-            extra(fmt.get("json_schema"), "response_format.json_schema",
-                  {"name", "schema", "strict"})
+            extra(
+                fmt.get("json_schema"), "response_format.json_schema", {"name", "schema", "strict"}
+            )
     elif fmt is not None:
         out["response_format"] = fmt
     if "max_completion_tokens" in payload and "max_tokens" in payload:
@@ -343,7 +355,9 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     return Usage(consumptions=consumptions)
 
 
-def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
+def _foreign_ref_loss(
+    path: str, ref: ProviderRef | None, *, provider: str = PROVIDER, interface: str = INTERFACE
+) -> FieldLoss | None:
     """Report a `ProviderRef` leaving its validity scope (the §2.4 rule).
 
     A ref is valid here when its minting `(provider, interface)` is this
@@ -356,6 +370,8 @@ def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
     Args:
         path: The loss path the record anchors to.
         ref: The ref under the crossing check, if any.
+        provider: Destination provider identity.
+        interface: Destination interface identity.
 
     Returns:
         The `UNSUPPORTED` record, or None when the ref is valid here (or
@@ -363,9 +379,7 @@ def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
     """
     if ref is None:
         return None
-    if ref.provider == PROVIDER and (
-        ref.interface == INTERFACE or ref.scope == RefScope.PROVIDER
-    ):
+    if ref.provider == provider and (ref.interface == interface or ref.scope == RefScope.PROVIDER):
         return None
     return FieldLoss(
         path=path,
@@ -373,12 +387,14 @@ def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
         severity=2.0 if ref.replay is Replay.REQUIRED else 1.0,
         note=(
             f"{ref.scope}-scoped ref {ref} is not valid on "
-            f"{PROVIDER}/{INTERFACE}; reported, never silently dropped (§2.4)"
+            f"{provider}/{interface}; reported, never silently dropped (§2.4)"
         ),
     )
 
 
-def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
+def _part_ref_losses(
+    path: str, part: Part, *, provider: str = PROVIDER, interface: str = INTERFACE
+) -> list[FieldLoss]:
     """Collect the §2.4 crossing records for one part's provider-anchored state.
 
     Checks the universal `anchor` plus a media part's `SourceRef` handle.
@@ -389,6 +405,8 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
     Args:
         path: The part's loss path prefix.
         part: The canonical part to check.
+        provider: Destination provider identity.
+        interface: Destination interface identity.
 
     Returns:
         The `UNSUPPORTED` records for refs leaving their scope; empty when
@@ -396,10 +414,13 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
     """
     losses: list[FieldLoss] = []
     anchor = getattr(part, "anchor", None)
-    anchor_loss = _foreign_ref_loss(f"{path}.anchor", anchor)
+    anchor_loss = _foreign_ref_loss(
+        f"{path}.anchor", anchor, provider=provider, interface=interface
+    )
     if anchor is not None and anchor_loss is None:
         anchor_loss = FieldLoss(
-            path=f"{path}.anchor", disposition=Disposition.UNSUPPORTED,
+            path=f"{path}.anchor",
+            disposition=Disposition.UNSUPPORTED,
             severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
             note="part replay anchor has no qualified wire lane on this interface",
         )
@@ -409,23 +430,35 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
         for index, annotation in enumerate(part.annotations):
             if annotation.opaque is not None:
                 citation_path = f"{path}.annotations[{index}].opaque"
-                losses.append(_foreign_ref_loss(citation_path, annotation.opaque) or FieldLoss(
-                    path=citation_path, disposition=Disposition.UNSUPPORTED,
-                    severity=2.0 if annotation.opaque.replay is Replay.REQUIRED else 1.0,
-                    note="citation replay anchor has no qualified wire lane on this interface",
-                ))
+                losses.append(
+                    _foreign_ref_loss(
+                        citation_path, annotation.opaque, provider=provider, interface=interface
+                    )
+                    or FieldLoss(
+                        path=citation_path,
+                        disposition=Disposition.UNSUPPORTED,
+                        severity=2.0 if annotation.opaque.replay is Replay.REQUIRED else 1.0,
+                        note="citation replay anchor has no qualified wire lane on this interface",
+                    )
+                )
     if isinstance(part, PartReasoning):
         for field, ref in (("signature", part.signature), ("opaque", part.opaque)):
             if ref is not None:
                 replay_path = f"{path}.{field}"
-                losses.append(_foreign_ref_loss(replay_path, ref) or FieldLoss(
-                    path=replay_path, disposition=Disposition.UNSUPPORTED,
-                    severity=2.0 if ref.replay is Replay.REQUIRED else 1.0,
-                    note="reasoning replay anchor has no qualified wire lane on this interface",
-                ))
+                losses.append(
+                    _foreign_ref_loss(replay_path, ref, provider=provider, interface=interface)
+                    or FieldLoss(
+                        path=replay_path,
+                        disposition=Disposition.UNSUPPORTED,
+                        severity=2.0 if ref.replay is Replay.REQUIRED else 1.0,
+                        note="reasoning replay anchor has no qualified wire lane on this interface",
+                    )
+                )
     source = getattr(part, "source", None)
     if isinstance(source, SourceRef):
-        source_loss = _foreign_ref_loss(f"{path}.source", source.ref)
+        source_loss = _foreign_ref_loss(
+            f"{path}.source", source.ref, provider=provider, interface=interface
+        )
         if source_loss is not None:
             losses.append(source_loss)
     return losses
@@ -450,6 +483,18 @@ class ChatCompletionsCodec:
     response_node = CHAT_COMPLETIONS_RESPONSE
     chunk_node = CHAT_COMPLETIONS_CHUNK
 
+    def __init__(self, variant: ChatCompletionsVariant | None = None) -> None:
+        """Configure compatible field lanes; each variant earns its own conformance."""
+        self.variant = variant
+        self.reasoning_field = variant.reasoning_field if variant else None
+        self.max_tokens_field = variant.max_tokens_field if variant else "max_completion_tokens"
+        if variant is not None:
+            self.provider = variant.request_node.provider
+            self.interface = variant.request_node.interface
+            self.request_node = variant.request_node
+            self.response_node = variant.response_node
+            self.chunk_node = variant.chunk_node
+
     def native_path(self, model: str) -> str:
         """Return the first-party endpoint path for a chat call.
 
@@ -461,7 +506,7 @@ class ChatCompletionsCodec:
             The chat-completions path, joined to a host origin by the wire
             layer's endpoint resolution.
         """
-        return CHAT_COMPLETIONS_PATH
+        return self.variant.path if self.variant else CHAT_COMPLETIONS_PATH
 
     def dialect_traits(self) -> DialectTraits:
         """Return this interface's hosting traits (the module `dialect_traits`).
@@ -474,7 +519,7 @@ class ChatCompletionsCodec:
         Returns:
             The interface's `DialectTraits`.
         """
-        return dialect_traits()
+        return self.variant.traits if self.variant else dialect_traits()
 
     def bind_resource(self, payload: dict[str, Any], resource: str) -> dict[str, Any]:
         """Inject the bound model name as this wire's `model` member.
@@ -555,25 +600,35 @@ class ChatCompletionsCodec:
                 if isinstance(tool, Tool):
                     encoded_tools.append(self._encode_tool(tool))
                 else:
-                    losses.append(FieldLoss(
-                        path=f"tools[{index}]",
-                        disposition=Disposition.UNSUPPORTED,
-                        note=("server or unknown tool intent has no qualified mapping "
-                              "on this interface"),
-                    ))
+                    losses.append(
+                        FieldLoss(
+                            path=f"tools[{index}]",
+                            disposition=Disposition.UNSUPPORTED,
+                            note=(
+                                "server or unknown tool intent has no qualified mapping "
+                                "on this interface"
+                            ),
+                        )
+                    )
             if encoded_tools:
                 payload["tools"] = encoded_tools
         for index, anchor in enumerate(request.anchors or []):
-            losses.append(_foreign_ref_loss(f"anchors[{index}]", anchor) or FieldLoss(
-                path=f"anchors[{index}]", disposition=Disposition.UNSUPPORTED,
-                severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
-                note="request continuation anchor has no qualified wire lane on this interface",
-            ))
+            losses.append(
+                _foreign_ref_loss(
+                    f"anchors[{index}]", anchor, provider=self.provider, interface=self.interface
+                )
+                or FieldLoss(
+                    path=f"anchors[{index}]",
+                    disposition=Disposition.UNSUPPORTED,
+                    severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
+                    note="request continuation anchor has no qualified wire lane on this interface",
+                )
+            )
         self._encode_tool_choice(request, payload, losses)
         self._encode_config(request, payload, losses)
         # Lane 3: expand only OUR destination namespace; foreign namespaces are
         # scoped to their own destination and must never leak through us.
-        own = (request.provider_options or {}).get(f"{PROVIDER}.{INTERFACE}")
+        own = (request.provider_options or {}).get(f"{self.provider}.{self.interface}")
         if _is_object(own):
             payload.update(own)
         # Lane 2 (extensions) has no encode lane on this interface yet: the
@@ -584,10 +639,13 @@ class ChatCompletionsCodec:
         losses.extend(
             FieldLoss(
                 path=f"extensions[{key}]",
-                disposition=(Disposition.UNSUPPORTED
-                             if key == "ocai.request_unparsed_anchors" else Disposition.DROPPED),
+                disposition=(
+                    Disposition.UNSUPPORTED
+                    if key == "ocai.request_unparsed_anchors"
+                    else Disposition.DROPPED
+                ),
                 severity=0.5,
-                note=f"extensions[{key!r}] has no {PROVIDER}/{INTERFACE} encode lane yet",
+                note=f"extensions[{key!r}] has no {self.provider}/{self.interface} encode lane yet",
             )
             for key in sorted(request.extensions or {})
         )
@@ -620,6 +678,7 @@ class ChatCompletionsCodec:
         """
         role = _ROLE_FROM_CANONICAL.get(message.role, message.role)
         texts: list[str] = []
+        reasoning_texts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
         tool_results: list[dict[str, Any]] = []
         refusal: str | None = None
@@ -628,7 +687,9 @@ class ChatCompletionsCodec:
             # The §2.4 scoped honesty rule: provider-anchored state leaving
             # its validity scope is UNSUPPORTED-and-reported before the part
             # itself is mapped (or dropped) below.
-            losses.extend(_part_ref_losses(path, part))
+            losses.extend(
+                _part_ref_losses(path, part, provider=self.provider, interface=self.interface)
+            )
             if isinstance(part, PartText):
                 texts.append(part.text)
             elif isinstance(part, PartToolCall):
@@ -652,6 +713,9 @@ class ChatCompletionsCodec:
                         note="tool result relocated to a sibling `role: tool` wire message",
                     )
                 )
+            elif isinstance(part, PartReasoning) and self.reasoning_field and role == "assistant":
+                if part.text is not None:
+                    reasoning_texts.append(part.text)
             elif isinstance(part, PartReasoning):
                 # No reasoning-replay lane on chat_completions; a REQUIRED
                 # anchor would be breakage on the minting interface's side.
@@ -660,7 +724,11 @@ class ChatCompletionsCodec:
                         path=path,
                         disposition=Disposition.DROPPED,
                         severity=1.0,
-                        note="chat_completions has no reasoning replay lane (use openai/responses)",
+                        note=(
+                            "reasoning replay is restricted to assistant turns"
+                            if self.reasoning_field
+                            else "no reasoning replay lane on this interface; use openai/responses"
+                        ),
                     )
                 )
             else:
@@ -677,6 +745,8 @@ class ChatCompletionsCodec:
         wire_message: dict[str, Any] = {"role": role}
         if texts or not (tool_calls or refusal is not None or tool_results):
             wire_message["content"] = "".join(texts)
+        if reasoning_texts and self.reasoning_field:
+            wire_message[self.reasoning_field] = "".join(reasoning_texts)
         if tool_calls:
             wire_message["tool_calls"] = tool_calls
         if refusal is not None:
@@ -815,7 +885,12 @@ class ChatCompletionsCodec:
             "parallel_tool_calls": config.parallel_tool_calls,
         }
         payload.update({key: value for key, value in exact.items() if value is not None})
-        for name, (low, high) in _KNOB_RANGES.items():
+        ranges = (
+            dict((name, (low, high)) for name, low, high in self.variant.knob_ranges)
+            if self.variant and self.variant.knob_ranges is not None
+            else _KNOB_RANGES
+        )
+        for name, (low, high) in ranges.items():
             value = exact[name]
             if value is not None and not low <= value <= high:
                 losses.append(
@@ -824,14 +899,14 @@ class ChatCompletionsCodec:
                         disposition=Disposition.APPROXIMATED,
                         severity=0.5,
                         note=(
-                            f"config.{name}={value} is outside OpenAI's documented "
+                            f"config.{name}={value} is outside {self.provider}'s documented "
                             f"{low}..{high} range; passed verbatim, never clamped — "
                             "the provider may reject it"
                         ),
                     )
                 )
         if config.max_output_tokens is not None:
-            payload["max_completion_tokens"] = config.max_output_tokens
+            payload[self.max_tokens_field] = config.max_output_tokens
         if config.stop_sequences:
             payload["stop"] = list(config.stop_sequences)
         if config.top_k is not None:
@@ -908,7 +983,7 @@ class ChatCompletionsCodec:
         inverse of `encode_request`, with one deliberate asymmetry: the wire
         `model` member is **routing data, not canonical content** (§3.4 — a
         `ChatRequest` never carries a model), so its echo is preserved
-        recoverably as `extensions["openai.model"]` with an `EXTENSIONS`
+        recoverably as the provider-scoped model extension with an `EXTENSIONS`
         record; re-encoding toward any interface binds a fresh resource at
         the front door. Sibling `role: tool` wire messages re-thread as
         canonical tool turns (the inverse relocation, declared), and unknown
@@ -937,7 +1012,7 @@ class ChatCompletionsCodec:
         config = self._decode_request_config(payload, extensions, losses)
         model = payload.get("model")
         if model is not None:
-            extensions[f"{PROVIDER}.model"] = model
+            extensions[f"{self.provider}.model"] = model
             losses.append(
                 FieldLoss(
                     path="model",
@@ -949,22 +1024,32 @@ class ChatCompletionsCodec:
                 )
             )
         for key in sorted(set(payload) - _KNOWN_REQUEST_KEYS):
-            extensions[f"{PROVIDER}.{key}"] = payload[key]
+            extensions[f"{self.provider}.{key}"] = payload[key]
             losses.append(
                 FieldLoss(
                     path=key,
                     disposition=Disposition.EXTENSIONS,
-                    note=f"unmapped envelope key preserved in extensions['{PROVIDER}.{key}']",
+                    note=f"unmapped envelope key preserved in extensions['{self.provider}.{key}']",
                 )
             )
-        unmapped = _request_unmapped(payload)
+        unmapped = _request_unmapped(payload, self.reasoning_field)
         if unmapped:
-            extensions["openai.request_unmapped"] = unmapped
-            losses.append(FieldLoss(path="unmapped", disposition=Disposition.EXTENSIONS,
-                                    note="nested fields preserved by source path"))
+            extensions[f"{self.provider}.request_unmapped"] = unmapped
+            losses.append(
+                FieldLoss(
+                    path="unmapped",
+                    disposition=Disposition.EXTENSIONS,
+                    note="nested fields preserved by source path",
+                )
+            )
         if payload.get("n", 1) != 1:
-            losses.append(FieldLoss(path="n", disposition=Disposition.UNSUPPORTED,
-                                    note="canonical chat represents one choice"))
+            losses.append(
+                FieldLoss(
+                    path="n",
+                    disposition=Disposition.UNSUPPORTED,
+                    note="canonical chat represents one choice",
+                )
+            )
         request = ChatRequest(
             messages=messages,
             tools=tools or None,
@@ -1019,6 +1104,9 @@ class ChatCompletionsCodec:
                 ],
             )
         parts = self._decode_request_content(index, wire_msg, losses)
+        reasoning = wire_msg.get(self.reasoning_field) if self.reasoning_field else None
+        if isinstance(reasoning, str):
+            parts.insert(0, PartReasoning(text=reasoning))
         tool_calls = wire_msg.get("tool_calls")
         tool_calls = tool_calls if _is_array(tool_calls) else []
         for call in tool_calls:
@@ -1085,7 +1173,7 @@ class ChatCompletionsCodec:
                         note=f"content item type {item.get('type')!r} preserved as PartOpaque",
                     )
                 )
-                parts.append(PartOpaque(kind=f"{PROVIDER}.{item.get('type')}", payload=item))
+                parts.append(PartOpaque(kind=f"{self.provider}.{item.get('type')}", payload=item))
         return parts
 
     def _decode_request_tools(
@@ -1097,7 +1185,7 @@ class ChatCompletionsCodec:
         """Decode the wire `tools` array into canonical `Tool`s.
 
         Function tools decode typed; anything else (a future built-in tool
-        shape) is preserved in `extensions["openai.tools"]` with a reported
+        shape) is preserved in the provider-scoped tools extension with a reported
         `EXTENSIONS` record.
 
         Args:
@@ -1125,7 +1213,7 @@ class ChatCompletionsCodec:
                     )
                 )
                 continue
-            extensions.setdefault(f"{PROVIDER}.tools", []).append(entry)
+            extensions.setdefault(f"{self.provider}.tools", []).append(entry)
             losses.append(
                 FieldLoss(
                     path=f"tools[{i}]",
@@ -1145,7 +1233,7 @@ class ChatCompletionsCodec:
 
         The string codes map one-to-one; the named-function object becomes
         mode `named`. An inexpressible shape is preserved in
-        `extensions["openai.tool_choice"]` with a reported record.
+        `extensions[f"{self.provider}.tool_choice"]` with a reported record.
 
         Args:
             payload: The raw request body.
@@ -1166,7 +1254,7 @@ class ChatCompletionsCodec:
             name = function.get("name")
             if name:
                 return ToolChoice(mode="named", name=name)
-        extensions[f"{PROVIDER}.tool_choice"] = choice
+        extensions[f"{self.provider}.tool_choice"] = choice
         losses.append(
             FieldLoss(
                 path="tool_choice",
@@ -1261,7 +1349,7 @@ class ChatCompletionsCodec:
                 schema=decode_schema(schema) if schema is not None else None,
                 strict=selector.get("strict"),
             )
-        extensions[f"{PROVIDER}.response_format"] = fmt
+        extensions[f"{self.provider}.response_format"] = fmt
         losses.append(
             FieldLoss(
                 path="response_format",
@@ -1294,7 +1382,7 @@ class ChatCompletionsCodec:
         choices: list[Any] = payload.get("choices") or []
         choice: dict[str, Any] = choices[0] if choices else {}
         if len(choices) > 1:
-            extensions["openai.choices"] = choices[1:]
+            extensions[f"{self.provider}.choices"] = choices[1:]
             losses.append(
                 FieldLoss(
                     path="choices[1:]",
@@ -1307,7 +1395,7 @@ class ChatCompletionsCodec:
         usage = _usage(payload.get("usage"))
         info = self._decode_info(payload)
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
-            extensions[f"openai.{key}"] = payload[key]
+            extensions[f"{self.provider}.{key}"] = payload[key]
             losses.append(
                 FieldLoss(
                     path=key,
@@ -1346,8 +1434,8 @@ class ChatCompletionsCodec:
         return ResponseInfo(
             id=(
                 ProviderRef(
-                    provider=PROVIDER,
-                    interface=INTERFACE,
+                    provider=self.provider,
+                    interface=self.interface,
                     kind="response_id",
                     id=raw_id,
                 )
@@ -1385,6 +1473,9 @@ class ChatCompletionsCodec:
             The canonical `Message`.
         """
         parts: list[Part] = []
+        reasoning = wire_msg.get(self.reasoning_field) if self.reasoning_field else None
+        if isinstance(reasoning, str):
+            parts.append(PartReasoning(text=reasoning))
         content = wire_msg.get("content")
         if content:
             parts.append(PartText(text=content))
@@ -1414,7 +1505,7 @@ class ChatCompletionsCodec:
             # TODO: re-anchor url_citation annotations onto PartText.annotations
             # once span offsets are validated against the decoded text — never
             # emit a possibly-misattributed span (§3.1).
-            extensions["openai.annotations"] = wire_msg["annotations"]
+            extensions[f"{self.provider}.annotations"] = wire_msg["annotations"]
             losses.append(
                 FieldLoss(
                     path="choices[0].message.annotations",
@@ -1424,7 +1515,7 @@ class ChatCompletionsCodec:
             )
         if wire_msg.get("audio") is not None:
             # TODO: decode to PartAudio + ProviderRef audio id anchor.
-            extensions["openai.audio"] = wire_msg["audio"]
+            extensions[f"{self.provider}.audio"] = wire_msg["audio"]
             losses.append(
                 FieldLoss(
                     path="choices[0].message.audio",
@@ -1433,7 +1524,7 @@ class ChatCompletionsCodec:
                 )
             )
         if wire_msg.get("function_call") is not None:
-            extensions["openai.function_call"] = wire_msg["function_call"]
+            extensions[f"{self.provider}.function_call"] = wire_msg["function_call"]
             losses.append(
                 FieldLoss(
                     path="choices[0].message.function_call",
@@ -1466,7 +1557,7 @@ class ChatCompletionsCodec:
             The `FinishInfo`, or `None` when the wire carried no reason.
         """
         if choice.get("logprobs") is not None:
-            extensions["openai.logprobs"] = choice["logprobs"]
+            extensions[f"{self.provider}.logprobs"] = choice["logprobs"]
             losses.append(
                 FieldLoss(
                     path="choices[0].logprobs",
@@ -1477,7 +1568,8 @@ class ChatCompletionsCodec:
         native = choice.get("finish_reason")
         if native is None:
             return None
-        return FinishInfo(reason=_FINISH_REASONS.get(native, "unknown"), native=native)
+        reasons = {**_FINISH_REASONS, **dict(self.variant.finish_reasons if self.variant else ())}
+        return FinishInfo(reason=reasons.get(native, "unknown"), native=native)
 
     def decode_event(self, event: str | None, data: str) -> ChatChunk | None:
         """Decode one chat-completions SSE frame into its first canonical chunk.
@@ -1697,11 +1789,11 @@ class ChatCompletionsCodec:
         message = err.get("message") or str(code)
         if code in ("context_length_exceeded", "string_above_max_length"):
             return ContextLengthError(
-                message, status=status, code=code, raw=body, provider=PROVIDER
+                message, status=status, code=code, raw=body, provider=self.provider
             )
         if code == "content_filter":
             return ContentFilterError(
-                message, status=status, code=code, raw=body, provider=PROVIDER
+                message, status=status, code=code, raw=body, provider=self.provider
             )
         return None
 

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "deepseek.usage_unmapped",
+  "description": "Native DeepSeek usage evidence without claimed conversion support.",
+  "x-ocai-origin": "ocai-deepseek",
+  "x-ocai-promotion": "none expected"
+}

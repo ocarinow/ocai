@@ -35,7 +35,7 @@ def test_installed_fragment_preserves_vendor_provenance() -> None:
     assert lock.payload["fragments"][0]["origin"] == "ocai-deepseek==0.1.0"
     assert all(node.provider == "deepseek" for node in catalog.nodes)
     assert len(catalog.nodes) == 3
-    assert not ocai.deepseek.FRAGMENT.edges
+    assert len(ocai.deepseek.FRAGMENT.edges) == 3
     assert not ocai.deepseek.FRAGMENT.components
     assert not ocai.deepseek.FRAGMENT.transducers
 
@@ -48,7 +48,11 @@ def test_composition_lock_is_deterministic_and_does_not_inherit_profiles() -> No
     assert left.lock().hash != Catalog.of(ocai.openai.FRAGMENT, ocai.anthropic.FRAGMENT).lock().hash
     for model in descriptor.MODEL_IDS:
         profile = left.profile("deepseek", "chat_completions", model)
-        assert profile and profile.features == {"chat.config.output.json_schema": Support.ABSENT}
+        assert profile is not None
+        assert profile.features["chat.config.output.json_schema"] is Support.ABSENT
+        assert profile.features["chat.config.output.json"] is Support.NATIVE
+        assert profile.features["chat.parts.reasoning.replay"] is Support.NATIVE
+        assert "chat.parts.image" not in profile.features
     assert left.profile("deepseek", "chat_completions", "unknown-future-model") is None
     assert descriptor.TRAITS.first_party_base_url == "https://api.deepseek.com"
     assert descriptor.TRAITS.vendor == "deepseek"
