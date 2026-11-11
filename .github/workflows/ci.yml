@@ -62,7 +62,10 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           flag=""; [ "$PR_DRAFT" = "true" ] && flag="--draft"
-          python3 scripts/pr_check.py --title "$PR_TITLE" --body-file /tmp/pr_body.md --base "$PR_BASE" --author "$PR_AUTHOR" $flag
+          python3 scripts/pr_check.py --title "$PR_TITLE" --body-file /tmp/pr_body.md --base "$PR_BASE" --author "$PR_AUTHOR" --diff $flag
+      # Every WU entry in docs/plans/ follows WU-TEMPLATE.md (offline, no token).
+      - name: Plan entries
+        run: python3 scripts/board_sync.py lint
 
   # The repository is public: no commit message, PR title, or PR body may carry
   # an AI session link, an AI attribution footer/trailer, an agent identifier,

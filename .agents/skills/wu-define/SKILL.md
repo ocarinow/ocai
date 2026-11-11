@@ -42,7 +42,13 @@ an unanswered question is a reason to stop and ask the maintainer.
 | Does it stream? | Then it ships the delta type, fold law, and fold triples in the same change (rule 7). |
 | Does it add a dependency? | `ocai.core` takes none (rule 11); plugins never take wire/httpx (§7); no provider SDK anywhere (rule 12). |
 | Which files does it own? Does another open WU touch the same files? | Overlap means sequencing or a worktree, decided now, not at merge time. |
-| What is explicitly **out** of scope? | Written down so the implementer does not drift and the reviewer can check. |
+| Why **now**: who is blocked, what stays broken, which gap row or request started this? | It becomes the **Context** bullet; a WU with no answer is a nice-to-have, not work. |
+| What is explicitly **out** of scope, and where does each excluded thing live? | It becomes the **Non-goals** bullet, so the implementer does not drift and the reviewer can check. |
+| Which observable checks prove it, and which test module, fixture, or recorded pair carries each? | They become the **Acceptance** list; an item with no test path is a wish. |
+| What does the new or changed surface **read like in code**? | It becomes the **Design sketch** (mandatory): a fenced block with fields, signatures, a schema fragment or an endpoint shape; "n/a: no code surface" for docs and process WUs. The reviewer reads it before the diff. |
+| What **could go wrong**, how is it bounded, how is it rolled back? | The **Risks** bullet; "revert is enough" is a valid answer, silence is not. |
+| Can the gap be **reproduced offline** today, and what will the same command print afterwards? | The **Reproduce** bullet (optional); it becomes the first acceptance test. |
+| Which **alternatives** were rejected, with benefit and cost? | **Alternatives considered** (optional; required when a Decision is not backed by an ADR). |
 | What decisions are already made (by ADR, by a prior WU's Decision bullet, by the maintainer)? | Listed so they are not re-litigated. |
 | What decision is **still open** that would change the shape? | A WU with an open shape decision is not ready; resolve it (ADR) or scope it out. |
 
@@ -50,21 +56,40 @@ an unanswered question is a reason to stop and ask the maintainer.
 
 In the milestone or program file under `docs/plans/`, following
 [`docs/plans/WU-TEMPLATE.md`](../../../docs/plans/WU-TEMPLATE.md) exactly —
-the board card's body and fields are generated from these bullets, so what
-you write here is what the maintainer reads on the board:
+copy the filled example
+[`docs/plans/WU-EXAMPLE.md`](../../../docs/plans/WU-EXAMPLE.md) and replace
+its content. The board card's body and fields and the PR body are generated
+from these bullets, so what you write here is what the maintainer reads on
+the board and what the implementer starts from. `uv run python
+scripts/board_sync.py lint` (a gate step) fails the entry when a mandatory
+bullet is missing, the Design sketch has no code block, Acceptance names no
+test path, or a Decision without an ADR has no Alternatives bullet. The
+skeleton, mandatory bullets first:
 
 ```markdown
 ## WU-NN — <imperative title>
 
+- **Status:** ⬜ defined
+- **Context:** <why now: who is blocked, what stays broken, the gap row or request>
 - **Goal:** <one paragraph: what exists when done and why it matters>
-- **Scope:** <files and surfaces touched, rough size; then what is OUT>
-- **Done:** <the single observable outcome, phrased as the test that passes>
+- **Scope:** <files and surfaces touched, rough size>
+- **Non-goals:** <what is OUT and where each lives instead>
+- **Acceptance:**
+  - <behavior> — `path/to/test_x.py::test_y` or `spec/fixtures/<edge>/<case>.json`
+- **Done:** <the Acceptance list in one sentence, phrased as the test that passes>
 - **Deps:** <WU numbers / ADRs that must land first, or "none">
-- **Architecture:** §<n>, §<m> (sections updated in the same PR)
-- **Integration:** <layer and arrows; modules; flow; optional ```mermaid diagram>
+- **Architecture:** §<n>, §<m> (sections updated in the same PR), or none
+- **Integration:** <layer and arrows; modules; flow; ```mermaid diagram when >1 layer>
+- **Design sketch:** <fenced code block: the surface as it reads in code, or "n/a: no code surface — …">
+- **Before / after:** <optional table: field, today, after, observable how>
+- **Alternatives considered:** <optional; one line each with benefit and cost>
+- **Reproduce:** <optional: offline command showing the gap, and its output after>
 - **Freeze:** <none | additive change to <surface> under ADR NNNN | provisional>
 - **Decision (<topic>):** <each decision already made, with what settled it>
+- **Risks:** <what could go wrong, how it is bounded, how it is rolled back>
+- **Dependency impact:** <optional: WUs or PRs blocked, unblocked, re-sequenced>
 - **Open:** <none, or the question that blocks starting>
+- **Evidence:** (filled at completion)
 - **Area:** <core | chat IR | convert | runtime | wire | plugin: … | spec | docs | platform | satellite | tooling>
 - **Priority:** <P0 | P1 | P2 | P3>
 - **Tier:** <program | 1 … 6>

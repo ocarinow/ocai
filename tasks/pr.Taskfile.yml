@@ -73,7 +73,7 @@ tasks:
         fi
 
   check:
-    desc: "PR hygiene for an open PR — template sections, no unchecked boxes when ready, stacked note (task pr:check -- NN)"
+    desc: "PR hygiene for an open PR — template sections with content, review/evidence paths, gate summary, stacked note (task pr:check -- NN)"
     cmds:
       - uv run python scripts/pr_check.py --pr {{.CLI_ARGS}}
 
@@ -88,9 +88,7 @@ tasks:
   ready:
     desc: Mark the current branch's draft PR ready for review — only if the hygiene check passes as ready
     cmds:
-      - |
-        body=$(mktemp); gh pr view --json body -q .body > "$body"
-        uv run python scripts/pr_check.py --title "$(gh pr view --json title -q .title)" --body-file "$body" --base "$(gh pr view --json baseRefName -q .baseRefName)"
+      - uv run python scripts/pr_check.py --pr "$(gh pr view --json number -q .number)"
       - gh pr ready
 
   checks:

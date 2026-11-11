@@ -79,13 +79,25 @@ and fill the boxes as you go — a placeholder body fails `pr-hygiene`.
 task check                                 # = uv run python scripts/check.py
 ```
 
-Paste the summary block into the PR. If a step fails, fix it or stop and
-report the failing output verbatim; never report "tests pass" from memory.
+Paste the summary block into the PR, including its final `gate: <sha> …`
+line: `pr-hygiene` checks that every step the diff needs shows `ok`, that
+the commit is in the PR, and that the tree was not dirty. If a step fails,
+fix it or stop and report the failing output verbatim; never report "tests
+pass" from memory. A kernel-only change skips the platform and docs steps
+by design (`--all` forces them).
 
 ## 6. Close the loop (same PR)
 
-- [ ] Flip the WU row to ✅ in `docs/plans/README.md` **and** in the
-      milestone file's entry.
+- [ ] Flip the WU row to ✅ in `docs/plans/README.md`, set the entry's
+      **Status** to `✅ complete (PR #N)`, and fill its **Evidence** bullet
+      (the `gate: <sha>` line, tests added, fixtures and wire pairs added,
+      anything verified by hand). `scripts/board_sync.py lint` fails a ✅
+      entry without Evidence.
+- [ ] Fill the PR body's **How to review** (reading order, the invariant to
+      try to break), **Evidence** (one checked box per Acceptance item with
+      its test path), **Design** (the surface as it landed), and
+      **Follow-ups** (every TODO the diff adds, as a gap row or WU id);
+      `pr-hygiene` checks each has content and names real paths.
 - [ ] Update every `docs/architecture.md` section the change affected
       (blueprint law: code and constitution never disagree across a PR).
 - [ ] A decision that outlives the PR (shape, boundary, policy) becomes an
