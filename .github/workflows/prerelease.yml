@@ -37,10 +37,10 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       label: ${{ steps.plan.outputs.label }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: knope-dev/action@v2.1.0
+      - uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
         with:
           version: 0.23.2
       - name: Target versions from the pending change files
@@ -68,15 +68,15 @@ jobs:
       matrix:
         item: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
       - run: uv python install 3.13
       - name: Set the pre-release version (not committed)
         run: uv version --project "${{ matrix.item.dir }}" "${{ matrix.item.version }}"
       - name: Build
         run: uv build --project "${{ matrix.item.dir }}" --out-dir dist
       - name: Publish to PyPI (trusted publishing)
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
           print-hash: true
