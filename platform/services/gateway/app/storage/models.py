@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 
-SCHEMA_REVISION = "0075_bootstrap"
+SCHEMA_REVISION = "0077_security_events"
 SCHEMA = "platform"
 
 
@@ -122,3 +122,20 @@ class Installation(Base):
     organization_id: Mapped[UUID | None] = mapped_column(ForeignKey("platform.organizations.id"))
     store_id: Mapped[str | None] = mapped_column(String(26))
     model_id: Mapped[str | None] = mapped_column(String(26))
+
+
+class SecurityEvent(Base):
+    __tablename__ = "security_events"
+    __table_args__ = (
+        CheckConstraint("action IN ('organization.read', 'organization.update', 'identity.read')"),
+        CheckConstraint("outcome IN ('unauthenticated', 'denied')"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    request_id: Mapped[UUID]
+    target_id: Mapped[UUID | None]
+    action: Mapped[str] = mapped_column(String(32))
+    outcome: Mapped[str] = mapped_column(String(16))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

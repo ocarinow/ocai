@@ -13,6 +13,7 @@ async function logout(provider: boolean) {
     } })
     clearNuxtData()
     if (result.providerLogout) await navigateTo(result.providerLogout, { external: true })
+    else if (route.path !== '/') await navigateTo('/')
     else await refresh()
   } catch { failed.value = true }
   finally { busy.value = false }
@@ -23,7 +24,7 @@ async function logout(provider: boolean) {
   <UiCard class="mt-6 gap-3 p-6" aria-label="Console session">
     <h2 class="text-lg font-semibold">Console access</h2>
     <template v-if="data?.authenticated && !error">
-      <p class="text-sm text-muted-foreground">You are signed in. Organization management will be available in the next release.</p>
+      <p class="text-sm text-muted-foreground">You are signed in.</p>
       <div class="flex flex-wrap gap-3">
         <UiButton variant="outline" :disabled="busy" @click="logout(false)">Sign out</UiButton>
         <UiButton variant="ghost" :disabled="busy" @click="logout(true)">Sign out and visit identity provider</UiButton>

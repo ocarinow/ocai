@@ -36,6 +36,8 @@ async def _http_error(request: Request, exc: Exception) -> JSONResponse:
         401: ("unauthenticated", "Authentication is required."),
         403: ("forbidden", "This operation is not permitted."),
         404: ("not_found", "The resource was not found."),
+        409: ("version_conflict", "The resource changed. Reload before saving."),
+        503: ("service_unavailable", "The service is temporarily unavailable."),
         405: ("method_not_allowed", "The method is not allowed."),
     }
     code, message = messages.get(status, ("request_failed", "The request could not be completed."))

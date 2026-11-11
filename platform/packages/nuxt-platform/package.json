@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./nuxt.config.ts"
+    ".": "./nuxt.config.ts",
+    "./server/session": "./server/session/http.ts"
   },
   "dependencies": {
     "@ocarinow/nuxt-ui": "*",

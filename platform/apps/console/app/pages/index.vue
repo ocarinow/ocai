@@ -42,7 +42,7 @@ const connected = computed(() => status.value === 'success' && !!data.value)
     <UiCard role="region" aria-labelledby="setup-title" class="mt-6 gap-0 p-6 md:p-8">
       <div class="flex flex-wrap items-center justify-between gap-3"><h2 id="setup-title" class="text-lg font-semibold">Model access</h2>
         <UiBadge variant="outline">{{ connected ? 'Not configured' : 'Status unknown' }}</UiBadge></div>
-      <p class="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{{ connected ? 'The platform foundation is available. Organization access and provider connections are not available in this development preview.' : 'Connect to the management service to check gateway setup.' }}</p>
+      <p class="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{{ connected ? 'The platform foundation is available. Organization settings are available after sign-in. Provider connections are not configured.' : 'Connect to the management service to check gateway setup.' }}</p>
     </UiCard>
     <PlatformSession />
     <p class="mt-8 text-xs leading-6 text-muted-foreground">Service availability is separate from inference readiness. This preview cannot process model requests.</p>
