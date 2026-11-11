@@ -676,7 +676,7 @@ wheels = [
 
 [[package]]
 name = "ocai"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "python/packages/ocai-core" }
 
 [package.optional-dependencies]
@@ -711,7 +711,7 @@ provides-extras = ["http", "openai", "anthropic", "deepseek", "all"]
 
 [[package]]
 name = "ocai-anthropic"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "python/packages/ocai-anthropic" }
 dependencies = [
     { name = "msgspec" },
@@ -726,7 +726,7 @@ requires-dist = [
 
 [[package]]
 name = "ocai-deepseek"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "python/packages/ocai-deepseek" }
 dependencies = [
     { name = "ocai" },
@@ -741,7 +741,7 @@ requires-dist = [
 
 [[package]]
 name = "ocai-openai"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "python/packages/ocai-openai" }
 dependencies = [
     { name = "msgspec" },
