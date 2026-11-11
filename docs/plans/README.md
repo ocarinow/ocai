@@ -28,6 +28,7 @@ interface and Gemini are horizon items, not the near-term goal.
 
 | WU | Title | Milestone | File | Status |
 |---|---|---|---|---|
+| WU-106 | Reduce CI waiting without weakening validation | Tooling | [CI latency](ci-latency.md) | 🔄 in progress |
 | WU-00 | Baseline commit + roadmap replacement | — | [m1](m1-foundations.md) | ✅ done |
 | WU-01 | Enforcement becomes executable | — | [m1](m1-foundations.md) | ✅ |
 | WU-02 | spec/schema regeneration I (message/parts/request) | M1 | [m1](m1-foundations.md) | ✅ |
