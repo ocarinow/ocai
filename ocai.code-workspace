@@ -1,0 +1,52 @@
+{
+  // Multi-root workspace: one folder per environment, so Pylance, Ruff, and
+  // the test runner use each project's own interpreter instead of the root
+  // workspace venv. Open THIS file in VS Code, not the repository folder.
+  // Per-folder settings live in <folder>/.vscode/settings.json (committed).
+  "folders": [
+    { "name": "ocai — kernel and plugins (uv workspace)", "path": "." },
+    { "name": "gateway — platform service (own venv)", "path": "platform/services/gateway" },
+    { "name": "echo — community plugin example (own venv)", "path": "examples/ocai-contrib-echo" },
+    { "name": "platform — console and Nuxt packages (node)", "path": "platform" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.venv": true,
+      "**/node_modules": true,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/.ruff_cache": true,
+      "**/.import_linter_cache": true
+    },
+    "search.exclude": {
+      "**/.venv": true,
+      "**/node_modules": true,
+      "**/site": true,
+      "**/dist": true
+    },
+    "[python]": {
+      "editor.defaultFormatter": "charliermarsh.ruff",
+      "editor.formatOnSave": false,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
+      }
+    },
+    "ruff.importStrategy": "fromEnvironment",
+    "yaml.schemas": {
+      "https://taskfile.dev/schema.json": ["Taskfile.yml", "tasks/*.Taskfile.yml"]
+    },
+    "material-icon-theme.folders.associations": { "tasks": "Taskfile" },
+    "material-icon-theme.files.associations": { "*.Taskfile.yml": "Taskfile" }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "charliermarsh.ruff",
+      "task.vscode-task",
+      "redhat.vscode-yaml",
+      "Vue.volar"
+    ]
+  }
+}

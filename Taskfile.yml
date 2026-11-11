@@ -60,6 +60,11 @@ tasks:
         fi
         cp "$src" .env && echo "activated $env -> .env ($(wc -l < .env | tr -d ' ') lines)"
 
+  ide:
+    desc: Open the multi-root VS Code workspace (one folder per environment, so Pylance uses each project's own venv)
+    cmds:
+      - code ocai.code-workspace
+
   tasks:readme:
     desc: Regenerate tasks/README.md (the task catalogue every session reads) from the task definitions
     cmds:

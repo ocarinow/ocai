@@ -29,9 +29,13 @@ node_modules/
 # Go (future go/)
 /go/bin/
 
-# Editors / OS
+# Editors / OS. Shared editor settings ARE committed: the multi-root workspace
+# (ocai.code-workspace) and each folder's .vscode/settings.json + extensions.json
+# give Pylance/Ruff the right interpreter per project. Personal files stay local.
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .DS_Store
 
 # Per-user agent settings (never commit personal permissions)

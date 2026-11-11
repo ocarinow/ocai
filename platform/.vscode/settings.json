@@ -1,0 +1,7 @@
+{
+  // Workspace folder for the Nuxt console and packages (node). No Python here:
+  // the gateway service is its own folder with its own venv.
+  "python.analysis.exclude": ["**"],
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "eslint.workingDirectories": [{ "mode": "auto" }]
+}
