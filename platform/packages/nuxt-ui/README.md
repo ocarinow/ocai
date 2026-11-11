@@ -13,7 +13,7 @@ import type { ChartConfig } from '@ocarinow/nuxt-ui/components/ui/chart'
 
 `shadcn-nuxt` registers components on demand. Unused families are not imported
 into the browser's JavaScript bundle; Tailwind scans the catalogue, so its shared
-CSS does include utilities for installed components. `layer-styles.ts` also scans
+CSS does include utilities for installed components. `module.ts` also scans
 each consuming Nuxt layer's app directory through Nuxt Kit. A new app needs no
 hardcoded source path in this package. Neutral light/dark tokens live here;
 Ocarinow overrides live in `nuxt-platform/app/assets/css/theme.css`. Future brand

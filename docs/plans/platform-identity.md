@@ -434,7 +434,8 @@ audit search/export and deployment SLO qualification retain separate ownership.
 
 Maintainer request: "Integrate in the layer all the shadcn-vue components so we do not have to do this after."
 
-- [ ] **Status:** implementation in progress.
+- [x] **Status:** complete — 68 upstream UI families, shared registration and
+  neutral theme, higher-layer Ocarinow overrides, full typing and browser checks.
 - **Goal:** Make the complete upstream shadcn-vue component catalogue available to
   every platform app through one reusable Nuxt layer, with Ocarinow presentation
   supplied above that layer instead of rebuilding primitive components.
@@ -442,10 +443,10 @@ Maintainer request: "Integrate in the layer all the shadcn-vue components so we 
   console component consumption, frontend manifests/lock, component catalogue
   provenance, documentation and layer/browser validation. Registry component files
   are a mechanical upstream import; no bespoke replacements or wrapper catalogue.
-- **Done:** All components from the pinned upstream UI registry are installed and
+- **Done:** All components from the committed upstream UI registry snapshot are installed and
   type-check through the consuming console; shadcn module exports resolve from the
   shared layer; the console renders actual registry components with higher-layer
-  Ocarinow theme tokens, and unused components do not inflate its client bundle.
+  Ocarinow theme tokens, and unused component families do not add JavaScript to its client bundle.
 - **Deps:** WU-75 as the current platform stack; this foundation precedes WU-76.
 - **Architecture:** §12.1 and the UI layer implementation notes in §12.
 - **Integration:** Console extends nuxt-platform (product shell/theme overrides),
