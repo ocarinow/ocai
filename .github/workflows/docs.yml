@@ -27,83 +27,14 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}-{1}', github.event.pull_request.number, (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null) && 'metadata' || 'code') || (github.event_name == 'schedule' && format('docs-full-{0}', github.run_id) || 'pages') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Route before expanding the reusable workflow. Skipped events display this
+# static caller name, never an unevaluated expression or a required check name.
 jobs:
-  docs:
-    name: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null) && 'docs (metadata event)' || 'docs' }}
+  checks:
+    name: Documentation
     if: github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.base != null
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      changed: ${{ steps.changes.outputs.run }}
-      pages_enabled: ${{ steps.pages.outputs.enabled }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Select affected checks
-        id: changes
-        run: python3 scripts/ci_scope.py --suite docs
-
-      - name: Is GitHub Pages enabled on this repository?
-        id: pages
-        if: steps.changes.outputs.run == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          if gh api "repos/$REPOSITORY/pages" >/dev/null 2>&1; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::GitHub Pages is not enabled; the site builds but will not deploy. Enable it once: Settings → Pages → Source: GitHub Actions."
-          fi
-
-      - name: Install uv
-        if: steps.changes.outputs.run == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-
-      - name: Set up Python
-        if: steps.changes.outputs.run == 'true'
-        run: uv python install 3.13
-
-      - name: Sync docs group
-        if: steps.changes.outputs.run == 'true'
-        run: uv sync --locked --group docs
-
-      # Zero warnings: a missing nav page or a broken internal link fails the
-      # build. Same command as the gate's docs step and `task docs:check`.
-      - name: Build site
-        if: steps.changes.outputs.run == 'true'
-        run: uv run python scripts/docs_check.py
-
-      - name: Upload Pages artifact
-        if: steps.changes.outputs.run == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: site
-
-  deploy:
-    name: deploy
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.docs.outputs.pages_enabled == 'true'
-    needs: docs
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
+      contents: read
       pages: write
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      # Pages is enabled by hand once (the Actions token cannot create the
-      # site); this job only runs when the docs job found it enabled.
-      - name: Configure Pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-        with:
-          enablement: false
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+    uses: ./.github/workflows/docs-checks.yml

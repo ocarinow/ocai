@@ -14,13 +14,16 @@ real service integration and browser coverage remain pre-merge checks when relev
 | Push main | Affected validation and existing deployment/release workflows |
 | Nightly or manual full run | Full code suites, independent of paths |
 
-A body edit still appears as an Actions event, but code jobs are skipped **under
-separate names** containing `(metadata event)`. GitHub may show the unevaluated
-name expression for a job skipped before scheduling. These jobs allocate no runners and
-cannot overwrite `python`, `platform`, or another required code result. Their
-concurrency group is separate too: editing prose cannot cancel running tests.
-New code cancels superseded PR code runs. Main code runs use unique groups; scheduled docs builds have a separate group. Pages
-publishing remains serialized and is never cancelled in flight.
+A body edit still appears as an Actions event, but skips only the statically
+named `Code checks` and `Documentation` caller jobs. Their reusable workflows
+are not expanded, so none of the required leaf checks is created or overwritten.
+No runner is allocated for a skipped caller, and no name expression is displayed.
+The leaf checks retain simple labels such as `python`, `platform`, and `docs`.
+
+Metadata events have separate concurrency groups: editing prose cannot cancel
+running tests. New code cancels superseded PR code runs. Main code runs use unique
+groups; scheduled docs builds have a separate group. Pages publishing remains
+serialized and is never cancelled in flight.
 
 ## Impact selection
 

@@ -90,15 +90,12 @@ def test_metadata_cannot_write_code_check_names_or_cancel_code(
         },
         "matrix": {"name": "python"},
     }
-    for workflow, jobs in [
-        ("ci.yml", ["python", "platform", "workflows", "semgrep", "dependency-review"]),
-        ("docs.yml", ["docs"]),
-    ]:
-        for job in jobs:
-            block = workflow_job(workflow, job)
-            assert bool(expression(value(block, "if"), context)) == is_code
-            name = expression(value(block, "name"), context)
-            assert name == (job if is_code else f"{job} (metadata event)")
+    for workflow, label in [("ci.yml", "Code checks"), ("docs.yml", "Documentation")]:
+        block = workflow_job(workflow, "checks")
+        assert bool(expression(value(block, "if"), context)) == is_code
+        assert value(block, "name") == label
+        assert "runs-on:" not in block
+        assert f"uses: ./.github/workflows/{workflow[:-4]}-checks.yml" in block
         text = (ROOT / ".github/workflows" / workflow).read_text()
         group = re.search(r"^  group: (.+)$", text, re.MULTILINE)
         assert group
@@ -126,8 +123,8 @@ def test_required_code_jobs_fail_if_selector_fails() -> None:
     # The selector is an ordinary failing step, never continue-on-error, and
     # precedes heavy work. There is no final success job masking a dependency failure.
     for workflow, jobs in [
-        ("ci.yml", ["python", "platform", "workflows", "semgrep"]),
-        ("docs.yml", ["docs"]),
+        ("ci-checks.yml", ["python", "platform", "workflows", "semgrep"]),
+        ("docs-checks.yml", ["docs"]),
     ]:
         for job in jobs:
             block = workflow_job(workflow, job)
@@ -155,9 +152,9 @@ def test_push_schedule_dispatch_preserve_code_checks() -> None:
             "github": {"event_name": event, "event": {}},
             "matrix": {"name": "python-next"},
         }
-        block = workflow_job("ci.yml", "python")
+        block = workflow_job("ci.yml", "checks")
         assert expression(value(block, "if"), context)
-        assert expression(value(block, "name"), context) == "python-next"
+        assert value(block, "name") == "Code checks"
 
 
 def test_board_body_event_cannot_supersede_pending_sync() -> None:
@@ -188,5 +185,36 @@ def test_nightly_docs_does_not_supersede_pages_and_manual_deploy_remains() -> No
             "needs": {"docs": {"outputs": {"pages_enabled": "true"}}},
         }
         assert expression(group[1], context) == expected
-        condition = value(workflow_job("docs.yml", "deploy"), "if")
+        condition = value(workflow_job("docs-checks.yml", "deploy"), "if")
         assert bool(expression(condition, context)) == (event != "schedule")
+
+
+def test_leaf_checks_have_readable_names_and_cannot_run_on_metadata_alone() -> None:
+    for workflow, jobs in [
+        (
+            "ci-checks.yml",
+            ["platform", "workflows", "semgrep", "dependency-review", "go", "typescript"],
+        ),
+        ("docs-checks.yml", ["docs", "deploy"]),
+    ]:
+        text = (ROOT / ".github/workflows" / workflow).read_text()
+        assert "  workflow_call:" in text
+        assert "  pull_request:" not in text
+        assert "concurrency:" not in text
+        for job in jobs:
+            assert value(workflow_job(workflow, job), "name") == job
+    python = workflow_job("ci-checks.yml", "python")
+    assert value(python, "name") == "${{ matrix.name }}"
+    assert re.search(r"^    if:", python, re.MULTILINE) is None
+    for interpreter in ["python", "python-next"]:
+        assert expression(value(python, "name"), {"matrix": {"name": interpreter}}) == interpreter
+
+
+def test_documentation_permissions_remain_scoped_to_deployment() -> None:
+    caller = workflow_job("docs.yml", "checks")
+    assert "pages: write" in caller and "id-token: write" in caller
+    build = workflow_job("docs-checks.yml", "docs")
+    assert "    permissions:\n      contents: read" in build
+    assert "pages: write" not in build and "id-token: write" not in build
+    deploy = workflow_job("docs-checks.yml", "deploy")
+    assert "pages: write" in deploy and "id-token: write" in deploy

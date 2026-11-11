@@ -15,7 +15,8 @@ Maintainer request: “Could you make all those changes in a single PR?”
 - **Non-goals:** Kernel behavior, release cadence, runner migration, test removal,
   cross-commit result caching, and automatically merging this PR.
 - **Acceptance:**
-  - Metadata events cannot replace code results; base changes revalidate —
+  - Metadata events show static readable caller names, cannot replace code
+    results, and base changes revalidate —
     `scripts/tests/test_ci_policy.py`.
   - Complete diffs, deleted and renamed files, shared dependencies and uncertain
     history select conservative coverage — `scripts/tests/test_ci_scope.py`.
@@ -47,7 +48,7 @@ Maintainer request: “Could you make all those changes in a single PR?”
   fail-open selection (run everything), and forced full runs bound that risk. Revert
   restores the previous scheduling without changing product data.
 - **Open:** none.
-- **Evidence:** 38 tooling regression cases pass; no fixtures or wire pairs added.
+- **Evidence:** 40 tooling regression cases pass; no fixtures or wire pairs added.
   Full gate baseline: `gate: 2018ee8` / `all checks passed.`; the final committed
   gate summary is pasted in PR #123. Both Python versions and all required live
   checks passed. A live body edit created no code/docs/board runner jobs and

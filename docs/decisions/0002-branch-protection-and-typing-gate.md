@@ -171,8 +171,11 @@ local gate paths could disagree. The maintainer requested one remediation PR
 without reducing quality (WU-106).
 
 **Decision.** Metadata validation has its own workflow and concurrency group.
-Code workflows retain base-edit handling; ordinary title/body edits publish only
-distinctly named skipped jobs, never required code-check names. Ready/draft
+Code workflows retain base-edit handling; ordinary title/body edits skip only
+static caller jobs (`Code checks` and `Documentation`). The reusable workflows
+are not expanded, so required leaf checks are never created or overwritten.
+Conditional expressions in job names are prohibited: GitHub can display them
+literally when a job is skipped before name evaluation. Ready/draft
 transitions do not restart code validation. Every new revision still receives
 affected validation, including drafts; base retargets force full validation.
 
