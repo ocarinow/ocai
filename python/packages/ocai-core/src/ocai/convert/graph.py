@@ -535,16 +535,22 @@ class ConversionGraph:
         self._stream_plan_cache[(src, dst)] = path
         return path
 
-    def inspect(self, src: NodeId, dst: NodeId, *,
-                streaming: bool = False) -> tuple[EdgeDeclaration, ...]:
+    def inspect(
+        self, src: NodeId, dst: NodeId, *, streaming: bool = False
+    ) -> tuple[EdgeDeclaration, ...]:
         """Inspect a path without executing converters or constructing transducers."""
         edges: Sequence[Edge | StreamEdge] = (
             self._plan_stream(src, dst) if streaming else self._plan(src, dst)
         )
-        return tuple(EdgeDeclaration(
-            edge.src, edge.dst, edge.origin,
-            replace(edge.contract, census=dict(edge.contract.census)),
-        ) for edge in edges)
+        return tuple(
+            EdgeDeclaration(
+                edge.src,
+                edge.dst,
+                edge.origin,
+                replace(edge.contract, census=dict(edge.contract.census)),
+            )
+            for edge in edges
+        )
 
     def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
         """Convert `payload` from node `src` to node `dst`.

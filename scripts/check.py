@@ -5,14 +5,10 @@ and CI runs the same steps. Usage (from the repo root)::
 
     uv run python scripts/check.py            # everything
     uv run python scripts/check.py --no-tests # static checks + platform build
-    uv run python scripts/check.py --format   # also enforce ruff format
 
 The script prints one line per step and exits non-zero if any step fails.
 Platform prerequisites (Node, npm dependencies, and the browser test runtime)
 are documented in platform/README.md. The platform uses its own uv environment.
-`ruff format --check` is opt-in until the tree is formatted (18 files were
-unformatted when this script landed); flip it to default in the same change
-that formats them.
 """
 
 from __future__ import annotations
@@ -91,15 +87,14 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--no-tests", action="store_true", help="skip pytest")
-    parser.add_argument("--format", action="store_true", help="also run `ruff format --check`")
     args = parser.parse_args(argv)
 
     steps = [
         Step("privacy guard", ("python", "scripts/privacy_check.py")),
+        Step("workspace", ("python", "scripts/workspace_check.py")),
         Step("ruff", ("ruff", "check")),
+        Step("format", ("ruff", "format", "--check")),
     ]
-    if args.format:
-        steps.append(Step("format", ("ruff", "format", "--check")))
     steps.append(Step("import contracts", ("lint-imports",)))
     steps.append(Step("pyright (strict)", ("pyright",)))
     steps.append(Step("mypy (strict)", ("mypy",)))

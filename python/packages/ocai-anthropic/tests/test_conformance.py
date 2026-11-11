@@ -138,8 +138,7 @@ def _run_fixture(fixture: dict[str, Any]) -> EdgeOutput:
 
 def test_fixture_set_is_not_empty_and_covers_the_wu13_scenarios() -> None:
     assert len(FIXTURE_PATHS) >= 5, (
-        f"WU-13 requires at least five edge fixtures in {FIXTURES_DIR}; "
-        f"found {len(FIXTURE_PATHS)}"
+        f"WU-13 requires at least five edge fixtures in {FIXTURES_DIR}; found {len(FIXTURE_PATHS)}"
     )
     losses = [
         (entry["path"], entry["disposition"])
@@ -181,11 +180,7 @@ def test_is_error_crosses_natively_the_honest_asymmetry_vs_openai() -> None:
     ]
     assert wire_blocks and wire_blocks[0]["is_error"] is True
     # ...and no fixture reports an is_error loss anywhere.
-    losses = [
-        entry["path"]
-        for path in FIXTURE_PATHS
-        for entry in _load(path)["expect_losses"]
-    ]
+    losses = [entry["path"] for path in FIXTURE_PATHS for entry in _load(path)["expect_losses"]]
     assert not any(path.endswith("is_error") for path in losses)
 
 
@@ -254,9 +249,7 @@ def test_fixture_converts_through_the_catalog(path: Path) -> None:
         )
         rendered = _CODEC.bind_resource(converted.value, fixture["expect"]["model"])
     else:
-        converted = catalog.convert(
-            fixture["input"], MESSAGES_RESPONSE, CANONICAL_CHAT_RESPONSE
-        )
+        converted = catalog.convert(fixture["input"], MESSAGES_RESPONSE, CANONICAL_CHAT_RESPONSE)
         rendered = converted.value.to_dict()
     assert semantic_equal(rendered, fixture["expect"]), (
         f"{path.name}: catalog conversion did not match `expect`.\n"
@@ -265,9 +258,7 @@ def test_fixture_converts_through_the_catalog(path: Path) -> None:
     )
     # The report carries the same records the direct edge run produced —
     # streaming through the planner adds no silent extra leg.
-    actual_losses = sorted(
-        (loss.path, loss.disposition.value) for loss in converted.report.losses
-    )
+    actual_losses = sorted((loss.path, loss.disposition.value) for loss in converted.report.losses)
     expected_losses = sorted(
         (entry["path"], entry["disposition"]) for entry in fixture["expect_losses"]
     )
@@ -398,9 +389,7 @@ def test_paired_stream_fold_matches_the_unary_canonical() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "path", sorted(STREAMS_DIR.glob("*.json")), ids=lambda p: p.name
-)
+@pytest.mark.parametrize("path", sorted(STREAMS_DIR.glob("*.json")), ids=lambda p: p.name)
 def test_chunk_edge_certifies_over_stream_fixtures(path: Path) -> None:
     # Clause 3 for the streaming edge: the transducer's flush accounting
     # over every fold triple's event log stays within DECODE_CHUNK_CONTRACT

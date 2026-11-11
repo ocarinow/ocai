@@ -54,8 +54,10 @@ def _text(part: Part) -> str:
 
 
 def _frame(delta: dict[str, Any], finish: str | None = None) -> dict[str, Any]:
-    return {"object": "chat.completion.chunk", "choices": [
-        {"index": 0, "delta": delta, "finish_reason": finish}]}
+    return {
+        "object": "chat.completion.chunk",
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+    }
 
 
 class ClientStreamTransducer:
@@ -86,8 +88,13 @@ class ClientStreamTransducer:
         raise StreamProtocolError(message)
 
     def _loss(self, path: str) -> None:
-        self._losses.append(FieldLoss(path=path, disposition=Disposition.UNSUPPORTED,
-                                      note="outside the qualified client stream contract"))
+        self._losses.append(
+            FieldLoss(
+                path=path,
+                disposition=Disposition.UNSUPPORTED,
+                note="outside the qualified client stream contract",
+            )
+        )
 
     def feed(self, event: Any) -> list[dict[str, Any]]:
         """Convert one canonical chunk into zero or more client JSON events."""
@@ -130,15 +137,21 @@ class ClientStreamTransducer:
             if event.end.extensions or event.end.provider_options:
                 self._loss("chunk.extensions")
             if len(self._slots) > 1 and self._textual:
-                self._shifts.append(SemanticShift(kind="relocation", path="message.parts",
-                                    note="ordered parts grouped into client message lanes"))
+                self._shifts.append(
+                    SemanticShift(
+                        kind="relocation",
+                        path="message.parts",
+                        note="ordered parts grouped into client message lanes",
+                    )
+                )
             finish = event.end.finish or self._finish
             usage = event.end.usage if event.end.usage is not None else self._usage
             result = [_frame({}, client_finish(finish, self._losses))]
             encoded_usage = client_usage(usage, self._losses)
             if encoded_usage is not None:
-                result.append({"object": "chat.completion.chunk", "choices": [],
-                               "usage": encoded_usage})
+                result.append(
+                    {"object": "chat.completion.chunk", "choices": [], "usage": encoded_usage}
+                )
             return result
         self._loss("chunk.type")
         return []
@@ -158,9 +171,20 @@ class ClientStreamTransducer:
             slot.tool_index = self._tool_count
             slot.identity = (part.call_id, part.name)
             self._tool_count += 1
-            return [_frame({"tool_calls": [{"index": slot.tool_index, "id": part.call_id,
-                "type": "function",
-                "function": {"name": part.name, "arguments": part.args_json}}]})]
+            return [
+                _frame(
+                    {
+                        "tool_calls": [
+                            {
+                                "index": slot.tool_index,
+                                "id": part.call_id,
+                                "type": "function",
+                                "function": {"name": part.name, "arguments": part.args_json},
+                            }
+                        ]
+                    }
+                )
+            ]
         if isinstance(part, (PartText, PartRefusal)):
             self._textual = True
             if part.text:
@@ -179,8 +203,15 @@ class ClientStreamTransducer:
             self._loss("chunk.delta")
         if isinstance(delta, DeltaToolArgs) and slot.tool_index is not None:
             slot.checksum.update(delta.fragment.encode())
-            return [_frame({"tool_calls": [{"index": slot.tool_index,
-                                            "function": {"arguments": delta.fragment}}]})]
+            return [
+                _frame(
+                    {
+                        "tool_calls": [
+                            {"index": slot.tool_index, "function": {"arguments": delta.fragment}}
+                        ]
+                    }
+                )
+            ]
         if isinstance(delta, (DeltaText, DeltaRefusal)) and slot.kind == delta.type:
             slot.checksum.update(delta.text.encode())
             return [_frame({"content" if isinstance(delta, DeltaText) else "refusal": delta.text})]
@@ -198,7 +229,8 @@ class ClientStreamTransducer:
             part_evidence(part, f"message.parts[{event.index}]", evidence)
             self._losses.extend(loss for loss in evidence if loss not in self._losses)
             if part.type != slot.kind or sha256(_text(part).encode()).digest() != (
-                    slot.checksum.digest()):
+                slot.checksum.digest()
+            ):
                 self._reject("final part differs from delivered deltas")
             if isinstance(part, PartToolCall) and slot.identity != (part.call_id, part.name):
                 self._reject("final tool identity differs from delivered identity")
@@ -211,5 +243,9 @@ class ClientStreamTransducer:
         self._flushed = True
         if not self._done or self._failed:
             self._loss("termination")
-        return [], EdgeReport(src=CANONICAL_CHUNK, dst=CHAT_COMPLETIONS_CHUNK,
-                              losses=tuple(self._losses), shifts=tuple(self._shifts))
+        return [], EdgeReport(
+            src=CANONICAL_CHUNK,
+            dst=CHAT_COMPLETIONS_CHUNK,
+            losses=tuple(self._losses),
+            shifts=tuple(self._shifts),
+        )

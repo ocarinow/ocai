@@ -346,10 +346,15 @@ def _usage(raw: dict[str, Any] | None) -> Usage | None:
     completion_details: dict[str, Any] = raw.get("completion_tokens_details") or {}
     prompt = raw.get("prompt_tokens")
     completion = raw.get("completion_tokens")
-    _add("input", prompt - (prompt_details.get("cached_tokens") or 0)
-         if prompt is not None else None)
-    _add("output", completion - (completion_details.get("reasoning_tokens") or 0)
-         if completion is not None else None)
+    _add(
+        "input", prompt - (prompt_details.get("cached_tokens") or 0) if prompt is not None else None
+    )
+    _add(
+        "output",
+        completion - (completion_details.get("reasoning_tokens") or 0)
+        if completion is not None
+        else None,
+    )
     _add("cached", prompt_details.get("cached_tokens"))
     _add("reasoning", completion_details.get("reasoning_tokens"))
     return Usage(consumptions=consumptions)
@@ -1299,9 +1304,7 @@ class ChatCompletionsCodec:
                 "logprobs",
             )
         }
-        knobs["max_output_tokens"] = payload.get(
-            "max_completion_tokens", payload.get("max_tokens")
-        )
+        knobs["max_output_tokens"] = payload.get("max_completion_tokens", payload.get("max_tokens"))
         stop = payload.get("stop")
         if isinstance(stop, str):
             knobs["stop_sequences"] = [stop]
@@ -1704,9 +1707,7 @@ class ChatCompletionsCodec:
             chunks.append(
                 ChatChunk(
                     type=ChunkType.FINISH,
-                    finish=FinishInfo(
-                        reason=_FINISH_REASONS.get(native, "unknown"), native=native
-                    ),
+                    finish=FinishInfo(reason=_FINISH_REASONS.get(native, "unknown"), native=native),
                     raw_event=raw,
                 )
             )

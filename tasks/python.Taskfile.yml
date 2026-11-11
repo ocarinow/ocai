@@ -8,7 +8,7 @@ tasks:
       - uv sync
 
   check:
-    desc: The full gate — privacy guard, ruff, import contracts, pyright strict, mypy strict, pytest
+    desc: The full gate — privacy guard, workspace consistency, ruff, format, import contracts, pyright strict, mypy strict, pytest, platform
     cmds:
       - uv run python scripts/check.py {{.CLI_ARGS}}
 
@@ -23,7 +23,7 @@ tasks:
       - uv run ruff check {{.CLI_ARGS}}
 
   fmt:
-    desc: Ruff format the tree (not enforced in CI yet — see ADR 0001)
+    desc: Ruff format the tree (ruff format --check is part of the gate)
     cmds:
       - uv run ruff format {{.CLI_ARGS}}
 

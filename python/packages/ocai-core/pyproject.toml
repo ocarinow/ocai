@@ -28,13 +28,16 @@ http = ["httpx>=0.27"]
 # `pip install ocai[openai]` and `pip install ocai-openai` resolve to the same wheel.
 openai = ["ocai-openai"]
 anthropic = ["ocai-anthropic"]
+deepseek = ["ocai-deepseek"]
 
 # Convenience aggregate.
-all = ["ocai[http,openai,anthropic]"]
+all = ["ocai[http,openai,anthropic,deepseek]"]
 
 [project.urls]
-Homepage = "https://github.com/walid/ocai"
-Source = "https://github.com/walid/ocai"
+Homepage = "https://github.com/ocarinow/ocai"
+Source = "https://github.com/ocarinow/ocai"
+Documentation = "https://ocarinow.github.io/ocai/"
+Changelog = "https://github.com/ocarinow/ocai/blob/main/python/packages/ocai-core/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 # Map src/ocai -> the `ocai` namespace in the wheel. There is intentionally NO

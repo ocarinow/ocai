@@ -54,8 +54,11 @@ class ContextPolicy:
 def model(policy: ContextPolicy) -> tuple[ChatModel, HttpxTransport]:
     transport = HttpxTransport(provider="openai")
     return ocai.chat.model(
-        "openai/gpt-4o", catalog=Catalog.of(ocai.openai.FRAGMENT),
-        credentials=ApiKey("sk-test"), transport=transport, policies=[policy],
+        "openai/gpt-4o",
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        credentials=ApiKey("sk-test"),
+        transport=transport,
+        policies=[policy],
     ), transport
 
 
@@ -75,13 +78,18 @@ async def invoke(facade: ChatModel, ctx: CallContext, mode: str) -> None:
 @pytest.mark.parametrize("mode", ["sync", "async", "stream", "astream"])
 @respx.mock
 async def test_context_is_metadata_only(load_http: LoadHttp, mode: str) -> None:
-    pair = load_http("openai_chat_completion_stream.json" if "stream" in mode
-                     else "openai_chat_completion.json")
+    pair = load_http(
+        "openai_chat_completion_stream.json" if "stream" in mode else "openai_chat_completion.json"
+    )
     policy = ContextPolicy()
     facade, transport = model(policy)
-    ctx = CallContext(tenant="tenant-private", principal="principal-private",
-                      compartment="scope-private", tags={"trace": "trace-private"},
-                      deadline=datetime.now(UTC) + timedelta(seconds=10))
+    ctx = CallContext(
+        tenant="tenant-private",
+        principal="principal-private",
+        compartment="scope-private",
+        tags={"trace": "trace-private"},
+        deadline=datetime.now(UTC) + timedelta(seconds=10),
+    )
 
     def respond(request: httpx.Request) -> httpx.Response:
         assert b"private" not in request.content
@@ -89,8 +97,9 @@ async def test_context_is_metadata_only(load_http: LoadHttp, mode: str) -> None:
         timeout = request.extensions["timeout"]["read"]
         assert 0 < timeout <= 10
         if "stream" in mode:
-            return httpx.Response(200, content=("\n\n".join(pair["response"]["sse"])
-                                               + "\n\n").encode())
+            return httpx.Response(
+                200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode()
+            )
         return httpx.Response(200, json=pair["response"]["json"])
 
     respx.post(URL).mock(side_effect=respond)
@@ -112,7 +121,9 @@ async def test_context_is_metadata_only(load_http: LoadHttp, mode: str) -> None:
 @pytest.mark.parametrize("expired", [False, True])
 @respx.mock(assert_all_called=False)
 async def test_expiration_and_admission_wait_make_zero_calls(
-    mode: str, expired: bool, respx_mock: respx.MockRouter,
+    mode: str,
+    expired: bool,
+    respx_mock: respx.MockRouter,
 ) -> None:
     policy = ContextPolicy(wait=None if expired else 60)
     facade, transport = model(policy)
@@ -141,8 +152,9 @@ async def test_outcome_retry_cannot_extend_budget(load_http: LoadHttp, mode: str
     route = respx.post(URL).respond(200, json=pair["response"]["json"])
     try:
         with pytest.raises(DeadlineExceededError):
-            await invoke(facade, CallContext(deadline=datetime.now(UTC)
-                         + timedelta(seconds=10)), mode)
+            await invoke(
+                facade, CallContext(deadline=datetime.now(UTC) + timedelta(seconds=10)), mode
+            )
     finally:
         transport.close()
         await transport.aclose()
@@ -181,8 +193,11 @@ async def test_concurrent_calls_keep_contexts_and_attempt_indices(load_http: Loa
     finally:
         await transport.aclose()
     assert route.call_count == 2
-    assert sorted(outcome.ctx.tenant for outcome in policy.outcomes
-                  if outcome.ctx and outcome.ctx.tenant is not None) == ["0", "1"]
+    assert sorted(
+        outcome.ctx.tenant
+        for outcome in policy.outcomes
+        if outcome.ctx and outcome.ctx.tenant is not None
+    ) == ["0", "1"]
     assert [outcome.attempt for outcome in policy.outcomes] == [0, 0]
     assert all(outcome.request.admission == 1 for outcome in policy.outcomes)
 
@@ -190,7 +205,8 @@ async def test_concurrent_calls_keep_contexts_and_attempt_indices(load_http: Loa
 @pytest.mark.parametrize("mode", ["sync", "async"])
 @respx.mock
 async def test_late_response_is_rejected_and_async_io_cancelled(
-    load_http: LoadHttp, mode: str,
+    load_http: LoadHttp,
+    mode: str,
 ) -> None:
     import time
 
@@ -217,8 +233,9 @@ async def test_late_response_is_rejected_and_async_io_cancelled(
     respx.post(URL).mock(side_effect=slow_sync if mode == "sync" else slow_async)
     try:
         with pytest.raises(DeadlineExceededError):
-            await invoke(facade, CallContext(deadline=datetime.now(UTC)
-                         + timedelta(seconds=0.2)), mode)
+            await invoke(
+                facade, CallContext(deadline=datetime.now(UTC) + timedelta(seconds=0.2)), mode
+            )
     finally:
         transport.close()
         await transport.aclose()

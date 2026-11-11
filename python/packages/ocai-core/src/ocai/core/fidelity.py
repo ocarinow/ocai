@@ -555,9 +555,15 @@ class Route:
 class FidelityPolicyError(OcaiError):
     """Conversion policy rejected execution; accounting survives without payloads."""
 
-    def __init__(self, *, phase: str, report: FidelityReport,
-                 usage: Usage | None = None, route: Route | None = None,
-                 delivered_events: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        phase: str,
+        report: FidelityReport,
+        usage: Usage | None = None,
+        route: Route | None = None,
+        delivered_events: int = 0,
+    ) -> None:
         """Retain detached evidence, never the rejected response or raw body."""
         super().__init__(f"conversion policy rejected {phase}")
         self.phase = phase
@@ -583,9 +589,15 @@ class FidelityPolicy:
     allow_loss: Callable[[FieldLoss], bool] | None = None
     allow_shift: Callable[[SemanticShift], bool] | None = None
 
-    def enforce(self, report: FidelityReport, *, phase: str,
-                usage: Usage | None = None, route: Route | None = None,
-                delivered_events: int = 0) -> None:
+    def enforce(
+        self,
+        report: FidelityReport,
+        *,
+        phase: str,
+        usage: Usage | None = None,
+        route: Route | None = None,
+        delivered_events: int = 0,
+    ) -> None:
         """Reject forbidden findings while retaining usage and the complete ledger."""
         accepted = True
         try:
@@ -603,5 +615,10 @@ class FidelityPolicy:
         except Exception:
             accepted = False
         if not accepted:
-            raise FidelityPolicyError(phase=phase, report=report, usage=usage,
-                                      route=route, delivered_events=delivered_events)
+            raise FidelityPolicyError(
+                phase=phase,
+                report=report,
+                usage=usage,
+                route=route,
+                delivered_events=delivered_events,
+            )

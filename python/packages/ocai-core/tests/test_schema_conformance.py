@@ -487,8 +487,7 @@ PROPERTY_SNAPSHOT: dict[str, frozenset[str]] = {
     },
     "chat_request.schema.json#/$defs/reasoningConfig": ENVELOPE
     | {"effort", "budget_tokens", "include_thoughts"},
-    "chat_request.schema.json#/$defs/outputFormat": ENVELOPE
-    | {"mode", "name", "schema", "strict"},
+    "chat_request.schema.json#/$defs/outputFormat": ENVELOPE | {"mode", "name", "schema", "strict"},
     "chat_request.schema.json#/$defs/audioOutputConfig": ENVELOPE | {"voice", "format"},
     "chat_request.schema.json#/$defs/cacheConfig": ENVELOPE | {"mode", "ref"},
     "chat_response.schema.json": ENVELOPE | {"message", "finish", "usage", "info", "raw"},

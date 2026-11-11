@@ -25,8 +25,10 @@ dependencies = ["ocai>=0.1,<0.2", "msgspec>=0.18"]
 anthropic = "ocai.anthropic:FRAGMENT"
 
 [project.urls]
-Homepage = "https://github.com/walid/ocai"
-Source = "https://github.com/walid/ocai"
+Homepage = "https://github.com/ocarinow/ocai"
+Source = "https://github.com/ocarinow/ocai"
+Documentation = "https://ocarinow.github.io/ocai/"
+Changelog = "https://github.com/ocarinow/ocai/blob/main/python/packages/ocai-anthropic/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 # Ship ONLY ocai/anthropic/ into the shared `ocai` namespace. As with every

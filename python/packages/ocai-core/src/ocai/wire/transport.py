@@ -264,7 +264,8 @@ class HttpxTransport:
                 headers=request.headers,
                 content=request.body,
                 timeout=min(self._timeout, request.timeout)
-                if request.timeout is not None else self._timeout,
+                if request.timeout is not None
+                else self._timeout,
             )
         except httpx.TransportError as exc:  # connect/read/timeout → transient
             raise TransientError(str(exc), provider=self._provider) from exc
@@ -294,7 +295,8 @@ class HttpxTransport:
                 headers=request.headers,
                 content=request.body,
                 timeout=min(self._timeout, request.timeout)
-                if request.timeout is not None else self._timeout,
+                if request.timeout is not None
+                else self._timeout,
             )
         except httpx.TransportError as exc:  # connect/read/timeout → transient
             raise TransientError(str(exc), provider=self._provider) from exc
@@ -330,7 +332,8 @@ class HttpxTransport:
                 headers=request.headers,
                 content=request.body,
                 timeout=min(self._timeout, request.timeout)
-                if request.timeout is not None else self._timeout,
+                if request.timeout is not None
+                else self._timeout,
             ) as resp:
                 if not resp.is_success:
                     raise self._error(resp.status_code, await resp.aread(), resp.headers)
@@ -363,7 +366,8 @@ class HttpxTransport:
                 headers=request.headers,
                 content=request.body,
                 timeout=min(self._timeout, request.timeout)
-                if request.timeout is not None else self._timeout,
+                if request.timeout is not None
+                else self._timeout,
             ) as resp:
                 if not resp.is_success:
                     raise self._error(resp.status_code, resp.read(), resp.headers)

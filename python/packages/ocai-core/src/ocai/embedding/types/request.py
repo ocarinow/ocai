@@ -103,9 +103,7 @@ class EmbeddingRequest(IRObject):
         if not isinstance(raw, list):  # pyright: ignore[reportUnnecessaryIsInstance] -- constructor sugar: a single `Document` reaches here untyped
             self.inputs = [raw]
             return
-        self.inputs = [
-            Document(content=item) if isinstance(item, str) else item for item in raw
-        ]
+        self.inputs = [Document(content=item) if isinstance(item, str) else item for item in raw]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:

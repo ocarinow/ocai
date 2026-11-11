@@ -202,9 +202,7 @@ def test_canonical_chat_request_fixture_exercises_parts_tools_config() -> None:
     """The replacement fixture actually covers what WU-02 says it covers."""
     fixture = _load_json(FIXTURES_DIR / "canonical" / "chat_request.json")
     document = fixture["document"]
-    part_types = {
-        part["type"] for message in document["messages"] for part in message["parts"]
-    }
+    part_types = {part["type"] for message in document["messages"] for part in message["parts"]}
     assert {"text", "image", "reasoning", "tool_call", "tool_result"} <= part_types
     assert document["tools"], "fixture must exercise tools"
     assert document["tool_choice"], "fixture must exercise tool_choice"
@@ -350,9 +348,7 @@ def test_usage_open_dimensions_validate_and_known_shape_bites() -> None:
 def test_chat_response_requires_message_only() -> None:
     """`message` is the one always-emitted member; everything else is optional."""
     assert _errors_for_shape_raw("chat_response", {})
-    assert not _errors_for_shape_raw(
-        "chat_response", {"message": {"role": "model", "parts": []}}
-    )
+    assert not _errors_for_shape_raw("chat_response", {"message": {"role": "model", "parts": []}})
     unknown_role_and_raw: dict[str, Any] = {
         "message": {"role": "narrator", "parts": []},
         "raw": {"anything": ["goes", 1, None]},

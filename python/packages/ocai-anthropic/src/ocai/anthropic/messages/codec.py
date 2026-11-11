@@ -455,9 +455,7 @@ def _foreign_ref_loss(path: str, ref: ProviderRef | None) -> FieldLoss | None:
     """
     if ref is None:
         return None
-    if ref.provider == PROVIDER and (
-        ref.interface == INTERFACE or ref.scope == RefScope.PROVIDER
-    ):
+    if ref.provider == PROVIDER and (ref.interface == INTERFACE or ref.scope == RefScope.PROVIDER):
         return None
     return FieldLoss(
         path=path,
@@ -490,7 +488,8 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
     anchor_loss = _foreign_ref_loss(f"{path}.anchor", anchor)
     if anchor is not None and anchor_loss is None:
         anchor_loss = FieldLoss(
-            path=f"{path}.anchor", disposition=Disposition.UNSUPPORTED,
+            path=f"{path}.anchor",
+            disposition=Disposition.UNSUPPORTED,
             severity=2.0 if anchor.replay is Replay.REQUIRED else 1.0,
             note="part replay anchor has no qualified wire lane on this interface",
         )
@@ -500,11 +499,15 @@ def _part_ref_losses(path: str, part: Part) -> list[FieldLoss]:
         for index, annotation in enumerate(part.annotations):
             if annotation.opaque is not None:
                 citation_path = f"{path}.annotations[{index}].opaque"
-                losses.append(_foreign_ref_loss(citation_path, annotation.opaque) or FieldLoss(
-                    path=citation_path, disposition=Disposition.UNSUPPORTED,
-                    severity=2.0 if annotation.opaque.replay is Replay.REQUIRED else 1.0,
-                    note="citation replay anchor has no qualified wire lane on this interface",
-                ))
+                losses.append(
+                    _foreign_ref_loss(citation_path, annotation.opaque)
+                    or FieldLoss(
+                        path=citation_path,
+                        disposition=Disposition.UNSUPPORTED,
+                        severity=2.0 if annotation.opaque.replay is Replay.REQUIRED else 1.0,
+                        note="citation replay anchor has no qualified wire lane on this interface",
+                    )
+                )
     source = getattr(part, "source", None)
     if isinstance(source, SourceRef):
         source_loss = _foreign_ref_loss(f"{path}.source", source.ref)
@@ -869,25 +872,42 @@ class MessagesCodec:
         signature = part.signature
         chosen = opaque if opaque is not None else signature
         field = "opaque" if opaque is not None else "signature"
-        if (chosen is None or chosen.provider != PROVIDER or chosen.interface != INTERFACE
-            or chosen.scope == RefScope.MODEL or not chosen.id
-            or chosen.kind != ("redacted_thinking" if opaque is not None else "thought_signature")):
-            losses.append(FieldLoss(
-                path=f"{path}.{field}", disposition=Disposition.UNSUPPORTED, severity=2.0,
-                note="thinking replay requires a nonempty, qualified same-interface anchor",
-            ))
+        if (
+            chosen is None
+            or chosen.provider != PROVIDER
+            or chosen.interface != INTERFACE
+            or chosen.scope == RefScope.MODEL
+            or not chosen.id
+            or chosen.kind != ("redacted_thinking" if opaque is not None else "thought_signature")
+        ):
+            losses.append(
+                FieldLoss(
+                    path=f"{path}.{field}",
+                    disposition=Disposition.UNSUPPORTED,
+                    severity=2.0,
+                    note="thinking replay requires a nonempty, qualified same-interface anchor",
+                )
+            )
             return None
         if opaque is not None:
             if signature is not None:
-                losses.append(FieldLoss(
-                    path=f"{path}.signature", disposition=Disposition.UNSUPPORTED, severity=2.0,
-                    note="redacted thinking cannot also replay a visible thinking signature",
-                ))
+                losses.append(
+                    FieldLoss(
+                        path=f"{path}.signature",
+                        disposition=Disposition.UNSUPPORTED,
+                        severity=2.0,
+                        note="redacted thinking cannot also replay a visible thinking signature",
+                    )
+                )
             if part.text is not None:
-                losses.append(FieldLoss(
-                    path=f"{path}.text", disposition=Disposition.DROPPED, severity=1.0,
-                    note="redacted thinking has no visible text lane",
-                ))
+                losses.append(
+                    FieldLoss(
+                        path=f"{path}.text",
+                        disposition=Disposition.DROPPED,
+                        severity=1.0,
+                        note="redacted thinking has no visible text lane",
+                    )
+                )
             return {"type": "redacted_thinking", "data": opaque.id}
         return {"type": "thinking", "thinking": part.text or "", "signature": chosen.id}
 
@@ -1493,9 +1513,7 @@ class MessagesCodec:
             (unreachable on well-formed traffic — `max_tokens` is required
             here — but decode stays total).
         """
-        knobs: dict[str, Any] = {
-            key: payload.get(key) for key in ("temperature", "top_p", "top_k")
-        }
+        knobs: dict[str, Any] = {key: payload.get(key) for key in ("temperature", "top_p", "top_k")}
         knobs["max_output_tokens"] = payload.get("max_tokens")
         knobs["parallel_tool_calls"] = parallel
         stop = payload.get("stop_sequences")

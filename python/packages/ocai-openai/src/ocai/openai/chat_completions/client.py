@@ -21,8 +21,13 @@ from ocai.core.refs import ProviderRef
 from ocai.core.refs import RefScope
 from ocai.core.usage import Usage
 
-_FINISH = {"complete": "stop", "stop_sequence": "stop", "max_tokens": "length",
-           "tool_call": "tool_calls", "content_filter": "content_filter"}
+_FINISH = {
+    "complete": "stop",
+    "stop_sequence": "stop",
+    "max_tokens": "length",
+    "tool_call": "tool_calls",
+    "content_filter": "content_filter",
+}
 
 
 @dataclass(frozen=True)
@@ -38,8 +43,12 @@ class ClientMetadata:
         return {**deepcopy(payload), "id": self.id, "model": self.model, "created": self.created}
 
 
-def _loss(losses: list[FieldLoss], path: str, disposition: Disposition = Disposition.DROPPED,
-          note: str = "no lane in the qualified client contract") -> None:
+def _loss(
+    losses: list[FieldLoss],
+    path: str,
+    disposition: Disposition = Disposition.DROPPED,
+    note: str = "no lane in the qualified client contract",
+) -> None:
     losses.append(FieldLoss(path=path, disposition=disposition, note=note))
 
 
@@ -49,17 +58,24 @@ def _extras(value: IRObject, path: str, losses: list[FieldLoss]) -> None:
 
 
 def _ref_valid(ref: ProviderRef) -> bool:
-    return (ref.provider == "openai" and ref.scope != RefScope.MODEL
-            and (ref.interface == "chat_completions" or ref.scope == RefScope.PROVIDER))
+    return (
+        ref.provider == "openai"
+        and ref.scope != RefScope.MODEL
+        and (ref.interface == "chat_completions" or ref.scope == RefScope.PROVIDER)
+    )
 
 
-def part_evidence(part: Part, path: str, losses: list[FieldLoss],
-                  *, streaming: bool = False) -> None:
+def part_evidence(
+    part: Part, path: str, losses: list[FieldLoss], *, streaming: bool = False
+) -> None:
     """Report part metadata with no client lane, including scoped anchors."""
     _extras(part, path, losses)
     if part.anchor is not None:
-        _loss(losses, f"{path}.anchor", Disposition.DROPPED if _ref_valid(part.anchor)
-              else Disposition.UNSUPPORTED)
+        _loss(
+            losses,
+            f"{path}.anchor",
+            Disposition.DROPPED if _ref_valid(part.anchor) else Disposition.UNSUPPORTED,
+        )
     if part.id is not None:
         _loss(losses, f"{path}.id")
     if part.cache_hint is not None:
@@ -96,9 +112,13 @@ def client_usage(usage: Usage | None, losses: list[FieldLoss]) -> dict[str, Any]
     _extras(usage, "usage", losses)
     buckets: dict[str, int] = {}
     for i, item in enumerate(usage.consumptions):
-        if (item.unit != "tokens" or item.modality != "text"
-                or item.source not in {"input", "output", "cached", "reasoning"}
-                or not isinstance(item.value, int) or isinstance(item.value, bool)):
+        if (
+            item.unit != "tokens"
+            or item.modality != "text"
+            or item.source not in {"input", "output", "cached", "reasoning"}
+            or not isinstance(item.value, int)
+            or isinstance(item.value, bool)
+        ):
             _loss(losses, f"usage.consumptions[{i}]", Disposition.UNSUPPORTED)
             continue
         buckets[item.source] = buckets.get(item.source, 0) + item.value
@@ -134,8 +154,13 @@ def encode_response(response: ChatResponse) -> EdgeOutput:
         elif isinstance(part, PartRefusal):
             refusal.append(part.text)
         elif isinstance(part, PartToolCall):
-            calls.append({"id": part.call_id, "type": "function",
-                          "function": {"name": part.name, "arguments": part.args_json}})
+            calls.append(
+                {
+                    "id": part.call_id,
+                    "type": "function",
+                    "function": {"name": part.name, "arguments": part.args_json},
+                }
+            )
         else:
             _loss(losses, path, Disposition.UNSUPPORTED)
     if text:
@@ -145,12 +170,25 @@ def encode_response(response: ChatResponse) -> EdgeOutput:
     if calls:
         message["tool_calls"] = calls
     if len(response.message.parts) > 1 and (text or refusal):
-        shifts.append(SemanticShift(kind="relocation", path="message.parts",
-                                    note="ordered parts grouped into client message lanes"))
+        shifts.append(
+            SemanticShift(
+                kind="relocation",
+                path="message.parts",
+                note="ordered parts grouped into client message lanes",
+            )
+        )
     _extras(response.message, "message", losses)
     _extras(response, "response", losses)
-    result: dict[str, Any] = {"object": "chat.completion", "choices": [{
-        "index": 0, "message": message, "finish_reason": client_finish(response.finish, losses)}]}
+    result: dict[str, Any] = {
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": 0,
+                "message": message,
+                "finish_reason": client_finish(response.finish, losses),
+            }
+        ],
+    }
     usage = client_usage(response.usage, losses)
     if usage is not None:
         result["usage"] = usage

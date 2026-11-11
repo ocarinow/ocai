@@ -45,20 +45,31 @@ def test_structured_tools_round_trip_and_cross_provider_findings() -> None:
     assert cross.value["tools"][0]["name"] == "weather"
     assert cross.value["tool_choice"]["name"] == "weather"
     # The schema survives; provider-specific name/strict selectors are reported.
-    assert cross.value["output_config"]["format"]["schema"] == (
-        fixture["input"]["response_format"]["json_schema"]["schema"])
+    assert (
+        cross.value["output_config"]["format"]["schema"]
+        == (fixture["input"]["response_format"]["json_schema"]["schema"])
+    )
     assert {"config.output.name", "config.output.strict"} <= {
-        loss.path for loss in cross.report.losses}
+        loss.path for loss in cross.report.losses
+    }
 
 
-@pytest.mark.parametrize("payload", [
-    {"messages": 1, "tools": True},
-    {"messages": [None, {"role": "assistant", "tool_calls": [42, {"type": "future"}]}]},
-    {"messages": [{"role": "user", "content": [42, {"type": "text", "text": "x",
-                                                    "future": True}]}]},
-    {"tool_choice": {"type": "function", "function": 42},
-     "response_format": {"type": "json_schema", "json_schema": 42}},
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"messages": 1, "tools": True},
+        {"messages": [None, {"role": "assistant", "tool_calls": [42, {"type": "future"}]}]},
+        {
+            "messages": [
+                {"role": "user", "content": [42, {"type": "text", "text": "x", "future": True}]}
+            ]
+        },
+        {
+            "tool_choice": {"type": "function", "function": 42},
+            "response_format": {"type": "json_schema", "json_schema": 42},
+        },
+    ],
+)
 def test_nested_unknown_shapes_decode_totally(payload: dict[str, Any]) -> None:
     output = DECODE.fn(payload)
     assert isinstance(output.value, ChatRequest)

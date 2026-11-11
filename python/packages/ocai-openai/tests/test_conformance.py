@@ -129,8 +129,7 @@ def _run_fixture(fixture: dict[str, Any]) -> EdgeOutput:
 
 def test_fixture_set_is_not_empty_and_covers_the_wu06_scenarios() -> None:
     assert len(FIXTURE_PATHS) >= 5, (
-        f"WU-06 requires at least five edge fixtures in {FIXTURES_DIR}; "
-        f"found {len(FIXTURE_PATHS)}"
+        f"WU-06 requires at least five edge fixtures in {FIXTURES_DIR}; found {len(FIXTURE_PATHS)}"
     )
     losses = [
         (entry["path"], entry["disposition"])
@@ -222,9 +221,7 @@ def test_fixture_converts_through_the_catalog(path: Path) -> None:
     )
     # The report carries the same records the direct edge run produced —
     # streaming through the planner adds no silent extra leg.
-    actual_losses = sorted(
-        (loss.path, loss.disposition.value) for loss in converted.report.losses
-    )
+    actual_losses = sorted((loss.path, loss.disposition.value) for loss in converted.report.losses)
     expected_losses = sorted(
         (entry["path"], entry["disposition"]) for entry in fixture["expect_losses"]
     )

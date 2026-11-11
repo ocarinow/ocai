@@ -54,9 +54,19 @@ def test_mixed_tool_roundtrip_is_open_and_preserves_legacy_shape(spec_dir: Path)
     assert request.tools[1].allowed_domains == ["example.test"]
 
 
-@pytest.mark.parametrize("entry", [None, 7, [], "future", {"type": ["future"]}, {"type": None},
-     {"type": "server", "extensions": "opaque"},
-     {"name": "legacy", "parameters": 7}])
+@pytest.mark.parametrize(
+    "entry",
+    [
+        None,
+        7,
+        [],
+        "future",
+        {"type": ["future"]},
+        {"type": None},
+        {"type": "server", "extensions": "opaque"},
+        {"name": "legacy", "parameters": 7},
+    ],
+)
 def test_unknown_tool_entries_survive_without_function_semantics(entry: Any) -> None:
     request = ChatRequest.from_dict({"messages": [], "tools": [entry]})
     assert request.tools and isinstance(request.tools[0], ToolUnknown)
