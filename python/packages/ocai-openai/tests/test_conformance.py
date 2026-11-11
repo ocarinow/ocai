@@ -416,7 +416,10 @@ def test_transducer_splits_id_and_arguments_frame() -> None:
     )
 
     assert [c.type for c in chunks] == [
-        ChunkType.METADATA, ChunkType.PART_START, ChunkType.PART_DELTA]
+        ChunkType.METADATA,
+        ChunkType.PART_START,
+        ChunkType.PART_DELTA,
+    ]
     _, start, delta = chunks
     assert isinstance(start.part, PartToolCall)
     assert start.part.call_id == "call_1"
@@ -455,7 +458,10 @@ def test_transducer_splits_several_tool_call_entries_in_one_frame() -> None:
     )
 
     assert [c.type for c in chunks] == [
-        ChunkType.METADATA, ChunkType.PART_START, ChunkType.PART_START]
+        ChunkType.METADATA,
+        ChunkType.PART_START,
+        ChunkType.PART_START,
+    ]
     assert [c.index for c in chunks] == [None, 1, 2]
     assert [c.seq for c in chunks] == [0, 1, 2]
 

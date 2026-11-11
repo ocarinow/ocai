@@ -33,13 +33,15 @@ def test_partial_repeated_late_metadata_is_detached_and_idempotent() -> None:
     end = StreamEnd()
     accumulator.feed(ChatChunk(type=ChunkType.STREAM_STOP, end=end))
     folded = accumulator.finalize()
-    assert folded.info == ResponseInfo(id=identity, model="actual-model",
-                                       created=datetime(2026, 1, 1, tzinfo=UTC))
+    assert folded.info == ResponseInfo(
+        id=identity, model="actual-model", created=datetime(2026, 1, 1, tzinfo=UTC)
+    )
     assert not accumulator.report.losses
     assert folded.info is not None
     folded.info.model = "result-mutated"
     assert accumulator.finalize().info == ResponseInfo(
-        id=identity, model="actual-model", created=datetime(2026, 1, 1, tzinfo=UTC))
+        id=identity, model="actual-model", created=datetime(2026, 1, 1, tzinfo=UTC)
+    )
 
 
 def test_conflict_keeps_first_value_and_reports_distinct_alternative_once() -> None:
@@ -52,7 +54,8 @@ def test_conflict_keeps_first_value_and_reports_distinct_alternative_once() -> N
     response = accumulator.finalize()
     assert response.info is not None and response.info.model == "first"
     assert response.info.extensions["ocai.response_info_conflicts"] == [
-        {"path": "info.model", "value": "second"}]
+        {"path": "info.model", "value": "second"}
+    ]
     assert end.report is not None
     assert [loss.path for loss in end.report.losses] == ["info.model"]
     accumulator.finalize()
@@ -72,13 +75,27 @@ def test_malformed_info_never_disappears(value: Any) -> None:
     assert response.finish is None and response.usage is None
 
 
-@pytest.mark.parametrize("data", [
-    {"created": "not-a-date"}, {"created": 10**300}, {"model": ["future"]},
-    {"id": {"provider": "openai", "interface": [], "kind": "response_id", "id": 1}},
-    {"id": {"provider": "openai", "interface": "chat_completions", "kind": "response_id",
-            "id": "response-synthetic", "replay": []}},
-    {"extensions": "opaque"}, {"provider_options": [1]}, {"version": 3},
-])
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"created": "not-a-date"},
+        {"created": 10**300},
+        {"model": ["future"]},
+        {"id": {"provider": "openai", "interface": [], "kind": "response_id", "id": 1}},
+        {
+            "id": {
+                "provider": "openai",
+                "interface": "chat_completions",
+                "kind": "response_id",
+                "id": "response-synthetic",
+                "replay": [],
+            }
+        },
+        {"extensions": "opaque"},
+        {"provider_options": [1]},
+        {"version": 3},
+    ],
+)
 def test_response_info_reader_preserves_malformed_fields(data: dict[str, Any]) -> None:
     info = ResponseInfo.from_dict(data)
     assert info.extensions["ocai.response_info_unparsed"] == data
@@ -99,8 +116,12 @@ def test_absence_and_interruption_do_not_invent_identity_or_success() -> None:
 def test_canonical_metadata_fold_fixture() -> None:
     root = Path(__file__).resolve().parents[4]
     fixture = json.loads((root / "spec/fixtures/canonical/response_info_fold.json").read_text())
-    assert_fold_triple(fixture, fold=lambda chunks: StreamAccumulator.fold(
-        ChatChunk.from_dict(chunk) for chunk in chunks).to_dict())
+    assert_fold_triple(
+        fixture,
+        fold=lambda chunks: StreamAccumulator.fold(
+            ChatChunk.from_dict(chunk) for chunk in chunks
+        ).to_dict(),
+    )
 
 
 @pytest.mark.parametrize("provider", ["openai", "anthropic"])

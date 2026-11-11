@@ -78,8 +78,10 @@ INCOMPLETE_EXTENSION: Final = "ocai.incomplete"
 # Registered in spec/extensions/.
 SIGNATURE_BUFFER_EXTENSION: Final = "ocai.signature_buffer"
 
+
 def _merge_response_info(
-    current: ResponseInfo | None, incoming: ResponseInfo,
+    current: ResponseInfo | None,
+    incoming: ResponseInfo,
 ) -> tuple[ResponseInfo, list[FieldLoss]]:
     """Merge detached response metadata, retaining conflicting values and findings."""
     losses: list[FieldLoss] = []
@@ -93,8 +95,13 @@ def _merge_response_info(
         record = {"path": path, "value": deepcopy(value)}
         if not any(semantic_equal(record, old) for old in conflicts):
             conflicts.append(record)
-        losses.append(FieldLoss(path, Disposition.EXTENSIONS,
-                                note="conflicting response metadata retained; first value kept"))
+        losses.append(
+            FieldLoss(
+                path,
+                Disposition.EXTENSIONS,
+                note="conflicting response metadata retained; first value kept",
+            )
+        )
 
     for name in ("id", "model", "created", "version"):
         value = getattr(incoming, name)
@@ -114,8 +121,13 @@ def _merge_response_info(
             elif not semantic_equal(target[key], value):
                 conflict(f"info.{name}[{key}]", value)
             if key == "ocai.response_info_unparsed":
-                losses.append(FieldLoss("info", Disposition.EXTENSIONS,
-                                        note="unparsed response metadata retained verbatim"))
+                losses.append(
+                    FieldLoss(
+                        "info",
+                        Disposition.EXTENSIONS,
+                        note="unparsed response metadata retained verbatim",
+                    )
+                )
     if conflicts:
         key = "ocai.response_info_conflicts"
         existing = merged.extensions.get(key)
@@ -127,7 +139,6 @@ def _merge_response_info(
                 records.append(record)
         merged.extensions[key] = records
     return merged, losses
-
 
 
 class ChunkType(str, Enum):

@@ -1399,8 +1399,13 @@ class ChatCompletionsCodec:
         usage = _usage(payload.get("usage"))
         info = self._decode_info(payload)
         if info.extensions:
-            losses.append(FieldLoss("response_info", Disposition.EXTENSIONS,
-                                    note="malformed response identity retained verbatim"))
+            losses.append(
+                FieldLoss(
+                    "response_info",
+                    Disposition.EXTENSIONS,
+                    note="malformed response identity retained verbatim",
+                )
+            )
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
             extensions[f"{self.provider}.{key}"] = payload[key]
             losses.append(
@@ -1444,12 +1449,22 @@ class ChatCompletionsCodec:
             except (ValueError, OverflowError, OSError):
                 pass  # The tolerant reader retains the invalid native timestamp.
         raw_id = payload.get("id")
-        return ResponseInfo.from_dict({
-            "id": (ProviderRef(provider=self.provider, interface=self.interface,
-                               kind="response_id", id=raw_id).to_dict()
-                   if isinstance(raw_id, str) else raw_id),
-            "model": payload.get("model"), "created": created,
-        })
+        return ResponseInfo.from_dict(
+            {
+                "id": (
+                    ProviderRef(
+                        provider=self.provider,
+                        interface=self.interface,
+                        kind="response_id",
+                        id=raw_id,
+                    ).to_dict()
+                    if isinstance(raw_id, str)
+                    else raw_id
+                ),
+                "model": payload.get("model"),
+                "created": created,
+            }
+        )
 
     def _decode_message(
         self,
@@ -1658,8 +1673,13 @@ class ChatCompletionsCodec:
         if any(raw.get(key) is not None for key in ("id", "model", "created")):
             info = self._decode_info(raw)
             if info.extensions:
-                losses.append(FieldLoss("response_info", Disposition.EXTENSIONS,
-                                        note="malformed response identity retained verbatim"))
+                losses.append(
+                    FieldLoss(
+                        "response_info",
+                        Disposition.EXTENSIONS,
+                        note="malformed response identity retained verbatim",
+                    )
+                )
             position = 1 if chunks and chunks[0].type == ChunkType.STREAM_START else 0
             chunks.insert(position, ChatChunk(type=ChunkType.METADATA, info=info, raw_event=raw))
         usage = _usage(raw.get("usage"))

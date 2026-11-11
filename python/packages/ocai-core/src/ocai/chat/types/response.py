@@ -78,10 +78,13 @@ class ResponseInfo(IRObject):
         if ref is not None:
             keys = {"provider", "interface", "kind", "id"}
             optional = {"replay", "scope", "qualifier"}
-            if (is_json_object(ref) and all(isinstance(ref.get(k), str) for k in keys)
-                    and all(isinstance(ref[k], str) for k in optional if k in ref)
-                    and ref.get("replay", "optional") in ("optional", "required")
-                    and not set(ref) - keys - optional):
+            if (
+                is_json_object(ref)
+                and all(isinstance(ref.get(k), str) for k in keys)
+                and all(isinstance(ref[k], str) for k in optional if k in ref)
+                and ref.get("replay", "optional") in ("optional", "required")
+                and not set(ref) - keys - optional
+            ):
                 identity = ProviderRef.from_dict(ref)
             else:
                 unparsed["id"] = ref
@@ -107,7 +110,6 @@ class ResponseInfo(IRObject):
                 unparsed["extensions[ocai.response_info_unparsed]"] = previous
             extensions["ocai.response_info_unparsed"] = unparsed
         return cls(id=identity, model=model, created=created, **common)
-
 
 
 @dataclass
