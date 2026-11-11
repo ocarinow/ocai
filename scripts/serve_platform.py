@@ -42,6 +42,8 @@ def realm_document(secret: str, password: str, *, redirect_uri: str) -> dict[str
         "sslRequired": "none",
         "registrationAllowed": False,
         "accessTokenLifespan": 300,
+        "revokeRefreshToken": True,
+        "refreshTokenMaxReuse": 0,
         "clients": [
             {
                 "clientId": "ocai-console",
@@ -56,7 +58,10 @@ def realm_document(secret: str, password: str, *, redirect_uri: str) -> dict[str
                 "implicitFlowEnabled": False,
                 "redirectUris": [redirect_uri],
                 "webOrigins": [],
-                "attributes": {"pkce.code.challenge.method": "S256"},
+                "attributes": {
+                    "pkce.code.challenge.method": "S256",
+                    "post.logout.redirect.uris": redirect_uri.removesuffix("auth/callback"),
+                },
                 "protocolMappers": [
                     {
                         "name": "management-audience",
@@ -122,10 +127,21 @@ def settings() -> dict[str, str]:
             result = {name: secrets.token_hex(32) for name in SECRET_NAMES}
             result.update({"OCAI_POSTGRES_PORT": "15432", "OCAI_KEYCLOAK_PORT": "18080"})
         # Only newly introduced services gain secrets; existing identities never reset.
-        for name in ("OCAI_FGA_DATABASE_PASSWORD", "OCAI_FGA_TOKEN"):
+        for name in (
+            "OCAI_FGA_DATABASE_PASSWORD",
+            "OCAI_FGA_TOKEN",
+            "OCAI_CONSOLE_DATABASE_PASSWORD",
+            "OCAI_CONSOLE_ENCRYPTION_KEY",
+        ):
             result.setdefault(name, secrets.token_hex(32))
         result.setdefault("OCAI_FGA_PORT", "18081")
-        for name in (*SECRET_NAMES, "OCAI_FGA_DATABASE_PASSWORD", "OCAI_FGA_TOKEN"):
+        for name in (
+            *SECRET_NAMES,
+            "OCAI_FGA_DATABASE_PASSWORD",
+            "OCAI_FGA_TOKEN",
+            "OCAI_CONSOLE_DATABASE_PASSWORD",
+            "OCAI_CONSOLE_ENCRYPTION_KEY",
+        ):
             if not re.fullmatch(r"[0-9a-f]{64}", result.get(name, "")):
                 raise ValueError("Invalid local secret; never reset existing database credentials.")
         for name in ("OCAI_POSTGRES_PORT", "OCAI_KEYCLOAK_PORT", "OCAI_FGA_PORT"):
@@ -161,6 +177,21 @@ def environment(values: dict[str, str]) -> dict[str, str]:
                 + "/ocai"
             ),
             "NUXT_GATEWAY_BASE_URL": "http://127.0.0.1:8000",
+            "NUXT_SESSION_ENABLED": "true",
+            "NUXT_SESSION_LOCAL": "true",
+            "NUXT_SESSION_ORIGIN": "http://localhost:3000",
+            "NUXT_SESSION_ISSUER": f"http://localhost:{values['OCAI_KEYCLOAK_PORT']}/realms/ocai",
+            "NUXT_SESSION_CLIENT_ID": "ocai-console",
+            "NUXT_SESSION_CLIENT_SECRET": values["OCAI_CONSOLE_SECRET"],
+            "NUXT_SESSION_DATABASE_URL": (
+                "postgresql://ocai_console:"
+                + values["OCAI_CONSOLE_DATABASE_PASSWORD"]
+                + "@127.0.0.1:"
+                + values["OCAI_POSTGRES_PORT"]
+                + "/ocai"
+            ),
+            "NUXT_SESSION_ACTIVE_KEY": "local-v1",
+            "NUXT_SESSION_KEYS": json.dumps({"local-v1": values["OCAI_CONSOLE_ENCRYPTION_KEY"]}),
             "OCAI_MIGRATION_DATABASE_URL": (
                 "postgresql+psycopg://ocai_migrator:"
                 + values["OCAI_MIGRATION_PASSWORD"]
@@ -341,6 +372,41 @@ def main() -> int:
             compose(["up", "--detach", "keycloak"], env)
             wait_identity(env["OCAI_IDENTITY_ISSUER"])
             print("Keycloak is ready at " + env["OCAI_IDENTITY_ISSUER"])
+        elif args.operation == "migrate":
+            compose(
+                [
+                    "exec",
+                    "--no-TTY",
+                    "--env",
+                    "OCAI_CONSOLE_DATABASE_PASSWORD",
+                    "postgres",
+                    "psql",
+                    "-U",
+                    "postgres",
+                    "-d",
+                    "ocai",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                ],
+                env,
+                input_text=(ROOT / "platform/deploy/postgres/console.sql").read_text(),
+            )
+            return subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "--directory",
+                    "platform/services/gateway",
+                    "--frozen",
+                    "python",
+                    "-m",
+                    "app.storage.migrate",
+                    "--local",
+                ],
+                cwd=ROOT,
+                env=env,
+                check=False,
+            ).returncode
         elif args.operation == "authorization-setup":
             setup_authorization(env)
         elif args.operation == "openfga":

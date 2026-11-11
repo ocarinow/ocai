@@ -1261,3 +1261,36 @@ and in-flight execution policies require their own qualification. Tests cover re
 PostgreSQL/OpenFGA bootstrap races, crash recovery, permission isolation, suspension,
 model rejection, provisioning and mutation/revocation serialization. See
 [platform operations](../platform/README.md) for configuration and recovery limits.
+
+### 12.6 Console sessions [provisional]
+
+WU-76 adds server-only OIDC/session modules in `nuxt-platform`. Fixed login,
+callback, session and logout routes use openid-client against the explicit
+Keycloak issuer; no browser application state contains bearer or refresh tokens.
+A browser-bound five-minute login transaction is consumed before code exchange.
+The callback always redirects to a clean, fixed destination, including on failure.
+
+The `ocai_console` PostgreSQL role accesses only the separate `console_session`
+schema. The explicit operator SQL migration owns tables through `ocai_migrator`;
+application startup verifies privileges and never creates or migrates tables.
+Random 256-bit cookie identifiers are stored only as hashes. AES-256-GCM protects
+server token/verifier material with fresh nonces and record-bound additional data;
+versioned keys are supplied outside the database. Production cookies are host-only,
+HttpOnly, Secure and SameSite=Lax. Responses are no-store. Mutations require exact
+configured Origin and a session-bound CSRF token.
+
+Idle and absolute expiry are 30 minutes and eight hours. Refresh increments a
+row version and acquires a 15-second lease before bounded provider I/O; completion
+can update only that live, unexpired version. Concurrent requests receive temporary
+unavailability while refresh is pending. Logout deletes the row without refreshing;
+late completion cannot recreate it. An expired lease or ambiguous provider result
+requires a new login, never a retry of possibly rotated credentials. Bounded cleanup
+removes expired rows in batches. Operators retain old keys through the maximum
+session lifetime when rotating, unless deliberately invalidating those sessions.
+
+The module is explicitly enabled; invalid settings or dependencies prevent session
+startup. A disabled module leaves the public foundation available and returns 503
+on session operations. Optional provider sign-out follows committed local logout
+and is best effort, not global token revocation. Login establishes no organization
+membership or permission. WU-77 owns authenticated management forwarding and the
+first protected operation; inference readiness stays false.
