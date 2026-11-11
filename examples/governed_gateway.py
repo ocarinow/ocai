@@ -38,30 +38,44 @@ from ocai.openai.chat_completions.codec import CHAT_COMPLETIONS_RESPONSE
 type GovernedModel = WireChatModel | InterceptedChatModel | ObservedChatModel
 
 
-def _prepare(payload: dict[str, Any], model: GovernedModel, catalog: Catalog,
-             policy: FidelityPolicy, streaming: bool) -> tuple[PreparedChatCall, FidelityReport]:
+def _prepare(
+    payload: dict[str, Any],
+    model: GovernedModel,
+    catalog: Catalog,
+    policy: FidelityPolicy,
+    streaming: bool,
+) -> tuple[PreparedChatCall, FidelityReport]:
     ingress = catalog.convert(payload, CHAT_COMPLETIONS_REQUEST, CANONICAL_CHAT_REQUEST)
     policy.enforce(ingress.report, phase="client_request")
     if not isinstance(ingress.value, ChatRequest):
         raise TypeError("client decode did not produce a canonical request")
     prepared = model.prepare(ingress.value, streaming=streaming)
-    policy.enforce(prepared.inspection.request_report, phase="request",
-                   route=prepared.inspection.route)
+    policy.enforce(
+        prepared.inspection.request_report, phase="request", route=prepared.inspection.route
+    )
     return prepared, ingress.report
 
 
-def client_complete(payload: dict[str, Any], *, model: GovernedModel, catalog: Catalog,
-                    policy: FidelityPolicy, metadata: ClientMetadata,
-                    ctx: CallContext) -> CallResult[dict[str, Any]]:
+def client_complete(
+    payload: dict[str, Any],
+    *,
+    model: GovernedModel,
+    catalog: Catalog,
+    policy: FidelityPolicy,
+    metadata: ClientMetadata,
+    ctx: CallContext,
+) -> CallResult[dict[str, Any]]:
     """Execute all four conversion legs and return one complete fidelity ledger."""
     prepared, ingress = _prepare(payload, model, catalog, policy, False)
     result = prepared.chat(ctx=ctx)
     egress = catalog.convert(result.value, CANONICAL_CHAT_RESPONSE, CHAT_COMPLETIONS_RESPONSE)
-    report = FidelityReport(edges=[*ingress.edges, *(result.report or FidelityReport()).edges,
-                                    *egress.report.edges])
+    report = FidelityReport(
+        edges=[*ingress.edges, *(result.report or FidelityReport()).edges, *egress.report.edges]
+    )
     policy.enforce(report, phase="client_response", usage=result.usage, route=result.route)
-    return CallResult(value=metadata.bind(egress.value), route=result.route,
-                      report=report, usage=result.usage)
+    return CallResult(
+        value=metadata.bind(egress.value), route=result.route, report=report, usage=result.usage
+    )
 
 
 @dataclass
@@ -75,9 +89,15 @@ class ClientDelivery:
 
 
 @contextmanager
-def client_stream(payload: dict[str, Any], *, model: GovernedModel, catalog: Catalog,
-                  policy: FidelityPolicy, metadata: ClientMetadata,
-                  ctx: CallContext) -> Generator[ClientDelivery]:
+def client_stream(
+    payload: dict[str, Any],
+    *,
+    model: GovernedModel,
+    catalog: Catalog,
+    policy: FidelityPolicy,
+    metadata: ClientMetadata,
+    ctx: CallContext,
+) -> Generator[ClientDelivery]:
     """Own upstream and conversion resources; accept terminal evidence before delivery.
 
     Events are JSON documents. The HTTP adapter frames SSE and emits DONE only
@@ -93,14 +113,14 @@ def client_stream(payload: dict[str, Any], *, model: GovernedModel, catalog: Cat
 
     def account() -> None:
         source = upstream.outcome
-        provider_report = (source.report if source else None)
+        provider_report = source.report if source else None
         if provider_report is None and upstream.end is not None:
             provider_report = upstream.end.report
         provider_report = provider_report or prepared.inspection.request_report
-        delivery.report = FidelityReport(edges=[*ingress.edges, *provider_report.edges,
-                                                *(pipeline.reports or ())])
-        delivery.usage = source.usage if source else (
-            upstream.end.usage if upstream.end else None)
+        delivery.report = FidelityReport(
+            edges=[*ingress.edges, *provider_report.edges, *(pipeline.reports or ())]
+        )
+        delivery.usage = source.usage if source else (upstream.end.usage if upstream.end else None)
 
     def events() -> Generator[dict[str, Any]]:
         nonlocal complete, error
@@ -118,8 +138,13 @@ def client_stream(payload: dict[str, Any], *, model: GovernedModel, catalog: Cat
             tail, _ = pipeline.flush()
             terminal.extend(tail)
             account()
-            policy.enforce(delivery.report, phase="client_response", usage=delivery.usage,
-                           route=prepared.inspection.route, delivered_events=delivered)
+            policy.enforce(
+                delivery.report,
+                phase="client_response",
+                usage=delivery.usage,
+                route=prepared.inspection.route,
+                delivered_events=delivered,
+            )
             for event in terminal:
                 yield metadata.bind(event)
             complete = True
@@ -143,4 +168,7 @@ def client_stream(payload: dict[str, Any], *, model: GovernedModel, catalog: Cat
             account()
             delivery.outcome = StreamOutcome(
                 status="failed" if error else "completed" if complete else "closed",
-                report=delivery.report, usage=delivery.usage, error=error)
+                report=delivery.report,
+                usage=delivery.usage,
+                error=error,
+            )

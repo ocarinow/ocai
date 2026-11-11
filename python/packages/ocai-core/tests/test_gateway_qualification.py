@@ -72,8 +72,14 @@ else:
 
 type LoadHttp = Callable[[str], dict[str, Any]]
 METADATA = ClientMetadata("chatcmpl-gateway", "deployment", 1767225600)
-CTX = CallContext(tenant="tenant-a", compartment="compartment-a", principal="principal-a",
-                  call_id="call-a", parent_id="parent-a", correlation_id="correlation-a")
+CTX = CallContext(
+    tenant="tenant-a",
+    compartment="compartment-a",
+    principal="principal-a",
+    call_id="call-a",
+    parent_id="parent-a",
+    correlation_id="correlation-a",
+)
 
 
 class Admission:
@@ -129,23 +135,31 @@ class Evidence:
 
 def _client(load_http: LoadHttp, provider: str, tools: bool) -> dict[str, Any]:
     if tools:
-        return {**load_http("openai_chat_completion_tool_call.json")["request"]["json"],
-                "model": "deployment"}
+        return {
+            **load_http("openai_chat_completion_tool_call.json")["request"]["json"],
+            "model": "deployment",
+        }
     if provider == "anthropic":
-        return {"model": "deployment", "messages": [
-            {"role": "system", "content": "You are concise."},
-            {"role": "user", "content": "Hello, who are you?"}]}
+        return {
+            "model": "deployment",
+            "messages": [
+                {"role": "system", "content": "You are concise."},
+                {"role": "user", "content": "Hello, who are you?"},
+            ],
+        }
     return {"model": "deployment", "messages": [{"role": "user", "content": "Hello!"}]}
 
 
-def _recording(load_http: LoadHttp, provider: str, tools: bool,
-               streaming: bool) -> dict[str, Any]:
+def _recording(load_http: LoadHttp, provider: str, tools: bool, streaming: bool) -> dict[str, Any]:
     if tools:
         return load_http(f"gateway_{provider}_tools{'_stream' if streaming else ''}.json")
     if provider == "anthropic":
         return load_http(f"anthropic_messages{'_stream' if streaming else ''}.json")
-    return load_http("openai_chat_completion_stream.json" if streaming else
-                     "openai_chat_completion_stream_paired.json")
+    return load_http(
+        "openai_chat_completion_stream.json"
+        if streaming
+        else "openai_chat_completion_stream_paired.json"
+    )
 
 
 @pytest.mark.parametrize("provider", ["openai", "anthropic"])
@@ -159,11 +173,21 @@ async def test_full_client_path(load_http: LoadHttp, provider: str, tools: bool,
     admission = Admission()
     transport = HttpxTransport(provider=provider)
     resource = "gpt-4o" if provider == "openai" else "claude-opus-4-6"
-    credential = (ApiKey("sk-test") if provider == "openai" else
-                  ApiKey("sk-test", header="x-api-key", scheme=""))
-    model = ocai.chat.model(f"{provider}/{resource}", credentials=credential,
-        catalog=catalog, transport=transport, interceptors=[admission],
-        policies=[evidence], observers=[evidence], conversion_policy=policy)
+    credential = (
+        ApiKey("sk-test")
+        if provider == "openai"
+        else ApiKey("sk-test", header="x-api-key", scheme="")
+    )
+    model = ocai.chat.model(
+        f"{provider}/{resource}",
+        credentials=credential,
+        catalog=catalog,
+        transport=transport,
+        interceptors=[admission],
+        policies=[evidence],
+        observers=[evidence],
+        conversion_policy=policy,
+    )
     payload = _client(load_http, provider, tools)
     streaming = "stream" in mode
     pair = _recording(load_http, provider, tools, streaming)
@@ -171,11 +195,13 @@ async def test_full_client_path(load_http: LoadHttp, provider: str, tools: bool,
     def respond(request: httpx.Request) -> httpx.Response:
         assert json.loads(request.content) == pair["request"]["json"]
         assert request.headers["authorization" if provider == "openai" else "x-api-key"] == (
-            "Bearer sk-test" if provider == "openai" else "sk-test")
+            "Bearer sk-test" if provider == "openai" else "sk-test"
+        )
         assert "tenant-a" not in request.content.decode()
         if streaming:
-            return httpx.Response(200, content=("\n\n".join(pair["response"]["sse"])
-                                               + "\n\n").encode())
+            return httpx.Response(
+                200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode()
+            )
         return httpx.Response(200, json=pair["response"]["json"])
 
     route = respx.post(pair["request"]["url"]).mock(side_effect=respond)
@@ -183,12 +209,14 @@ async def test_full_client_path(load_http: LoadHttp, provider: str, tools: bool,
     events: list[dict[str, Any]] = []
     try:
         if mode == "sync":
-            result = client_complete(payload, model=model, catalog=catalog, policy=policy,
-                                     metadata=METADATA, ctx=CTX)
+            result = client_complete(
+                payload, model=model, catalog=catalog, policy=policy, metadata=METADATA, ctx=CTX
+            )
             body, report = result.value, result.report
         elif mode == "stream":
-            with client_stream(payload, model=model, catalog=catalog, policy=policy,
-                               metadata=METADATA, ctx=CTX) as delivery:
+            with client_stream(
+                payload, model=model, catalog=catalog, policy=policy, metadata=METADATA, ctx=CTX
+            ) as delivery:
                 events = list(delivery.events)
             assert delivery.outcome and delivery.outcome.status == "completed"
             report = delivery.report
@@ -198,11 +226,17 @@ async def test_full_client_path(load_http: LoadHttp, provider: str, tools: bool,
             prepared = model.prepare(ingress.value, streaming=streaming)
             if mode == "async":
                 result = await prepared.achat(ctx=CTX)
-                egress = catalog.convert(result.value, CANONICAL_CHAT_RESPONSE,
-                                          CHAT_COMPLETIONS_RESPONSE)
+                egress = catalog.convert(
+                    result.value, CANONICAL_CHAT_RESPONSE, CHAT_COMPLETIONS_RESPONSE
+                )
                 body = METADATA.bind(egress.value)
-                report = FidelityReport(edges=[*ingress.report.edges,
-                    *(result.report or FidelityReport()).edges, *egress.report.edges])
+                report = FidelityReport(
+                    edges=[
+                        *ingress.report.edges,
+                        *(result.report or FidelityReport()).edges,
+                        *egress.report.edges,
+                    ]
+                )
             else:
                 pipeline = catalog.stream_converter(CANONICAL_CHAT_CHUNK, CHAT_COMPLETIONS_CHUNK)
                 async with await prepared.astream(ctx=CTX) as stream:
@@ -211,16 +245,18 @@ async def test_full_client_path(load_http: LoadHttp, provider: str, tools: bool,
                 tail, reports = pipeline.flush()
                 events.extend(METADATA.bind(event) for event in tail)
                 assert stream.end and stream.end.report
-                report = FidelityReport(edges=[*ingress.report.edges,
-                                                *stream.end.report.edges, *reports])
+                report = FidelityReport(
+                    edges=[*ingress.report.edges, *stream.end.report.edges, *reports]
+                )
         assert report and len(report.edges) == 4
         policy.enforce(report, phase="client_response")
         # Compare delivered client semantics with the paired recorded unary response.
         unary = _recording(load_http, provider, tools, False)
         src = CHAT_COMPLETIONS_RESPONSE if provider == "openai" else MESSAGES_RESPONSE
         canonical = catalog.convert(unary["response"]["json"], src, CANONICAL_CHAT_RESPONSE)
-        expected = catalog.convert(canonical.value, CANONICAL_CHAT_RESPONSE,
-                                   CHAT_COMPLETIONS_RESPONSE)
+        expected = catalog.convert(
+            canonical.value, CANONICAL_CHAT_RESPONSE, CHAT_COMPLETIONS_RESPONSE
+        )
         if body is not None:
             assert body == METADATA.bind(expected.value)
         else:
@@ -252,17 +288,33 @@ async def test_full_client_path(load_http: LoadHttp, provider: str, tools: bool,
 @pytest.mark.parametrize("streaming", [False, True])
 async def test_example_admission_denial_has_zero_io(streaming: bool) -> None:
     catalog = Catalog.of(ocai.openai.FRAGMENT)
-    model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"), catalog=catalog,
-                            interceptors=[Admission(deny=True)])
+    model = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=catalog,
+        interceptors=[Admission(deny=True)],
+    )
     with respx.mock as router:
         with pytest.raises(AuthError):
             if streaming:
-                with client_stream({"messages": []}, model=model, catalog=catalog,
-                                   policy=FidelityPolicy(), metadata=METADATA, ctx=CTX):
+                with client_stream(
+                    {"messages": []},
+                    model=model,
+                    catalog=catalog,
+                    policy=FidelityPolicy(),
+                    metadata=METADATA,
+                    ctx=CTX,
+                ):
                     pass
             else:
-                client_complete({"messages": []}, model=model, catalog=catalog,
-                                policy=FidelityPolicy(), metadata=METADATA, ctx=CTX)
+                client_complete(
+                    {"messages": []},
+                    model=model,
+                    catalog=catalog,
+                    policy=FidelityPolicy(),
+                    metadata=METADATA,
+                    ctx=CTX,
+                )
         assert not router.calls
 
 
@@ -271,16 +323,25 @@ async def test_egress_rejection_withholds_success_and_retains_evidence(load_http
     catalog = Catalog.of(ocai.openai.FRAGMENT, ocai.anthropic.FRAGMENT)
     pair = load_http("anthropic_messages_stream.json")
     respx.post(pair["request"]["url"]).respond(
-        200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode())
-    model = ocai.chat.model("anthropic/claude-opus-4-6",
-                            credentials=ApiKey("sk-test", header="x-api-key", scheme=""),
-                            catalog=catalog)
+        200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode()
+    )
+    model = ocai.chat.model(
+        "anthropic/claude-opus-4-6",
+        credentials=ApiKey("sk-test", header="x-api-key", scheme=""),
+        catalog=catalog,
+    )
     policy = FidelityPolicy(allow_loss=lambda loss: loss.path != "finish.native")
     delivered: list[dict[str, Any]] = []
     delivery: ClientDelivery | None = None
     with pytest.raises(FidelityPolicyError) as error:
-        with client_stream(_client(load_http, "anthropic", False), model=model, catalog=catalog,
-                           policy=policy, metadata=METADATA, ctx=CTX) as delivery:
+        with client_stream(
+            _client(load_http, "anthropic", False),
+            model=model,
+            catalog=catalog,
+            policy=policy,
+            metadata=METADATA,
+            ctx=CTX,
+        ) as delivery:
             delivered.extend(delivery.events)
     assert error.value.partial and error.value.usage and error.value.usage.total_tokens == 23
     assert len(error.value.report.edges) == 4
@@ -293,8 +354,14 @@ async def test_unconsumed_example_stream_is_closed_without_io() -> None:
     catalog = Catalog.of(ocai.openai.FRAGMENT)
     model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"), catalog=catalog)
     with respx.mock as router:
-        with client_stream({"messages": []}, model=model, catalog=catalog,
-                           policy=FidelityPolicy(), metadata=METADATA, ctx=CTX) as delivery:
+        with client_stream(
+            {"messages": []},
+            model=model,
+            catalog=catalog,
+            policy=FidelityPolicy(),
+            metadata=METADATA,
+            ctx=CTX,
+        ) as delivery:
             pass
         assert not router.calls
     assert delivery.outcome and delivery.outcome.status == "closed"
@@ -313,12 +380,14 @@ async def test_client_conversion_denial_has_zero_provider_calls(streaming: bool)
     with respx.mock as router:
         with pytest.raises(FidelityPolicyError) as error:
             if streaming:
-                with client_stream(payload, model=model, catalog=catalog, policy=policy,
-                                   metadata=METADATA, ctx=CTX):
+                with client_stream(
+                    payload, model=model, catalog=catalog, policy=policy, metadata=METADATA, ctx=CTX
+                ):
                     pass
             else:
-                client_complete(payload, model=model, catalog=catalog, policy=policy,
-                                metadata=METADATA, ctx=CTX)
+                client_complete(
+                    payload, model=model, catalog=catalog, policy=policy, metadata=METADATA, ctx=CTX
+                )
         assert not router.calls
     assert error.value.phase == "client_request"
     assert any(loss.path == "n" for loss in error.value.report.losses)
@@ -330,9 +399,16 @@ async def test_example_partial_close_keeps_all_available_legs(load_http: LoadHtt
     model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"), catalog=catalog)
     pair = load_http("openai_chat_completion_stream.json")
     respx.post(pair["request"]["url"]).respond(
-        200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode())
-    with client_stream(_client(load_http, "openai", False), model=model, catalog=catalog,
-                       policy=FidelityPolicy(), metadata=METADATA, ctx=CTX) as delivery:
+        200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode()
+    )
+    with client_stream(
+        _client(load_http, "openai", False),
+        model=model,
+        catalog=catalog,
+        policy=FidelityPolicy(),
+        metadata=METADATA,
+        ctx=CTX,
+    ) as delivery:
         assert next(delivery.events)["choices"][0]["delta"]["role"] == "assistant"
     assert delivery.outcome and delivery.outcome.status == "closed"
     assert delivery.usage is None

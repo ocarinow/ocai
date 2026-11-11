@@ -36,7 +36,8 @@ def test_response_edge_golden_and_catalog(path: Path) -> None:
     response = ChatResponse.from_dict(fixture["input"])
     assert certify_edge(ENCODE, [response]) == []
     converted = Catalog.of(ocai.openai.FRAGMENT).convert(
-        response, CANONICAL_RESPONSE, CHAT_COMPLETIONS_RESPONSE)
+        response, CANONICAL_RESPONSE, CHAT_COMPLETIONS_RESPONSE
+    )
     assert semantic_equal(converted.value, fixture["expect"])
     metadata = ClientMetadata(id="chatcmpl-gateway", model="deployment", created=1767225600)
     document = metadata.bind(converted.value)
@@ -56,14 +57,20 @@ def test_nonzero_usage_round_trip_counts_each_token_once() -> None:
     assert certify_edge(decode_edge, [fixture["expect"]]) == []
 
 
-@pytest.mark.parametrize("reason, native, expected", [
-    ("complete", "stop", "stop"), ("max_tokens", "length", "length"),
-    ("content_filter", "content_filter", "content_filter"),
-    ("unknown", "tomorrow", "tomorrow"),
-])
+@pytest.mark.parametrize(
+    "reason, native, expected",
+    [
+        ("complete", "stop", "stop"),
+        ("max_tokens", "length", "length"),
+        ("content_filter", "content_filter", "content_filter"),
+        ("unknown", "tomorrow", "tomorrow"),
+    ],
+)
 def test_finish_and_unknown_usage(reason: str, native: str, expected: str) -> None:
-    response = ChatResponse(message=Message(role="model", parts=[PartText(text="hi")]),
-                            finish=FinishInfo(reason=reason, native=native))
+    response = ChatResponse(
+        message=Message(role="model", parts=[PartText(text="hi")]),
+        finish=FinishInfo(reason=reason, native=native),
+    )
     result = ENCODE.fn(response)
     assert result.value["choices"][0]["finish_reason"] == expected
     assert "usage" not in result.value
@@ -73,10 +80,17 @@ def test_finish_and_unknown_usage(reason: str, native: str, expected: str) -> No
 
 
 def test_foreign_response_identity_never_becomes_an_openai_reference() -> None:
-    response = ChatResponse(message=Message(role="model", parts=[]), info=ResponseInfo(
-        id=ProviderRef(provider="anthropic", interface="messages", kind="response_id", id="msg-x")))
+    response = ChatResponse(
+        message=Message(role="model", parts=[]),
+        info=ResponseInfo(
+            id=ProviderRef(
+                provider="anthropic", interface="messages", kind="response_id", id="msg-x"
+            )
+        ),
+    )
     result = ENCODE.fn(response)
     assert "id" not in result.value
     assert [(loss.path, loss.disposition.value) for loss in result.losses] == [
-        ("info.id", "unsupported")]
+        ("info.id", "unsupported")
+    ]
     assert ENCODE.contract.certify(result.losses, result.shifts) == []

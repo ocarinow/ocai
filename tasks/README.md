@@ -35,11 +35,11 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
-| `task py:check` | The full gate — privacy guard, ruff, import contracts, pyright strict, mypy strict, pytest |
+| `task py:check` | The full gate — privacy guard, workspace consistency, ruff, format, import contracts, pyright strict, mypy strict, pytest, platform |
 | `task py:check:fast` | The gate without tests (lint, contracts, types) |
 | `task py:demo` | Flagship demo 1 — the cross-conversion fidelity report (no network) |
 | `task py:echo` | Run the community plugin template's own suite in isolation |
-| `task py:fmt` | Ruff format the tree (not enforced in CI yet — see ADR 0001) |
+| `task py:fmt` | Ruff format the tree (ruff format --check is part of the gate) |
 | `task py:fmt:check` | Report files ruff would reformat |
 | `task py:imports` | Architecture §1 layer contracts (import-linter) |
 | `task py:lint` | Ruff lint (includes the Google-convention docstring rules) |

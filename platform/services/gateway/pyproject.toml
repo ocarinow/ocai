@@ -3,7 +3,7 @@ name = "ocarinow-gateway"
 version = "0.1.0"
 description = "Ocarinow AI Gateway service"
 requires-python = ">=3.13"
-license = "LicenseRef-FSL-1.1-ALv2"
+license = "FSL-1.1-ALv2"
 dependencies = [
     "alembic>=1.16,<2",
     "fastapi>=0.115,<1",

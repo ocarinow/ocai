@@ -16,18 +16,19 @@ icon: lucide/code
 
 The Python workspace lives under
 [`python/`](https://github.com/ocarinow/ocai/tree/main/python) and ships
-three distributions into one PEP 420 namespace:
+four distributions into one PEP 420 namespace:
 
 | Distribution | Ships | Depends on |
 |---|---|---|
 | `ocai` | `ocai.core`, `ocai.chat`, `ocai.embedding`, `ocai.vectorstore`, `ocai.convert`, `ocai.runtime`, `ocai.wire` | nothing at runtime; `httpx` behind the `[http]` extra |
 | `ocai-openai` | `ocai.openai.chat_completions`, `ocai.openai.responses` (stub) | `ocai`, `msgspec` — never an OpenAI SDK |
 | `ocai-anthropic` | `ocai.anthropic.messages` | `ocai`, `msgspec` — never an Anthropic SDK |
+| `ocai-deepseek` | `ocai.deepseek` (interface descriptors; execution qualification pending) | `ocai`, `ocai-openai` — never a DeepSeek SDK |
 
 Installing a provider distribution has exactly one structural effect: its
 `CatalogFragment` becomes discoverable through the `ocai.fragments` entry
 point and augments the conversion graph. Extras mirror that:
-`ocai[http]`, `ocai[openai]`, `ocai[anthropic]`, `ocai[all]`.
+`ocai[http]`, `ocai[openai]`, `ocai[anthropic]`, `ocai[deepseek]`, `ocai[all]`.
 
 ## The front door
 

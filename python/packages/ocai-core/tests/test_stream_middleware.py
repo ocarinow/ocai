@@ -48,13 +48,15 @@ class Local:
     def details(self) -> dict[str, Any]:
         return {"provider": "local"}
 
-    def chat(self, request: ChatRequest,
-             *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    def chat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         self.calls += 1
         return CallResult(ChatResponse(message=Message.model("local")))
 
-    async def achat(self, request: ChatRequest,
-                    *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    async def achat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         return self.chat(request, ctx=ctx)
 
     def stream(self, request: ChatRequest, *, ctx: CallContext | None = None) -> ChatStream:
@@ -68,8 +70,9 @@ class Local:
 
         return ChatStream(chunks())
 
-    async def astream(self, request: ChatRequest,
-                      *, ctx: CallContext | None = None) -> AsyncChatStream:
+    async def astream(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> AsyncChatStream:
         self.calls += 1
 
         async def chunks() -> AsyncIterator[ChatChunk]:
@@ -110,8 +113,9 @@ class Govern:
     async def aintercept_stream(self, call: Call, next: AsyncNextStreamHandler) -> AsyncStream:
         self.admit(call)
         inner = await next(call)
-        wrapped = AsyncChatStream(inner,
-                                  report=lambda: inner.outcome.report if inner.outcome else None)
+        wrapped = AsyncChatStream(
+            inner, report=lambda: inner.outcome.report if inner.outcome else None
+        )
         wrapped.on_termination(self.outcomes.append)
         return wrapped
 
@@ -136,9 +140,16 @@ async def invoke(model: ChatModel, mode: str, ctx: CallContext) -> None:
 async def test_denial_prevents_all_inner_execution(remote: bool, mode: str) -> None:
     policy = Govern(deny=True)
     local = Local()
-    model = (ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                            catalog=Catalog.of(ocai.openai.FRAGMENT), interceptors=[policy])
-             if remote else InterceptedChatModel(local, [policy]))
+    model = (
+        ocai.chat.model(
+            "openai/gpt-4o",
+            credentials=ApiKey("sk-test"),
+            catalog=Catalog.of(ocai.openai.FRAGMENT),
+            interceptors=[policy],
+        )
+        if remote
+        else InterceptedChatModel(local, [policy])
+    )
     ctx = CallContext(tenant="tenant", compartment="compartment")
     with respx.mock as router:
         with pytest.raises(AuthError, match="admission rejected"):

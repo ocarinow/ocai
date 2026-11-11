@@ -586,10 +586,14 @@ source = { editable = "python/packages/ocai-core" }
 all = [
     { name = "httpx" },
     { name = "ocai-anthropic" },
+    { name = "ocai-deepseek" },
     { name = "ocai-openai" },
 ]
 anthropic = [
     { name = "ocai-anthropic" },
+]
+deepseek = [
+    { name = "ocai-deepseek" },
 ]
 http = [
     { name = "httpx" },
@@ -601,11 +605,12 @@ openai = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
-    { name = "ocai", extras = ["http", "openai", "anthropic"], marker = "extra == 'all'", editable = "python/packages/ocai-core" },
+    { name = "ocai", extras = ["http", "openai", "anthropic", "deepseek"], marker = "extra == 'all'", editable = "python/packages/ocai-core" },
     { name = "ocai-anthropic", marker = "extra == 'anthropic'", editable = "python/packages/ocai-anthropic" },
+    { name = "ocai-deepseek", marker = "extra == 'deepseek'", editable = "python/packages/ocai-deepseek" },
     { name = "ocai-openai", marker = "extra == 'openai'", editable = "python/packages/ocai-openai" },
 ]
-provides-extras = ["http", "openai", "anthropic", "all"]
+provides-extras = ["http", "openai", "anthropic", "deepseek", "all"]
 
 [[package]]
 name = "ocai-anthropic"

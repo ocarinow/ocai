@@ -64,7 +64,9 @@ class RecordedBody(httpx.SyncByteStream, httpx.AsyncByteStream):
 @pytest.mark.parametrize("asynchronous", [False, True])
 @pytest.mark.parametrize("mode", ["complete", "close", "incomplete", "failure", "unused"])
 async def test_stream_owns_upstream_and_retains_evidence(
-    load_http: LoadHttp, asynchronous: bool, mode: str,
+    load_http: LoadHttp,
+    asynchronous: bool,
+    mode: str,
 ) -> None:
     pair = load_http("openai_chat_completion_stream.json")
     events = pair["response"]["sse"]
@@ -72,8 +74,12 @@ async def test_stream_owns_upstream_and_retains_evidence(
         events = events[:-1]  # truncate the recording before its explicit [DONE]
     body = RecordedBody(events, mode)
     transport = HttpxTransport(provider="openai")
-    facade = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                             catalog=Catalog.of(ocai.openai.FRAGMENT), transport=transport)
+    facade = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        transport=transport,
+    )
     outcomes: list[StreamOutcome] = []
     request = ChatRequest(messages=[Message.user("Hello!")])
     with respx.mock(assert_all_called=False) as router:
@@ -107,9 +113,16 @@ async def test_stream_owns_upstream_and_retains_evidence(
             outcome, end = sync_stream.outcome, sync_stream.end
         assert outcome is not None
         assert len(outcomes) == 1
-        assert outcome.status == {"complete": "completed", "close": "closed",
-                                  "unused": "closed", "incomplete": "incomplete",
-                                  "failure": "failed"}[mode]
+        assert (
+            outcome.status
+            == {
+                "complete": "completed",
+                "close": "closed",
+                "unused": "closed",
+                "incomplete": "incomplete",
+                "failure": "failed",
+            }[mode]
+        )
         assert (end is not None) == (mode == "complete")
         assert body.closed == route.call_count == (0 if mode == "unused" else 1)
         assert outcome.report is not None
@@ -134,9 +147,13 @@ async def test_cancellation_closes_http_stream_once(load_http: LoadHttp) -> None
     pair = load_http("openai_chat_completion_stream.json")
     body = RecordedBody(pair["response"]["sse"][:-1], "cancel")
     transport = HttpxTransport(provider="openai")
-    facade = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                             catalog=Catalog.of(ocai.openai.FRAGMENT), transport=transport,
-                             observers=[Collect()])
+    facade = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        transport=transport,
+        observers=[Collect()],
+    )
     respx.post(URL).respond(200, stream=body)
     stream = await facade.astream(ChatRequest(messages=[Message.user("Hello!")]))
     outcomes: list[StreamOutcome] = []

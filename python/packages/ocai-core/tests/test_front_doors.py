@@ -221,9 +221,7 @@ def test_interceptors_kwarg_applies_the_chain(load_http: LoadHttp) -> None:
     respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
     recorder = _Recorder()
-    chat = ocai.chat.model(
-        "openai/gpt-4o", credentials=ApiKey("sk-test"), interceptors=(recorder,)
-    )
+    chat = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"), interceptors=(recorder,))
     request = _plain_request()
     res = chat.chat(request)
 
@@ -240,9 +238,7 @@ async def test_interceptors_kwarg_applies_the_async_face(load_http: LoadHttp) ->
     respx.post(URL).mock(return_value=httpx.Response(200, json=pair["response"]["json"]))
 
     recorder = _Recorder()
-    chat = ocai.chat.model(
-        "openai/gpt-4o", credentials=ApiKey("sk-test"), interceptors=(recorder,)
-    )
+    chat = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"), interceptors=(recorder,))
     await chat.achat(_plain_request())
 
     assert len(recorder.acalls) == 1

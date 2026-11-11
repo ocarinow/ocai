@@ -79,12 +79,9 @@ def render_report(title: str, report: FidelityReport) -> str:
     for edge in report.edges:
         lines.append(f"edge {edge.src}  ->  {edge.dst}")
         lines.extend(
-            f"  loss  [{loss.disposition.value}] {loss.path} — {loss.note}"
-            for loss in edge.losses
+            f"  loss  [{loss.disposition.value}] {loss.path} — {loss.note}" for loss in edge.losses
         )
-        lines.extend(
-            f"  shift ({shift.kind}) {shift.path} — {shift.note}" for shift in edge.shifts
-        )
+        lines.extend(f"  shift ({shift.kind}) {shift.path} — {shift.note}" for shift in edge.shifts)
         if not edge.losses and not edge.shifts:
             lines.append("  (clean)")
     return "\n".join(lines)
@@ -124,9 +121,7 @@ def main() -> str:
     response_leg = catalog.convert(anthropic_response, MESSAGES_RESPONSE, CANONICAL_CHAT_RESPONSE)
     merged = FidelityReport(edges=list(leg1.report.edges)).merge(response_leg.report)
     blocks.append(
-        render_report(
-            "merged: request leg (openai -> anthropic) + response decode leg", merged
-        )
+        render_report("merged: request leg (openai -> anthropic) + response decode leg", merged)
     )
 
     # The audit posture, stated: the response DECODE direction exists (leg 3

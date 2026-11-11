@@ -63,9 +63,9 @@ stay off because coverage is a review judgment, style is not.
   neutral: procedures with exact paths and commands, no tool-specific calls.
 - Archived plans under `docs/plans/archive/` still reference `CLAUDE.md`;
   they are historical and are not updated.
-- `ruff format --check` is not yet enforced (18 files were unformatted at
-  the time of this decision). Formatting the tree is a separate, mechanical
-  change; `scripts/check.py --format` runs the gate until then.
+- `ruff format --check` was not enforced at the time of this decision (18
+  files were unformatted). The tree was formatted on 2026-11-11 and the
+  check has been a default step of `scripts/check.py` and CI since.
 
 ## Addendum (same day): agents, tasks, memories, MCP
 

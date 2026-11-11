@@ -12,6 +12,12 @@ license = "FSL-1.1-ALv2"
 authors = [{ name = "ocai maintainers" }]
 dependencies = ["ocai>=0.1,<0.2", "ocai-openai>=0.1,<0.2"]
 
+[project.urls]
+Homepage = "https://github.com/ocarinow/ocai"
+Source = "https://github.com/ocarinow/ocai"
+Documentation = "https://ocarinow.github.io/ocai/"
+Changelog = "https://github.com/ocarinow/ocai/blob/main/python/packages/ocai-deepseek/CHANGELOG.md"
+
 [project.entry-points."ocai.fragments"]
 deepseek = "ocai.deepseek:FRAGMENT"
 

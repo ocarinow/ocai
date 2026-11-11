@@ -127,7 +127,6 @@ class Outcome:
     response: HttpResponse | None = None
     error: OcaiError | None = None
 
-
     @property
     def ctx(self) -> CallContext | None:
         """The logical call context, never provider payload or credentials."""

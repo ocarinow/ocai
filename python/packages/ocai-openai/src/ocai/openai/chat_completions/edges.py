@@ -270,18 +270,25 @@ ENCODE_RESPONSE_CONTRACT = EdgeContract(
         "info.created": DeclaredDisposition(Disposition.UNSUPPORTED),
         "info.extensions": DeclaredDisposition(Disposition.DROPPED),
     },
-    semantic_shifts=(SemanticShift(kind="relocation", path="message.parts",
-                                  note="ordered parts grouped into client message lanes"),),
+    semantic_shifts=(
+        SemanticShift(
+            kind="relocation",
+            path="message.parts",
+            note="ordered parts grouped into client message lanes",
+        ),
+    ),
     note="canonical response to client semantics; gateway binds serving metadata",
 )
 
 
 ENCODE_CHUNK_CONTRACT = EdgeContract(
-    census={**ENCODE_RESPONSE_CONTRACT.census,
-            "chunk.extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
-            "chunk.type": DeclaredDisposition(Disposition.UNSUPPORTED),
-            "chunk.delta": DeclaredDisposition(Disposition.UNSUPPORTED),
-            "termination": DeclaredDisposition(Disposition.UNSUPPORTED)},
+    census={
+        **ENCODE_RESPONSE_CONTRACT.census,
+        "chunk.extensions": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "chunk.type": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "chunk.delta": DeclaredDisposition(Disposition.UNSUPPORTED),
+        "termination": DeclaredDisposition(Disposition.UNSUPPORTED),
+    },
     semantic_shifts=ENCODE_RESPONSE_CONTRACT.semantic_shifts,
     note="canonical chunks to client JSON events; gateway owns metadata and framing",
 )
@@ -339,8 +346,13 @@ NODES: tuple[NodeId, ...] = (
 )
 
 EDGES: tuple[Edge, ...] = (
-    Edge(src=CANONICAL_RESPONSE, dst=CHAT_COMPLETIONS_RESPONSE, fn=encode_response,
-         contract=ENCODE_RESPONSE_CONTRACT, origin=ORIGIN),
+    Edge(
+        src=CANONICAL_RESPONSE,
+        dst=CHAT_COMPLETIONS_RESPONSE,
+        fn=encode_response,
+        contract=ENCODE_RESPONSE_CONTRACT,
+        origin=ORIGIN,
+    ),
     Edge(
         src=CANONICAL_REQUEST,
         dst=CHAT_COMPLETIONS_REQUEST,
@@ -365,8 +377,13 @@ EDGES: tuple[Edge, ...] = (
 )
 
 TRANSDUCERS: tuple[StreamEdge, ...] = (
-    StreamEdge(src=CANONICAL_CHUNK, dst=CHAT_COMPLETIONS_CHUNK,
-               factory=ClientStreamTransducer, contract=ENCODE_CHUNK_CONTRACT, origin=ORIGIN),
+    StreamEdge(
+        src=CANONICAL_CHUNK,
+        dst=CHAT_COMPLETIONS_CHUNK,
+        factory=ClientStreamTransducer,
+        contract=ENCODE_CHUNK_CONTRACT,
+        origin=ORIGIN,
+    ),
     StreamEdge(
         src=CHAT_COMPLETIONS_CHUNK,
         dst=CANONICAL_CHUNK,

@@ -203,8 +203,13 @@ class SyncDriver:
     at composition time, so the transport-face check here is a backstop.
     """
 
-    def __init__(self, binding: Binding, *, policies: Sequence[WirePolicy] = (),
-                 observers: Sequence[Observer] = ()) -> None:
+    def __init__(
+        self,
+        binding: Binding,
+        *,
+        policies: Sequence[WirePolicy] = (),
+        observers: Sequence[Observer] = (),
+    ) -> None:
         """Bind the driver to its nucleus and hook chain.
 
         Args:
@@ -407,8 +412,11 @@ class SyncDriver:
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
-            selected = framing.snapshot() if framing is not None else stream_framing(
-                self._binding.host, spec)
+            selected = (
+                framing.snapshot()
+                if framing is not None
+                else stream_framing(self._binding.host, spec)
+            )
             observation: Attempt | None = None
             stream_error: BaseException | None = None
             decoder: StreamDecoder | None = None
@@ -484,8 +492,13 @@ class AsyncDriver:
     drift in request building, decision semantics, or error refinement.
     """
 
-    def __init__(self, binding: Binding, *, policies: Sequence[WirePolicy] = (),
-                 observers: Sequence[Observer] = ()) -> None:
+    def __init__(
+        self,
+        binding: Binding,
+        *,
+        policies: Sequence[WirePolicy] = (),
+        observers: Sequence[Observer] = (),
+    ) -> None:
         """Bind the driver to its nucleus and hook chain.
 
         Args:
@@ -681,8 +694,11 @@ class AsyncDriver:
             remaining = budget.remaining()
             if remaining is not None:
                 request.timeout = min(request.timeout, remaining) if request.timeout else remaining
-            selected = framing.snapshot() if framing is not None else stream_framing(
-                self._binding.host, spec)
+            selected = (
+                framing.snapshot()
+                if framing is not None
+                else stream_framing(self._binding.host, spec)
+            )
             observation: Attempt | None = None
             stream_error: BaseException | None = None
             decoder: StreamDecoder | None = None

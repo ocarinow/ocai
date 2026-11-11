@@ -235,8 +235,9 @@ class StreamInterceptor(Protocol):
         ...
 
 
-def compose_stream(interceptors: Sequence[StreamInterceptor],
-                   terminal: NextStreamHandler) -> NextStreamHandler:
+def compose_stream(
+    interceptors: Sequence[StreamInterceptor], terminal: NextStreamHandler
+) -> NextStreamHandler:
     """Compose a streaming onion, outermost first, without pulling any events."""
     handler = terminal
     for interceptor in reversed(interceptors):
@@ -265,11 +266,13 @@ def _bind_stream(interceptor: StreamInterceptor, next: NextStreamHandler) -> Nex
             if acquired is not None:
                 acquired.close()
             raise
+
     return handler
 
 
-def acompose_stream(interceptors: Sequence[StreamInterceptor],
-                    terminal: AsyncNextStreamHandler) -> AsyncNextStreamHandler:
+def acompose_stream(
+    interceptors: Sequence[StreamInterceptor], terminal: AsyncNextStreamHandler
+) -> AsyncNextStreamHandler:
     """Compose the async streaming onion with the same admission order."""
     handler = terminal
     for interceptor in reversed(interceptors):
@@ -277,8 +280,9 @@ def acompose_stream(interceptors: Sequence[StreamInterceptor],
     return handler
 
 
-def _abind_stream(interceptor: StreamInterceptor,
-                  next: AsyncNextStreamHandler) -> AsyncNextStreamHandler:
+def _abind_stream(
+    interceptor: StreamInterceptor, next: AsyncNextStreamHandler
+) -> AsyncNextStreamHandler:
     async def handler(call: Call) -> AsyncStream:
         acquired: AsyncStream | None = None
         used = False
@@ -299,4 +303,5 @@ def _abind_stream(interceptor: StreamInterceptor,
             if acquired is not None:
                 await acquired.aclose()
             raise
+
     return handler
