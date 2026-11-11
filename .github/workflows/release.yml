@@ -1,0 +1,81 @@
+name: Release
+
+# The stable release (ADR 0010, docs/releasing.md): when the standing Release
+# PR (branch `release`) merges into main, tag each released package
+# `<name>/v<version>`, create its GitHub Release from its changelog section,
+# build it, and publish it to PyPI through trusted publishing (environment
+# `pypi`; no token stored). Only packages whose version changed in the merge
+# commit are published.
+
+on:
+  push:
+    branches: [main]
+    paths: ["python/packages/*/pyproject.toml"]
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  changed:
+    name: released packages
+    if: startsWith(github.event.head_commit.message, 'Release:')
+    runs-on: ubuntu-latest
+    outputs:
+      dirs: ${{ steps.list.outputs.dirs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Packages whose version changed in this merge
+        id: list
+        run: |
+          dirs=$(git diff --name-only HEAD~1 HEAD -- 'python/packages/*/pyproject.toml' \
+            | while read -r f; do
+                if git diff HEAD~1 HEAD -- "$f" | grep -qE '^\+version = '; then dirname "$f"; fi
+              done | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+          echo "released: $dirs"
+
+  tag:
+    name: tags and GitHub releases
+    needs: changed
+    if: needs.changed.outputs.dirs != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: knope-dev/action@v2.1.0
+        with:
+          version: 0.23.2
+      - name: knope release (tags + GitHub Releases from the changelog sections)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: knope release --verbose
+
+  publish:
+    name: publish ${{ matrix.dir }}
+    needs: [changed, tag]
+    if: needs.changed.outputs.dirs != '[]'
+    runs-on: ubuntu-latest
+    environment: pypi
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJson(needs.changed.outputs.dirs) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.13
+      - name: Build
+        run: uv build --project "${{ matrix.dir }}" --out-dir dist
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          print-hash: true

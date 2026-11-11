@@ -8,7 +8,8 @@
 #   Only change files may live in .changeset/ (knope parses every .md there); the guide is docs/releasing.md.
 #   task release:status               # knope release --dry-run: what the next stable release would be
 #   task release:preview:alpha        # knope prerelease --prerelease-label alpha --dry-run
-#   CI: release-alpha.yml on push to dev; release.yml on dispatch (rc) and on the release PR merge (stable)
+#   CI (one branch, ADR 0010): release-pr.yml keeps the Release PR up to date on every push to main;
+#   release.yml tags and publishes when the Release PR merges; prerelease.yml publishes alphas on merge and rc on demand.
 
 [packages.ocai]
 versioned_files = ["python/packages/ocai-core/pyproject.toml"]
@@ -35,10 +36,11 @@ type = "CreateChangeFile"
 
 [[workflows]]
 name = "prepare-release"
-help_text = "Stable release preparation: bump versions, write CHANGELOGs, consume change files (CI opens the release PR from this)"
+help_text = "Stable release preparation: bump versions, write CHANGELOGs, consume change files (CI keeps the Release PR from this)"
 
 [[workflows.steps]]
 type = "PrepareRelease"
+allow_empty = true
 
 [[workflows]]
 name = "prerelease"

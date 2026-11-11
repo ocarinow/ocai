@@ -117,7 +117,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         for p in changed
         if p.startswith(".changeset/") and p.endswith(".md") and p != ".changeset/README.md"
     ]
-    if touched and not added:
+    if touched and not added and not args.release_pr:
         problems.append(
             "published package(s) changed without a change file in this branch: "
             + ", ".join(sorted(touched))
@@ -128,7 +128,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         for pr in problems:
             print("  - " + pr)
         return 1
-    print(f"change files: ok (touched: {sorted(touched) or 'none'}; added here: {len(added)})")
+    kind = "release PR" if args.release_pr else "ok"
+    print(f"change files: {kind} (touched: {sorted(touched) or 'none'}; added here: {len(added)})")
     return 0
 
 
@@ -152,6 +153,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p_check = sub.add_parser("check", help="require a change file when a published package changed")
     p_check.add_argument("--base", default="origin/main")
+    p_check.add_argument(
+        "--release-pr",
+        action="store_true",
+        help="the standing Release PR: version/changelog edits need no change file",
+    )
     p_check.set_defaults(func=cmd_check)
     sub.add_parser("packages", help="list published packages and versions").set_defaults(
         func=cmd_packages

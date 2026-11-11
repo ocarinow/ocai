@@ -1,0 +1,82 @@
+name: Pre-release
+
+# Pre-releases (ADR 0010, docs/releasing.md). Every merge into main that is
+# not the release merge publishes an ALPHA of each package with pending change
+# files: knope computes the target version from the change files, the CI run
+# number makes the alpha unique and monotonic (`0.2.0a123`), nothing is
+# committed or tagged, change files are kept. A RELEASE CANDIDATE is the same
+# on demand (`gh workflow run prerelease.yml -f kind=rc`). Pre-release
+# versions are never installed by default by pip or uv.
+
+on:
+  push:
+    branches: [main]
+    paths: ["python/packages/**", ".changeset/**"]
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: alpha or rc
+        type: choice
+        options: [alpha, rc]
+        default: rc
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: prerelease
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: pre-release plan
+    if: "!startsWith(github.event.head_commit.message, 'Release:')"
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      label: ${{ steps.plan.outputs.label }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: knope-dev/action@v2.1.0
+        with:
+          version: 0.23.2
+      - name: Target versions from the pending change files
+        id: plan
+        run: |
+          kind="${{ github.event.inputs.kind || 'alpha' }}"
+          label=$([ "$kind" = "rc" ] && echo rc || echo a)
+          knope prerelease --prerelease-label "$kind" --dry-run > plan.txt 2>&1 || true
+          # lines: "Would add the following to python/packages/<dir>/pyproject.toml: 0.2.0-alpha.0"
+          matrix=$(grep -E 'pyproject.toml: ' plan.txt \
+            | sed -E 's#Would add the following to (python/packages/[^/]+)/pyproject.toml: ([0-9]+\.[0-9]+\.[0-9]+).*#{"dir":"\1","version":"\2'"$label"'${{ github.run_number }}"}#' \
+            | jq -s -c '.')
+          echo "matrix=${matrix:-[]}" >> "$GITHUB_OUTPUT"
+          echo "label=$kind" >> "$GITHUB_OUTPUT"
+          echo "plan: ${matrix:-[]}"
+
+  publish:
+    name: publish ${{ matrix.item.dir }} ${{ matrix.item.version }}
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    environment: pypi
+    strategy:
+      fail-fast: false
+      matrix:
+        item: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.13
+      - name: Set the pre-release version (not committed)
+        run: uv version --project "${{ matrix.item.dir }}" "${{ matrix.item.version }}"
+      - name: Build
+        run: uv build --project "${{ matrix.item.dir }}" --out-dir dist
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          print-hash: true
