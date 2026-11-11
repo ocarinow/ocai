@@ -16,6 +16,8 @@ user usage/API/platform documentation from development, design and roadmap mater
   organization and mechanical link migration, repository/package README corrections,
   Zensical navigation, reference generation and documentation verification. Roughly
   35 substantive files plus mechanical moves and generated reference pages.
+  CI follow-up: preserve the project number across board pagination and make PR
+  board checks read-only so proposed WU cards survive until their plan merges.
 - **Non-goals:** Runtime behavior, provider qualification, new platform features,
   rewriting historical decisions as current design, or changing concurrent library
   implementation. Research dates and historical plans retain their original meaning.
@@ -67,6 +69,8 @@ user usage/API/platform documentation from development, design and roadmap mater
   inspection of home, Python, API and platform pages found no browser errors.
   `docs/audits/documentation.md` classifies 186 Markdown sources. The PR carries
   the final clean-commit gate after completion metadata updates.
+  `scripts/tests/test_board_sync.py` adds five regression cases for multi-page
+  board loading and PR versus main/scheduled reconciliation modes.
 - **Area:** docs
 - **Priority:** P0
 - **Tier:** program

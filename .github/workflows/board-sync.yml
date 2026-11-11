@@ -17,7 +17,7 @@ on:
     branches: [main]
     paths: ["docs/plans/**", "scripts/board_sync.py", ".github/workflows/board-sync.yml"]
   pull_request:
-    types: [opened, reopened, ready_for_review, converted_to_draft, closed, edited]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, closed, edited]
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
@@ -52,7 +52,11 @@ jobs:
             exit 0
           fi
           # The plan is always read from main: a PR branch's plan table is a proposal, not a fact.
-          # PR events report findings without failing; pushes to main and the nightly run are strict.
+          # PR events only report: their proposed cards must survive until the plan merges.
+          # Pushes to main and the nightly run apply the authoritative plan and are strict.
           git fetch -q origin main
-          lenient=""; [ "$EVENT" = "pull_request" ] && lenient="--lenient"
-          GH_TOKEN="$BOARD_TOKEN" python3 scripts/board_sync.py sync --apply --ref origin/main $lenient
+          if [ "$EVENT" = "pull_request" ]; then
+            GH_TOKEN="$BOARD_TOKEN" python3 scripts/board_sync.py sync --ref origin/main --lenient
+          else
+            GH_TOKEN="$BOARD_TOKEN" python3 scripts/board_sync.py sync --apply --ref origin/main
+          fi

@@ -50,6 +50,15 @@ board helpers, with explicit initial bodies and statuses. This audit does not
 claim the generic board synchronizer is repaired; its implementation/protocol
 reconciliation is recorded separately from user documentation.
 
+The WU-135 CI follow-up fixes a separate pagination defect exposed when the
+board exceeded 100 items: reading a card's PR number overwrote the project
+number used for subsequent pages. PR-triggered checks now report without
+mutating the board, preserving proposed WU cards until their plan merges;
+pushes to main and scheduled runs retain authoritative reconciliation.
+`scripts/tests/test_board_sync.py` covers draft/PR pagination and the workflow's
+read-only PR versus applying main/scheduled modes. Draft creation and the
+draft-only protocol mismatch above remain separate follow-ups.
+
 ## Inventory at audit completion
 
 | Source | Audience | Review treatment |
