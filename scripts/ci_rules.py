@@ -1,4 +1,4 @@
-"""Prepare a one-to-one required-check migration for a verified workflow rollout.
+"""Restore stable required-check names without weakening validation.
 
 Default: check drift without mutation. --output writes the exact reviewable
 request body; applying it remains an explicit repository administration action.
@@ -13,16 +13,15 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-# Reusable workflows prefix leaf checks with their static caller label.
-# These are one-to-one renames, never an alternative or weaker check set.
+# Undo the reusable-workflow prefixes while retaining every original requirement.
 RENAMED = {
-    "python": "Code checks / python",
-    "python-next": "Code checks / python-next",
-    "platform": "Code checks / platform",
-    "docs": "Documentation / docs",
-    "workflows": "Code checks / workflows",
-    "semgrep": "Code checks / semgrep",
-    "dependency-review": "Code checks / dependency-review",
+    "Code checks / python": "python",
+    "Code checks / python-next": "python-next",
+    "Code checks / platform": "platform",
+    "Documentation / docs": "docs",
+    "Code checks / workflows": "workflows",
+    "Code checks / semgrep": "semgrep",
+    "Code checks / dependency-review": "dependency-review",
 }
 REQUIRED = (*RENAMED.values(), "privacy", "pr-hygiene")
 

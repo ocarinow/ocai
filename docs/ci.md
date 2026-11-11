@@ -1,25 +1,26 @@
 # CI without repeated waiting
 
-Code validation and PR administration run independently. Metadata checks retain
-privacy and template enforcement while code results remain attached to the tested
-revision. Both Python interpreters, packaging, strict typing, security analysis,
+Code validation and PR administration use separate concurrency groups. Metadata
+checks retain privacy and template enforcement. Required jobs keep their original
+names on every event. Both Python interpreters, packaging, strict typing, security analysis,
 real service integration and browser coverage remain pre-merge checks when relevant.
 
 | Event | Work |
 |---|---|
 | Open, reopen, or push a PR | All suites affected by its complete diff; metadata checks |
-| Edit title/body | Metadata checks; title changes also refresh the board |
+| Edit title/body | Affected code suites and metadata checks; title changes refresh the board |
 | Mark ready or draft | Metadata checks and board refresh |
 | Change base branch | Full code validation, metadata checks and board refresh |
 | Push main | Affected validation and existing deployment/release workflows |
 | Nightly or manual full run | Full code suites, independent of paths |
 
-A body edit still appears as an Actions event, but skips only the statically
-named `Code checks` and `Documentation` caller jobs. Their reusable workflows
-are not expanded, so none of the required leaf checks is created or overwritten.
-No runner is allocated for a skipped caller, and no name expression is displayed.
-The UI groups the leaf checks as `Code checks / python`, `Code checks / platform`,
-and `Documentation / docs`. Branch protection uses those exact names.
+Required jobs run directly in the event workflows, with stable names such as
+`python`, `platform`, and `docs`. Required checks are never hidden behind a
+skipped reusable-workflow caller. The attempted caller isolation left PR #123
+blocked even while historical leaf jobs were successful, so it was removed.
+Title/body edits currently rerun affected validation. Avoiding those reruns is
+deferred until live mergeability is proven; successful historical jobs alone
+are insufficient evidence.
 
 Metadata events have separate concurrency groups: editing prose cannot cancel
 running tests. New code cancels superseded PR code runs. Main code runs use unique
@@ -79,26 +80,20 @@ keys; installs, builds and tests execute freshly. Publishing jobs remain uncache
 
 ## Rollout and required checks
 
-Regression tests under `scripts/tests/` exercise the checked-in routing
-expressions, full diffs, renames/deletions, uncertain history, shared configuration,
+Regression tests under `scripts/tests/` exercise event coverage, stable required
+job names, full diffs, renames/deletions, uncertain history, shared configuration,
 large diffs, platform failures and ruleset preservation. Run the complete gate,
-then verify a PR body edit produces metadata jobs without starting or replacing
-required code checks. This was verified on PR #123: a body edit allocated no
-code/docs/board runners and preserved the previous code-check results. A ready transition must do the same. Base changes force a
-fresh full validation.
+then inspect `gh pr checks --required` and `gh pr view --json mergeStateStatus`.
+On an otherwise mergeable, up-to-date PR, the state must become `CLEAN` after
+validation, including after a description edit. Base changes force full validation.
 
-The nine desired checks are `Code checks / python`, `Code checks / python-next`,
-`Code checks / platform`, `Code checks / workflows`, `Code checks / semgrep`,
-`Code checks / dependency-review`, `Documentation / docs`, `privacy`, and
-`pr-hygiene`. These are the same nine validations with readable caller prefixes.
+The nine required checks remain `python`, `python-next`, `platform`, `workflows`,
+`semgrep`, `dependency-review`, `docs`, `privacy`, and `pr-hygiene`.
 
-The repository ruleset is external state. Moving jobs into reusable workflows
-requires a coordinated one-to-one rename of the required contexts, preserving
-all app bindings and unrelated protections. The drift tool generates that exact
-request body. Verify all new leaf checks on the rollout PR before applying it;
-then merge the workflow change before merging other PRs that use the old names.
-A stale branch must update to the new workflows under the existing strict
-up-to-date policy. Prepare the migration immediately before application:
+The repository ruleset is external state. The drift tool restores prefixed
+contexts to the original stable names, retaining all nine validations, app
+bindings, unrelated protections and strict up-to-date enforcement. These names
+also match branches that predate this PR. Prepare immediately before applying:
 
 ```bash
 uv run python scripts/ci_rules.py --output /tmp/ocai-ruleset.json
@@ -108,7 +103,7 @@ uv run python scripts/ci_rules.py
 ```
 
 Do not apply a stale generated body: read and prepare again immediately before
-application. The update renames only the known legacy contexts, adds missing checks, and
+application. The update renames only the known prefixed contexts, adds missing checks, and
 preserves unrelated protections, app bindings and strict up-to-date enforcement.
 It never removes a validation requirement or changes bypass rules.
 

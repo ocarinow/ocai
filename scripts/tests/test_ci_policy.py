@@ -66,44 +66,23 @@ def value(block: str, key: str) -> str:
     return match[1]
 
 
-@pytest.mark.parametrize(
-    "action,changes,is_code",
-    [
-        ("opened", {}, True),
-        ("synchronize", {}, True),
-        ("reopened", {}, True),
-        ("edited", {"body": {"from": "old"}}, False),
-        ("edited", {"title": {"from": "old"}}, False),
-        ("edited", {"base": {"ref": {"from": "old"}}}, True),
-    ],
-)
-def test_metadata_cannot_write_code_check_names_or_cancel_code(
-    action: str,
-    changes: dict[str, Any],
-    is_code: bool,
-) -> None:
-    context: dict[str, Any] = {
-        "github": {
-            "event_name": "pull_request",
-            "run_id": 1,
-            "event": {"action": action, "changes": changes, "pull_request": {"number": 123}},
-        },
-        "matrix": {"name": "python"},
-    }
-    for workflow, label in [("ci.yml", "Code checks"), ("docs.yml", "Documentation")]:
-        block = workflow_job(workflow, "checks")
-        assert bool(expression(value(block, "if"), context)) == is_code
-        assert value(block, "name") == label
-        assert "runs-on:" not in block
-        assert f"uses: ./.github/workflows/{workflow[:-4]}-checks.yml" in block
+@pytest.mark.parametrize("action", ["opened", "synchronize", "reopened", "edited"])
+def test_every_pr_event_materializes_stable_required_jobs(action: str) -> None:
+    # A skipped reusable caller leaves its required leaf checks pending. Keep
+    # required jobs directly in the event workflow and decide scope in steps.
+    for workflow, jobs in [
+        ("ci.yml", ["python", "platform", "workflows", "semgrep", "dependency-review"]),
+        ("docs.yml", ["docs"]),
+    ]:
         text = (ROOT / ".github/workflows" / workflow).read_text()
-        group = re.search(r"^  group: (.+)$", text, re.MULTILINE)
-        assert group
-        # Evaluate each interpolation in the actual concurrency group.
-        rendered = re.sub(
-            r"\$\{\{(.*?)\}\}", lambda m, ctx=context: str(expression(m[1], ctx)), group[1]
-        )
-        assert ("metadata" in rendered) == (not is_code)
+        types = re.search(r"types: \[(.+)\]", text)
+        assert types and action in types[1]
+        for job in jobs:
+            block = workflow_job(workflow, job)
+            assert "runs-on:" in block
+            assert "uses: ./.github/workflows/" not in block
+            if job != "dependency-review":
+                assert re.search(r"^    if:", block, re.MULTILINE) is None
 
 
 def test_ready_events_only_run_metadata_and_board() -> None:
@@ -123,8 +102,8 @@ def test_required_code_jobs_fail_if_selector_fails() -> None:
     # The selector is an ordinary failing step, never continue-on-error, and
     # precedes heavy work. There is no final success job masking a dependency failure.
     for workflow, jobs in [
-        ("ci-checks.yml", ["python", "platform", "workflows", "semgrep"]),
-        ("docs-checks.yml", ["docs"]),
+        ("ci.yml", ["python", "platform", "workflows", "semgrep"]),
+        ("docs.yml", ["docs"]),
     ]:
         for job in jobs:
             block = workflow_job(workflow, job)
@@ -147,14 +126,10 @@ def test_board_skips_body_edits_but_updates_title_and_base() -> None:
 
 
 def test_push_schedule_dispatch_preserve_code_checks() -> None:
-    for event in ["push", "schedule", "workflow_dispatch"]:
-        context: dict[str, Any] = {
-            "github": {"event_name": event, "event": {}},
-            "matrix": {"name": "python-next"},
-        }
-        block = workflow_job("ci.yml", "checks")
-        assert expression(value(block, "if"), context)
-        assert value(block, "name") == "Code checks"
+    for workflow in ["ci.yml", "docs.yml"]:
+        text = (ROOT / ".github/workflows" / workflow).read_text()
+        for event in ["push", "schedule", "workflow_dispatch"]:
+            assert f"  {event}:" in text
 
 
 def test_board_body_event_cannot_supersede_pending_sync() -> None:
@@ -185,25 +160,24 @@ def test_nightly_docs_does_not_supersede_pages_and_manual_deploy_remains() -> No
             "needs": {"docs": {"outputs": {"pages_enabled": "true"}}},
         }
         assert expression(group[1], context) == expected
-        condition = value(workflow_job("docs-checks.yml", "deploy"), "if")
+        condition = value(workflow_job("docs.yml", "deploy"), "if")
         assert bool(expression(condition, context)) == (event != "schedule")
 
 
-def test_leaf_checks_have_readable_names_and_cannot_run_on_metadata_alone() -> None:
+def test_required_checks_have_readable_names_on_every_event() -> None:
     for workflow, jobs in [
         (
-            "ci-checks.yml",
+            "ci.yml",
             ["platform", "workflows", "semgrep", "dependency-review", "go", "typescript"],
         ),
-        ("docs-checks.yml", ["docs", "deploy"]),
+        ("docs.yml", ["docs", "deploy"]),
     ]:
         text = (ROOT / ".github/workflows" / workflow).read_text()
-        assert "  workflow_call:" in text
-        assert "  pull_request:" not in text
-        assert "concurrency:" not in text
+        assert "  workflow_call:" not in text
+        assert "  pull_request:" in text
         for job in jobs:
             assert value(workflow_job(workflow, job), "name") == job
-    python = workflow_job("ci-checks.yml", "python")
+    python = workflow_job("ci.yml", "python")
     assert value(python, "name") == "${{ matrix.name }}"
     assert re.search(r"^    if:", python, re.MULTILINE) is None
     for interpreter in ["python", "python-next"]:
@@ -211,25 +185,21 @@ def test_leaf_checks_have_readable_names_and_cannot_run_on_metadata_alone() -> N
 
 
 def test_documentation_permissions_remain_scoped_to_deployment() -> None:
-    caller = workflow_job("docs.yml", "checks")
-    assert "pages: write" in caller and "id-token: write" in caller
-    build = workflow_job("docs-checks.yml", "docs")
+    build = workflow_job("docs.yml", "docs")
     assert "    permissions:\n      contents: read" in build
     assert "pages: write" not in build and "id-token: write" not in build
-    deploy = workflow_job("docs-checks.yml", "deploy")
+    deploy = workflow_job("docs.yml", "deploy")
     assert "pages: write" in deploy and "id-token: write" in deploy
 
 
-def test_required_contexts_match_the_real_caller_and_leaf_labels() -> None:
-    from ci_rules import RENAMED
+def test_required_contexts_match_the_actual_job_names() -> None:
+    from ci_rules import REQUIRED
 
-    for old, context in RENAMED.items():
-        stem = "docs" if old == "docs" else "ci"
-        label = value(workflow_job(f"{stem}.yml", "checks"), "name")
-        if old in {"python", "python-next"}:
-            leaf = expression(
-                value(workflow_job("ci-checks.yml", "python"), "name"), {"matrix": {"name": old}}
-            )
-        else:
-            leaf = value(workflow_job(f"{stem}-checks.yml", old), "name")
-        assert context == f"{label} / {leaf}"
+    names = {"python", "python-next"}
+    for workflow, jobs in [
+        ("ci.yml", ["platform", "workflows", "semgrep", "dependency-review"]),
+        ("docs.yml", ["docs"]),
+        ("pr-metadata.yml", ["privacy", "pr-hygiene"]),
+    ]:
+        names.update(value(workflow_job(workflow, job), "name") for job in jobs)
+    assert set(REQUIRED) == names

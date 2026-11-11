@@ -171,13 +171,14 @@ local gate paths could disagree. The maintainer requested one remediation PR
 without reducing quality (WU-106).
 
 **Decision.** Metadata validation has its own workflow and concurrency group.
-Code workflows retain base-edit handling; ordinary title/body edits skip only
-static caller jobs (`Code checks` and `Documentation`). The reusable workflows
-are not expanded, so required leaf checks are never created or overwritten.
-Conditional expressions in job names are prohibited: GitHub can display them
-literally when a job is skipped before name evaluation. Ready/draft
-transitions do not restart code validation. Every new revision still receives
-affected validation, including drafts; base retargets force full validation.
+Required jobs remain directly in their event workflows with the original stable
+names. Title/body edits rerun affected checks; avoiding those reruns is deferred.
+Skipped reusable callers were rejected after the live rollout left required
+checks pending despite historical successful jobs. Conditional expressions in
+job names are prohibited; the Python matrix name is evaluated without a job-level
+skip condition. Ready/draft transitions do not restart code validation. Every
+new revision still receives affected validation, including drafts; base retargets
+force full validation.
 
 `ci_scope.py` owns conservative suite dependencies for CI, local optional gate
 steps and PR evidence checks. Full Git diffs include both sides of renames and
@@ -192,19 +193,20 @@ Python versions and all existing checks remain. Timing reports distinguish queue
 time, elapsed time and summed runner usage. No result is cached across revisions.
 
 **Enforcement.** The nine validations from amendment (b) remain unchanged.
-Reusable workflows prefix their required check contexts with `Code checks /`
-or `Documentation /`; privacy and hygiene retain their original names. The
-read-only ruleset tool prepares a one-to-one context migration, preserving app
-bindings, other protections and strict up-to-date enforcement. Apply it after
-verifying the new contexts on the rollout PR, then merge that PR before other
-branches using the old workflow names. See [CI verification](../ci.md).
+The original contexts remain `python`, `python-next`, `platform`, `docs`,
+`workflows`, `semgrep`, `dependency-review`, `privacy`, and `pr-hygiene`. The
+read-only ruleset tool restores these names from the attempted caller prefixes,
+preserving app bindings, other protections and strict up-to-date enforcement.
+Live acceptance requires a `CLEAN` merge state, not only successful job records.
+See [CI verification](../ci.md).
 
 **Alternatives.** Disabling draft validation or moving affected integration to
 nightly would weaken pre-merge assurance. Reusing green statuses across changed
 bases risks stale evidence. Workflow-level path skipping can strand required
 checks; unconditional skipped results under existing names can mask failures.
 
-**Consequences.** Administrative edits allocate only lightweight metadata/board
-work. Conservative classification may run extra suites. The impact policy and
+**Consequences.** Title/body edits still allocate affected code runners. Stable
+required names restore compatibility with existing PRs; ready/draft events remain
+limited to metadata/board work. Conservative classification may run extra suites. The impact policy and
 routing expressions are covered by `scripts/tests/`; rollback changes scheduling
 only and does not touch product data or contracts.

@@ -7,16 +7,15 @@ Maintainer request: “Could you make all those changes in a single PR?”
 - **Status:** ✅ complete (PR #123)
 - **Context:** PR metadata edits restart expensive validation; independent checks run
   sequentially and path policies differ between local verification and CI.
-- **Goal:** Each relevant revision receives all required validation once, while metadata
-  changes cannot restart, cancel, or overwrite code validation.
+- **Goal:** Reduce elapsed validation through conservative scope selection and parallel
+  execution while preserving all required checks and stable merge requirements.
 - **Scope:** Workflow routing, shared impact selection, platform check scheduling,
   workflow regression tests, timing reports, required-check reconciliation tooling,
   contributor guidance and ADR 0002.
 - **Non-goals:** Kernel behavior, release cadence, runner migration, test removal,
   cross-commit result caching, and automatically merging this PR.
 - **Acceptance:**
-  - Metadata events show static readable caller names, cannot replace code
-    results, and base changes revalidate —
+  - Every code event materializes stable required job names, and base changes revalidate —
     `scripts/tests/test_ci_policy.py`.
   - Complete diffs, deleted and renamed files, shared dependencies and uncertain
     history select conservative coverage — `scripts/tests/test_ci_scope.py`.
@@ -48,13 +47,14 @@ Maintainer request: “Could you make all those changes in a single PR?”
   fail-open selection (run everything), and forced full runs bound that risk. Revert
   restores the previous scheduling without changing product data.
 - **Open:** none.
-- **Evidence:** 42 tooling regression cases pass; no fixtures or wire pairs added.
-  Full gate baseline: `gate: 2018ee8` / `all checks passed.`; the final committed
-  gate summary is pasted in PR #123. Both Python versions and all required live
-  checks passed. A live body edit created no code/docs/board runner jobs and
-  retained prior required code results. Platform timing on one installed local
-  environment: 49.0s serial, 35.2s concurrent (not a population estimate).
-  The live ruleset audit reported all nine desired checks already enforced.
+- **Evidence:** Tooling regression cases cover stable job names, event coverage,
+  conservative scope and concurrent failure propagation; no fixtures or wire pairs
+  added. Prior full gate baseline: `gate: d796242` / `all checks passed.`
+  Final gate and live mergeability results are recorded in PR #123.
+  Platform timing on one installed local environment: 49.0s serial, 35.2s concurrent
+  (not a population estimate). Title/body rerun avoidance is deferred because the
+  skipped-caller rollout left required checks pending. All nine original required
+  check names are restored, with no validation removed.
 - **Area:** tooling
 - **Priority:** P1
 - **Tier:** program

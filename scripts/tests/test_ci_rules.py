@@ -24,7 +24,7 @@ def test_update_preserves_other_rules_checks_and_bindings() -> None:
                 "parameters": {
                     "required_status_checks": [
                         {"context": "custom", "integration_id": 42},
-                        {"context": "python", "integration_id": 15368},
+                        {"context": "Code checks / python", "integration_id": 15368},
                     ],
                     "strict_required_status_checks_policy": True,
                 },
@@ -39,7 +39,7 @@ def test_update_preserves_other_rules_checks_and_bindings() -> None:
     assert desired["conditions"] == current["conditions"]
     checks = desired["rules"][1]["parameters"]["required_status_checks"]
     assert checks[0] == {"context": "custom", "integration_id": 42}
-    assert checks[1] == {"context": "Code checks / python", "integration_id": 15368}
+    assert checks[1] == {"context": "python", "integration_id": 15368}
     assert set(REQUIRED) <= {check["context"] for check in checks}
     assert reconcile(desired) == desired
 
@@ -49,7 +49,7 @@ def test_missing_rule_is_not_silently_created() -> None:
         reconcile({"rules": []})
 
 
-def test_every_legacy_quality_check_is_renamed_one_for_one() -> None:
+def test_every_prefixed_quality_check_is_restored_one_for_one() -> None:
     current: dict[str, Any] = {
         "rules": [
             {
