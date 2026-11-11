@@ -371,3 +371,81 @@ Independent expected signatures come from the
 These are published synthetic credentials/vectors, not live AWS exchanges.
 Recorded application attempts verify the adapter and driver boundary, not live
 service availability. SDK native debug logging is never enabled by ocai.
+
+## 15. WU-48 host boundary research (2026-11-11)
+
+The [InvokeModel API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
+places the model identifier in the path and accepts an Anthropic-native body with
+`anthropic_version`. Its examples include the US Claude 3.5 Sonnet inference
+profile. It returns host-specific service-tier/performance headers and can include
+guardrail action/trace in the body. An intervened result is not by itself proof
+that the entire output was blocked; qualification must distinguish masked output.
+
+The [AWS restJson1 error rules](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html#operation-error-serialization)
+allow native error identity in `X-Amzn-Errortype`, `code` or `__type`. Header-only
+identity therefore cannot be reconstructed from a message-only JSON body.
+[Bedrock common errors](https://docs.aws.amazon.com/bedrock/latest/APIReference/CommonErrors.html)
+list ThrottlingException with HTTP 400, while InvokeModel lists HTTP 429. This
+confirms why exception-name mapping cannot rely on status alone.
+
+At WU-47 commit `81c79a7`, this offline reproduction prints `OcaiError None`
+instead of preserving the throttling identity (G-13):
+
+```python
+import httpx
+import respx
+from ocai.core.errors import OcaiError
+from ocai.wire.http import HttpRequest
+from ocai.wire.transport import HttpxTransport
+
+url = "https://bedrock-runtime.us-east-1.amazonaws.com/model/synthetic-model/invoke"
+with respx.mock:
+    respx.post(url).respond(
+        400,
+        headers={"x-amzn-ErrorType": "ThrottlingException"},
+        json={"message": "Synthetic throttled request"},
+    )
+    with HttpxTransport(provider="bedrock") as transport:
+        try:
+            transport.send_sync(HttpRequest.from_json("POST", url, {}))
+        except OcaiError as error:
+            print(type(error).__name__, error.code)
+```
+
+No live keys, provider I/O or SDK mocks are involved. The response is synthetic
+against the cited protocol/error definitions. The generic transport drops the
+header before host/dialect refinement. Separately, successful headers disappear
+when the driver returns only the unwrapped body, and envelopes have no fidelity
+channel (G-14). A wire policy could observe success headers, but that is not a
+supported host metadata/effect contract and cannot recover discarded error headers.
+This was the pre-WU-48a–c reproduction. Those WUs now provide reusable unary
+seams; WU-48 uses them without a private transport override or provider-specific
+driver branch. Streaming host outcomes remain the open portion of G-14.
+
+
+## 16. WU-48 verified unary subset (2026-11-11)
+
+The [InvokeModel operation](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
+verifies path placement, service-tier/performance response headers and the documented
+US Claude 3.5 Sonnet profile shape. The
+[AWS CDK Bedrock examples](https://docs.aws.amazon.com/cdk/api/v2/docs/%40aws-cdk_aws-bedrock-alpha-readme.html)
+list the us.anthropic.claude-3-5-sonnet-20241022-v2:0 profile used by the recordings.
+These establish wire examples,
+not account access or regional availability. The
+[Anthropic request/response reference](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages-request-response.html)
+requires the Bedrock version and describes beta as a body string array. Existing
+Anthropic traits already declare both relocations; no codec rewrite is needed.
+
+The [guardrail response reference](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-test.html)
+places detailed assessments under the guardrail trace's input and outputs lanes.
+Only explicit policy assessment actions determine blocked versus anonymized output;
+modelOutput is retained evidence, never searched for classification tokens.
+INTERVENED without a recognized assessment remains unclassified and reported.
+Unknown host fields and trace content remain in HostEvidence. Trace may contain
+original content, so passive lifecycle observations exclude it. Successful provider
+usage remains authoritative; absent usage is unknown rather than zero.
+
+Initial qualification covers text/function tools through existing Anthropic edges,
+request version/beta placement, identifier encoding, native errors, metadata and
+blocked/masked/uncertain guardrail outcomes. Streaming, Converse, media, managed
+prompts, live availability and compatibility endpoints remain separate work.

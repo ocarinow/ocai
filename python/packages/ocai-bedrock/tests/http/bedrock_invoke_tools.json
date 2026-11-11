@@ -1,0 +1,85 @@
+{
+  "description": "Synthetic AWS InvokeModel tools pair, hand-authored against docs/providers/amazon-bedrock.md section 16 for WU-48. Existing Anthropic codec semantics, explicit body version and encoded model path; no live service availability is asserted.",
+  "request": {
+    "method": "POST",
+    "url": "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-5-sonnet-20241022-v2%3A0/invoke",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "What is the weather in Paris?"
+            }
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "type": "custom",
+          "name": "get_weather",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "City name."
+              }
+            },
+            "required": [
+              "city"
+            ]
+          },
+          "description": "Get the current weather for a city."
+        }
+      ],
+      "tool_choice": {
+        "type": "auto"
+      },
+      "max_tokens": 1024,
+      "anthropic_version": "bedrock-2023-05-31"
+    },
+    "headers": {
+      "accept": "application/json",
+      "content-type": "application/json"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01TOOL",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20241022",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01A2B3C4",
+          "name": "get_weather",
+          "input": {
+            "city": "Paris"
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 55,
+        "output_tokens": 17
+      }
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-amzn-requestid": "synthetic-bedrock-request"
+    }
+  },
+  "expect_host": {
+    "paths": [],
+    "shifts": [],
+    "metadata": {
+      "body": {},
+      "headers": {}
+    }
+  }
+}

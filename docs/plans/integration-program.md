@@ -100,11 +100,13 @@ are preserved and tested, not renamed or replaced.
 | 15 | Dual `reasoning` / `reasoning_content` decode | WU-44b, WU-58 | Hosting, Mapping (c) |
 | 16 | Host error/metadata preservation, including HTTP-200 stream errors | WU-48/56/58/59/60 | Hosting, Mapping (c–d); Azure §13; Bedrock §13 |
 
-Items 15–16 are semantic conversion work owned by plugins, not host-side copies
-of codecs. All new hosts depend on the shared foundation WU-37–39. Hosts live in
-`ocai.wire`; plugins declare pure traits/data and never import wire or HTTPX.
-The stdlib AWS credential lives in an independent `ocai-aws` package importing
-core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
+Items 15–16 use provider-owned outcome mappings through public host contracts,
+not host-side copies of semantic codecs. All new hosts depend on WU-37–39.
+Generic host contracts live in `ocai.wire`; cloud service hosts live in external
+packages and may import pure public wire values. Semantic codecs still import
+core/convert only. `ocai-aws` delegates signing to AWS-maintained code behind an
+ocai credential (ADR 0016); `ocai-bedrock` owns service hosting and later Converse
+conversion, with acyclic dependencies and no SDK objects in public APIs.
 
 ## WU-36 — Define the tier 1–2 integration program
 
@@ -853,24 +855,95 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 
-- [ ] **Status:** not started.
-- **First step:** Verify selected model/profile identifiers and InvokeModel feature
-  header/body and error behavior; record results in the Bedrock provider page.
-- **Scope:** `wire.hosting.Bedrock` and InvokeModel envelope, Anthropic declarative
-  trait data and host metadata/error preservation; 18–28 files with recorded pairs.
-  Move model to the encoded path, select Bedrock version, relocate beta to body;
-  preserve host metadata through registered extensions, never copy codec mappings.
-- **Done:** A recorded Anthropic-on-Bedrock unary test passes both drivers with
-  exact signed envelope, canonical response/fidelity/usage and exception-name-based
-  errors, including distinction between blocked and masked successful output.
-- **Deps:** WU-47.
-- **Architecture:** §2.9, §3.3, §5–7.
-- **Freeze:** none changed: existing traits/reference/error contracts are consumed;
-  added host extension schemas do not redefine canonical shapes.
+- **Status:** ✅ complete (PR #110); implementation ready for review.
+- **Context:** Existing Anthropic codecs and AWS signing cannot alone serve
+  InvokeModel: its model is in the URL, version/beta declarations move into the body,
+  error identity may be header-only, and successful guardrails can mask or block
+  output. G-13/G-14 previously prevented a public host implementation. WU-48a–c now
+  supply reusable contracts, so this WU contains provider mappings only.
+- **Goal:** A user composes an Anthropic model, Bedrock host and explicit ocai AWS
+  credential and receives ordinary ocai results, errors, usage and fidelity without
+  importing an SDK or interpreting AWS payloads.
+- **Scope:** External ocai-bedrock package and public Bedrock host/InvokeModel
+  envelope; pure native error and response adapters with declared census; recorded
+  HTTP pairs, package checks and docs (20–30 files). Consume existing Anthropic
+  traits/codecs and ocai-aws authentication; no dependency cycle.
+- **Non-goals:** No new kernel branch, graph edge, Converse interface, streaming,
+  discovery, STS/profile lookup, SDK client, or duplicate Anthropic mapping. Media,
+  managed prompts, service enablement, regional availability and runtime/mantle
+  compatibility routes are not qualified by this initial matrix.
+- **First step:** Verify native request/response and guardrail fields against AWS;
+  record results in Bedrock research §16 before authoring wire fixtures. Vendor
+  examples establish fixture identifiers, not current account/region availability.
+- **Acceptance:**
+  - Text and tool calls traverse signed exact InvokeModel envelopes in sync/async
+    through ocai.chat.model, retaining usage and explicit dialect-versus-host coverage limits —
+    `python/packages/ocai-bedrock/tests/test_host.py` and its HTTP recordings.
+  - Explicit body versions/beta declarations and encoded identifiers survive;
+    conflicting declarations and unsupported streaming fail before I/O — same tests.
+  - Header/body native errors map to shared taxonomy with native code/evidence;
+    retries sign each physical request without exposing credentials — same tests.
+  - Host metadata and unknown host fields survive in HostEvidence, declared masking
+    shifts are enforceable, explicit blocking raises ContentFilterError, and an
+    unclassified intervention is reported without guessing blocked versus masked —
+    same tests with exact expected host findings in recorded fixtures.
+  - Package boundaries remain acyclic and auth/SDK objects stay outside public host
+    contracts — package/import tests and the full repository gate.
+- **Done:** Recorded Anthropic-on-Bedrock unary tests pass both drivers with exact
+  signed envelopes, canonical response/fidelity/usage and native exception mapping,
+  distinguishing explicit blocked/masked output from unclassified intervention.
+- **Deps:** WU-47, WU-48a, WU-48b, WU-48c; ADRs 0016–0019.
+- **Architecture:** §1, §2.9, §3.3, §5–7.
+- **Integration:** Application composes the existing Anthropic graph with an external
+  Bedrock host and explicit ocai-aws credential. Host traits shape the request, generic
+  drivers own I/O, and public host adapters interpret AWS outcomes. Semantic codecs
+  remain independent of AWS credentials/hosting. No provider SDK reaches user code.
+  ```mermaid
+  flowchart LR
+    AnthropicCodec --> BedrockHost
+    BedrockHost --> GenericDriver
+    AwsCredential --> GenericDriver
+    GenericDriver --> BedrockAdapters
+    BedrockAdapters --> AnthropicDecode
+    BedrockAdapters --> FidelityPolicy
+  ```
+- **Design sketch:**
+  ```python
+  from ocai.bedrock import Bedrock
+  from ocai.aws import SigV4Credential
+  model = ocai.chat.model(
+      "anthropic/us.anthropic.claude-3-5-sonnet-20240620-v1:0",
+      host=Bedrock(region="us-east-1"),
+      credentials=SigV4Credential(access_key=key, secret_key=secret, region="us-east-1"),
+  )
+  # Host configuration stays in ocai values; SDK objects are never required.
+  ```
+- **Before / after:** Before, public hosting loses native errors/metadata. After,
+  the real Bedrock adapter consumes the generic contracts with provider-specific
+  evidence and uses the existing Anthropic graph unchanged.
+- **Freeze:** No frozen-candidate surface changes. Consume existing core errors,
+  results, traits and fidelity vocabulary; no canonical node, schema or revision
+  changes. Package host APIs remain provisional.
 - **Decision:** InvokeModel is an envelope over Anthropic, not a new semantic
-  interface ([Bedrock §13(a/c/d)](../providers/amazon-bedrock.md)).
-- **Open:** Runtime/mantle compatibility routes and regional availability discovery
-  are excluded; only verified InvokeModel identifiers enter fixtures.
+  interface (Bedrock §13(a/c/d)); shared authentication remains in ocai-aws (ADR 0016).
+  Host metadata/effects use ADRs 0017–0019. Explicit trace actions classify guardrails;
+  INTERVENED alone remains uncertain, per the AWS guardrail response documentation.
+- **Risks:** Trace metadata may contain original sensitive content; it stays in
+  explicit native evidence and never passive events. Unsupported/unknown assessment
+  shapes retain evidence and report uncertainty. Real availability is outside
+  recorded qualification; no fixture claims live service access.
+- **Open:** None for this verified unary subset. Streaming requires generic host
+  stream integration before WU-50; G-14 remains open for that portion.
+- **Evidence:** `uv run python scripts/check.py` passed on implementation commit
+  57621b4 (all seven steps). `python/packages/ocai-bedrock/tests/test_host.py`
+  adds 43 cases and 11 synthetic HTTP recordings, including exact host census
+  assertions and public front-door execution. Wheel/sdist build succeeds;
+  namespace and py.typed verified. No kernel runtime or canonical schema change.
+  Final clean-head gate summary is in PR #110.
+- **Area:** plugin: bedrock
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-49 — Parse AWS EventStream without I/O
 
@@ -901,7 +974,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Done:** Recorded binary Anthropic streams pass fold parity against paired InvokeModel unary
   responses with exact usage/replay evidence, and close/cancellation/mid-stream
   exceptions release transport resources while preserving partial accounting.
-- **Deps:** WU-49.
+- **Deps:** WU-49 and the generic streaming host-outcome prerequisite tracked by G-14.
 - **Architecture:** §3.3, §4.5, §5–7, §10.
 - **Freeze:** none changed: StreamEnd/StreamOutcome/ChatChunk and schemas remain intact.
 - **Decision:** Reuse Anthropic semantics after envelope decoding

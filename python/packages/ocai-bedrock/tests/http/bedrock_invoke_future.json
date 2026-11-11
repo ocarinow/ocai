@@ -1,0 +1,78 @@
+{
+  "description": "Synthetic AWS InvokeModel future host-outcome pair for WU-48, based on Bedrock research section 16 and documented InvokeModel guardrail trace lanes. Unknown future fields are intentional forward-compatibility probes, not advertised vendor features.",
+  "request": {
+    "method": "POST",
+    "url": "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-5-sonnet-20241022-v2%3A0/invoke",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello, who are you?"
+            }
+          ]
+        }
+      ],
+      "system": "You are concise.",
+      "max_tokens": 1024,
+      "anthropic_version": "bedrock-2023-05-31"
+    },
+    "headers": {
+      "accept": "application/json",
+      "content-type": "application/json"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "msg_01XYZ",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20241022",
+      "content": [
+        {
+          "type": "text",
+          "text": "I am Claude, an AI assistant."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 14,
+        "output_tokens": 9
+      },
+      "future_vendor_field": {
+        "opaque": "dialect-extension"
+      },
+      "amazon-bedrock-future-metadata": {
+        "opaque": "retained"
+      }
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-amzn-requestid": "synthetic-bedrock-request",
+      "x-amzn-bedrock-performanceconfig-latency": "standard",
+      "x-amzn-bedrock-service-tier": "default"
+    }
+  },
+  "expect_host": {
+    "paths": [
+      "body[amazon-bedrock-future-metadata]",
+      "headers[x-amzn-bedrock-performanceconfig-latency]",
+      "headers[x-amzn-bedrock-service-tier]"
+    ],
+    "shifts": [],
+    "metadata": {
+      "body": {
+        "amazon-bedrock-future-metadata": {
+          "opaque": "retained"
+        }
+      },
+      "headers": {
+        "x-amzn-bedrock-performanceconfig-latency": "standard",
+        "x-amzn-bedrock-service-tier": "default"
+      }
+    }
+  }
+}

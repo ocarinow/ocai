@@ -11,6 +11,7 @@ members = [
     "ocai",
     "ocai-anthropic",
     "ocai-aws",
+    "ocai-bedrock",
     "ocai-deepseek",
     "ocai-openai",
 ]
@@ -776,6 +777,30 @@ requires-dist = [
     { name = "awscrt", specifier = ">=0.38.1,<0.39" },
     { name = "ocai", editable = "python/packages/ocai-core" },
 ]
+
+[[package]]
+name = "ocai-bedrock"
+version = "0.1.0"
+source = { editable = "python/packages/ocai-bedrock" }
+dependencies = [
+    { name = "ocai" },
+]
+
+[package.optional-dependencies]
+anthropic = [
+    { name = "ocai-anthropic" },
+]
+aws = [
+    { name = "ocai-aws" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ocai", editable = "python/packages/ocai-core" },
+    { name = "ocai-anthropic", marker = "extra == 'anthropic'", editable = "python/packages/ocai-anthropic" },
+    { name = "ocai-aws", marker = "extra == 'aws'", editable = "python/packages/ocai-aws" },
+]
+provides-extras = ["aws", "anthropic"]
 
 [[package]]
 name = "ocai-deepseek"
