@@ -6,7 +6,8 @@
 # (scripts/check.py); a task never adds a check that CI does not run.
 #
 #   task                 # list every task
-#   task check           # the full gate: privacy, ruff, import contracts, pyright, mypy, pytest
+#   task check           # the gate: kernel steps always; platform, docs, echo, change files when touched
+#   task check:all       # every step, whatever changed
 #   task py:test         # one domain, one verb
 version: "3"
 

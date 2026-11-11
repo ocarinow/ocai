@@ -132,7 +132,7 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13+.
 
 ```bash
 uv sync                        # create env + install workspace distributions
-uv run python scripts/check.py # THE gate: privacy, workspace, ruff + format, import contracts, pyright/mypy strict, pytest, platform
+uv run python scripts/check.py # THE gate (path-aware: platform/docs/echo/change-file steps run when touched; --all forces)
 uv run ruff check              # lint only
 uv run lint-imports            # layer contracts only (architecture §1)
 uv run pyright                 # strict typing: nothing resolves to Unknown (rule 16)

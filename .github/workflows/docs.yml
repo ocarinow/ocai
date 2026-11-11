@@ -76,12 +76,11 @@ jobs:
         if: steps.changes.outputs.run == 'true' || steps.forced.outputs.forced == 'true'
         run: uv sync --locked --group docs
 
-      # Zero warnings: a missing nav page or a broken internal link fails the build.
+      # Zero warnings: a missing nav page or a broken internal link fails the
+      # build. Same command as the gate's docs step and `task docs:check`.
       - name: Build site
         if: steps.changes.outputs.run == 'true' || steps.forced.outputs.forced == 'true'
-        run: |
-          out=$(uv run --group docs zensical build --clean 2>&1); echo "$out"
-          echo "$out" | grep -q "No issues found"
+        run: uv run python scripts/docs_check.py
 
       - name: Upload Pages artifact
         if: (steps.changes.outputs.run == 'true' || steps.forced.outputs.forced == 'true') && github.event_name != 'pull_request'
