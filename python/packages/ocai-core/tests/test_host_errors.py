@@ -62,8 +62,9 @@ def _gateway(error: OcaiError, options: dict[str, Any]) -> OcaiError | None:
     headers = error.response_headers or {}
     code = headers.get("x-service-failure")
     if code == options["code"]:
-        return RateLimitError("gateway quota", code=code,
-                              retry_after=float(headers["retry-after-ms"]) / 1000)
+        return RateLimitError(
+            "gateway quota", code=code, retry_after=float(headers["retry-after-ms"]) / 1000
+        )
     return None
 
 
@@ -123,18 +124,24 @@ class Record:
         assert "x-service-failure" not in repr(self.events)
 
 
-def _model(name: str, record: Record, mapping: HostErrorMapper | None = None,
-           *, legacy: bool = False) -> tuple[WireChatModel, HttpxTransport, MappedHost]:
+def _model(
+    name: str, record: Record, mapping: HostErrorMapper | None = None, *, legacy: bool = False
+) -> tuple[WireChatModel, HttpxTransport, MappedHost]:
     if mapping is None:
         callback = _native if name == "native" else _gateway
-        mapping = HostErrorMapper(name, callback,
-                                  {"code": "ThrottlingException" if name == "native" else "quota"})
+        mapping = HostErrorMapper(
+            name, callback, {"code": "ThrottlingException" if name == "native" else "quota"}
+        )
     host = MappedHost(f"https://{name}-host.test", mapping)
     transport = HttpxTransport(provider="test-host")
-    model = WireChatModel(ChatCompletionsCodec(),
+    model = WireChatModel(
+        ChatCompletionsCodec(),
         Binding(Direct(host.base_url) if legacy else host, ApiKey("sk-private"), transport),
-        Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o", policies=[record],
-        attempt_observers=[record])
+        Catalog.of(ocai.openai.FRAGMENT),
+        model_name="gpt-4o",
+        policies=[record],
+        attempt_observers=[record],
+    )
     return model, transport, host
 
 
@@ -147,6 +154,7 @@ def _mount(pair: dict[str, Any], record: Record) -> respx.Route:
         body = RecordingBody(json.dumps(wire["json"]).encode())
         record.bodies.append(body)
         return httpx.Response(wire["status"], headers=wire["headers"], stream=body)
+
     return respx.post(pair["request"]["url"]).mock(side_effect=response)
 
 
@@ -275,7 +283,8 @@ async def test_mapper_failure_is_explicit_and_sanitized(mode: str) -> None:
 @pytest.mark.parametrize("replacement", [False, True])
 @respx.mock
 async def test_changed_mapper_configuration_invalidates_preparation(
-    streaming: bool, replacement: bool,
+    streaming: bool,
+    replacement: bool,
 ) -> None:
     record = Record()
     model, transport, host = _model("native", record)
@@ -285,8 +294,9 @@ async def test_changed_mapper_configuration_invalidates_preparation(
     assert isinstance(host.mapping.options, dict)
     if replacement:
         # Simulate an external host replacing its effective mapping implementation.
-        object.__setattr__(host, "mapping", HostErrorMapper(
-            host.mapping.name, _gateway, host.mapping.options))
+        object.__setattr__(
+            host, "mapping", HostErrorMapper(host.mapping.name, _gateway, host.mapping.options)
+        )
     else:
         host.mapping.options["code"] = "changed"
     try:
@@ -305,8 +315,9 @@ async def test_changed_mapper_configuration_invalidates_preparation(
 @respx.mock
 async def test_concurrent_host_mappings_are_independent(asynchronous: bool) -> None:
     records = [Record(), Record()]
-    models = [_model(name, record) for name, record in zip(
-        ("native", "gateway"), records, strict=True)]
+    models = [
+        _model(name, record) for name, record in zip(("native", "gateway"), records, strict=True)
+    ]
     for name, record in zip(("native", "gateway"), records, strict=True):
         _mount(_load(name), record)
 
@@ -326,12 +337,18 @@ async def test_concurrent_host_mappings_are_independent(asynchronous: bool) -> N
 
     try:
         if asynchronous:
-            results = await asyncio.gather(*(async_call(model, name)
-                for (model, _, _), name in zip(models, ("native", "gateway"), strict=True)))
+            results = await asyncio.gather(
+                *(
+                    async_call(model, name)
+                    for (model, _, _), name in zip(models, ("native", "gateway"), strict=True)
+                )
+            )
         else:
             with ThreadPoolExecutor(max_workers=2) as pool:
-                futures = [pool.submit(sync_call, model, name)
-                    for (model, _, _), name in zip(models, ("native", "gateway"), strict=True)]
+                futures = [
+                    pool.submit(sync_call, model, name)
+                    for (model, _, _), name in zip(models, ("native", "gateway"), strict=True)
+                ]
                 results = [future.result() for future in futures]
     finally:
         for _, transport, _ in models:
@@ -350,8 +367,10 @@ def test_error_evidence_construction_and_connection_failure() -> None:
     assert error.response_headers == {"native-code": "example"}
     assert error.response_body == b""
     calls: list[OcaiError] = []
+
     def mapper(error: OcaiError, options: dict[str, Any]) -> None:
         calls.append(error)
+
     assert HostErrorMapper("http-only", mapper).apply(error) is None
     assert not calls
     assert OcaiError("unavailable").response_headers is None
@@ -365,8 +384,12 @@ async def test_dialect_refinement_preserves_native_evidence(asynchronous: bool) 
     route = respx.post(pair["request"]["url"]).respond(400, content=body)
     transport = HttpxTransport(provider="openai")
     host = MappedHost("https://api.openai.com", HostErrorMapper("decline", lambda e, o: None))
-    model = WireChatModel(ChatCompletionsCodec(), Binding(host, ApiKey("sk-private"), transport),
-                          Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o")
+    model = WireChatModel(
+        ChatCompletionsCodec(),
+        Binding(host, ApiKey("sk-private"), transport),
+        Catalog.of(ocai.openai.FRAGMENT),
+        model_name="gpt-4o",
+    )
     request = ChatRequest(messages=[Message.user("Hello, who are you?")])
     try:
         with pytest.raises(ContextLengthError) as raised:

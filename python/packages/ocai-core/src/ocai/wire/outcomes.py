@@ -75,10 +75,16 @@ class HostErrorMapper:
         """Identify declared data and callback ownership for in-process approval."""
         function = getattr(self.mapper, "__func__", self.mapper)
         owner = getattr(self.mapper, "__self__", None)
-        return hashlib.sha256(canonical({
-            "name": self.name, "options": dict(self.options),
-            "mapper": id(function), "owner": id(owner) if owner is not None else None,
-        }).encode()).hexdigest()
+        return hashlib.sha256(
+            canonical(
+                {
+                    "name": self.name,
+                    "options": dict(self.options),
+                    "mapper": id(function),
+                    "owner": id(owner) if owner is not None else None,
+                }
+            ).encode()
+        ).hexdigest()
 
     def apply(self, error: OcaiError) -> OcaiError | None:
         """Classify HTTP evidence, fail closed on invalid/raising callbacks.
@@ -95,6 +101,5 @@ class HostErrorMapper:
                 return None
             return preserve_error_evidence(deepcopy(mapped), error)
         except Exception:
-            pass
-        return preserve_error_evidence(OcaiError(
-            "host error adaptation failed", code="host_error_adaptation_failed"), error)
+            failure = OcaiError("host error adaptation failed", code="host_error_adaptation_failed")
+        return preserve_error_evidence(failure, error)

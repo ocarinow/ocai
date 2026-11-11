@@ -140,8 +140,9 @@ def _transport_request(binding: Binding, request: HttpRequest) -> HttpRequest:
     return authenticated
 
 
-def _refine(refine_error: ErrorRefiner | None, err: OcaiError,
-            mapping: HostErrorMapper | None = None) -> OcaiError:
+def _refine(
+    refine_error: ErrorRefiner | None, err: OcaiError, mapping: HostErrorMapper | None = None
+) -> OcaiError:
     """Apply optional host classification, then dialect refinement on decline.
 
     Ported from the reference `Engine._reraise_refined`, returning instead of
@@ -282,8 +283,11 @@ class SyncDriver:
         """
         from ocai.wire.hosting import host_error_mapper
 
-        mapping = (error_mapping.snapshot() if error_mapping is not None
-                   else host_error_mapper(self._binding.host, spec))
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._sync_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -400,8 +404,11 @@ class SyncDriver:
         from ocai.wire.hosting import host_error_mapper
         from ocai.wire.hosting import stream_framing
 
-        mapping = (error_mapping.snapshot() if error_mapping is not None
-                   else host_error_mapper(self._binding.host, spec))
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._sync_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -581,8 +588,11 @@ class AsyncDriver:
         """
         from ocai.wire.hosting import host_error_mapper
 
-        mapping = (error_mapping.snapshot() if error_mapping is not None
-                   else host_error_mapper(self._binding.host, spec))
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._async_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
@@ -696,8 +706,11 @@ class AsyncDriver:
         from ocai.wire.hosting import host_error_mapper
         from ocai.wire.hosting import stream_framing
 
-        mapping = (error_mapping.snapshot() if error_mapping is not None
-                   else host_error_mapper(self._binding.host, spec))
+        mapping = (
+            error_mapping.snapshot()
+            if error_mapping is not None
+            else host_error_mapper(self._binding.host, spec)
+        )
         transport = self._async_transport()
         ctx = deepcopy(ctx)
         budget = budget or Deadline(ctx)
