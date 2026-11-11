@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.annotation_unparsed_source",
+  "description": "Malformed source_result field retained verbatim when it cannot be decoded as a local result reference.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected"
+}

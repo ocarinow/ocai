@@ -21,6 +21,7 @@ only. The surface, by module:
 """
 
 from ocai.chat.types.annotations import Annotation
+from ocai.chat.types.annotations import SourceResultRef
 from ocai.chat.types.annotations import Span
 from ocai.chat.types.config import AudioOutputConfig
 from ocai.chat.types.config import CacheConfig
@@ -166,6 +167,7 @@ __all__ = [
     "SafetyRating",
     "ServerToolKind",
     "Span",
+    "SourceResultRef",
     "StreamAccumulator",
     "StreamEnd",
     "StreamOutcome",

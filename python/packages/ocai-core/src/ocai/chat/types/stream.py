@@ -814,6 +814,8 @@ class StreamAccumulator:
         part = self._slots.get(index)
         if isinstance(part, PartToolCall) and part.status == ToolCallStatus.INPUT_STREAMING:
             part.status = ToolCallStatus.INPUT_COMPLETE
+        if isinstance(part, PartText):
+            part.annotations = [annotation.validated(part.text) for annotation in part.annotations]
         self._sealed.add(index)
         self._settle_signature(index)
 
@@ -901,6 +903,11 @@ class StreamAccumulator:
         usage = self._end.usage if self._end and self._end.usage else self._usage
         finish = self._end.finish if self._end and self._end.finish else self._finish
         parts = [self._slots[index] for index in sorted(self._slots)]
+        for part in parts:
+            if isinstance(part, PartText):
+                part.annotations = [
+                    annotation.validated(part.text) for annotation in part.annotations
+                ]
         return ChatResponse(
             message=Message(role=Role.MODEL, parts=parts),
             finish=finish,

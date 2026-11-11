@@ -207,7 +207,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-40 — Qualify URL citations on canonical text
 
-- [ ] **Status:** not started.
+- [x] **Status:** implemented; stacked PR #77, pending review.
+- **Goal:** Canonical text can carry URL citations and local search-result references
+  with honest Unicode span validation and preserved malformed evidence.
 - **Scope:** `chat/types/annotations.py`, accumulation, canonical schemas and
   unknown/fold fixtures; 12–20 files. Add optional open `kind="url_citation"`
   and source-result reference/native metadata lanes to existing Annotation;
@@ -218,13 +220,22 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   attributing a false span and yielding identical unary and folded annotations.
 - **Deps:** WU-39; accepted integration ADR.
 - **Architecture:** §2.6–2.7, §3.1, §3.5, §4.5, §10.
+- **Integration:** The chat IR owns Annotation/Span and local SourceResultRef data;
+  response validation and stream sealing share contextual text validation.
+  Schemas and canonical fixtures qualify decode and fold parity. Provider edge
+  qualification remains separate; no provider codec or canonical node changes.
 - **Freeze:** additive Annotation/chat response and chunk schemas; Span/DeltaAnnotation
   behavior qualified without removing legacy forms (integration ADR).
-- **Decision:** Validated code-point spans only; whole-block citations may stay
+- **Decision:** ADR 0008 accepts the additive citation fields and contextual
+  validation. Validated code-point spans only; whole-block citations may stay
   unpositioned; marker-only citations stay in extensions
   ([Search §1.3–1.4](../capabilities/web-search-and-retrieval.md)).
 - **Open:** Provider offset units remain unverified for some interfaces; no
   OpenAI Responses/Gemini/xAI edge is claimed by this canonical-only WU.
+- **Area:** chat IR
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-41 — Admit server-tool definitions on ChatRequest
 

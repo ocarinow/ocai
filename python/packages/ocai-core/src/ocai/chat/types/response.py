@@ -15,6 +15,7 @@ served the call.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -25,6 +26,7 @@ from typing import Self
 from ocai.chat.canonical import CANONICAL_CHAT_RESPONSE
 from ocai.chat.types.finish import FinishInfo
 from ocai.chat.types.message import Message
+from ocai.chat.types.parts import PartText
 from ocai.chat.types.usage import Usage
 from ocai.core.identity import NodeId
 from ocai.core.ir import IRObject
@@ -108,6 +110,16 @@ class ChatResponse(IRObject):
     info: ResponseInfo | None = None
     raw: Any | None = field(default=None, kw_only=True)
 
+    def validated_annotations(self) -> Self:
+        """Detach the final response and validate citations against each text part."""
+        result = deepcopy(self)
+        for part in result.message.parts:
+            if isinstance(part, PartText):
+                part.annotations = [
+                    annotation.validated(part.text) for annotation in part.annotations
+                ]
+        return result
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Build a `ChatResponse` from a serialized dict, totally.
@@ -130,4 +142,4 @@ class ChatResponse(IRObject):
             info=ResponseInfo.from_dict(info) if is_json_object(info) else None,
             raw=data.get("raw"),
             **cls._from_dict_common(data),
-        )
+        ).validated_annotations()

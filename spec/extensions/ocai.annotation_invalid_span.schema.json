@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.annotation_invalid_span",
+  "description": "Invalid canonical citation positions retained as unpositioned evidence after structural or contextual validation.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "span": {},
+      "reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "span",
+      "reason"
+    ]
+  }
+}
