@@ -1,0 +1,164 @@
+{
+  "description": "WU-44b synthetic documented-wire DeepSeek fixture; expectations authored independently from the codec. See provider research section 15.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "deepseek",
+    "interface": "chat_completions",
+    "tag": "2026-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Look it up."
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "reasoning",
+            "text": "Check the record."
+          },
+          {
+            "version": "2026-07",
+            "type": "tool_call",
+            "call_id": "call_synthetic",
+            "name": "lookup",
+            "args_json": "{}",
+            "status": "input_complete",
+            "executed_by": "client"
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "tool",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "tool_result",
+            "call_id": "call_synthetic",
+            "parts": [
+              {
+                "version": "2026-07",
+                "type": "text",
+                "text": "Found."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "model",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "reasoning",
+            "text": "The record is available."
+          },
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Found it."
+          }
+        ]
+      },
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "type": "text",
+            "text": "Continue."
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "lookup",
+        "parameters": {
+          "type": "object"
+        }
+      }
+    ],
+    "config": {
+      "version": "2026-07",
+      "max_output_tokens": 128
+    }
+  },
+  "expect": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Look it up."
+      },
+      {
+        "role": "assistant",
+        "reasoning_content": "Check the record.",
+        "tool_calls": [
+          {
+            "id": "call_synthetic",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_synthetic",
+        "content": "Found."
+      },
+      {
+        "role": "assistant",
+        "content": "Found it.",
+        "reasoning_content": "The record is available."
+      },
+      {
+        "role": "user",
+        "content": "Continue."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "lookup",
+          "parameters": {
+            "type": "object"
+          }
+        }
+      }
+    ],
+    "max_tokens": 128
+  },
+  "expect_losses": [],
+  "expect_shifts": [
+    {
+      "path": "messages[2].parts[0]",
+      "kind": "relocation"
+    }
+  ]
+}

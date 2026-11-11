@@ -316,3 +316,18 @@ The paired HTTP/SSE transcript includes two turns, three measured operations,
 one visible call and two results; these counts must not be conflated. In-band
 tool failure and interrupted JSON input have separate recordings. All are
 synthetic, with opaque test values, and add no canonical revision or part type.
+
+### DeepSeek unary qualification (WU-44b)
+
+`fixtures/deepseek/chat_completions/` qualifies the three unary edges under the
+existing edge-fixture format: canonical request encoding, native request audit
+and native response decoding. Expected payloads and exact findings are authored
+independently. Each edge is certified against its own census and exercised through
+the composed catalog. Streaming triples belong to WU-46, not this unary set.
+
+`deepseek.request_unmapped` and `deepseek.response_unmapped` are registered
+path/value evidence arrays. `deepseek.usage_unmapped` retains unknown or
+contradictory native usage. These banks preserve future fields without minting
+uncensused extension keys. Provider-scoped aggregate usage source codes retain
+measured totals when disjoint details are missing; they are not zero-valued
+cache/reasoning buckets and must not be treated as qualified prices.

@@ -205,6 +205,24 @@ execution eligibility. Unverified historical model retirement dates are omitted.
 
 Source: [DeepSeek §14](../providers/deepseek.md#14-wu-44a-descriptor-verification-2026-11-11).
 
+### Compatible unary qualification (WU-44b)
+
+Share mapping code through a frozen, pure variant configuration, not inherited
+contracts. DeepSeek supplies its own nodes, trait identity, reasoning and token
+field names, finish mappings, usage normalization and census. OpenAI defaults stay
+unchanged. All prior assistant reasoning in tool histories is replayed verbatim;
+missing history is unsupported, never synthesized. Provider options are inspected
+after expansion. Unknown native data is retained in registered evidence banks.
+
+Keep partial usage honest: disjoint buckets require measured or derivable
+breakdowns; otherwise retain measured aggregates under provider-scoped open source
+codes. Contradictions retain the original measurements instead of overlapping or
+clamping counts. G-10 tracks model-dependent sampling: without a model-aware edge
+context, top_p remains unsupported and verbatim. No routing field or canonical
+shape is added to work around the gap. Streaming remains WU-46's qualification.
+
+Source: [DeepSeek §15](../providers/deepseek.md#15-wu-44b-conversion-verification-2026-11-11).
+
 ### Payment and trace vocabulary (WU-59/61)
 
 Add the non-retryable payment_required open error code; do not rename existing

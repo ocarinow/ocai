@@ -97,7 +97,7 @@ Four-level identity. Each level owns exactly one kind of change:
 | `NodeId` | **The graph node**: `(provider, interface, tag, shape, released, status)`. `interface` is the coordinate the old `SchemaVersion` was missing — `openai/chat_completions` and `openai/responses` are *concurrent sibling interfaces* of one capability, not versions of each other. `tag` is an opaque dated revision (never parsed; ordered by `released`). `status` ∈ `STABLE/PREVIEW/DEPRECATED/RETIRED` drives resolution. |
 | `Origin` | Provenance stamp `(distribution, version)` carried by every node/edge a plugin registers; surfaces in reports and audit records. |
 
-DeepSeek's descriptor-only `deepseek/chat_completions@2026-11` has independent
+DeepSeek's `deepseek/chat_completions@2026-11` has independent
 provider identity and ocai-deepseek provenance. Its tag/date identify an ocai
 observation snapshot, not an undocumented vendor version or model release.
 A descriptor's stable status alone is not proof of executable conversion.
@@ -181,6 +181,10 @@ and Messages report each request anchor unsupported until a codec qualifies it.
 Malformed/future request refs retain indexed raw evidence in
 `ocai.request_unparsed_anchors`, with no inferred replay authority. Core
 `ProviderRef` constructors and serialization are unchanged (ADR 0008, WU-42).
+DeepSeek response ids use its own provider/interface scope. Its tool histories
+replay plain `PartReasoning.text` for every assistant turn, including turns without
+a tool call; missing reasoning is unsupported. This does not authorize foreign
+signatures, opaque refs or continuation anchors (WU-44b).
 
 ### 2.5 `profile.py` — declared capability facts [provisional]
 
@@ -193,9 +197,10 @@ Feature keys are namespaced open data, not a frozen taxonomy.
 Hosts may supply an optional `profile_key(resource)` lookup alias (§6). The gate
 and public inspection use the same key; codecs still bind the original resource.
 Aliases do not establish qualification: undeclared feature coverage remains
-unknown in inspection. WU-44a's DeepSeek profiles name only the verified absence
-of JSON-schema response output on the two selected model ids; positive coverage
-is deliberately not inherited from OpenAI or claimed before edge qualification.
+unknown in inspection. DeepSeek profiles independently qualify JSON-object output
+and reasoning replay for the two selected model ids, and declare JSON-schema
+output absent. Media and conditional sampling coverage remain undeclared; no
+positive feature coverage is inherited from OpenAI (WU-44b).
 
 ### 2.6 `ir.py` — the IR envelope and total decode [frozen-candidate]
 
@@ -495,6 +500,11 @@ context-size and dynamic-search controls stay in registered/scoped lanes.
 Request/part/citation replay refs do not become portable strings or generic
 provider options. An unqualified wire lane is explicitly unsupported even when
 the ref is within scope.
+DeepSeek inspects the effective request after its own provider options expand:
+raw overrides cannot evade reasoning-replay requirements or knob-effect reports.
+Nested extension/options intent without an encode lane is reported. Unknown
+native request/response fields use registered path/value evidence banks, while
+unknown content tags decode as `PartUnknown` (WU-44b).
 
 ### Stream ownership and incomplete execution (WU-24)
 
@@ -599,7 +609,11 @@ weight as a lexicographic `LossGrade` (unsupported+dropped, approximated,
 emulated, hops) — impossible to game with a magic float. The conformance
 harness certifies at build time that an edge's *runtime* `FieldLoss` never
 exceeds its declaration: **an edge claiming lossless that drops a field cannot
-ship.**
+ship.** DeepSeek declares its own unary census and semantic effects despite
+sharing compatible mapping code. Ignored parameters, effort aliases, explicit
+thinking precedence and reasoning concatenation have separate shift records.
+Model-dependent `top_p` remains verbatim with an unsupported finding (G-10);
+an edge cannot infer the resource bound after conversion (WU-44b).
 
 ### 4.3 `catalog.py` — scoped, governed registries
 The old process-global `GRAPHS/SCHEMAS/COMPONENTS` are gone. Plugins export a
@@ -619,7 +633,9 @@ multiple eligible sibling interfaces require an explicit `interface=` pin.
 The chat front door applies this to serveable interfaces, excluding stubs.
 WU-44a proves this with the installed DeepSeek descriptor: entry-point discovery,
 lock composition and identity resolution work, but public chat composition raises
-before provider I/O because no component or conversion edge is registered.
+before provider I/O because no component is registered. WU-44b adds three unary
+edges (canonical request encode, native request audit and native response decode),
+but public execution remains unavailable until WU-45.
 WU-38 adds provisional `HostDescriptor` data in `ocai.convert.hosts`; plugins can
 publish it through `CatalogFragment.hosts` without importing wire. Conflicting
 same-name hosts fail admission; equal declarations are idempotent. `Catalog.host`
@@ -807,10 +823,18 @@ See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 ## 7. Plugins — one subpackage per interface
 
 `ocai-deepseek` is separately packaged and attributable. Its Chat Completions
-variant reuses wire DTOs from `ocai-openai` through a bounded plugin dependency;
-this is data-shape reuse, not a provider SDK or inherited conversion promise.
-WU-44a exports only nodes, traits and conservative profiles. WU-44b owns edge
-qualification and WU-45 owns enabling public unary execution. No new core type
+variant reuses the pure `ChatCompletionsVariant` configuration and compatible
+codec from `ocai-openai` through a bounded plugin dependency. The default OpenAI
+configuration retains its original behavior. DeepSeek supplies independent
+identity, field lanes, finish mappings, request policies, usage normalization,
+profiles and edge contracts. WU-44b qualifies three unary edges with golden
+fixtures; WU-45 owns public execution and WU-46 owns streaming.
+
+Measured prompt cache hits and misses, and output/reasoning tokens, become
+disjoint usage buckets only when their breakdown is available and consistent.
+Otherwise measured aggregates use open source codes `deepseek.prompt_total` and
+`deepseek.completion_total`; missing details never mean zero. Unknown or
+contradictory measurements remain in `deepseek.usage_unmapped`. No new core type
 or non-chat capability schema is introduced.
 
 

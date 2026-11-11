@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "deepseek.request_unmapped",
+  "description": "Native DeepSeek request evidence without claimed conversion support.",
+  "x-ocai-origin": "ocai-deepseek",
+  "x-ocai-promotion": "none expected",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "path",
+      "value"
+    ],
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "value": {}
+    },
+    "additionalProperties": false
+  }
+}

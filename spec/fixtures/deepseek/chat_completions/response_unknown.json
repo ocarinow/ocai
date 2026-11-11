@@ -1,0 +1,165 @@
+{
+  "description": "WU-44b synthetic documented-wire DeepSeek fixture; expectations authored independently from the codec. See provider research section 15.",
+  "src": {
+    "provider": "deepseek",
+    "interface": "chat_completions",
+    "tag": "2026-11",
+    "shape": "chat.response"
+  },
+  "dst": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.response"
+  },
+  "input": {
+    "id": "completion-synthetic",
+    "object": "chat.completion",
+    "created": 1794355200,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Hello.",
+          "reasoning_content": "Use a short greeting."
+        },
+        "finish_reason": "stop",
+        "logprobs": null
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 10,
+      "completion_tokens": 6,
+      "total_tokens": 16,
+      "prompt_cache_hit_tokens": 4,
+      "prompt_cache_miss_tokens": 6,
+      "prompt_tokens_details": {
+        "cached_tokens": 4
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 2
+      }
+    },
+    "future_control": {
+      "mode": "opaque"
+    }
+  },
+  "expect": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "reasoning",
+          "text": "Use a short greeting."
+        },
+        {
+          "version": "2026-07",
+          "type": "text",
+          "text": "Hello."
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "complete",
+      "native": "stop"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 6,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 2,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "deepseek",
+        "interface": "chat_completions",
+        "kind": "response_id",
+        "id": "completion-synthetic",
+        "replay": "optional"
+      },
+      "model": "deepseek-flash",
+      "created": "2026-11-11T00:00:00+00:00"
+    },
+    "raw": {
+      "id": "completion-synthetic",
+      "object": "chat.completion",
+      "created": 1794355200,
+      "model": "deepseek-flash",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Hello.",
+            "reasoning_content": "Use a short greeting."
+          },
+          "finish_reason": "stop",
+          "logprobs": null
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 6,
+        "total_tokens": 16,
+        "prompt_cache_hit_tokens": 4,
+        "prompt_cache_miss_tokens": 6,
+        "prompt_tokens_details": {
+          "cached_tokens": 4
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2
+        }
+      },
+      "future_control": {
+        "mode": "opaque"
+      }
+    },
+    "extensions": {
+      "deepseek.response_unmapped": [
+        {
+          "path": "future_control",
+          "value": {
+            "mode": "opaque"
+          }
+        }
+      ]
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "unmapped",
+      "disposition": "extensions"
+    }
+  ],
+  "expect_shifts": []
+}
