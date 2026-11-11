@@ -29,6 +29,9 @@ includes:
   spec:
     taskfile: ./tasks/spec.Taskfile.yml
     desc: spec/ — schemas and fixtures validation
+  release:
+    taskfile: ./tasks/release.Taskfile.yml
+    desc: Versions and releases — changesets, bumps, changelogs (ADR 0010)
 
 tasks:
   default:

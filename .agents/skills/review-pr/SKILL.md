@@ -43,6 +43,10 @@ stops there until the author fixes it.
 
 - The PR title starts with the WU id (`WU-NN: …`); that is how the board
   card follows it. No id → finding (the board cannot track it).
+- A changeset exists when a published package changed, its levels match
+  the change (an additive field is not a `major`; a removed or renamed
+  public name is not a `patch`), and its note is written for a user. `task
+  release:check` runs the mechanical half.
 - The WU entry in `docs/plans/` follows `docs/plans/WU-TEMPLATE.md`: one
   **Done** bullet that the PR satisfies, a **Goal**, an **Integration**
   bullet that places the change in the architecture (layer, modules, flow;

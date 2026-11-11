@@ -1,0 +1,59 @@
+# Release mechanics (ADR 0010): knope reads the change files in .changeset/,
+# bumps each package's pyproject.toml, writes its CHANGELOG.md, tags
+# `<name>/v<version>`, and creates one GitHub Release per package. Nothing
+# else bumps a version. Repo-specific policy (a change file is required when a
+# package changed) is scripts/release.py, run by the pr-hygiene CI job.
+#
+#   task release:changeset            # knope document-change (interactive) — or write .changeset/<id>.md by hand
+#   Only change files may live in .changeset/ (knope parses every .md there); the guide is docs/releasing.md.
+#   task release:status               # knope release --dry-run: what the next stable release would be
+#   task release:preview:alpha        # knope prerelease --prerelease-label alpha --dry-run
+#   CI: release-alpha.yml on push to dev; release.yml on dispatch (rc) and on the release PR merge (stable)
+
+[packages.ocai]
+versioned_files = ["python/packages/ocai-core/pyproject.toml"]
+changelog = "python/packages/ocai-core/CHANGELOG.md"
+
+[packages.ocai-openai]
+versioned_files = ["python/packages/ocai-openai/pyproject.toml"]
+changelog = "python/packages/ocai-openai/CHANGELOG.md"
+
+[packages.ocai-anthropic]
+versioned_files = ["python/packages/ocai-anthropic/pyproject.toml"]
+changelog = "python/packages/ocai-anthropic/CHANGELOG.md"
+
+# Commit subjects are `WU-NN: …`, not conventional commits: only change files drive versions.
+[changes]
+ignore_conventional_commits = true
+
+[[workflows]]
+name = "document-change"
+help_text = "Create a change file in .changeset/ for the next release (which packages, which level, the note)"
+
+[[workflows.steps]]
+type = "CreateChangeFile"
+
+[[workflows]]
+name = "prepare-release"
+help_text = "Stable release preparation: bump versions, write CHANGELOGs, consume change files (CI opens the release PR from this)"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows]]
+name = "prerelease"
+help_text = "Pre-release preparation (pass --prerelease-label alpha|rc): bump to the next pre-release; change files are kept"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows]]
+name = "release"
+help_text = "After the release PR merged into main: tag each released package `<name>/v<version>` and create its GitHub Release"
+
+[[workflows.steps]]
+type = "Release"
+
+[github]
+owner = "ocarinow"
+repo = "ocai"

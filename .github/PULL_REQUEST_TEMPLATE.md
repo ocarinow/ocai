@@ -21,6 +21,10 @@ WU-__ — <title from docs/plans/>. One WU per PR (rule 17). The PR title starts
 - [ ] `docs/architecture.md` section(s) affected: §__ (updated in this PR)
 - [ ] WU checkbox flipped in `docs/plans/README.md` and the milestone file
 
+## Release
+
+- [ ] A changeset in `.changeset/` names every published package this PR changes with its semver level and a user-facing note, or no published package changed
+
 ## Privacy
 
 - [ ] No AI session link, "Generated with" footer, AI `Co-Authored-By`/`Claude-Session` trailer, agent/task id, or local home path anywhere in this PR's commits, title, body, or files (`scripts/privacy_check.py` is green). The repository is public.

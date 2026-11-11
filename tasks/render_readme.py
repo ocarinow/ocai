@@ -29,6 +29,7 @@ DOMAINS: dict[str, str] = {
     "pr": "Branches, worktrees, pull requests, reviews",
     "board": "The GitHub Project board — cards, sync, maintainer handoffs",
     "spec": "spec/ — schema and fixture validation",
+    "release": "Versions and releases — changesets, bumps, changelogs (ADR 0010)",
 }
 
 HEADER = """# Tasks
