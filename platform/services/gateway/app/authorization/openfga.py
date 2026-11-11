@@ -86,6 +86,7 @@ class FGASettings:
                 and bool(re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", self.model_id))
                 and 32 <= len(self.token) <= 4096
                 and self.token.isascii()
+                and self.token.isprintable()
                 and not any(character.isspace() for character in self.token)
             )
             _ = endpoint.port

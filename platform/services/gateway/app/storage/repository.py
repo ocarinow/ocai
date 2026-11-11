@@ -89,6 +89,16 @@ class Repository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def pending_authorization(self) -> tuple[UUID, ...]:
+        """Maintenance-only discovery of at most ten organization IDs; not a tenant query."""
+        identifiers = await self._session.scalars(
+            select(Organization.id)
+            .where(Organization.desired_revision > Organization.applied_revision)
+            .order_by(Organization.id)
+            .limit(10)
+        )
+        return tuple(identifiers)
+
     async def installation(self) -> InstallationRecord:
         """Read immutable installation identity and pinned authorization deployment."""
         row = await self._session.get(Installation, 1)

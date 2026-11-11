@@ -142,7 +142,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv python install 3.13
       - run: uv sync --project platform/services/gateway --frozen
-      # The platform gate provisions PostgreSQL and Keycloak from pinned digests.
+      # The platform gate provisions PostgreSQL, Keycloak and OpenFGA from pinned digests.
       # Missing Docker must fail the integration job, never silently skip integration.
       - name: Verify Docker for platform integration
         run: docker info --format '{{.ServerVersion}}'

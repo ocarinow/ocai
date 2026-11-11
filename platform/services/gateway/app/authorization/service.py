@@ -49,7 +49,7 @@ class Authorization:
         organization_id: UUID,
         action: Literal["read", "update"],
     ) -> AsyncGenerator[AuthorizedScope]:
-        """Recheck current authority; mutations and their audit commit before releasing it.
+        """Authorize short management work; never hold this context across inference or tools.
 
         Yields:
             Authorized repository and stable actor within this transaction only.
@@ -81,6 +81,18 @@ class Authorization:
                 yield AuthorizedScope(principal, organization_id, repository)
         except StorageError:
             raise AuthorizationUnavailable("Authorization storage is unavailable.") from None
+
+    async def reconcile_pending(self) -> int:
+        """Drain a bounded maintenance batch; each organization retains its own lock/order."""
+        try:
+            async with self._database.transaction() as repository:
+                pending = await repository.pending_authorization()
+        except StorageError:
+            raise AuthorizationUnavailable("Authorization storage is unavailable.") from None
+        applied = 0
+        for organization_id in pending:
+            applied += await self.reconcile(organization_id, limit=10)
+        return applied
 
     async def reconcile(self, organization_id: UUID, *, limit: int = 100) -> int:
         """Apply bounded ordered changes; a crash after a write safely retries the same tuple.

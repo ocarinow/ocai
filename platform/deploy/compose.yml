@@ -37,5 +37,30 @@ services:
       - "127.0.0.1:${OCAI_KEYCLOAK_PORT}:8080"
     volumes:
       - ../../.local/platform/realm.json:/opt/keycloak/data/import/realm.json:ro
+  openfga-migrate:
+    image: ${OCAI_OPENFGA_IMAGE:?Generate local settings first}
+    command: [migrate]
+    profiles: [setup]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &fga_database
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://ocai_openfga:${OCAI_FGA_DATABASE_PASSWORD}@postgres:5432/openfga?sslmode=disable
+  openfga:
+    image: ${OCAI_OPENFGA_IMAGE:?Generate local settings first}
+    command: [run]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *fga_database
+      OPENFGA_AUTHN_METHOD: preshared
+      OPENFGA_AUTHN_PRESHARED_KEYS: ${OCAI_FGA_TOKEN:?Missing local secret}
+      OPENFGA_PLAYGROUND_ENABLED: "false"
+      OPENFGA_LOG_LEVEL: error
+    ports:
+      - "127.0.0.1:${OCAI_FGA_PORT}:8080"
+
 volumes:
   postgres-data:

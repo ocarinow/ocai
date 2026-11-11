@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import os
 from uuid import UUID
 from uuid import uuid4
@@ -45,6 +46,33 @@ async def operate(args: argparse.Namespace) -> None:
             return
         async with httpx.AsyncClient(timeout=2, trust_env=False) as client:
             fga = OpenFGA(fga_settings(local=local), client)
+            if args.operation == "worker":
+                service = Authorization(database, fga)
+                while True:
+                    try:
+                        await fga.open()
+                        applied = await service.reconcile_pending()
+                        if applied:
+                            print(
+                                json.dumps(
+                                    {
+                                        "event": "authorization.projection.completed",
+                                        "revision_count": applied,
+                                    }
+                                ),
+                                flush=True,
+                            )
+                    except AuthorizationUnavailable:
+                        print(
+                            json.dumps(
+                                {
+                                    "event": "authorization.projection.unavailable",
+                                    "outcome": "retrying",
+                                }
+                            ),
+                            flush=True,
+                        )
+                    await asyncio.sleep(2)
             await fga.open()
             if args.operation == "bootstrap":
                 issuer = IssuerSettings(
@@ -78,7 +106,7 @@ async def operate(args: argparse.Namespace) -> None:
 def main() -> int:
     """Keep operator failures sanitized; no token, DSN or provider claim dumps."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("status", "bootstrap", "reconcile"))
+    parser.add_argument("operation", choices=("status", "bootstrap", "reconcile", "worker"))
     parser.add_argument("--local", action="store_true")
     parser.add_argument("--installation")
     parser.add_argument(
@@ -89,6 +117,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         asyncio.run(operate(args))
+    except KeyboardInterrupt:
+        return 130
     except BootstrapConsumed:
         print("Bootstrap is unavailable or already consumed; no owner was created.")
         return 1

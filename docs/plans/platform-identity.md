@@ -190,7 +190,12 @@ change public liveness or foundation status to expose deployment secrets.
 
 ## WU-75 — Bootstrap an organization with synchronized access
 
-- [ ] **Status:** implementation in progress.
+- [x] **Status:** complete (implementation; review pending).
+- **Evidence:** Fourteen authorization tests cover real PostgreSQL/OpenFGA
+  bootstrap races, permission isolation, crash recovery, revocation serialization,
+  suspension, model rejection and bounded reconciliation. Full repository and
+  strict documentation checks pass. The local PostgreSQL-backed deployment was
+  verified from Keycloak login through operator bootstrap and worker projection.
 - **Goal:** Create the first organization owner safely and project explicit organization permissions into OpenFGA without treating partial synchronization as authorization.
 - **Scope:** Operator bootstrap command, initial OpenFGA model/adapter and
   outbox reconciler, principal/membership repository integration, bootstrap and

@@ -365,3 +365,78 @@ async def test_fga_outage_and_suspended_principal_fail_closed(
     with pytest.raises(AccessDenied):
         async with service.transaction(identity("owner"), organization, "read"):
             pytest.fail("Suspension must be effective independently of token or tuple lifetime.")
+
+
+async def test_bounded_worker_batch(database: Database, fga: OpenFGA) -> None:
+    organization = await bootstrap(database, fga)
+    service = Authorization(database, fga)
+    assert await service.reconcile_pending() == 1
+    assert await service.reconcile_pending() == 0
+    async with service.transaction(identity("owner"), organization, "read"):
+        pass
+
+
+async def test_provision_preserves_pinned_identifiers(
+    fga_server: FGAServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.authorization.provision import provision
+
+    monkeypatch.setenv("OCAI_FGA_ENDPOINT", fga_server.endpoint)
+    monkeypatch.setenv("OCAI_FGA_TOKEN", fga_server.token)
+    monkeypatch.setenv("OCAI_FGA_STORE_ID", "")
+    monkeypatch.setenv("OCAI_FGA_MODEL_ID", "")
+    monkeypatch.setenv("OCAI_LOCAL_DEVELOPMENT", "1")
+    first = await provision()
+    for key, value in first.items():
+        monkeypatch.setenv(key, value)
+    assert await provision() == first
+    monkeypatch.setenv("OCAI_FGA_MODEL_ID", "0" * 26)
+    with pytest.raises(AuthorizationUnavailable):
+        await provision()
+
+
+async def test_unqualified_model_and_response_fail_closed(fga: OpenFGA) -> None:
+    async with httpx.AsyncClient(timeout=2, trust_env=False) as client:
+        # Valid OpenFGA model, deliberately outside the reviewed permission contract.
+        model = await client.post(
+            fga.settings.endpoint + f"/stores/{fga.settings.store_id}/authorization-models",
+            json={"schema_version": "1.1", "type_definitions": [{"type": "principal"}]},
+            headers={"Authorization": "Bearer " + fga.settings.token},
+        )
+        assert model.status_code == 201
+        candidate = OpenFGA(
+            FGASettings(
+                fga.settings.endpoint,
+                fga.settings.store_id,
+                model.json()["authorization_model_id"],
+                fga.settings.token,
+                local=True,
+            ),
+            client,
+        )
+        with pytest.raises(AuthorizationUnavailable):
+            await candidate.open()
+
+    def redirect(request: httpx.Request) -> httpx.Response:
+        assert str(request.url).startswith(fga.settings.endpoint)
+        return httpx.Response(302, headers={"location": "https://untrusted.example.test"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(redirect)) as client:
+        with pytest.raises(AuthorizationUnavailable):
+            await OpenFGA(fga.settings, client).open()
+
+
+@pytest.mark.parametrize(
+    "endpoint,store,token",
+    [
+        ("http://remote.example.test", "0" * 26, "a" * 32),
+        ("https://user:secret@example.test", "0" * 26, "a" * 32),
+        ("https://example.test?query=1", "0" * 26, "a" * 32),
+        ("https://example.test", "../stores", "a" * 32),
+        ("https://example.test", "0" * 26, "\x00" * 32),
+    ],
+)
+def test_invalid_fga_configuration(endpoint: str, store: str, token: str) -> None:
+    with pytest.raises(ValueError, match="Invalid authorization configuration"):
+        FGASettings(endpoint, store, "0" * 26, token)
