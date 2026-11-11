@@ -80,6 +80,15 @@ The driver-to-wire exception remains narrow and deferred: HTTP/transport values
 and, in WU-39, the optional host framing selector. The import-linter exception
 names `runtime.drivers → wire.hosting`; plugins still cannot import wire.
 
+Build metadata `tool.ocai.role` distinguishes kernel, codec, credential and host
+distributions (ADR 0020). Defaults preserve the existing kernel/codec layout;
+new credential/host adapters declare their role explicitly. All distributions
+retain shared packaging, typing, release and bounded dependency checks. Only
+codecs require CatalogFragment entry points and core convenience extras. External
+adapters require a named forbidden-import contract excluding httpx and the wire
+transport; credential adapters additionally exclude chat, convert and runtime.
+This is verification metadata, never a process-global runtime registry.
+
 ## 2. `ocai.core` — the contract layer
 
 Nothing in this package performs I/O, imports a third-party module, or knows

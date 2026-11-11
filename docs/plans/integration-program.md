@@ -493,7 +493,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-47a — Validate credential and host distribution roles
 
-- **Status:** 🔄 in progress.
+- **Status:** ✅ complete (PR #129); implementation for review.
 - **Context:** The expanded workspace gate merged in PR #113 assumes every
   non-core distribution exports conversion fragments and is a core convenience
   extra. Running it on WU-47 reports missing ocai.fragments and core aws/all extras.
@@ -543,7 +543,11 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   validation and mandatory adapter import boundaries constrain that route; the
   review still checks package responsibility. Revert is sufficient.
 - **Open:** None; wider satellite roles remain outside this narrow correction.
-- **Evidence:** Pending gate and CLI fixtures.
+- **Evidence:** Thirteen offline CLI cases in
+  python/packages/ocai-core/tests/test_workspace_roles.py pass, including default
+  codecs, explicit adapter roles, required boundaries, typing markers and invalid
+  role rejection. The full expanded gate passes; the final clean commit and
+  verbatim gate summary are recorded in PR #129.
 - **Area:** tooling
 - **Priority:** P0
 - **Tier:** 1

@@ -2,7 +2,7 @@
 
 Adding a distribution touches lists that no tool globs for us: knope's package
 table, uv's workspace sources, mypy's search path and portions, import-linter's
-root packages and the plugin contract, and the core distribution's extras. A
+root packages and role-specific import contracts, plus codec convenience extras. A
 package missing from any of them is silently unreleased, untyped, unchecked, or
 uninstallable through `ocai[<provider>]`. This script makes the wiring a gate
 step (``scripts/check.py`` and the CI ``python`` job)::
@@ -11,7 +11,7 @@ step (``scripts/check.py`` and the CI ``python`` job)::
 
 It also checks the per-distribution invariants that no other step tests: no
 ``ocai/__init__.py`` at the namespace root (rule 1), ``py.typed`` in every
-portion (rule 16), a bounded ``ocai`` dependency range in every plugin, the
+portion (rule 16), a bounded ``ocai`` dependency range in external packages, the
 license identifier, the project URLs, and that ``python/README.md`` lists the
 distribution. Every finding names the file to fix.
 """
@@ -46,12 +46,14 @@ class Distribution:
         path: The distribution directory.
         project: The parsed ``[project]`` table.
         portions: Dotted namespace portions it ships, such as ``ocai.deepseek``.
+        role: Validated build responsibility, independent of provider identity.
     """
 
     name: str
     path: Path
     project: dict[str, Any]
     portions: tuple[str, ...]
+    role: str = "codec"
 
     @property
     def rel(self) -> str:
@@ -60,8 +62,13 @@ class Distribution:
 
     @property
     def is_plugin(self) -> bool:
-        """Whether this is a provider plugin rather than the core distribution."""
+        """Whether this is an external distribution rather than the kernel."""
         return self.name != CORE
+
+    @property
+    def is_codec(self) -> bool:
+        """Whether semantic plugin obligations apply to this distribution."""
+        return self.role == "codec"
 
     @property
     def provider(self) -> str:
@@ -133,7 +140,17 @@ def distributions() -> list[Distribution]:
             if child.is_dir() and (child / "__init__.py").exists()
         )
         found.append(
-            Distribution(str(project.get("name", "")), pyproject.parent, project, portions)
+            Distribution(
+                str(project.get("name", "")),
+                pyproject.parent,
+                project,
+                portions,
+                str(
+                    _table(data, "tool", "ocai").get(
+                        "role", "kernel" if project.get("name") == CORE else "codec"
+                    )
+                ),
+            )
         )
     return found
 
@@ -148,6 +165,10 @@ def check_distribution(dist: Distribution) -> list[str]:
         One finding per violated invariant.
     """
     problems: list[str] = []
+    if dist.role not in {"kernel", "codec", "credential", "host"} or (
+        (dist.name == CORE) != (dist.role == "kernel")
+    ):
+        problems.append(f"{dist.rel}/pyproject.toml: invalid tool.ocai.role {dist.role!r}")
     if (dist.path / "src" / "ocai" / "__init__.py").exists():
         problems.append(f"{dist.rel}/src/ocai/__init__.py exists: PEP 420 namespace root (rule 1)")
     if not dist.portions:
@@ -184,7 +205,7 @@ def check_distribution(dist: Distribution) -> list[str]:
                 f"{dist.rel}/pyproject.toml: plugin must pin a bounded core range "
                 "such as 'ocai>=0.1,<0.2'"
             )
-        if not _table(dist.project, "entry-points", "ocai.fragments"):
+        if dist.is_codec and not _table(dist.project, "entry-points", "ocai.fragments"):
             problems.append(
                 f'{dist.rel}/pyproject.toml: no [project.entry-points."ocai.fragments"]'
             )
@@ -242,11 +263,30 @@ def check_wiring(dists: list[Distribution]) -> list[str]:
                 problems.append(
                     f"pyproject.toml: [tool.importlinter] root_packages lacks {portion}"
                 )
-            if dist.is_plugin and portion not in plugin_sources:
+            if dist.is_codec and portion not in plugin_sources:
                 problems.append(
                     f"pyproject.toml: contract {PLUGIN_CONTRACT!r} source_modules lacks {portion}"
                 )
-        if dist.is_plugin:
+        if dist.role in {"credential", "host"}:
+            required = {"httpx", "ocai.wire.transport"}
+            if dist.role == "credential":
+                required.update({"ocai.chat", "ocai.convert", "ocai.runtime"})
+            boundaries = [
+                contract
+                for contract in _tables(linter.get("contracts"))
+                if contract.get("type") == "forbidden" and contract.get("name")
+            ]
+            problems.extend(
+                f"pyproject.toml: {dist.role} boundary missing for {portion}; "
+                f"must forbid {sorted(required)}"
+                for portion in dist.portions
+                if not any(
+                    portion in _strings(contract.get("source_modules"))
+                    and required <= set(_strings(contract.get("forbidden_modules")))
+                    for contract in boundaries
+                )
+            )
+        if dist.is_codec:
             if _strings(extras.get(dist.provider)) != [dist.name]:
                 problems.append(
                     f"python/packages/ocai-core/pyproject.toml: extra {dist.provider} = "
