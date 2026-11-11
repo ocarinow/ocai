@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: knope-dev/action@v2.1.0
+      - uses: knope-dev/action@v2.1.2
         with:
           version: 0.23.2
       - name: knope release (tags + GitHub Releases from the changelog sections)

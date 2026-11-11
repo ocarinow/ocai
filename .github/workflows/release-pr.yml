@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
 
-      - uses: knope-dev/action@v2.1.0
+      - uses: knope-dev/action@v2.1.2
         with:
           version: 0.23.2
 
