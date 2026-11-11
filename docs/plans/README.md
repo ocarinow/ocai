@@ -80,6 +80,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ✅ Complete (review pending; PR #99) |
 | WU-46a | Preserve response identity through canonical streams ([PR #101](https://github.com/ocarinow/ocai/pull/101)) | Integration | [integration](integration-program.md) | ✅ |
 | WU-46 | Qualify DeepSeek streaming ([#100](https://github.com/ocarinow/ocai/pull/100)) | Integration | [integration](integration-program.md) | ✅ |
+| WU-47a | Validate credential and host distribution roles | Integration | [integration](integration-program.md) | ✅ |
 | WU-47 | Sign independent transport attempts with SigV4 | Integration | [integration](integration-program.md) | ⬜ |
 | WU-48 | Host Anthropic unary calls on Bedrock InvokeModel | Integration | [integration](integration-program.md) | ⬜ |
 | WU-49 | Parse AWS EventStream without I/O | Integration | [integration](integration-program.md) | ⬜ |

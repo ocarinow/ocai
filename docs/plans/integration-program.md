@@ -491,6 +491,68 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Tier:** 1
 - **Owner:** Codex
 
+## WU-47a — Validate credential and host distribution roles
+
+- **Status:** ✅ complete (PR #129); implementation for review.
+- **Context:** The expanded workspace gate merged in PR #113 assumes every
+  non-core distribution exports conversion fragments and is a core convenience
+  extra. Running it on WU-47 reports missing ocai.fragments and core aws/all extras.
+  A credential adapter owns no conversion node; inventing an empty plugin or
+  installing cloud signing through core would hide the architectural distinction.
+- **Goal:** The workspace gate checks each distribution according to its explicit
+  role while retaining shared packaging, typing, release and dependency checks.
+- **Scope:** scripts/workspace_check.py, offline CLI tests, package-role documentation,
+  ADR 0020, this plan and gap G-17; about eight files. Credential/host packages opt
+  into the role in their own WUs; this WU adds no provider package or dependency.
+- **Non-goals:** No kernel runtime, credential, host or semantic conversion change.
+  No exemption from bounded core requirements, namespace/py.typed, URLs, release
+  wiring or docs inventory. No new general satellite role until its boundary is defined.
+- **Acceptance:**
+  - Existing default codec packages still require fragments, the plugin import
+    contract and core extras — python/packages/ocai-core/tests/test_workspace_roles.py.
+  - Explicit credential/host packages pass without fake fragments or core extras,
+    with mandatory named import boundaries — the same offline CLI test module.
+  - Unknown roles, missing boundaries and missing shared metadata fail with a
+    file-specific finding — the same tests.
+- **Done:** Offline workspace CLI tests pass for valid kernel/codec/credential/host
+  layouts and reject missing role-specific or shared obligations.
+- **Deps:** WU-46 for stack sequence; expanded gate PR #113 on main.
+- **Architecture:** §1 distribution boundaries; no frozen runtime contract.
+- **Integration:** Build-time package metadata selects applicable checks; it is not
+  runtime provider discovery. Existing kernel/codec defaults preserve current
+  package behavior. Host/credential roles require explicit pure adapter boundaries.
+- **Design sketch:**
+  ```toml
+  [tool.ocai]
+  role = "credential" # or "host"; existing non-core default is "codec"
+  ```
+  The gate validates the role and its import contract rather than guessing from
+  a distribution's provider name. Kernel remains the sole ocai distribution.
+- **Alternatives considered:** Empty CatalogFragments falsely describe auth as
+  conversion. Per-provider allowlists accumulate special cases. Dropping checks
+  for all external distributions weakens existing plugin guarantees.
+- **Reproduce:** On WU-47, uv run python scripts/workspace_check.py currently
+  reports four findings: fragment, aws extra, all extra and README row. Afterwards
+  correct role metadata removes only the first three inappropriate requirements;
+  the README inventory remains mandatory.
+- **Freeze:** None changed; build metadata and tooling are provisional. Core
+  vocabulary, chat ports/IR, schemas and plugin fragment ABI are untouched.
+- **Decision:** ADR 0020 records explicit role classification, retaining provider
+  neutrality and the maintainer-approved auth/host/codec separation.
+- **Risks:** Misdeclaring a role could bypass codec-specific checks. Closed role
+  validation and mandatory adapter import boundaries constrain that route; the
+  review still checks package responsibility. Revert is sufficient.
+- **Open:** None; wider satellite roles remain outside this narrow correction.
+- **Evidence:** Thirteen offline CLI cases in
+  python/packages/ocai-core/tests/test_workspace_roles.py pass, including default
+  codecs, explicit adapter roles, required boundaries, typing markers and invalid
+  role rejection. The full expanded gate passes; the final clean commit and
+  verbatim gate summary are recorded in PR #129.
+- **Area:** tooling
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
+
 ## WU-47 — Sign independent transport attempts with SigV4
 
 - [ ] **Status:** not started.

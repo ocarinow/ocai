@@ -160,3 +160,15 @@ plugin must honour to serve live calls.
 
 Source-available under FSL-1.1-ALv2; ocai is not open source. See
 [LICENSE](../LICENSE).
+
+
+## Package responsibilities
+
+The workspace gate reads optional `[tool.ocai] role = "credential"` or `"host"`
+metadata for external adapters. Existing provider packages default to `codec`;
+`ocai` defaults to `kernel`. Codecs register catalog fragments and convenience
+extras. Credentials and service hosts register no fake conversion fragment and
+need not enter the kernel's aggregate extra; install them explicitly. They still
+need release/typing/metadata wiring and a named import boundary forbidding direct
+HTTP transport ownership. Credential adapters additionally stay independent of
+chat, conversion and runtime modules. Unknown or misplaced roles fail the gate.

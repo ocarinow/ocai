@@ -50,3 +50,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0012](0012-shadcn-component-layer.md) | Full upstream shadcn-vue component layer | accepted |
 | [0014](0014-host-selected-stream-framing.md) | Host-selected stream framing before semantic conversion | proposed (WU-39 implementation for review) |
 | [0015](0015-stream-response-info.md) | Preserve response identity through canonical streams | accepted direction; implementation for review |
+| [0020](0020-distribution-roles.md) | Distribution roles in the workspace gate | proposed (WU-47a) |
