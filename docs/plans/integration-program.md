@@ -594,6 +594,90 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Tier:** 1
 - **Owner:** Codex
 
+## WU-48a — Preserve and adapt host error outcomes
+
+- **Status:** 🔄 in progress; approved reusable remediation for G-13.
+- **Context:** WU-48 cannot map a header-only native error because transport drops
+  response headers. An HTTP 400 with x-amzn-ErrorType=ThrottlingException becomes
+  OcaiError(code=None). The maintainer approved reusable host outcome contracts,
+  with provider mappings external and no SDK details exposed to library users.
+- **Goal:** Any host can classify detached native HTTP failure evidence through
+  a public pure adapter before policies decide whether to retry, in all four
+  execution faces, without provider conditions in transport or drivers.
+- **Scope:** Core error evidence fields; wire HostErrorMapper/ErrorMappingHost;
+  transport capture, shared runtime refinement, preparation identity; recorded
+  pairs, behavioral tests and architecture; approximately 16–22 files.
+- **Non-goals:** Successful host metadata/fidelity effects belong to WU-48b.
+  Bedrock mappings belong to WU-48. No new conversion edge, SDK dependency,
+  capability schema, stream restart, automatic audit export or authentication.
+- **Acceptance:**
+  - Two independently configured hosts map recorded header codes in sync/async
+    unary and stream-opening failures — `python/packages/ocai-core/tests/test_host_errors.py`.
+  - Error headers/body remain detached, native evidence survives refinement,
+    decline uses legacy fallback, and mapper failure fails closed —
+    `python/packages/ocai-core/tests/test_host_errors.py`.
+  - Retry hooks and observations see the mapped classification; concurrent calls,
+    credentials, retained request references and stream cleanup stay isolated —
+    `python/packages/ocai-core/tests/test_host_errors.py`.
+  - Changing mapper options or implementation invalidates prepared execution
+    before I/O — `python/packages/ocai-core/tests/test_host_errors.py`.
+- **Done:** Recorded failure tests pass with the same native identity, detached
+  evidence, mapped policy behavior and preparation validation across both drivers
+  and unary/streaming, while hosts without a mapper retain existing behavior.
+- **Deps:** WU-47 (program sequence); ADR 0017.
+- **Architecture:** §2.9, §3.3, §5–7.
+- **Integration:** Transport captures native evidence on an ocai error; the driver
+  invokes the selected pure host mapper, then uses the dialect refiner only when
+  the host declines; policies see the resulting ocai taxonomy. The facade snapshots
+  mapper configuration with preparation. No authenticated request enters a mapper.
+  ```mermaid
+  flowchart LR
+    Transport --> NativeError[OcaiError with response evidence]
+    NativeError --> HostMapper[Optional host mapper]
+    HostMapper --> Policies[Outcome policies]
+    HostMapper -->|decline| Dialect[Existing dialect refiner]
+    Dialect --> Policies
+  ```
+- **Design sketch:**
+  ```python
+  # Additive keyword-only native evidence on the existing core exception:
+  OcaiError(..., response_headers: Mapping[str, str] | None = None,
+            response_body: bytes | None = None)
+  # Provisional wire declaration, snapshotted like StreamFraming:
+  HostErrorMapper(name, mapper, options={})
+  # mapper(error_copy, options_copy) -> OcaiError | None
+  class ErrorMappingHost(Protocol):
+      def error_mapper(self, spec: EndpointSpec) -> HostErrorMapper | None: ...
+  ```
+- **Before / after:** Previously headers disappear and policy sees generic HTTP
+  classification; afterwards explicit host mapping retains native evidence and
+  supplies the canonical classification. None means unavailable evidence, not an
+  empty successful capture. The original body bytes are retained independently
+  from best-effort parsed raw JSON.
+- **Alternatives considered:** Replacing the transport exception taxonomy would
+  break existing callers. Provider-specific transport subclasses require private
+  access. A generic optional mapper plus additive evidence preserves compatibility.
+- **Reproduce:** The offline G-13 example in Bedrock research section 15 is the
+  motivation; new tests reproduce it with a pure test host, not a Bedrock driver.
+- **Freeze:** Additive OcaiError response_headers/response_body under ADR 0017;
+  no removal or renaming, no chat/core serialized schema change. Wire host seam
+  remains provisional under the existing freeze gate.
+- **Decision:** Maintainer approved the reusable remediation on 2026-11-11.
+  ADR 0017 specifies host precedence, fallback, privacy, failure and preparation
+  identity. No provider SDK object crosses the adapter contract.
+- **Risks:** Error evidence can contain application data; observers do not export
+  it and archival code must redact it. Mapper declarations must include effective
+  options instead of hidden mutable state. Reverting the optional mapper seam
+  restores legacy execution; no fixture/node migration is needed.
+- **Dependency impact:** Unblocks G-13 for WU-48; G-14 remains WU-48b. WU-48's
+  existing draft is restacked after these prerequisites, avoiding a dependency cycle.
+- **Open:** none within this approved error-adaptation scope.
+- **Evidence:** pending implementation and full gate.
+- **Area:** wire
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
+
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 
 - [ ] **Status:** not started.
