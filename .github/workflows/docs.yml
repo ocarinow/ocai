@@ -1,7 +1,7 @@
 name: Docs
 
 # Builds the Zensical documentation site. The `docs` job is a required status
-# check on main (ADR 0002), so it runs on every pull request and decides
+# check on main (ADR 0002), so it runs on every code event and decides
 # inside the job whether the docs changed; when they did not, it reports
 # success in seconds. A push to main that touches the docs builds again and
 # deploys the result to GitHub Pages at https://ocarinow.github.io/ocai/ .
@@ -24,7 +24,7 @@ permissions:
 # One Pages deployment at a time (never cancel an in-flight deploy); one live
 # build per pull request (a new push cancels the superseded one).
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}-{1}', github.event.pull_request.number, (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null) && 'metadata' || 'code') || 'pages' }}
+  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}-{1}', github.event.pull_request.number, (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null) && 'metadata' || 'code') || (github.event_name == 'schedule' && format('docs-full-{0}', github.run_id) || 'pages') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -79,14 +79,14 @@ jobs:
         run: uv run python scripts/docs_check.py
 
       - name: Upload Pages artifact
-        if: (steps.changes.outputs.run == 'true') && github.event_name == 'push'
+        if: steps.changes.outputs.run == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
   deploy:
     name: deploy
-    if: github.event_name == 'push' && needs.docs.outputs.pages_enabled == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.docs.outputs.pages_enabled == 'true'
     needs: docs
     runs-on: ubuntu-latest
     timeout-minutes: 10

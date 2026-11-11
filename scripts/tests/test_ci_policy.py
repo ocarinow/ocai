@@ -172,3 +172,21 @@ def test_board_body_event_cannot_supersede_pending_sync() -> None:
             r"\$\{\{(.*?)\}\}", lambda m, ctx=context: str(expression(m[1], ctx)), group[1]
         )
         assert rendered == "board-sync-" + suffix
+
+
+def test_nightly_docs_does_not_supersede_pages_and_manual_deploy_remains() -> None:
+    text = (ROOT / ".github/workflows/docs.yml").read_text()
+    group = re.search(r"^  group: (.+)$", text, re.MULTILINE)
+    assert group
+    for event, expected in [
+        ("schedule", "docs-full-7"),
+        ("push", "pages"),
+        ("workflow_dispatch", "pages"),
+    ]:
+        context: dict[str, Any] = {
+            "github": {"event_name": event, "event": {}, "run_id": 7},
+            "needs": {"docs": {"outputs": {"pages_enabled": "true"}}},
+        }
+        assert expression(group[1], context) == expected
+        condition = value(workflow_job("docs.yml", "deploy"), "if")
+        assert bool(expression(condition, context)) == (event != "schedule")

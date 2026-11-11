@@ -18,6 +18,7 @@ from ci_scope import git_paths
         "pyproject.toml",
         "uv.lock",
         ".node-version",
+        ".gitignore",
         "scripts/ci_scope.py",
         ".github/workflows/ci.yml",
         "unknown-new-tool.toml",
@@ -41,6 +42,7 @@ def test_docs_only_keeps_code_suites_unaffected() -> None:
         "python/packages/ocai-core/src/ocai/core/result.py",
         "spec/schema/chat.json",
         "platform/package-lock.json",
+        "scripts/serve_platform.py",
     ],
 )
 def test_platform_inputs_include_shared_contracts(path: str) -> None:

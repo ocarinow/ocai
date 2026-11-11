@@ -4,7 +4,7 @@ Maintainer request: “Could you make all those changes in a single PR?”
 
 ## WU-106 — Reduce CI waiting without weakening validation
 
-- **Status:** 🔄 in progress
+- **Status:** ✅ complete (PR #123)
 - **Context:** PR metadata edits restart expensive validation; independent checks run
   sequentially and path policies differ between local verification and CI.
 - **Goal:** Each relevant revision receives all required validation once, while metadata
@@ -47,7 +47,13 @@ Maintainer request: “Could you make all those changes in a single PR?”
   fail-open selection (run everything), and forced full runs bound that risk. Revert
   restores the previous scheduling without changing product data.
 - **Open:** none.
-- **Evidence:** Pending verification.
+- **Evidence:** 38 tooling regression cases pass; no fixtures or wire pairs added.
+  Full gate baseline: `gate: 2018ee8` / `all checks passed.`; the final committed
+  gate summary is pasted in PR #123. Both Python versions and all required live
+  checks passed. A live body edit created no code/docs/board runner jobs and
+  retained prior required code results. Platform timing on one installed local
+  environment: 49.0s serial, 35.2s concurrent (not a population estimate).
+  The live ruleset audit reported all nine desired checks already enforced.
 - **Area:** tooling
 - **Priority:** P1
 - **Tier:** program

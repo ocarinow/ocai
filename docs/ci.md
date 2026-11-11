@@ -15,10 +15,11 @@ real service integration and browser coverage remain pre-merge checks when relev
 | Nightly or manual full run | Full code suites, independent of paths |
 
 A body edit still appears as an Actions event, but code jobs are skipped **under
-separate names** ending in `(metadata event)`. They do not allocate runners and
+separate names** containing `(metadata event)`. GitHub may show the unevaluated
+name expression for a job skipped before scheduling. These jobs allocate no runners and
 cannot overwrite `python`, `platform`, or another required code result. Their
 concurrency group is separate too: editing prose cannot cancel running tests.
-New code cancels superseded PR code runs. Main runs use unique groups; Pages
+New code cancels superseded PR code runs. Main code runs use unique groups; scheduled docs builds have a separate group. Pages
 publishing remains serialized and is never cancelled in flight.
 
 ## Impact selection
@@ -78,11 +79,12 @@ Regression tests under `scripts/tests/` exercise the checked-in routing
 expressions, full diffs, renames/deletions, uncertain history, shared configuration,
 large diffs, platform failures and ruleset preservation. Run the complete gate,
 then verify a PR body edit produces metadata jobs without starting or replacing
-required code checks. A ready transition must do the same. Base changes force a
+required code checks. This was verified on PR #123: a body edit allocated no
+code/docs/board runners and preserved the previous code-check results. A ready transition must do the same. Base changes force a
 fresh full validation.
 
 The desired checks are `python`, `python-next`, `privacy`, `pr-hygiene`,
-`platform`, `docs`, `workflows`, `semgrep`, and `dependency-review`. The repository
+`platform`, `docs`, `workflows`, `semgrep`, and `dependency-review`. A live read-only audit during WU-106 found all nine already required. The repository
 ruleset is external state and cannot be activated by a source-code PR alone.
 After the workflow change merges, prepare and review the minimal update:
 
