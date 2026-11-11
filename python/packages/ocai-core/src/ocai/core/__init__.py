@@ -2,7 +2,7 @@
 
 Everything a user, plugin author, or auditor touches is a frozen,
 zero-dependency data contract, and it lives here: nothing in this package
-performs I/O, imports a third-party module, or knows HTTP exists. It is the
+performs I/O, imports a third-party module, or depends on a transport implementation. It is the
 surface a bank audits once and the shapes the future TypeScript/Go ports
 mirror from `spec/`.
 
@@ -54,6 +54,7 @@ from ocai.core.errors import RateLimitError
 from ocai.core.errors import TransientError
 from ocai.core.errors import UnsupportedFeatureError
 from ocai.core.errors import error_from_response
+from ocai.core.evidence import HostEvidence
 from ocai.core.fidelity import Disposition
 from ocai.core.fidelity import EdgeReport
 from ocai.core.fidelity import FidelityReport
@@ -162,6 +163,7 @@ __all__ = [
     "FidelityReport",
     "FieldLoss",
     "HostEffectReport",
+    "HostEvidence",
     "FinishDetail",
     "FinishInfo",
     "FinishReason",

@@ -55,6 +55,7 @@ from ocai.chat.types.stream import ChatChunk
 from ocai.chat.types.stream import ChatStream
 from ocai.chat.types.stream import ChunkType
 from ocai.chat.types.stream import StreamEnd
+from ocai.convert.host_effects import HostContractError
 from ocai.convert.inspection import ExecutionInspection
 from ocai.convert.inspection import FeatureCoverage
 from ocai.core.canonjson import canonical
@@ -95,9 +96,11 @@ from ocai.wire.framing import StreamFraming
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
 from ocai.wire.hosting import host_error_mapper
+from ocai.wire.hosting import host_response_adapter
 from ocai.wire.hosting import profile_key
 from ocai.wire.hosting import stream_framing
 from ocai.wire.outcomes import HostErrorMapper
+from ocai.wire.outcomes import HostResponseAdapter
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -114,6 +117,7 @@ if TYPE_CHECKING:
     from ocai.runtime.binding import Binding
     from ocai.runtime.decisions import WirePolicy
     from ocai.runtime.interceptors import CallInterceptor
+    from ocai.wire.http import DriverResponse
     from ocai.wire.http import HttpRequest
 
 
@@ -290,6 +294,7 @@ class _PreparedCall:
     report: FidelityReport
     framing: StreamFraming | None = None
     error_mapping: HostErrorMapper | None = None
+    response_adapter: HostResponseAdapter | None = None
 
 
 class StalePreparationError(OcaiError):
@@ -517,6 +522,7 @@ class WireChatModel:
         """Identify effective wire/configuration semantics without credentials."""
         _, request = build_request(self._binding, prepared.spec, prepared.payload)
         mapping = host_error_mapper(self._binding.host, prepared.spec)
+        adapter = host_response_adapter(self._binding.host, prepared.spec)
         return hashlib.sha256(
             canonical(
                 {
@@ -533,6 +539,7 @@ class WireChatModel:
                         else None
                     ),
                     "host_error_mapping": mapping.configuration_id if mapping is not None else None,
+            "host_response_adapter": adapter.configuration_id if adapter is not None else None,
                     "policy": id(self._conversion_policy) if self._conversion_policy else None,
                 }
             ).encode()
@@ -567,13 +574,10 @@ class WireChatModel:
             self._catalog.inspect(
                 response_src,
                 CANONICAL_CHAT_CHUNK if streaming else CANONICAL_CHAT_RESPONSE,
-                streaming=streaming,
-            ),
-            tuple(profiles),
-            coverage,
-            prepared.report,
-            self._configuration(prepared),
-            streaming,
+                                  streaming=streaming),
+            tuple(profiles), coverage, prepared.report, self._configuration(prepared), streaming,
+            host_effects=(prepared.response_adapter.declaration,)
+            if prepared.response_adapter is not None else (),
         )
         _, wire = build_request(self._binding, prepared.spec, prepared.payload)
         identity, wire_identity = inspection.configuration_id, _wire_identity(wire)
@@ -813,6 +817,9 @@ class WireChatModel:
         # physically going (the audit joint's `host` lane) after the spec
         # exists, so resolution itself never knows clouds exist.
         route = replace(route, host=self._binding.host.endpoint(spec))
+        adapter = host_response_adapter(self._binding.host, spec)
+        if streaming and adapter is not None:
+            raise CompositionError("selected host response adapter supports unary execution only")
         return _PreparedCall(
             route=route,
             spec=spec,
@@ -820,6 +827,7 @@ class WireChatModel:
             report=report,
             framing=stream_framing(self._binding.host, spec) if streaming else None,
             error_mapping=host_error_mapper(self._binding.host, spec),
+            response_adapter=adapter,
         )
 
     def _response_node(self, request_node: NodeId) -> NodeId:
@@ -893,7 +901,8 @@ class WireChatModel:
             "the serving fragment must publish the chunk shape it streams"
         )
 
-    def _assemble(self, prepared: _PreparedCall, raw: dict[str, Any]) -> CallResult[ChatResponse]:
+    def _assemble(self, prepared: _PreparedCall, raw: dict[str, Any],
+                  driver_response: DriverResponse | None = None) -> CallResult[ChatResponse]:
         """Run the post-send lifecycle: decode → merge reports → envelope.
 
         The response leg of §8, shared between `chat` and `achat`. The raw
@@ -904,6 +913,7 @@ class WireChatModel:
         Args:
             prepared: The call's pre-send preamble.
             raw: The raw response body the driver returned, untouched.
+            driver_response: Detached native response for an approved host adapter.
 
         Returns:
             The uniform envelope: value, route, two-leg report, usage, raw.
@@ -912,18 +922,36 @@ class WireChatModel:
             ConversionError: If no conversion path decodes the response
                 node.
         """
+        adapted = None
+        if prepared.response_adapter is not None:
+            if driver_response is None:
+                raise CompositionError("selected host adapter requires native response evidence")
+            adapted = prepared.response_adapter.apply(driver_response.response, raw)
         decoded = self._catalog.convert(
-            raw, self._response_node(prepared.route.node), CANONICAL_CHAT_RESPONSE
+            adapted.payload if adapted is not None else raw,
+            self._response_node(prepared.route.node), CANONICAL_CHAT_RESPONSE
         )
         response: ChatResponse = decoded.value
         report = prepared.report.merge(decoded.report)
+        if adapted is not None:
+            report.hosts.append(adapted.report)
+            if adapted.violations:
+                raise HostContractError(report, adapted.violations, response.usage, prepared.route)
+            if adapted.error is not None:
+                error = adapted.error
+                error.report = deepcopy(report)
+                error.usage = deepcopy(response.usage)
+                error.host_evidence = deepcopy(adapted.evidence)
+                error.status = adapted.evidence.response_status
+                error.response_headers = deepcopy(adapted.evidence.response_headers)
+                error.response_body = adapted.evidence.response_body
+                raise error
         if self._conversion_policy is not None:
-            self._conversion_policy.enforce(
-                report, phase="response", usage=response.usage, route=prepared.route
-            )
-        return CallResult(
-            value=response, route=prepared.route, report=report, usage=response.usage, raw=raw
-        )
+            self._conversion_policy.enforce(report, phase="response", usage=response.usage,
+                                            route=prepared.route)
+        return CallResult(value=response, route=prepared.route, report=report,
+                          usage=response.usage, raw=raw,
+                          host_evidence=adapted.evidence if adapted is not None else None)
 
     def _stamp_stream_report(
         self, terminal: ChatChunk, prepared: _PreparedCall, pipeline: StreamPipeline
@@ -1093,7 +1121,7 @@ class WireChatModel:
         budget = Deadline(ctx)
         budget.remaining()
         prepared = bound.consume(request, streaming=False)
-        raw = self._sync_driver.execute(
+        driver_response = self._sync_driver.execute_response(
             spec=prepared.spec,
             payload=prepared.payload,
             ctx=ctx,
@@ -1102,7 +1130,7 @@ class WireChatModel:
             refine_error=self._refine_error,
             error_mapping=prepared.error_mapping,
         )
-        result = self._assemble(prepared, raw)
+        result = self._assemble(prepared, driver_response.payload, driver_response)
         budget.remaining()
         return result
 
@@ -1139,7 +1167,7 @@ class WireChatModel:
         budget = Deadline(ctx)
         budget.remaining()
         prepared = bound.consume(request, streaming=False)
-        raw = await self._async_driver.execute(
+        driver_response = await self._async_driver.execute_response(
             spec=prepared.spec,
             payload=prepared.payload,
             ctx=ctx,
@@ -1148,7 +1176,7 @@ class WireChatModel:
             refine_error=self._refine_error,
             error_mapping=prepared.error_mapping,
         )
-        result = self._assemble(prepared, raw)
+        result = self._assemble(prepared, driver_response.payload, driver_response)
         budget.remaining()
         return result
 
@@ -1482,13 +1510,11 @@ class ObservedChatModel:
             result = self._inner.chat(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(
-                    status="rejected" if error.phase == "request" else "failed",
-                    error=error,
-                    usage=error.usage,
-                    report=error.report,
-                    route=error.route,
-                )
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            elif isinstance(error, OcaiError):
+                scope.finish(status=failure_status(error), error=error,
+                             usage=error.usage, report=error.report)
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1504,13 +1530,11 @@ class ObservedChatModel:
             result = await self._inner.achat(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(
-                    status="rejected" if error.phase == "request" else "failed",
-                    error=error,
-                    usage=error.usage,
-                    report=error.report,
-                    route=error.route,
-                )
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            elif isinstance(error, OcaiError):
+                scope.finish(status=failure_status(error), error=error,
+                             usage=error.usage, report=error.report)
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1524,13 +1548,11 @@ class ObservedChatModel:
             stream = self._inner.stream(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(
-                    status="rejected" if error.phase == "request" else "failed",
-                    error=error,
-                    usage=error.usage,
-                    report=error.report,
-                    route=error.route,
-                )
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            elif isinstance(error, OcaiError):
+                scope.finish(status=failure_status(error), error=error,
+                             usage=error.usage, report=error.report)
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1557,13 +1579,11 @@ class ObservedChatModel:
             stream = await self._inner.astream(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(
-                    status="rejected" if error.phase == "request" else "failed",
-                    error=error,
-                    usage=error.usage,
-                    report=error.report,
-                    route=error.route,
-                )
+                scope.finish(status="rejected" if error.phase == "request" else "failed",
+                             error=error, usage=error.usage, report=error.report, route=error.route)
+            elif isinstance(error, OcaiError):
+                scope.finish(status=failure_status(error), error=error,
+                             usage=error.usage, report=error.report)
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise

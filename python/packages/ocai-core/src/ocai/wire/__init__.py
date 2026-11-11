@@ -29,10 +29,14 @@ from ocai.wire.hosting import FramingHost
 from ocai.wire.hosting import Host
 from ocai.wire.hosting import IdentityEnvelope
 from ocai.wire.hosting import Operation
+from ocai.wire.hosting import ResponseMappingHost
 from ocai.wire.hosting import Vertex
+from ocai.wire.http import DriverResponse
 from ocai.wire.http import HttpRequest
 from ocai.wire.http import HttpResponse
+from ocai.wire.outcomes import HostAdaptation
 from ocai.wire.outcomes import HostErrorMapper
+from ocai.wire.outcomes import HostResponseAdapter
 from ocai.wire.policies import RateLimitPolicy
 from ocai.wire.policies import RetryPolicy
 from ocai.wire.policies import WireTap
@@ -49,10 +53,14 @@ __all__ = [
     "EndpointSpec",
     "EnvelopeTransform",
     "ErrorMappingHost",
+    "ResponseMappingHost",
     "HostErrorMapper",
+    "HostResponseAdapter",
+    "HostAdaptation",
     "FramingHost",
     "Host",
     "HttpRequest",
+    "DriverResponse",
     "HttpResponse",
     "HttpxTransport",
     "IdentityEnvelope",

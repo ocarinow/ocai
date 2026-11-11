@@ -36,8 +36,9 @@ and optional ocai error. The facade decodes the dialect payload, merges exactly 
 host report, retains known usage and enforces the existing FidelityPolicy. A census
 breach fails closed with full report/accounting. A blocked outcome retains its
 neutral error taxonomy and native evidence. Invalid or raising callbacks produce a
-sanitized ocai failure, with no callback text or SDK exception chain. Authorized
-application code can inspect evidence; passive observers never export it.
+sanitized ocai failure, with no callback text or SDK exception chain. Fidelity-policy and census rejection retain report/usage but omit host_evidence
+as well as raw payload, preserving their existing non-disclosure contract. Authorized
+application code can inspect evidence on permitted results and host taxonomy errors; passive observers never export it.
 
 This first adapter is unary-only. Selecting it for streaming raises before provider
 I/O. A separate WU must define stream response-head capture, incremental effect

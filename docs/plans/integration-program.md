@@ -763,7 +763,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-48c — Adapt unary host responses with governed evidence
 
-- **Status:** 🔄 defined; approved reusable host outcome remediation.
+- [x] **Status:** ✅ implemented; PR #116 review pending.
 - **Context:** G-14 remains after WU-48b: a report can represent host effects but
   the driver still discards successful headers when returning unwrapped JSON.
   For example, a host service-tier header disappears and a host masking action
@@ -842,7 +842,10 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   execution without schema or node migration.
 - **Open:** None for unary adaptation. Streaming response headers, effect timing
   and partial evidence are a separate required follow-up before stream support.
-- **Evidence:** Pending implementation and full gate.
+- **Evidence:** `test_host_responses.py`: 33 passing recorded behavior cases for
+  both hosts/drivers, inspection, declared findings, policy/census rejection, known
+  usage, blocked taxonomy, snapshots, retry/Return selection, concurrency, lifecycle
+  privacy and zero-I/O streaming rejection. Full gate summary is in PR #116.
 - **Area:** wire
 - **Priority:** P0
 - **Tier:** 1
