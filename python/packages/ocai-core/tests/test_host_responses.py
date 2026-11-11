@@ -51,8 +51,9 @@ from ocai.wire.http import HttpResponse
 from ocai.wire.transport import HttpxTransport
 
 HTTP = Path(__file__).parent / "http"
-REQUEST = ChatRequest(messages=[Message.system("You are concise."),
-                                Message.user("Hello, who are you?")])
+REQUEST = ChatRequest(
+    messages=[Message.system("You are concise."), Message.user("Hello, who are you?")]
+)
 MASK = SemanticShift("test.masking", "output", "Synthetic host masked output before decoding")
 
 
@@ -60,22 +61,33 @@ def _pair(name: str) -> dict[str, Any]:
     return json.loads((HTTP / f"host_response_{name}.json").read_text())
 
 
-def _adapt(response: HttpResponse, payload: dict[str, Any], options: dict[str, Any]
-           ) -> HostAdaptation:
+def _adapt(
+    response: HttpResponse, payload: dict[str, Any], options: dict[str, Any]
+) -> HostAdaptation:
     assert "sk-private" not in repr((response, payload, options))
     if "result" in payload:
         body = payload["result"]
         metadata = payload["host"]
-        losses = (FieldLoss("body.result", Disposition.RENAMED),
-                  FieldLoss("body.host", Disposition.RENAMED))
+        losses = (
+            FieldLoss("body.result", Disposition.RENAMED),
+            FieldLoss("body.host", Disposition.RENAMED),
+        )
     else:
         body = payload
-        metadata = {"action": body.pop("host_action"),
-                    "tier": response.headers[options["tier_header"]]}
+        metadata = {
+            "action": body.pop("host_action"),
+            "tier": response.headers[options["tier_header"]],
+        }
         losses = (FieldLoss("body.host_action", Disposition.RENAMED),)
-    return HostAdaptation(body, metadata, losses, (MASK,),
-        ContentFilterError("host blocked output", code="test.blocked") if options.get("block")
-        else None)
+    return HostAdaptation(
+        body,
+        metadata,
+        losses,
+        (MASK,),
+        ContentFilterError("host blocked output", code="test.blocked")
+        if options.get("block")
+        else None,
+    )
 
 
 @dataclass(frozen=True)
@@ -87,8 +99,13 @@ class ResponseHost(Direct):
 
 
 class Record:
-    def __init__(self, *, retry: bool = False, returned: HttpResponse | None = None,
-                 admission_return: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        retry: bool = False,
+        returned: HttpResponse | None = None,
+        admission_return: bool = False,
+    ) -> None:
         self.requests: list[HttpRequest] = []
         self.events: list[ObserveEvent] = []
         self.retry = retry
@@ -110,40 +127,61 @@ class Record:
         self.events.append(event)
 
     def assert_safe(self) -> None:
-        assert all("authorization" not in {k.lower() for k in request.headers}
-                   for request in self.requests)
+        assert all(
+            "authorization" not in {k.lower() for k in request.headers} for request in self.requests
+        )
         assert "sk-private" not in repr((self.requests, self.events))
         assert "x-native-evidence" not in repr(self.events)
         assert "host_action" not in repr(self.events)
 
 
 def _mapping(name: str) -> HostResponseAdapter:
-    contract = HostEffectContract({path: DeclaredDisposition(Disposition.RENAMED)
-        for path in ("body.host_action", "body.result", "body.host")}, (MASK,))
-    return HostResponseAdapter(name, "test-adapter@1", _adapt, contract,
-                                {"tier_header": "x-host-tier"})
+    contract = HostEffectContract(
+        {
+            path: DeclaredDisposition(Disposition.RENAMED)
+            for path in ("body.host_action", "body.result", "body.host")
+        },
+        (MASK,),
+    )
+    return HostResponseAdapter(
+        name, "test-adapter@1", _adapt, contract, {"tier_header": "x-host-tier"}
+    )
 
 
-def _model(name: str, record: Record, *, mapping: HostResponseAdapter | None = None,
-           policy: FidelityPolicy | None = None
-           ) -> tuple[WireChatModel, HttpxTransport, ResponseHost]:
+def _model(
+    name: str,
+    record: Record,
+    *,
+    mapping: HostResponseAdapter | None = None,
+    policy: FidelityPolicy | None = None,
+) -> tuple[WireChatModel, HttpxTransport, ResponseHost]:
     host = ResponseHost(f"https://{name}-host.test", mapping or _mapping(name))
     transport = HttpxTransport()
-    model = WireChatModel(ChatCompletionsCodec(),
-        Binding(host, ApiKey("sk-private"), transport), Catalog.of(ocai.openai.FRAGMENT),
-        model_name="gpt-4o", policies=[record], attempt_observers=[record],
-        conversion_policy=policy)
+    model = WireChatModel(
+        ChatCompletionsCodec(),
+        Binding(host, ApiKey("sk-private"), transport),
+        Catalog.of(ocai.openai.FRAGMENT),
+        model_name="gpt-4o",
+        policies=[record],
+        attempt_observers=[record],
+        conversion_policy=policy,
+    )
     return model, transport, host
 
 
 def _mount(name: str, record: Record) -> respx.Route:
     pair = _pair(name)
+
     def respond(request: httpx.Request) -> httpx.Response:
         assert json.loads(request.content) == pair["request"]["json"]
         assert request.headers["authorization"] == "Bearer sk-private"
         record.assert_safe()
-        return httpx.Response(200, headers=pair["response"]["headers"],
-                              content=json.dumps(pair["response"]["json"]).encode())
+        return httpx.Response(
+            200,
+            headers=pair["response"]["headers"],
+            content=json.dumps(pair["response"]["json"]).encode(),
+        )
+
     return respx.post(pair["request"]["url"]).mock(side_effect=respond)
 
 
@@ -160,8 +198,11 @@ async def test_prepared_host_response_evidence(name: str, asynchronous: bool) ->
     assert declaration.contract.identity == host.mapping.contract.identity
     assert not prepared.inspection.request_report.hosts
     try:
-        result = (await prepared.achat(ctx=CallContext(call_id=name)) if asynchronous
-                  else prepared.chat(ctx=CallContext(call_id=name)))
+        result = (
+            await prepared.achat(ctx=CallContext(call_id=name))
+            if asynchronous
+            else prepared.chat(ctx=CallContext(call_id=name))
+        )
     finally:
         transport.close()
         await transport.aclose()
@@ -187,18 +228,25 @@ async def test_prepared_host_response_evidence(name: str, asynchronous: bool) ->
 @pytest.mark.parametrize("kind", ["semantic", "field", "census", "blocked"])
 @respx.mock
 async def test_rejected_host_outcomes_retain_known_accounting(
-    asynchronous: bool, kind: str,
+    asynchronous: bool,
+    kind: str,
 ) -> None:
     mapping = _mapping("filter")
     if kind == "census":
-        mapping = HostResponseAdapter(mapping.host, mapping.name, _adapt,
-                                      HostEffectContract(), mapping.options)
+        mapping = HostResponseAdapter(
+            mapping.host, mapping.name, _adapt, HostEffectContract(), mapping.options
+        )
     elif kind == "blocked":
-        mapping = HostResponseAdapter(mapping.host, mapping.name, _adapt,
-                                      mapping.contract, {**mapping.options, "block": True})
-    policy = (FidelityPolicy(forbidden_shifts=frozenset({MASK.kind})) if kind == "semantic"
-              else FidelityPolicy(allow_loss=lambda loss: loss.path != "body.host_action")
-              if kind == "field" else None)
+        mapping = HostResponseAdapter(
+            mapping.host, mapping.name, _adapt, mapping.contract, {**mapping.options, "block": True}
+        )
+    policy = (
+        FidelityPolicy(forbidden_shifts=frozenset({MASK.kind}))
+        if kind == "semantic"
+        else FidelityPolicy(allow_loss=lambda loss: loss.path != "body.host_action")
+        if kind == "field"
+        else None
+    )
     record = Record()
     model, transport, _ = _model("filter", record, mapping=mapping, policy=policy)
     route = _mount("filter", record)
@@ -239,9 +287,17 @@ async def test_host_adapter_change_invalidates_preparation(change: str) -> None:
         assert isinstance(host.mapping.contract.census, dict)
         host.mapping.contract.census.clear()
     else:
-        object.__setattr__(host, "mapping", HostResponseAdapter("filter", "test-adapter@1",
-            lambda response, payload, options: _adapt(response, payload, options),
-            host.mapping.contract, host.mapping.options))
+        object.__setattr__(
+            host,
+            "mapping",
+            HostResponseAdapter(
+                "filter",
+                "test-adapter@1",
+                lambda response, payload, options: _adapt(response, payload, options),
+                host.mapping.contract,
+                host.mapping.options,
+            ),
+        )
     try:
         with pytest.raises(StalePreparationError):
             await prepared.achat()
@@ -285,8 +341,10 @@ async def test_adapter_isolation_and_fail_closed(mode: str) -> None:
             return HostAdaptation(value.payload, {"invalid": object()})
         # The callback may mutate its inputs; preserve the output independently.
         original = _pair("filter")["response"]["json"]
-        return _adapt(HttpResponse(200, {"x-host-tier": "fast"}), original,
-                      {"tier_header": "x-host-tier"})
+        return _adapt(
+            HttpResponse(200, {"x-host-tier": "fast"}), original, {"tier_header": "x-host-tier"}
+        )
+
     base = _mapping("filter")
     mapping = HostResponseAdapter(base.host, base.name, callback, base.contract, base.options)
     record = Record()
@@ -314,11 +372,13 @@ async def test_adapter_isolation_and_fail_closed(mode: str) -> None:
 @pytest.mark.parametrize("replacement", [False, True])
 @respx.mock
 async def test_final_selected_response_is_accounted_once(
-    asynchronous: bool, replacement: bool,
+    asynchronous: bool,
+    replacement: bool,
 ) -> None:
     pair = _pair("filter")
-    replaced = HttpResponse(200, {"x-host-tier": "cached"},
-                            json.dumps(pair["response"]["json"]).encode())
+    replaced = HttpResponse(
+        200, {"x-host-tier": "cached"}, json.dumps(pair["response"]["json"]).encode()
+    )
     record = Record(retry=not replacement, returned=replaced if replacement else None)
     model, transport, _ = _model("filter", record)
     route = _mount("filter", record)
@@ -343,12 +403,18 @@ async def test_concurrent_host_evidence_is_independent(asynchronous: bool) -> No
         _mount(name, record)
     try:
         if asynchronous:
-            results = await asyncio.gather(*(model.achat(REQUEST, ctx=CallContext(call_id=name))
-                for name, (model, _, _) in zip(names, models, strict=True)))
+            results = await asyncio.gather(
+                *(
+                    model.achat(REQUEST, ctx=CallContext(call_id=name))
+                    for name, (model, _, _) in zip(names, models, strict=True)
+                )
+            )
         else:
             with ThreadPoolExecutor(max_workers=2) as pool:
-                futures = [pool.submit(model.chat, REQUEST, ctx=CallContext(call_id=name))
-                    for name, (model, _, _) in zip(names, models, strict=True)]
+                futures = [
+                    pool.submit(model.chat, REQUEST, ctx=CallContext(call_id=name))
+                    for name, (model, _, _) in zip(names, models, strict=True)
+                ]
                 results = [future.result() for future in futures]
     finally:
         for _, transport, _ in models:
@@ -365,8 +431,9 @@ async def test_concurrent_host_evidence_is_independent(asynchronous: bool) -> No
 @respx.mock
 async def test_admission_return_still_runs_host_adaptation(asynchronous: bool) -> None:
     pair = _pair("filter")
-    returned = HttpResponse(200, pair["response"]["headers"],
-                            json.dumps(pair["response"]["json"]).encode())
+    returned = HttpResponse(
+        200, pair["response"]["headers"], json.dumps(pair["response"]["json"]).encode()
+    )
     record = Record(returned=returned, admission_return=True)
     model, transport, _ = _model("filter", record)
     try:
@@ -385,11 +452,13 @@ async def test_admission_return_still_runs_host_adaptation(asynchronous: bool) -
 @pytest.mark.parametrize("blocked", [False, True])
 @respx.mock
 async def test_lifecycle_retains_accounting_but_omits_native_evidence(
-    asynchronous: bool, blocked: bool,
+    asynchronous: bool,
+    blocked: bool,
 ) -> None:
     base = _mapping("filter")
-    mapping = HostResponseAdapter(base.host, base.name, _adapt, base.contract,
-                                  {**base.options, "block": blocked})
+    mapping = HostResponseAdapter(
+        base.host, base.name, _adapt, base.contract, {**base.options, "block": blocked}
+    )
     record = Record()
     inner, transport, _ = _model("filter", record, mapping=mapping)
     model = ObservedChatModel(inner, [record])

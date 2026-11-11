@@ -258,9 +258,15 @@ class SyncDriver:
         error_mapping: HostErrorMapper | None = None,
     ) -> dict[str, Any]:
         """Return the legacy payload; execute_response also preserves HTTP evidence."""
-        return self.execute_response(spec=spec, payload=payload, ctx=ctx, budget=budget,
-            request_guard=request_guard, refine_error=refine_error,
-            error_mapping=error_mapping).payload
+        return self.execute_response(
+            spec=spec,
+            payload=payload,
+            ctx=ctx,
+            budget=budget,
+            request_guard=request_guard,
+            refine_error=refine_error,
+            error_mapping=error_mapping,
+        ).payload
 
     def execute_response(
         self,
@@ -584,9 +590,15 @@ class AsyncDriver:
         error_mapping: HostErrorMapper | None = None,
     ) -> dict[str, Any]:
         """Return the legacy payload; execute_response also preserves HTTP evidence."""
-        result = await self.execute_response(spec=spec, payload=payload, ctx=ctx, budget=budget,
-            request_guard=request_guard, refine_error=refine_error,
-            error_mapping=error_mapping)
+        result = await self.execute_response(
+            spec=spec,
+            payload=payload,
+            ctx=ctx,
+            budget=budget,
+            request_guard=request_guard,
+            refine_error=refine_error,
+            error_mapping=error_mapping,
+        )
         return result.payload
 
     async def execute_response(

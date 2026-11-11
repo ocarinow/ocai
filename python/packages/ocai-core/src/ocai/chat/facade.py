@@ -539,7 +539,9 @@ class WireChatModel:
                         else None
                     ),
                     "host_error_mapping": mapping.configuration_id if mapping is not None else None,
-            "host_response_adapter": adapter.configuration_id if adapter is not None else None,
+                    "host_response_adapter": adapter.configuration_id
+                    if adapter is not None
+                    else None,
                     "policy": id(self._conversion_policy) if self._conversion_policy else None,
                 }
             ).encode()
@@ -574,10 +576,16 @@ class WireChatModel:
             self._catalog.inspect(
                 response_src,
                 CANONICAL_CHAT_CHUNK if streaming else CANONICAL_CHAT_RESPONSE,
-                                  streaming=streaming),
-            tuple(profiles), coverage, prepared.report, self._configuration(prepared), streaming,
+                streaming=streaming,
+            ),
+            tuple(profiles),
+            coverage,
+            prepared.report,
+            self._configuration(prepared),
+            streaming,
             host_effects=(prepared.response_adapter.declaration,)
-            if prepared.response_adapter is not None else (),
+            if prepared.response_adapter is not None
+            else (),
         )
         _, wire = build_request(self._binding, prepared.spec, prepared.payload)
         identity, wire_identity = inspection.configuration_id, _wire_identity(wire)
@@ -901,8 +909,12 @@ class WireChatModel:
             "the serving fragment must publish the chunk shape it streams"
         )
 
-    def _assemble(self, prepared: _PreparedCall, raw: dict[str, Any],
-                  driver_response: DriverResponse | None = None) -> CallResult[ChatResponse]:
+    def _assemble(
+        self,
+        prepared: _PreparedCall,
+        raw: dict[str, Any],
+        driver_response: DriverResponse | None = None,
+    ) -> CallResult[ChatResponse]:
         """Run the post-send lifecycle: decode → merge reports → envelope.
 
         The response leg of §8, shared between `chat` and `achat`. The raw
@@ -929,7 +941,8 @@ class WireChatModel:
             adapted = prepared.response_adapter.apply(driver_response.response, raw)
         decoded = self._catalog.convert(
             adapted.payload if adapted is not None else raw,
-            self._response_node(prepared.route.node), CANONICAL_CHAT_RESPONSE
+            self._response_node(prepared.route.node),
+            CANONICAL_CHAT_RESPONSE,
         )
         response: ChatResponse = decoded.value
         report = prepared.report.merge(decoded.report)
@@ -947,11 +960,17 @@ class WireChatModel:
                 error.response_body = adapted.evidence.response_body
                 raise error
         if self._conversion_policy is not None:
-            self._conversion_policy.enforce(report, phase="response", usage=response.usage,
-                                            route=prepared.route)
-        return CallResult(value=response, route=prepared.route, report=report,
-                          usage=response.usage, raw=raw,
-                          host_evidence=adapted.evidence if adapted is not None else None)
+            self._conversion_policy.enforce(
+                report, phase="response", usage=response.usage, route=prepared.route
+            )
+        return CallResult(
+            value=response,
+            route=prepared.route,
+            report=report,
+            usage=response.usage,
+            raw=raw,
+            host_evidence=adapted.evidence if adapted is not None else None,
+        )
 
     def _stamp_stream_report(
         self, terminal: ChatChunk, prepared: _PreparedCall, pipeline: StreamPipeline
@@ -1510,11 +1529,20 @@ class ObservedChatModel:
             result = self._inner.chat(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             elif isinstance(error, OcaiError):
-                scope.finish(status=failure_status(error), error=error,
-                             usage=error.usage, report=error.report)
+                scope.finish(
+                    status=failure_status(error),
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1530,11 +1558,20 @@ class ObservedChatModel:
             result = await self._inner.achat(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             elif isinstance(error, OcaiError):
-                scope.finish(status=failure_status(error), error=error,
-                             usage=error.usage, report=error.report)
+                scope.finish(
+                    status=failure_status(error),
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1548,11 +1585,20 @@ class ObservedChatModel:
             stream = self._inner.stream(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             elif isinstance(error, OcaiError):
-                scope.finish(status=failure_status(error), error=error,
-                             usage=error.usage, report=error.report)
+                scope.finish(
+                    status=failure_status(error),
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1579,11 +1625,20 @@ class ObservedChatModel:
             stream = await self._inner.astream(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             elif isinstance(error, OcaiError):
-                scope.finish(status=failure_status(error), error=error,
-                             usage=error.usage, report=error.report)
+                scope.finish(
+                    status=failure_status(error),
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise

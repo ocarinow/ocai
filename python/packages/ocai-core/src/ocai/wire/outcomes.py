@@ -186,36 +186,68 @@ class HostResponseAdapter:
         """Identify declared configuration and in-process callable ownership."""
         function = getattr(self.adapter, "__func__", self.adapter)
         owner = getattr(self.adapter, "__self__", None)
-        return hashlib.sha256(canonical({
-            "host": self.host, "name": self.name, "contract": self.contract.identity,
-            "options": dict(self.options), "adapter": id(function),
-            "owner": id(owner) if owner is not None else None,
-        }).encode()).hexdigest()
+        return hashlib.sha256(
+            canonical(
+                {
+                    "host": self.host,
+                    "name": self.name,
+                    "contract": self.contract.identity,
+                    "options": dict(self.options),
+                    "adapter": id(function),
+                    "owner": id(owner) if owner is not None else None,
+                }
+            ).encode()
+        ).hexdigest()
 
     @property
     def declaration(self) -> HostEffectDeclaration:
         """Expose a detached declaration without claiming provider qualification."""
-        return HostEffectDeclaration(self.host, self.name, deepcopy(self.contract),
-                                     self.configuration_id)
+        return HostEffectDeclaration(
+            self.host, self.name, deepcopy(self.contract), self.configuration_id
+        )
 
     def apply(self, response: HttpResponse, payload: dict[str, Any]) -> AdaptedHostResponse:
         """Adapt detached facts and retain native evidence, failing closed on misuse."""
         try:
-            value = _adaptation_result(self.adapter(deepcopy(response), deepcopy(payload),
-                                                    deepcopy(dict(self.options))))
+            value = _adaptation_result(
+                self.adapter(deepcopy(response), deepcopy(payload), deepcopy(dict(self.options)))
+            )
             if not is_json_object(value.payload) or not is_json_object(value.metadata):
                 raise TypeError("host adaptation must return JSON objects")
             canonical(value.payload)
             canonical(value.metadata)
-            evidence = HostEvidence(self.host, self.name, response.status,
-                                    response.headers, response.body, value.metadata)
-            report = HostEffectReport(self.host, self.name, self.contract.identity,
-                                      "response", tuple(value.losses), tuple(value.shifts))
-            return AdaptedHostResponse(deepcopy(value.payload), evidence, report,
-                tuple(self.contract.certify(report.losses, report.shifts)), deepcopy(value.error))
+            evidence = HostEvidence(
+                self.host,
+                self.name,
+                response.status,
+                response.headers,
+                response.body,
+                value.metadata,
+            )
+            report = HostEffectReport(
+                self.host,
+                self.name,
+                self.contract.identity,
+                "response",
+                tuple(value.losses),
+                tuple(value.shifts),
+            )
+            return AdaptedHostResponse(
+                deepcopy(value.payload),
+                evidence,
+                report,
+                tuple(self.contract.certify(report.losses, report.shifts)),
+                deepcopy(value.error),
+            )
         except Exception:
-            pass
-        raise OcaiError("host response adaptation failed", code="host_response_adaptation_failed",
-            status=response.status, response_headers=response.headers, response_body=response.body,
-            host_evidence=HostEvidence(self.host, self.name, response.status,
-                                       response.headers, response.body)) from None
+            failure = OcaiError(
+                "host response adaptation failed",
+                code="host_response_adaptation_failed",
+                status=response.status,
+                response_headers=response.headers,
+                response_body=response.body,
+                host_evidence=HostEvidence(
+                    self.host, self.name, response.status, response.headers, response.body
+                ),
+            )
+        raise failure from None

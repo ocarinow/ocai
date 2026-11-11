@@ -27,7 +27,8 @@ class HostEffectContract:
     """A declared host-effect bound, not a graph edge or certification verdict."""
 
     census: Mapping[str, DeclaredDisposition] = field(
-        default_factory=dict[str, DeclaredDisposition])
+        default_factory=dict[str, DeclaredDisposition]
+    )
     semantic_shifts: tuple[SemanticShift, ...] = ()
 
     def __post_init__(self) -> None:
@@ -37,17 +38,22 @@ class HostEffectContract:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize only declarative content, without graph weights or callbacks."""
-        return {"census": {path: {"disposition": value.disposition.value, "note": value.note}
-                           for path, value in self.census.items()},
-                "semantic_shifts": [shift.to_dict() for shift in self.semantic_shifts]}
+        return {
+            "census": {
+                path: {"disposition": value.disposition.value, "note": value.note}
+                for path, value in self.census.items()
+            },
+            "semantic_shifts": [shift.to_dict() for shift in self.semantic_shifts],
+        }
 
     @property
     def identity(self) -> str:
         """Hash declaration content deterministically, independently from execution."""
         return hashlib.sha256(canonical(self.to_dict()).encode()).hexdigest()
 
-    def certify(self, losses: Iterable[FieldLoss], shifts: Iterable[SemanticShift]
-                ) -> list[ContractViolation]:
+    def certify(
+        self, losses: Iterable[FieldLoss], shifts: Iterable[SemanticShift]
+    ) -> list[ContractViolation]:
         """Check findings with the same partial order and path rules as codecs."""
         return EdgeContract(self.census, self.semantic_shifts).certify(losses, shifts)
 
@@ -66,8 +72,13 @@ class HostEffectDeclaration:
 class HostContractError(FidelityPolicyError):
     """Host findings exceeded their declaration; rejected payload stays private."""
 
-    def __init__(self, report: FidelityReport, violations: tuple[ContractViolation, ...],
-                 usage: Usage | None = None, route: Route | None = None) -> None:
+    def __init__(
+        self,
+        report: FidelityReport,
+        violations: tuple[ContractViolation, ...],
+        usage: Usage | None = None,
+        route: Route | None = None,
+    ) -> None:
         """Retain accounting and precise contract violations, never response data."""
         super().__init__(phase="host_contract", report=report, usage=usage, route=route)
         self.code = "host_contract_exceeded"
