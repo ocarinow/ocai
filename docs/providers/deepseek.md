@@ -284,3 +284,22 @@ usage-on-final-chunk shape (WU-14b analogue), ≈ 0.5 WU for prefix/strict on th
 - https://api-docs.deepseek.com/quick_start/pricing
 - https://api-docs.deepseek.com/quick_start/error_codes
 - https://api-docs.deepseek.com/quick_start/rate_limit.md
+
+## 14. WU-44a descriptor verification (2026-11-11)
+
+The [first-call guide](https://api-docs.deepseek.com/) confirms the OpenAI-format
+base `https://api.deepseek.com`, bearer authorization, and the preferred model
+names `deepseek-flash` and `deepseek-v4-pro`. Its legacy Flash aliases route to
+the current Flash implementation; this does not establish a retirement date
+for the historical `deepseek-chat` or `deepseek-reasoner` ids.
+The [model table](https://api-docs.deepseek.com/quick_start/pricing/) identifies
+Flash-1017 and Pro-0813 behind those names. These are model facts, not API tags.
+The [API reference](https://api-docs.deepseek.com/api/create-chat-completion/)
+confirms `POST /chat/completions` and text/JSON-object response formats.
+
+The descriptor's `2026-11` tag and ordering date `2026-11-11` identify ocai's
+observation snapshot, not a vendor version header or model release date.
+Registration carries DeepSeek provenance and no executable edge or codec factory;
+sharing OpenAI wire DTOs does not inherit OpenAI conversion qualification.
+Only the documented lack of JSON-schema response output is declared in the
+initial model profiles. Other coverage remains unknown until WU-44b fixtures.
