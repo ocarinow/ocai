@@ -53,6 +53,16 @@ CI check; a server-side rule also rejects pushes whose commit messages carry
 such content. If you use a coding agent, this applies to it too — see
 `AGENTS.md`.
 
+## Editor setup
+
+The repository holds several Python environments (the root uv workspace for
+the kernel and plugins, the gateway service, the plugin example) and a node
+tree. Open **`ocai.code-workspace`** in VS Code (`task ide`), not the
+repository folder: each environment is its own workspace folder with its own
+interpreter in `<folder>/.vscode/settings.json`, so Pylance, Ruff, and the
+test runner resolve against the right venv. Run `uv sync` in each Python
+folder you work in (`task setup` does the root one).
+
 ## Before you open a PR
 
 Read [`AGENTS.md`](./AGENTS.md) — it holds the cross-cutting rules every change

@@ -1,0 +1,9 @@
+{
+  // Workspace folder for the community plugin example: its own uv project
+  // and venv (it depends on the published `ocai`, not on the workspace tree).
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+  "ruff.configuration": "${workspaceFolder}/pyproject.toml"
+}
