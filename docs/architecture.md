@@ -132,8 +132,16 @@ revisions (`ocai@2026-07`). IR migration therefore *is* graph conversion
 | `FieldLoss` | One field-level record: path, disposition, severity, note. |
 | `SemanticShift` | A *semantics*-level record distinct from field mapping: structural relocation (system role → `systemInstruction`), emulation (transcript replay), id regeneration, range pass-through. Field loss and semantic divergence are different kinds of honesty; conflating them understates what a migration cost. |
 | `EdgeReport` | Losses + shifts for one edge traversal. |
-| `FidelityReport` | The accumulated per-edge account for a whole conversion path; `lossless` is derived, never asserted. |
+| `HostEffectReport` | Actual effects of a host adapter with host, adapter, declaration identity and open phase code; separate from graph traversal and qualification. |
+| `FidelityReport` | Graph records in `edges`, host records in keyword-only `hosts`; aggregate findings/cost include both. `path` remains graph-only and `lossless` is derived, never asserted. |
 | `Route` | What ocai *decided*: capability, chosen `NodeId` (interface + tag), requested pin, resolution reason, catalog hash. The audit joint: a `Route` plus a catalog lockfile reconstructs exactly which conversion logic served a call. |
+
+Host effects reuse FieldLoss and SemanticShift without inventing conversion nodes
+(ADR 0018). Their adapter/contract identities are attribution, not proof of
+qualification. Merge concatenates both lanes without deduplication; each producer
+must append its findings once. Aggregate order is graph findings then host findings,
+not an execution timeline. Empty hosts is omitted from serialized reports, retaining
+old wire forms. A reader that ignores hosts must not approve host-bearing execution.
 
 ### 2.3 `result.py` — what every port returns [frozen-candidate]
 
@@ -559,6 +567,11 @@ Nested extension/options intent without an encode lane is reported. Unknown
 native request/response fields use registered path/value evidence banks, while
 unknown content tags decode as `PartUnknown` (WU-44b).
 
+Terminal `StreamEnd.report` uses the same host-effects lane as CallResult.report.
+Serialization/replay and fold finalization preserve it without inserting duplicate
+host records or putting reports in the folded response payload. This vocabulary
+alone does not implement host stream adaptation or transport metadata capture.
+
 ### Stream ownership and incomplete execution (WU-24)
 
 `ChatStream.close()` / `AsyncChatStream.aclose()` and their context managers
@@ -595,6 +608,13 @@ self-declared, not authenticated. Python entry-point loading executes plugin
 code. Catalog lock hashes describe declared metadata, not executable artifact
 checksums. Applications needing controlled composition should pass explicit
 catalogs; the default catalog discovers installed entry points once.
+
+`FidelityPolicy` evaluates aggregate field losses and semantic shifts across both
+codec edges and host-effect records. A host-only masking shift can therefore reject
+a response despite an empty graph path and lossless field data. Rejection retains
+known usage and the full detached report, including host attribution; delivered
+stream events keep the existing partial-result semantics. Host effect declarations
+and execution emission still require their own qualification, not inferred here.
 
 ### Public execution inspection (WU-27)
 
@@ -1109,6 +1129,13 @@ redefines one. Three version axes, never conflated: interface **tag**
 **semver** — the freeze is a release gate, not a version number.
 
 ## 10. spec/ — the language-neutral truth
+
+The StreamEnd schema's serialized FidelityReport definitions include optional
+`hosts` with HostEffectReport provenance and findings (ADR 0018). The canonical
+terminal fixture `spec/fixtures/fidelity/host-effects.json` qualifies serialization,
+not a provider or graph edge. Unknown phase and semantic codes remain open; derived
+path/cost/lossless are recomputed on replay. Existing graph fixtures are unchanged.
+
 
 `spec/interfaces/deepseek.chat_completions.json` is the first populated interface
 descriptor. Its identity, shapes and observation tag are checked against the

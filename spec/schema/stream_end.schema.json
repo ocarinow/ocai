@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ocai.dev/spec/schema/stream_end.schema.json",
   "title": "StreamEnd",
-  "$comment": "Role: the authoritative terminal record of a stream (docs/architecture.md §3.1; ocai/chat/types/stream.py StreamEnd) in omit-absent wire form, carried by the streamStop chunk (chat_chunk.schema.json `end` lane). Its usage/finish override any mid-stream updates in the fold, and `report` is the stream's FidelityReport — the streaming path's ONE report home, mirroring CallResult.report on the blocking path. This file also hosts the serialized-report $defs (fidelityReport, edgeReport, fieldLoss, semanticShift) mirroring ocai/core/fidelity.py; the report's `path`, `lossless`, `cost`, and `total_cost` members are DERIVED views recomputed on replay, never trusted from data.",
+  "$comment": "Role: the authoritative terminal record of a stream (docs/architecture.md §3.1; ocai/chat/types/stream.py StreamEnd) in omit-absent wire form, carried by the streamStop chunk (chat_chunk.schema.json `end` lane). Its usage/finish override any mid-stream updates in the fold, and `report` is the stream's FidelityReport — the streaming path's ONE report home, mirroring CallResult.report on the blocking path. This file also hosts the serialized-report $defs (fidelityReport, edgeReport, hostEffectReport, fieldLoss, semanticShift) mirroring ocai/core/fidelity.py; the report's `path`, `lossless`, `cost`, and `total_cost` members are DERIVED views recomputed on replay, never trusted from data.",
   "description": "The stream's terminal record: the final consumption and stop records, and the fidelity account of the stream's conversion legs.",
   "type": "object",
   "allOf": [{ "$ref": "parts.schema.json#/$defs/envelope" }],
@@ -22,9 +22,9 @@
   },
   "$defs": {
     "fidelityReport": {
-      "$comment": "ocai/core/fidelity.py FidelityReport.to_dict — path/lossless/total_cost are derived from `edges` and recomputed on replay (FidelityReport.from_dict reads only `edges`).",
+      "$comment": "ocai/core/fidelity.py FidelityReport.to_dict — path/lossless/total_cost are derived from graph and host findings and recomputed on replay; path uses only edges.",
       "type": "object",
-      "description": "The accumulated per-edge account of a whole conversion path.",
+      "description": "The accumulated graph and host-effect account; host records are not graph traversal.",
       "properties": {
         "path": {
           "type": "array",
@@ -43,6 +43,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/edgeReport" },
           "description": "One edge report per traversed edge, in traversal order."
+        },
+        "hosts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hostEffectReport" },
+          "description": "Actual host effects in insertion order, separate from declarations and qualification. Omitted when empty."
         }
       }
     },
@@ -78,6 +83,20 @@
           "description": "The semantics-level records this edge emitted, in order."
         }
       }
+    },
+    "hostEffectReport": {
+      "type": "object",
+      "description": "Actual host effects with adapter and declaration identity; not a graph edge or certification verdict.",
+      "properties": {
+        "host": { "type": "string" },
+        "adapter": { "type": "string" },
+        "contract_id": { "type": "string" },
+        "phase": { "type": "string", "description": "Open execution phase code, initially request or response." },
+        "cost": { "type": "number", "description": "Derived diagnostic severity, never planner weight." },
+        "losses": { "type": "array", "items": { "$ref": "#/$defs/fieldLoss" } },
+        "shifts": { "type": "array", "items": { "$ref": "#/$defs/semanticShift" } }
+      },
+      "required": ["host", "adapter", "contract_id", "phase"]
     },
     "fieldLoss": {
       "$comment": "ocai/core/fidelity.py FieldLoss.to_dict — a plain value object (no IR envelope).",

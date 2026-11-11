@@ -43,6 +43,15 @@ optional `input`/`preserved` pairs record design requirements. They are validate
 by a dedicated schema suite, not treated as certified conversion edges or fold
 triples. Promotion requires implemented converters and the ordinary gates below.
 
+### Host-effect report example
+
+`fixtures/fidelity/host-effects.json` uses the existing canonical-document fixture
+shape (`chat.chunk`) for a terminal report with a host-only semantic effect. The
+optional `hosts` lane is defined in `schema/stream_end.schema.json`; it has adapter
+and declaration identity, field findings and semantic findings, not graph nodes.
+This fixture qualifies serialization only. It does not certify host execution or
+a new conversion edge; provider mappings still require their own evidence.
+
 ### Recorded binary transport pairs
 
 Wire recordings under `python/packages/*/tests/http/` are transport tests, not new

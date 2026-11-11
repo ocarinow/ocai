@@ -380,9 +380,65 @@ class EdgeReport:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class HostEffectReport:
+    """Actual host effects, separate from graph edges and qualification evidence.
+
+    Attributes:
+        host: Non-secret host identity supplied by the adapter.
+        adapter: Versioned adapter identity responsible for these findings.
+        contract_id: Identity of the declaration governing these effects, not certification.
+        phase: Open execution phase code, initially request or response.
+        losses: Field effects recorded by this adapter invocation.
+        shifts: Semantic effects recorded by this adapter invocation.
+    """
+
+    host: str
+    adapter: str
+    contract_id: str
+    phase: str
+    losses: tuple[FieldLoss, ...] = ()
+    shifts: tuple[SemanticShift, ...] = ()
+
+    @property
+    def cost(self) -> float:
+        """Return diagnostic severity, never graph planner weight."""
+        return sum(loss.severity for loss in self.losses)
+
+    @property
+    def lossless(self) -> bool:
+        """Return whether field information survived; shifts remain separate."""
+        return not any(loss.lossy for loss in self.losses)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize provenance and findings without inventing graph coordinates."""
+        return {
+            "host": self.host, "adapter": self.adapter, "contract_id": self.contract_id,
+            "phase": self.phase, "cost": self.cost,
+            "losses": [loss.to_dict() for loss in self.losses],
+            "shifts": [shift.to_dict() for shift in self.shifts],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Decode findings totally, preserving open phase and semantic codes."""
+        raw_losses = data.get("losses")
+        raw_shifts = data.get("shifts")
+        return cls(
+            host=str(data.get("host", "")), adapter=str(data.get("adapter", "")),
+            contract_id=str(data.get("contract_id", "")), phase=str(data.get("phase", "")),
+            losses=tuple(FieldLoss.from_dict(loss)
+                for loss in (raw_losses if is_json_array(raw_losses) else [])
+                if is_json_object(loss)),
+            shifts=tuple(SemanticShift.from_dict(shift)
+                for shift in (raw_shifts if is_json_array(raw_shifts) else [])
+                if is_json_object(shift)),
+        )
+
+
 @dataclass(slots=True)
 class FidelityReport:
-    """The accumulated per-edge account of a whole conversion path.
+    """The accumulated graph conversion and host-effect account of one call.
 
     The single report type the library speaks. It lives on
     `CallResult.report` and on the terminal `StreamEnd` of a stream — and
@@ -395,9 +451,11 @@ class FidelityReport:
 
     Attributes:
         edges: One `EdgeReport` per traversed edge, in traversal order.
+        hosts: Actual host effects, in insertion order, separate from graph traversal.
     """
 
     edges: list[EdgeReport] = field(default_factory=list[EdgeReport])
+    hosts: list[HostEffectReport] = field(default_factory=list[HostEffectReport], kw_only=True)
 
     @property
     def path(self) -> list[NodeId]:
@@ -411,13 +469,15 @@ class FidelityReport:
 
     @property
     def losses(self) -> list[FieldLoss]:
-        """Return every field-level record across all edges, in order."""
-        return [loss for edge in self.edges for loss in edge.losses]
+        """Return graph then host field records, preserving order within each lane."""
+        return ([loss for edge in self.edges for loss in edge.losses]
+                + [loss for host in self.hosts for loss in host.losses])
 
     @property
     def shifts(self) -> list[SemanticShift]:
-        """Return every semantics-level record across all edges, in order."""
-        return [shift for edge in self.edges for shift in edge.shifts]
+        """Return graph then host semantic records, preserving order within each lane."""
+        return ([shift for edge in self.edges for shift in edge.shifts]
+                + [shift for host in self.hosts for shift in host.shifts])
 
     @property
     def dropped(self) -> list[FieldLoss]:
@@ -439,13 +499,13 @@ class FidelityReport:
 
     @property
     def total_cost(self) -> float:
-        """Return the summed diagnostic cost across every traversed edge."""
-        return sum(edge.cost for edge in self.edges)
+        """Return diagnostic cost across graph and host records, never planner weight."""
+        return sum(edge.cost for edge in self.edges) + sum(host.cost for host in self.hosts)
 
     def merge(self, other: Self) -> Self:
         """Fold `other` into `self` (in place) and return `self`.
 
-        Edge reports are concatenated in order — typically the response leg
+        Both lanes concatenate without deduplication — typically the response leg
         folded onto the request leg by the facade before it assembles the
         `CallResult`.
 
@@ -456,6 +516,7 @@ class FidelityReport:
             `self`, after folding in `other`.
         """
         self.edges.extend(other.edges)
+        self.hosts.extend(other.hosts)
         return self
 
     def to_dict(self) -> dict[str, Any]:
@@ -465,36 +526,43 @@ class FidelityReport:
             A dict with the `path` (node labels), `lossless`, `total_cost`,
             and the serialized `edges`.
         """
-        return {
+        out: dict[str, Any] = {
             "path": [str(node) for node in self.path],
             "lossless": self.lossless,
             "total_cost": self.total_cost,
             "edges": [edge.to_dict() for edge in self.edges],
         }
+        if self.hosts:
+            out["hosts"] = [host.to_dict() for host in self.hosts]
+        return out
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Build a `FidelityReport` from a serialized dict, totally.
 
-        Only `edges` is read: `path`, `lossless`, and `total_cost` are
+        Only `edges` and `hosts` are read: `path`, `lossless`, and `total_cost` are
         derived views, recomputed from the decoded records every time — a
         replayed report can no more assert fidelity its records contradict
         than a live one can. This is what lets a recorded `StreamEnd`
         replay with its report intact.
 
         Args:
-            data: A mapping with the serialized `edges`.
+            data: A mapping with serialized edges and optional host effects.
 
         Returns:
             The decoded `FidelityReport`.
         """
         raw_edges = data.get("edges")
+        raw_hosts = data.get("hosts")
         return cls(
             edges=[
                 EdgeReport.from_dict(edge)
                 for edge in (raw_edges if is_json_array(raw_edges) else [])
                 if is_json_object(edge)
-            ]
+            ],
+            hosts=[HostEffectReport.from_dict(host)
+                for host in (raw_hosts if is_json_array(raw_hosts) else [])
+                if is_json_object(host)],
         )
 
 
@@ -601,13 +669,12 @@ class FidelityPolicy:
         """Reject forbidden findings while retaining usage and the complete ledger."""
         accepted = True
         try:
-            for edge in report.edges:
-                for loss in edge.losses:
+            for loss in report.losses:
                     if loss.disposition in self.forbidden_dispositions:
                         accepted = False
                     if self.allow_loss is not None and not self.allow_loss(deepcopy(loss)):
                         accepted = False
-                for shift in edge.shifts:
+            for shift in report.shifts:
                     if shift.kind in self.forbidden_shifts:
                         accepted = False
                     if self.allow_shift is not None and not self.allow_shift(deepcopy(shift)):

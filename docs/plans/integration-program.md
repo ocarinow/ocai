@@ -683,7 +683,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-48b — Account for host effects without inventing graph edges
 
-- **Status:** 🔄 in progress; approved reusable host outcome remediation.
+- [x] **Status:** ✅ implemented; PR #114 review pending.
 - **Context:** G-14 exposes a fidelity gap before Bedrock implementation: a host
   can mask output while the semantic codec preserves every received field. An
   unknown-field extension records data preservation, not that behavioral change.
@@ -752,7 +752,10 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   equivalence is claimed. Producers own exactly-once insertion; merge concatenates.
 - **Open:** None in the report vocabulary. Adapter declaration, conformance and
   execution integration are intentionally separate G-14 work, not proven here.
-- **Evidence:** Pending implementation and full gate.
+- **Evidence:** `test_host_fidelity.py` has 17 passing behavior cases, including
+  masking rejection, field/semantic predicates, mixed real-edge/host merge, known
+  usage retention, golden/schema parity, total decode and unchanged fold payload.
+  Full gate output is recorded verbatim in PR #114.
 - **Area:** core
 - **Priority:** P0
 - **Tier:** 1

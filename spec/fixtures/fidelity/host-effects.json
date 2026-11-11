@@ -1,0 +1,34 @@
+{
+  "description": "WU-48b synthetic canonical terminal record with host masking evidence; no provider behavior or new graph edge is qualified. Existing canonical-document fixture shape.",
+  "shape": "chat.chunk",
+  "document": {
+    "version": "2026-07",
+    "type": "streamStop",
+    "end": {
+      "version": "2026-07",
+      "report": {
+        "path": [],
+        "lossless": true,
+        "total_cost": 0.0,
+        "edges": [],
+        "hosts": [
+          {
+            "host": "synthetic-filter",
+            "adapter": "filter-response@1",
+            "contract_id": "synthetic-contract-v1",
+            "phase": "response",
+            "cost": 0.0,
+            "losses": [],
+            "shifts": [
+              {
+                "kind": "test.masking",
+                "path": "output",
+                "note": "Host masked output before codec decode."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
