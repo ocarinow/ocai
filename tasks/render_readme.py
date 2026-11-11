@@ -65,7 +65,7 @@ def render() -> str:
     if task is None:
         sys.exit(
             "tasks/render_readme.py: the `task` binary is not on PATH; install Task "
-            "(https://taskfile.dev, `brew install go-task`; CI uses arduino/setup-task)."
+            "(https://taskfile.dev, `brew install go-task`; CI downloads the pinned release)."
         )
     raw = subprocess.run(
         [task, "--list-all", "--json"], cwd=ROOT, capture_output=True, text=True, check=True

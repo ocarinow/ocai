@@ -176,12 +176,18 @@ jobs:
         run: uv run python scripts/workspace_check.py
 
       # tasks/README.md is generated from the Taskfiles by `task --list-all --json`.
+      # Task (MIT) is installed from its release tarball with a pinned checksum:
+      # the setup-task action is GPL-3.0 and dependency review refuses it.
       - name: Install Task
         if: steps.go.outputs.run == 'true'
-        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
-        with:
-          version: 3.54.0
-          repo-token: ${{ github.token }}
+        env:
+          TASK_VERSION: 3.54.0
+          TASK_SHA256: 680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb
+        run: |
+          curl -fsSL -o /tmp/task.tar.gz "https://github.com/go-task/task/releases/download/v${TASK_VERSION}/task_linux_amd64.tar.gz"
+          echo "${TASK_SHA256}  /tmp/task.tar.gz" | sha256sum --check --strict
+          mkdir -p "$HOME/.local/bin" && tar -xzf /tmp/task.tar.gz -C "$HOME/.local/bin" task
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Task catalogue is current
         if: steps.go.outputs.run == 'true'
