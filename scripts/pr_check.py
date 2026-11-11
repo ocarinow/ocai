@@ -48,7 +48,7 @@ TITLE_RE = re.compile(r"^(WU-[0-9A-Za-z]+): \S|^[A-Z][A-Za-z0-9 /&-]{1,40}: \S")
 WU_RE = re.compile(r"^(WU-[0-9A-Za-z]+): ")
 UNCHECKED_RE = re.compile(r"^\s*- \[ \]", re.MULTILINE)
 STACKED_RE = re.compile(r"\bStacked on #\d+", re.IGNORECASE)
-PLACEHOLDER_RE = re.compile(r"WU-__|§__|#wu-__|<[a-z][^>\n]{3,}>")
+PLACEHOLDER_RE = re.compile(r"WU-__|§__|#wu-__|<[A-Za-z][^>\n]* [^>\n]*>")
 COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 PATH_RE = re.compile(
     r"`?((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+)(?:::[A-Za-z0-9_\[\]\-:.]+)?`?"
