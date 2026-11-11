@@ -21,7 +21,7 @@ const connected = computed(() => status.value === 'success' && !!data.value)
       <UiButton variant="outline" :disabled="checking" @click="refresh()">{{ checking ? 'Checking…' : 'Refresh status' }}</UiButton>
     </div>
 
-    <section aria-labelledby="connection-title" class="mt-10 rounded-2xl border bg-white p-6 md:p-8">
+    <UiCard role="region" aria-labelledby="connection-title" class="mt-10 gap-0 p-6 md:p-8">
       <div class="flex items-start gap-4">
         <span aria-hidden="true" class="mt-1 grid size-11 shrink-0 place-items-center rounded-xl" :class="connected ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'">
           <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h4l3-7 3 14 3-7h3" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -31,19 +31,19 @@ const connected = computed(() => status.value === 'success' && !!data.value)
             {{ checking ? 'Checking the gateway service…' : connected ? 'Connected to the gateway service.' : 'The gateway service is unavailable. Check the service and try again.' }}
           </p>
         </div>
-        <span v-if="connected" class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">Connected</span>
+        <UiBadge v-if="connected" variant="secondary">Connected</UiBadge>
       </div>
       <dl v-if="connected && data" class="mt-7 grid gap-6 border-t pt-6 sm:grid-cols-2">
         <div><dt class="text-xs uppercase tracking-wider text-muted-foreground">Service</dt><dd class="mt-2 text-sm font-medium">{{ data.status.service }}</dd></div>
         <div><dt class="text-xs uppercase tracking-wider text-muted-foreground">Request reference</dt><dd class="mt-2 break-all font-mono text-xs">{{ data.requestId ?? 'Not provided' }}</dd></div>
       </dl>
-    </section>
+    </UiCard>
 
-    <section aria-labelledby="setup-title" class="mt-6 rounded-2xl border p-6 md:p-8">
+    <UiCard role="region" aria-labelledby="setup-title" class="mt-6 gap-0 p-6 md:p-8">
       <div class="flex flex-wrap items-center justify-between gap-3"><h2 id="setup-title" class="text-lg font-semibold">Model access</h2>
-        <span class="rounded-full border bg-white px-3 py-1 text-xs text-muted-foreground">{{ connected ? 'Not configured' : 'Status unknown' }}</span></div>
+        <UiBadge variant="outline">{{ connected ? 'Not configured' : 'Status unknown' }}</UiBadge></div>
       <p class="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{{ connected ? 'The platform foundation is available. Organization access and provider connections are not available in this development preview.' : 'Connect to the management service to check gateway setup.' }}</p>
-    </section>
+    </UiCard>
     <p class="mt-8 text-xs leading-6 text-muted-foreground">Service availability is separate from inference readiness. This preview cannot process model requests.</p>
   </div>
 </template>

@@ -8,6 +8,13 @@ test('built console uses the gateway and recovers from an unavailable service', 
   await expect(page.getByRole('status')).toHaveText('Connected to the gateway service.')
   await expect(page.getByText('ocai-gateway', { exact: true })).toBeVisible()
   await expect(page.getByText('Not configured', { exact: true })).toBeVisible()
+  // Exercise upstream components through both reusable layers and brand tokens.
+  await expect(page.getByRole('button', { name: 'Refresh status' })).toHaveAttribute('data-slot', 'button')
+  await expect(page.getByRole('region', { name: 'Management connection' })).toHaveAttribute('data-slot', 'card')
+  await expect(page.getByText('Development preview', { exact: true })).toHaveAttribute('data-slot', 'badge')
+  expect(await page.locator('body').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(247, 249, 249)')
+  // This utility exists only in the higher layer's shell, outside the app root.
+  await expect(page.locator('header')).toHaveCSS('height', '80px')
   const response = await page.request.get('/api/management/status')
   expect(response.headers()['x-request-id']).toMatch(/^[a-f0-9]{32}$/)
   expect(response.headers()['cache-control']).toBe('no-store')

@@ -47,3 +47,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0009](0009-platform-foundation.md) | Platform application and reusable layers | accepted for the first implementation slice |
 | [0013](0013-platform-identity.md) | Platform identity and session boundaries | accepted direction; implementation pending |
 | [0011](0011-authenticated-console-contract.md) | First authenticated console implementation contract | accepted in place; staged implementation |
+| [0012](0012-shadcn-component-layer.md) | Full upstream shadcn-vue component layer | accepted |

@@ -248,7 +248,7 @@ change public liveness or foundation status to expose deployment secrets.
   that works across two console instances and renewal; logout, idle/absolute
   expiry and a concurrent refresh cannot revive the session, and tokens never
   appear in browser storage, hydrated state, URLs after callback, or diagnostics.
-- **Deps:** WU-75.
+- **Deps:** WU-75 and WU-81 (maintainer-directed shared component foundation).
 - **Architecture:** §12.2 plus implemented browser-session subsection.
 - **Integration:** Nuxt server modules in nuxt-platform use openid-client → Keycloak and pg → separate session schema. The console consumes shared session presentation; server credentials never enter nuxt-ui or client bundles.
 - **Freeze:** none; platform routes and console-only persistence are provisional.
@@ -428,3 +428,39 @@ After WU-80, define provider-connection management and governed inference from
 the [MVP sequence](platform-mvp.md). Enterprise SAML/direct-OIDC onboarding,
 SCIM, workload federation, resource-specific teams/compartments, human delegation,
 audit search/export and deployment SLO qualification retain separate ownership.
+
+
+## WU-81 — Integrate the full shadcn-vue component layer
+
+Maintainer request: "Integrate in the layer all the shadcn-vue components so we do not have to do this after."
+
+- [ ] **Status:** implementation in progress.
+- **Goal:** Make the complete upstream shadcn-vue component catalogue available to
+  every platform app through one reusable Nuxt layer, with Ocarinow presentation
+  supplied above that layer instead of rebuilding primitive components.
+- **Scope:** `platform/packages/nuxt-ui`, brand theme overrides in `nuxt-platform`,
+  console component consumption, frontend manifests/lock, component catalogue
+  provenance, documentation and layer/browser validation. Registry component files
+  are a mechanical upstream import; no bespoke replacements or wrapper catalogue.
+- **Done:** All components from the pinned upstream UI registry are installed and
+  type-check through the consuming console; shadcn module exports resolve from the
+  shared layer; the console renders actual registry components with higher-layer
+  Ocarinow theme tokens, and unused components do not inflate its client bundle.
+- **Deps:** WU-75 as the current platform stack; this foundation precedes WU-76.
+- **Architecture:** §12.1 and the UI layer implementation notes in §12.
+- **Integration:** Console extends nuxt-platform (product shell/theme overrides),
+  which extends nuxt-ui (upstream shadcn-vue components and neutral theme).
+  Components are registered with shadcn-nuxt and consumed directly; no public
+  language package imports platform code. No authentication behavior changes.
+- **Freeze:** none; private platform components and build configuration only.
+- **Decision:** Use shadcn-vue 2.9.0 CLI and committed registry snapshot with shadcn-nuxt
+  ([ADR 0012](../decisions/0012-shadcn-component-layer.md));
+  import the full UI catalogue as explicitly requested. Preserve upstream source
+  and license attribution. Keep brand decisions in higher-layer CSS overrides.
+- **Out:** Custom primitive design, authentication/session implementation,
+  copying example applications or marketing blocks, a new public UI distribution.
+- **Open:** none.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** 1
+- **Owner:** Codex

@@ -1,0 +1,25 @@
+:root:not(.dark) {
+  --background: #f7f9f9;
+  --foreground: #163332;
+  --card-foreground: var(--foreground);
+  --popover-foreground: var(--foreground);
+  --primary: #126b60;
+  --primary-foreground: #ffffff;
+  --secondary: #edf2f1;
+  --secondary-foreground: var(--foreground);
+  --muted: #edf2f1;
+  --muted-foreground: #506966;
+  --accent: #e1eeea;
+  --accent-foreground: var(--foreground);
+  --border: #d9e3e0;
+  --input: var(--border);
+  --ring: var(--primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+::selection { background: #c8e7df; color: #163332; }

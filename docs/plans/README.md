@@ -113,6 +113,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-78 | Administer owned service-account principals | Platform identity | [identity](platform-identity.md) | ⬜ |
 | WU-79 | Bind OAuth workloads to service accounts | Platform identity | [identity](platform-identity.md) | ⬜ |
 | WU-80 | Issue and revoke scoped platform API keys | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-81 | Integrate the full shadcn-vue component layer | Platform identity | [identity](platform-identity.md) | ⬜ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
