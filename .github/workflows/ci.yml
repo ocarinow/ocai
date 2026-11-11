@@ -7,9 +7,27 @@ on:
   pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
 
-# Path-filtered per language. Every job ALSO triggers on spec/** so that a
-# change to the language-neutral source of truth re-runs each implementation's
-# conformance suite — the intended cross-language drift alarm.
+# Least privilege: every job here only reads the repository. A job that needs
+# more declares it on the job, never here.
+permissions:
+  contents: read
+
+# One live run per pull request: a new push cancels the superseded run. Pushes
+# to main are never cancelled, so every merge commit keeps its full record.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Path-filtered per job, INSIDE the job: the required status checks on main
+# (python, privacy, pr-hygiene, platform, docs — ADR 0002) must report on
+# every pull request, so each job always starts, decides in seconds whether
+# the change touches its tree, and skips its heavy steps otherwise. Every
+# implementation job ALSO triggers on spec/** so that a change to the
+# language-neutral source of truth re-runs each conformance suite — the
+# intended cross-language drift alarm.
+#
+# Actions are pinned to a commit SHA with the version as a trailing comment;
+# Dependabot (.github/dependabot.yml) keeps both current.
 jobs:
   # Every PR follows .github/PULL_REQUEST_TEMPLATE.md: WU-NN title, every
   # section present from the first draft, no unchecked box once ready, a
@@ -18,14 +36,20 @@ jobs:
     name: pr-hygiene
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+      # Branch names come from the PR author: they reach the script through the
+      # environment, never interpolated into it (actionlint: script injection).
       - name: Change files (release intent travels with the change — ADR 0010)
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
         run: |
-          flag=""; [ "${{ github.event.pull_request.head.ref }}" = "release" ] && flag="--release-pr"
-          python3 scripts/release.py check --base "origin/${{ github.event.pull_request.base.ref }}" $flag
+          flag=""; [ "$PR_HEAD" = "release" ] && flag="--release-pr"
+          python3 scripts/release.py check --base "origin/$PR_BASE" $flag
       - name: Save PR body
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -46,8 +70,9 @@ jobs:
   privacy:
     name: privacy
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Save PR title and body
@@ -67,32 +92,42 @@ jobs:
   python:
     name: python
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Cheap path filter: decide whether the rest of the job should run.
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
         with:
           filters: |
             run:
               - 'python/**'
               - 'spec/**'
-              - 'examples/ocai-contrib-echo/**'
+              - 'examples/**'
+              - 'scripts/**'
+              - 'tasks/**'
               - 'pyproject.toml'
+              - 'uv.lock'
+              - 'knope.toml'
               - '.github/workflows/ci.yml'
 
       - name: Install uv
         if: steps.changes.outputs.run == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
       - name: Set up Python
         if: steps.changes.outputs.run == 'true'
         run: uv python install 3.13
 
+      # --locked: a lockfile that no longer matches pyproject.toml is a failure,
+      # never a silent re-resolution on the runner.
       - name: Sync workspace
         if: steps.changes.outputs.run == 'true'
-        run: uv sync
+        run: uv sync --locked
 
       # Every distribution under python/packages must be wired into knope,
       # uv sources, mypy, import-linter, and the core extras (rules 1, 16, 19).
@@ -139,35 +174,83 @@ jobs:
           python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib
           examples/ocai-contrib-echo/tests -q
 
+  # The platform gate provisions PostgreSQL, Keycloak and OpenFGA from pinned
+  # digests and drives the built console with Playwright. Required on main, so
+  # it always reports; it only does the work when the platform tree changed.
   platform:
     name: platform
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        id: changes
+        with:
+          filters: |
+            run:
+              - 'platform/**'
+              - 'scripts/check_platform.py'
+              - '.github/workflows/ci.yml'
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.changes.outputs.run == 'true'
         with:
           node-version: '24.15.0'
           cache: npm
           cache-dependency-path: platform/package-lock.json
-      - uses: astral-sh/setup-uv@v5
-      - run: uv python install 3.13
-      - run: uv sync --project platform/services/gateway --frozen
-      # The platform gate provisions PostgreSQL, Keycloak and OpenFGA from pinned digests.
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        if: steps.changes.outputs.run == 'true'
+        with:
+          enable-cache: true
+          cache-dependency-glob: platform/services/gateway/uv.lock
+
+      - if: steps.changes.outputs.run == 'true'
+        run: uv python install 3.13
+
+      - if: steps.changes.outputs.run == 'true'
+        run: uv sync --project platform/services/gateway --frozen
+
       # Missing Docker must fail the integration job, never silently skip integration.
       - name: Verify Docker for platform integration
+        if: steps.changes.outputs.run == 'true'
         run: docker info --format '{{.ServerVersion}}'
-      - run: npm ci
+
+      - if: steps.changes.outputs.run == 'true'
+        run: npm ci
         working-directory: platform
-      - run: npx playwright install --with-deps chromium
+
+      # Browser binaries are keyed on the lockfile (which pins @playwright/test);
+      # a hit skips the download and only installs the OS packages it needs.
+      - name: Cache Playwright browsers
+        if: steps.changes.outputs.run == 'true'
+        id: playwright
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('platform/package-lock.json') }}
+
+      - name: Install Playwright Chromium
+        if: steps.changes.outputs.run == 'true' && steps.playwright.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
         working-directory: platform
-      - run: uv run --project platform/services/gateway python scripts/check_platform.py
+
+      - name: Install Playwright system dependencies (browsers cached)
+        if: steps.changes.outputs.run == 'true' && steps.playwright.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: platform
+
+      - if: steps.changes.outputs.run == 'true'
+        run: uv run --project platform/services/gateway python scripts/check_platform.py
 
   typescript:
     name: typescript
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
         with:
           filters: |
@@ -181,9 +264,10 @@ jobs:
   go:
     name: go
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: changes
         with:
           filters: |
