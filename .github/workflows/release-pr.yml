@@ -1,0 +1,82 @@
+name: Release PR
+
+# One branch, one standing Release PR (ADR 0010, docs/releasing.md). On every
+# push to main that is not itself the release merge, run `knope
+# prepare-release`: bump the versions of packages with pending change files,
+# write their CHANGELOG.md, consume the change files, and open or update the
+# PR from branch `release` into main. Merging that PR is the stable release
+# (release.yml tags and publishes). With no pending change files nothing
+# changes and no PR is opened.
+#
+# The PR is created with RELEASE_TOKEN (a token with repo scope; the default
+# token's PRs do not trigger the required checks). BOARD_TOKEN serves until a
+# dedicated token exists.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: prepare release PR
+    if: "!startsWith(github.event.head_commit.message, 'Release:')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
+
+      - uses: knope-dev/action@v2.1.0
+        with:
+          version: 0.23.2
+
+      - name: Prepare the release (versions, changelogs, consume change files)
+        run: knope prepare-release --verbose
+
+      - name: Describe the release
+        id: describe
+        run: |
+          {
+            echo "## Work unit"; echo
+            echo "Release — the standing release PR kept by \`release-pr.yml\` (ADR 0010). Merging it tags and publishes the stable versions below."; echo
+            echo "## What changed"; echo
+            git diff --cached --name-only -- 'python/packages/*/pyproject.toml' | while read -r f; do
+              v=$(grep -E '^version = ' "$f" | head -1 | sed -E 's/version = "([^"]+)".*/\1/')
+              n=$(grep -E '^name = ' "$f" | head -1 | sed -E 's/name = "([^"]+)".*/\1/')
+              echo "- \`$n\` → \`$v\` (tag \`$n/v$v\`)"
+            done
+            echo; echo "Changelog sections are in each package's CHANGELOG.md in this diff; the change files that produced them are consumed."; echo
+            echo "## Honesty ledger"; echo
+            echo "- [x] No edge, census, fixture, or runtime code changed (versions and changelogs only)"; echo
+            echo "## Contracts"; echo
+            echo "- [x] No dependency change; no frozen surface touched; no architecture section affected"; echo
+            echo "## Release"; echo
+            echo "- [x] Produced by knope from the change files; no change file is required for the release commit itself"; echo
+            echo "## Privacy"; echo
+            echo "- [x] Generated from change files that passed the privacy guard in their own PRs"; echo
+            echo "## Verification"; echo
+            echo '```'; echo "knope prepare-release (CI run ${{ github.run_id }})"; echo '```'
+          } > /tmp/release_pr_body.md
+          echo "body=/tmp/release_pr_body.md" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the Release PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
+          branch: release
+          base: main
+          delete-branch: true
+          commit-message: "Release: bump versions and changelogs from change files"
+          title: "Release: bump versions and changelogs from change files"
+          body-path: ${{ steps.describe.outputs.body }}
+          labels: release

@@ -119,8 +119,9 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | `task release:packages` | Published packages and their current versions (from knope.toml) |
 | `task release:preview:alpha` | What the next ALPHA pre-release would do, without changing anything |
 | `task release:preview:rc` | What the next RELEASE CANDIDATE would do, without changing anything |
+| `task release:rc` | Publish a release candidate of every package with pending change files (dispatches prerelease.yml with kind=rc) |
+| `task release:release-pr` | Open the standing Release PR in the browser (or report that none is pending) |
 | `task release:status` | What the next STABLE release would do (versions, changelog sections), without changing anything |
-| `task release:version` | Current version of each package as knope sees it |
 
 ## tasks
 

@@ -217,8 +217,9 @@ stale).
     change is `major` and bumps `0.<n>`) with a user-facing note;
     `pr-hygiene` refuses the PR otherwise. Versions are bumped only by knope (`knope.toml`) in the
     release workflows, never by hand; each package has its own version and
-    tag `<name>/v<version>`; alphas publish from `dev`, release candidates
-    on demand, stable releases from `main` (ADR 0010, `docs/releasing.md`).
+    tag `<name>/v<version>`; every merge to `main` publishes an alpha and
+    refreshes the standing Release PR; merging that PR is the stable release
+    (ADR 0010, `docs/releasing.md`).
     Titles stay `WU-NN: …`.
 18. **Docstrings are Google style** (`Args:`/`Returns:`/`Raises:`/`Yields:`),
     never reST field lists or NumPy sections; never repeat a type the

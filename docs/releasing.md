@@ -68,17 +68,40 @@ pre-releases (`alpha` from `dev`, `rc` on demand) compute their version from
 these files but keep them; the stable release PR consumes them.
 
 
-## Branches and the three kinds of release
+## One branch, three kinds of release
 
-| Event | What happens | Version |
-|---|---|---|
-| A WU PR merges into `dev` | `release-alpha.yml` runs `knope prerelease --prerelease-label alpha`, builds the affected packages, publishes them, tags `<name>/v<version>` | `0.2.0-alpha.0`, `-alpha.1`, … — change files kept |
-| Maintainer dispatches `release.yml` with `kind=rc` | same from `dev` with the `rc` label | `0.2.0-rc.0` — change files kept |
-| Maintainer dispatches `release.yml` with `kind=stable` | `knope prepare-release` bumps versions, writes each `CHANGELOG.md`, consumes the change files, and opens the **release PR** `dev → main` | `0.2.0` |
-| The release PR merges into `main` | `knope release` tags each released package and creates its GitHub Release; the publish job uploads to PyPI through trusted publishing | — |
+Every WU PR merges into `main`. Nothing is released by that merge except an
+alpha. The stable release is a PR like any other.
 
-A package with no pending change file is not released. Pre-release versions
-use PEP 440 suffixes and are never installed by default by `pip` or `uv`.
+| Event | Workflow | What happens | Version |
+|---|---|---|---|
+| A PR merges into `main` and change files are pending | `prerelease.yml` | computes each affected package's target version from the change files, publishes an **alpha** with the CI run number, commits and tags nothing, keeps the change files | `0.2.0a123` |
+| Same push | `release-pr.yml` | runs `knope prepare-release`: bumps versions, writes `CHANGELOG.md`, consumes the change files, and opens or updates the standing **Release PR** (branch `release`) | the diff shows `0.2.0` |
+| Maintainer runs `task release:rc` | `prerelease.yml` (dispatch `kind=rc`) | same as the alpha with the `rc` label | `0.2.0rc124` |
+| Maintainer merges the Release PR | `release.yml` | `knope release` tags `<name>/v<version>` and creates one GitHub Release per package from its changelog section; each released package is built and published to PyPI through trusted publishing | `0.2.0` |
+
+Only packages with pending change files appear in any of this. The Release
+PR passes the same required checks as every PR; its body is generated and
+its version edits are exempt from the change-file policy. Pre-release
+versions are never installed by default by `pip` or `uv`.
+
+Why one branch: with squash merges and linear history, a long-lived `dev`
+branch diverges from `main` after every release and needs a force-style sync
+that the rulesets forbid. One branch with a standing Release PR gives the
+same visible behavior with nothing to reconcile (ADR 0010).
+
+## Setup, once (maintainer)
+
+- **Trusted publishing on PyPI.** For each package name (`ocai`,
+  `ocai-openai`, `ocai-anthropic`) add a *pending publisher* on PyPI with
+  owner `ocarinow`, repository `ocai`, environment `pypi`, and workflow
+  `release.yml`; add a second one for `prerelease.yml`. The first publish
+  creates the project. No token is stored anywhere.
+- **GitHub environment `pypi`** on the repository (the workflows reference it;
+  protection rules optional).
+- **`RELEASE_TOKEN` secret** (a token with `repo` scope) so the Release PR
+  created by CI triggers the required checks; `BOARD_TOKEN` is used until it
+  exists.
 
 ## Tasks
 
@@ -87,6 +110,7 @@ use PEP 440 suffixes and are never installed by default by `pip` or `uv`.
 | `task release:changeset` | write a change file interactively (`knope document-change`) |
 | `task release:check` | the policy check the `pr-hygiene` job runs |
 | `task release:status` | dry run of the next stable release |
+| `task release:rc` | publish a release candidate now (dispatches `prerelease.yml`) |
 | `task release:preview:alpha`, `task release:preview:rc` | dry run of the next pre-release |
 | `task release:packages` | packages and current versions |
 

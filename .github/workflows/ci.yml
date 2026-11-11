@@ -22,8 +22,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Changesets (release intent travels with the change — ADR 0010)
-        run: python3 scripts/release.py check --base "origin/${{ github.event.pull_request.base.ref }}"
+      - name: Change files (release intent travels with the change — ADR 0010)
+        run: |
+          flag=""; [ "${{ github.event.pull_request.head.ref }}" = "release" ] && flag="--release-pr"
+          python3 scripts/release.py check --base "origin/${{ github.event.pull_request.base.ref }}" $flag
       - name: Save PR body
         env:
           PR_BODY: ${{ github.event.pull_request.body }}

@@ -36,7 +36,14 @@ tasks:
     cmds:
       - knope prerelease --prerelease-label rc --dry-run
 
-  version:
-    desc: Current version of each package as knope sees it
+  rc:
+    desc: Publish a release candidate of every package with pending change files (dispatches prerelease.yml with kind=rc)
     cmds:
-      - knope get-version
+      - gh workflow run prerelease.yml -f kind=rc
+      - 'echo "dispatched; watch with: gh run list --workflow=prerelease.yml --limit 1"'
+
+  release-pr:
+    desc: Open the standing Release PR in the browser (or report that none is pending)
+    silent: true
+    cmds:
+      - "gh pr list --head release --json url -q '.[0].url' | grep . || echo 'no Release PR pending (no change files since the last release)'"

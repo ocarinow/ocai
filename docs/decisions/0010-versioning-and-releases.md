@@ -39,12 +39,15 @@ publishing.
    code is `scripts/release.py check`: a change file is required when a
    published package changed. A hand-rolled bump engine was started and
    dropped: the release path must outlive any one script.
-5. **Two branches, three kinds of release.** `dev` is the integration branch
-   every WU PR targets; each merge to `dev` publishes an **alpha** of the
-   affected packages. A **release candidate** is cut from `dev` on demand.
-   The **stable** release is the merge of a release PR from `dev` into
-   `main`: versions bumped, changelogs written, changesets consumed, tags
-   pushed, packages published. Both branches carry the same rulesets.
+5. **One branch, a standing Release PR, three kinds of release.** Every WU
+   PR merges into `main`. Each such merge publishes an **alpha** of the
+   packages with pending change files (`X.Y.Za<run>`, nothing committed or
+   tagged) and refreshes the standing **Release PR** on branch `release`,
+   where knope has bumped the versions, written the changelogs, and
+   consumed the change files. A **release candidate** is published on
+   demand the same way as an alpha. Merging the Release PR is the **stable**
+   release: tags, GitHub Releases, PyPI publish. Decided with the
+   maintainer on 2026-11-11 over a `dev`/`main` pair.
 6. **Publishing is trusted publishing.** PyPI (later npm) is configured to
    trust this repository's release workflow through OIDC; no registry token
    is stored. Each publish is a GitHub Release per tag with the changelog
@@ -75,6 +78,10 @@ publishing.
   lifetime (pre-release sequencing, changelog merging, Go tags, npm). knope's
   risk — a small open-source project — is bounded because its inputs and
   outputs are plain files we own.
+- **A long-lived `dev` branch feeding `main`.** The classic flow, but with
+  squash merges and linear history the two branches diverge after every
+  release and need a force-style sync that the rulesets forbid without a
+  bypass actor. Same visible behavior is obtained with one branch.
 - **Publishing alphas to TestPyPI.** A second credential surface and a
   second index to configure for little benefit; PEP 440 pre-releases on the
   real index are not installed by default.
@@ -83,9 +90,9 @@ publishing.
 
 - `AGENTS.md` carries the ground rule; `wu-session` adds the changeset step;
   the PR template gains a Release section; `review-pr` checks it.
-- Workflows: `release-alpha.yml` on push to `dev`, `release.yml` on dispatch
-  (`rc` from `dev`, `stable` by release PR to `main`). Rulesets on `dev`
-  mirror `main`. The maintainer configures trusted publishing on PyPI once
-  per package.
-- `task release:*` wraps the script; `task pr:worktree` and `task pr:draft`
-  default to `dev`.
+- Workflows: `release-pr.yml` (push to `main` → standing Release PR),
+  `prerelease.yml` (push to `main` → alpha; dispatch → rc), `release.yml`
+  (Release PR merged → tags, GitHub Releases, PyPI). The maintainer
+  configures trusted publishing on PyPI once per package and workflow, and
+  the `pypi` environment.
+- `task release:*` wraps knope, the policy script, and the rc dispatch.
