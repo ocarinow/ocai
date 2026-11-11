@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Changesets (release intent travels with the change — ADR 0010)
+        run: python3 scripts/release.py check --base "origin/${{ github.event.pull_request.base.ref }}"
       - name: Save PR body
         env:
           PR_BODY: ${{ github.event.pull_request.body }}

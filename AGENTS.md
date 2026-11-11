@@ -103,7 +103,9 @@ core+convert ONLY (never wire/httpx).
 
 - **interface tag** — a provider interface's dated wire revision (`NodeId.tag`).
 - **canonical IR revision** — dated `ocai@YYYY-MM` (also a `NodeId.tag`).
-- **library public-API version** — semver of the shipped package.
+- **library public-API version** — semver of the shipped package, one per
+  distribution, bumped only through changesets and the release script
+  (ADR 0010).
 
 ## Commands
 
@@ -208,6 +210,16 @@ stale).
     `Unknown` in an IDE; no `# type: ignore` without a reason code and a
     comment. Mark stubs with `# TODO:` and a one-line note.
 17. **One work unit (WU) per PR.**
+19. **Release intent travels with the change.** Any PR that changes a file
+    under a published package (`python/packages/*`) adds a changeset in
+    `.changeset/` naming each affected package and its semver level
+    (`patch` fix, `minor` additive, `major` breaking — in 0.x a breaking
+    change is `major` and bumps `0.<n>`) with a user-facing note;
+    `pr-hygiene` refuses the PR otherwise. Versions are bumped only by knope (`knope.toml`) in the
+    release workflows, never by hand; each package has its own version and
+    tag `<name>/v<version>`; alphas publish from `dev`, release candidates
+    on demand, stable releases from `main` (ADR 0010, `docs/releasing.md`).
+    Titles stay `WU-NN: …`.
 18. **Docstrings are Google style** (`Args:`/`Returns:`/`Raises:`/`Yields:`),
     never reST field lists or NumPy sections; never repeat a type the
     signature already declares; code references in prose are single-backtick.

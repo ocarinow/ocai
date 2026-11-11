@@ -68,6 +68,10 @@ and fill the boxes as you go — a placeholder body fails `pr-hygiene`.
   done-criteria path.
 - Honesty rules (5, 6, 7) are not optional on a "small" change. If a field
   cannot cross, it is reported, never dropped.
+- If the WU changes a published package, add its changeset now, while the
+  impact is fresh: `task release:changeset -- "ocai: minor" "ocai-openai: patch" "<note> (WU-NN)"`
+  (see `docs/releasing.md`). `task release:check` tells you whether one is
+  required.
 
 ## 5. Verify
 

@@ -110,6 +110,18 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | `task spec:unknown` | The total-decode vectors (rule 6) |
 | `task spec:validate` | Validate every fixture under spec/fixtures against spec/schema |
 
+## Versions and releases — changesets, bumps, changelogs (ADR 0010)
+
+| Task | Does |
+|---|---|
+| `task release:changeset` | Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per .changeset/README.md |
+| `task release:check` | Change-file policy for the current branch — required when a published package changed (task release:check [-- BASE]) |
+| `task release:packages` | Published packages and their current versions (from knope.toml) |
+| `task release:preview:alpha` | What the next ALPHA pre-release would do, without changing anything |
+| `task release:preview:rc` | What the next RELEASE CANDIDATE would do, without changing anything |
+| `task release:status` | What the next STABLE release would do (versions, changelog sections), without changing anything |
+| `task release:version` | Current version of each package as knope sees it |
+
 ## tasks
 
 | Task | Does |

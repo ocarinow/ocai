@@ -1,0 +1,42 @@
+# Versions and releases (ADR 0010). Mechanics are knope (knope.toml): bumps,
+# changelogs, tags, GitHub Releases. Policy is scripts/release.py: a change
+# file must travel with any change to a published package. Nothing here bumps
+# a version except through knope, and CI runs the same commands.
+version: "3"
+
+tasks:
+  packages:
+    desc: Published packages and their current versions (from knope.toml)
+    cmds:
+      - uv run python scripts/release.py packages
+
+  check:
+    desc: "Change-file policy for the current branch — required when a published package changed (task release:check [-- BASE])"
+    cmds:
+      - uv run python scripts/release.py check --base {{.CLI_ARGS | default "origin/main"}}
+
+  changeset:
+    desc: Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per .changeset/README.md
+    interactive: true
+    cmds:
+      - knope document-change
+
+  status:
+    desc: What the next STABLE release would do (versions, changelog sections), without changing anything
+    cmds:
+      - knope prepare-release --dry-run
+
+  preview:alpha:
+    desc: What the next ALPHA pre-release would do, without changing anything
+    cmds:
+      - knope prerelease --prerelease-label alpha --dry-run
+
+  preview:rc:
+    desc: What the next RELEASE CANDIDATE would do, without changing anything
+    cmds:
+      - knope prerelease --prerelease-label rc --dry-run
+
+  version:
+    desc: Current version of each package as knope sees it
+    cmds:
+      - knope get-version

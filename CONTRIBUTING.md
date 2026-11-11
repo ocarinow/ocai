@@ -62,6 +62,12 @@ repository folder: each environment is its own workspace folder with its own
 interpreter in `<folder>/.vscode/settings.json`, so Pylance, Ruff, and the
 test runner resolve against the right venv. Run `uv sync` in each Python
 folder you work in (`task setup` does the root one).
+## Versions and releases
+
+Each distribution under `python/packages/` has its own semantic version. A
+PR that changes one adds a changeset in `.changeset/` (package, level, note);
+versions are bumped only by the release script when a release is cut.
+Alphas publish from `dev`, stable releases from `main`. See ADR 0010.
 
 ## Before you open a PR
 

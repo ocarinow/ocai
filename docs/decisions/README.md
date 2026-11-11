@@ -43,4 +43,5 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0006](0006-platform-product-layout.md) | Platform product layout | accepted |
 | [0007](0007-governed-execution.md) | Governed execution through public package contracts | accepted (staged implementation) |
 | [0008](0008-integration-contract-additions.md) | Additive integration contracts before the qualification gate | WU-37 accepted; remainder proposed |
+| [0010](0010-versioning-and-releases.md) | Versioning and releases: independent semver, changesets, two branches | accepted |
 | [0009](0009-platform-foundation.md) | Platform application and reusable layers | accepted for the first implementation slice |

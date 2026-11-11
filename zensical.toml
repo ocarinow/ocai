@@ -39,6 +39,7 @@ nav = [
       "libraries/python/README.md",
       { "Writing a plugin" = "writing-a-plugin.md" },
     ] },
+    { "Releasing" = "releasing.md" },
     { "TypeScript" = "libraries/typescript.md" },
     { "Go" = "libraries/go.md" },
   ] },
@@ -117,6 +118,8 @@ nav = [
     "plans/README.md",
     { "Core modernization" = "plans/core-modernization.md" },
     { "Integration program" = "plans/integration-program.md" },
+    { "Platform MVP" = "plans/platform-mvp.md" },
+    { "WU entry template" = "plans/WU-TEMPLATE.md" },
     { "Gateway readiness" = "plans/gateway-readiness.md" },
     { "Platform design" = "plans/platform-design.md" },
     { "WU-20 — Catalog conformance" = "plans/wu-20-catalog-conformance.md" },
@@ -136,6 +139,8 @@ nav = [
     { "0006 — Platform product layout" = "decisions/0006-platform-product-layout.md" },
     { "0007 — Governed execution through public package contracts" = "decisions/0007-governed-execution.md" },
     { "0008 — Additive integration contracts before the qualification gate" = "decisions/0008-integration-contract-additions.md" },
+    { "0009 — Platform foundation" = "decisions/0009-platform-foundation.md" },
+    { "0010 — Versioning and releases" = "decisions/0010-versioning-and-releases.md" },
   ] },
 ]
 
