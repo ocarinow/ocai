@@ -1,0 +1,54 @@
+{
+  "description": "WU-45 synthetic forward-compatible DeepSeek response pair: an unknown native metadata field is retained as evidence and can be rejected by response policy without losing measured usage. Based on provider research section 15; no live keys or captured tenant data.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.deepseek.com/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say hello."
+        }
+      ],
+      "max_tokens": 128,
+      "model": "deepseek-flash"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "completion-synthetic",
+      "object": "chat.completion",
+      "created": 1794355200,
+      "model": "deepseek-flash",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Hello.",
+            "reasoning_content": "Use a short greeting."
+          },
+          "finish_reason": "stop",
+          "logprobs": null
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 6,
+        "total_tokens": 16,
+        "prompt_cache_hit_tokens": 4,
+        "prompt_cache_miss_tokens": 6,
+        "prompt_tokens_details": {
+          "cached_tokens": 4
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2
+        }
+      },
+      "future_metadata": {
+        "opaque": "retained"
+      }
+    }
+  }
+}

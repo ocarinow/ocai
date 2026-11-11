@@ -432,6 +432,10 @@ For streaming, preparation also pins a `StreamFraming` selection (§6); both the
 live selection and its factory/options identity must still match before I/O.
 Copying preparation copies configuration while preserving callable ownership.
 No decoder is created during inspection or for an unconsumed stream.
+DeepSeek unary calls use this same public preparation/execution path: the approved
+snapshot binds the model below conversion, and explicit credentials remain at
+the transport leaf. Caller fidelity policies reject missing reasoning before I/O
+and preserve usage/evidence on response-side rejection (WU-45).
 
 ### 3.4 The front doors — simple facade, switchable by data
 
@@ -471,6 +475,11 @@ Two equivalent doors, neither forced:
    (`from ocai.openai import chat_model; chat_model("gpt-5",
    credentials=key)`). It must be a thin wrapper over the exact same
    fragment + facade machinery — sugar, never a separate code path.
+
+DeepSeek is available through `ocai.chat.model("deepseek/deepseek-flash",
+credentials=key)` with discovered or explicitly composed catalogs. The bound
+provider selects its own origin and bearer credential placement. WU-45 qualifies
+unary execution; absent streaming edges reject streaming preparation before I/O.
 
 Either way, installing a provider distribution has exactly one structural
 effect: its `CatalogFragment` becomes discoverable and **augments the
@@ -631,11 +640,11 @@ failed additions leave the builder usable. Profiles sort by literal-prefix
 specificity, then lexical pattern. Dates rank revisions within one interface;
 multiple eligible sibling interfaces require an explicit `interface=` pin.
 The chat front door applies this to serveable interfaces, excluding stubs.
-WU-44a proves this with the installed DeepSeek descriptor: entry-point discovery,
-lock composition and identity resolution work, but public chat composition raises
-before provider I/O because no component is registered. WU-44b adds three unary
-edges (canonical request encode, native request audit and native response decode),
-but public execution remains unavailable until WU-45.
+DeepSeek separates descriptor registration (WU-44a), three independently censused
+unary edges (WU-44b), and its serving component (WU-45). Entry-point discovery and
+explicit catalog composition now reach the same public unary facade. A component
+registration does not imply streaming qualification; the graph must have the
+corresponding stream edge before preparation can succeed.
 WU-38 adds provisional `HostDescriptor` data in `ocai.convert.hosts`; plugins can
 publish it through `CatalogFragment.hosts` without importing wire. Conflicting
 same-name hosts fail admission; equal declarations are idempotent. `Catalog.host`
@@ -828,7 +837,8 @@ codec from `ocai-openai` through a bounded plugin dependency. The default OpenAI
 configuration retains its original behavior. DeepSeek supplies independent
 identity, field lanes, finish mappings, request policies, usage normalization,
 profiles and edge contracts. WU-44b qualifies three unary edges with golden
-fixtures; WU-45 owns public execution and WU-46 owns streaming.
+fixtures. WU-45 registers its serving component and qualifies public sync/async
+unary execution with recorded HTTP pairs. WU-46 owns streaming.
 
 Measured prompt cache hits and misses, and output/reasoning tokens, become
 disjoint usage buckets only when their breakdown is available and consistent.
@@ -961,6 +971,11 @@ streaming: chunks flow through StreamEdge transducers; the stream ends with
 StreamEnd(usage, finish, report); StreamAccumulator.fold(chunks) == ChatResponse.
 local adapters: implement the port directly — same CallResult, no wire/runtime.
 ```
+
+DeepSeek unary wire pairs exercise this lifecycle end to end, including exact
+request bytes as JSON, all prior reasoning in tool histories, scoped result ids,
+measured usage, both conversion legs, correlated metadata and safe retained policy
+references. Preparation itself performs no provider I/O (WU-45).
 
 ## 9. Stability domains & freeze staging
 

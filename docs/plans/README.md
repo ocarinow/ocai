@@ -77,7 +77,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-43 | Account for provider-executed search requests | Integration | [integration](integration-program.md) | ✅ |
 | WU-44a | Declare the DeepSeek compatible interface variant | Integration | [integration](integration-program.md) | ✅ |
 | WU-44b | Certify the DeepSeek compatible dialect variant | Integration | [integration](integration-program.md) | ✅ Complete (review pending; PR #91) |
-| WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ⬜ |
+| WU-45 | Qualify DeepSeek unary execution | Integration | [integration](integration-program.md) | ✅ Complete (review pending; PR #99) |
 | WU-46 | Qualify DeepSeek streaming | Integration | [integration](integration-program.md) | ⬜ |
 | WU-47 | Sign independent transport attempts with SigV4 | Integration | [integration](integration-program.md) | ⬜ |
 | WU-48 | Host Anthropic unary calls on Bedrock InvokeModel | Integration | [integration](integration-program.md) | ⬜ |

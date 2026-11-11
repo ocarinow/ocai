@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ocai-deepseek"
 version = "0.1.1"
-description = "DeepSeek interface descriptors for ocai; execution qualification pending."
+description = "DeepSeek Chat Completions unary execution and honest conversion for ocai."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "FSL-1.1-ALv2"

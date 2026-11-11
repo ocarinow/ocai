@@ -1,0 +1,72 @@
+{
+  "description": "WU-45 synthetic documented-wire DeepSeek unary tools pair, based on provider research section 15 and the independently qualified WU-44b fixtures. No captured tenant data or live credentials. Streaming pairing belongs to WU-46.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.deepseek.com/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Look it up."
+        }
+      ],
+      "max_tokens": 128,
+      "model": "deepseek-flash",
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "lookup",
+            "parameters": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "completion-synthetic",
+      "object": "chat.completion",
+      "created": 1794355200,
+      "model": "deepseek-flash",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "reasoning_content": "Check the record.",
+            "tool_calls": [
+              {
+                "id": "call_synthetic",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls",
+          "logprobs": null
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 6,
+        "total_tokens": 16,
+        "prompt_cache_hit_tokens": 4,
+        "prompt_cache_miss_tokens": 6,
+        "prompt_tokens_details": {
+          "cached_tokens": 4
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2
+        }
+      }
+    }
+  }
+}

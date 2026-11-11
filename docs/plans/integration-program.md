@@ -407,7 +407,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-45 — Qualify DeepSeek unary execution
 
-- [ ] **Status:** in progress from merged WU-44b.
+- [x] **Status:** complete; review pending in PR #99.
 - **Goal:** Execute the qualified DeepSeek unary subset through public preparation
   and the standard facade, retaining credentials, governance and conversion evidence.
 - **Scope:** DeepSeek binding/front-door data and recorded HTTP pairs through the
