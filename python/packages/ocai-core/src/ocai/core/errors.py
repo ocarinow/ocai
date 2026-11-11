@@ -24,7 +24,14 @@ hatch: a rare condition that doesn't merit its own subclass surfaces as a plain
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
+from typing import TYPE_CHECKING
 from typing import Any
+
+if TYPE_CHECKING:
+    from ocai.core.evidence import HostEvidence
+    from ocai.core.fidelity import FidelityReport
+    from ocai.core.usage import Usage
 
 
 class OcaiError(Exception):
@@ -48,6 +55,9 @@ class OcaiError(Exception):
         response_headers: Detached incoming HTTP headers, or None if unavailable.
             Application evidence; never automatically exported to observers.
         response_body: Exact incoming body bytes, or None if unavailable.
+        report: Known conversion/host accounting for a rejected execution.
+        usage: Known consumption for a rejected execution; None means unknown.
+        host_evidence: Optional detached host outcome evidence for application use.
     """
 
     def __init__(
@@ -61,6 +71,9 @@ class OcaiError(Exception):
         raw: dict[str, Any] | None = None,
         response_headers: Mapping[str, str] | None = None,
         response_body: bytes | None = None,
+        report: FidelityReport | None = None,
+        usage: Usage | None = None,
+        host_evidence: HostEvidence | None = None,
     ) -> None:
         """Construct an error with optional neutral provider context.
 
@@ -75,6 +88,9 @@ class OcaiError(Exception):
             response_headers: Detached native response headers, or None when unavailable.
                 Never outgoing authentication headers; not automatically logged.
             response_body: Exact native response bytes, or None when unavailable.
+            report: Known conversion and host findings on a rejected outcome.
+            usage: Known consumption on a rejected outcome, never assumed zero.
+            host_evidence: Detached host outcome evidence, never automatically logged.
         """
         super().__init__(message)
         self.provider = provider
@@ -84,6 +100,9 @@ class OcaiError(Exception):
         self.raw = raw
         self.response_headers = dict(response_headers) if response_headers is not None else None
         self.response_body = response_body
+        self.report = deepcopy(report)
+        self.usage = deepcopy(usage)
+        self.host_evidence = deepcopy(host_evidence)
 
 
 class StreamProtocolError(OcaiError):

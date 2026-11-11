@@ -53,6 +53,7 @@ from ocai.core.traits import DialectTraits
 from ocai.wire.framing import StreamFraming
 from ocai.wire.framing import sse_framing
 from ocai.wire.outcomes import HostErrorMapper
+from ocai.wire.outcomes import HostResponseAdapter
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,21 @@ class ErrorMappingHost(Protocol):
 def host_error_mapper(host: Host, spec: EndpointSpec) -> HostErrorMapper | None:
     """Snapshot a declared mapper without modifying the host or transport."""
     selected = host.error_mapper(spec) if isinstance(host, ErrorMappingHost) else None
+    return selected.snapshot() if selected is not None else None
+
+
+@runtime_checkable
+class ResponseMappingHost(Protocol):
+    """Optional governed unary response adaptation over detached wire evidence."""
+
+    def response_adapter(self, spec: EndpointSpec) -> HostResponseAdapter | None:
+        """Select explicit host response semantics, or retain the legacy path."""
+        ...
+
+
+def host_response_adapter(host: Host, spec: EndpointSpec) -> HostResponseAdapter | None:
+    """Snapshot a host response declaration without executing its callback."""
+    selected = host.response_adapter(spec) if isinstance(host, ResponseMappingHost) else None
     return selected.snapshot() if selected is not None else None
 
 

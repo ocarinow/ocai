@@ -27,6 +27,7 @@ sizes for tracing, and a uniform shape with the byte stream from `stream`.
 from __future__ import annotations
 
 import json as _json
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
@@ -116,3 +117,20 @@ class HttpResponse:
             The decoded JSON value, or `None` when the body is empty.
         """
         return _json.loads(self.body) if self.body else None
+
+
+@dataclass(frozen=True)
+class DriverResponse:
+    """The final selected HTTP response and its legacy envelope-unwrapped payload.
+
+    Public driver execution evidence, detached after outcome policies select it.
+    No live connection or authenticated request is retained.
+    """
+
+    payload: dict[str, Any]
+    response: HttpResponse
+
+    def __post_init__(self) -> None:
+        """Detach mutable payload and headers from policies and host envelopes."""
+        object.__setattr__(self, "payload", deepcopy(self.payload))
+        object.__setattr__(self, "response", deepcopy(self.response))

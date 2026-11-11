@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field
 
 from ocai.convert.contract import EdgeContract
+from ocai.convert.host_effects import HostEffectDeclaration
 from ocai.convert.resources import ConformanceResources
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import Route
@@ -66,3 +68,4 @@ class ExecutionInspection:
     configuration_id: str
     streaming: bool = False
     coverage_complete: bool = False
+    host_effects: tuple[HostEffectDeclaration, ...] = field(default=(), kw_only=True)

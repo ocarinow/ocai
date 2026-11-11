@@ -184,6 +184,13 @@ reject output arriving after the whole-call deadline. Consumer pauses consume
 the streaming budget. Local adapters remain responsible for their execution
 budget; context transport does not claim automatic interruption of local code.
 
+WU-48c adds keyword-only `CallResult.host_evidence: HostEvidence | None`.
+HostEvidence contains host/adapter identity, optional native response status,
+headers and bytes, plus detached JSON metadata. It is execution evidence, never
+canonical chat payload or an automatic observer/exporter log. None means unavailable,
+not empty or zero. Metadata contains no SDK objects or outgoing credentials.
+The existing raw lane keeps its envelope-unwrapped body behavior (ADR 0019).
+
 ### 2.4 `refs.py` — provider-anchored state [frozen-candidate]
 
 `ProviderRef(provider, interface, kind, id, replay, scope, qualifier)` names
@@ -302,6 +309,9 @@ overrides; concrete cloud hosts must qualify their relocation separately.
 None means unavailable evidence, distinct from empty headers/body. `raw` remains
 best-effort parsed JSON. These contain incoming response evidence only, never
 outgoing authentication; they are not automatically logged (ADR 0017).
+Optional error report/usage/host_evidence retain known accounting when a host
+rejects a successful HTTP outcome. Fidelity-policy and host-census rejection keep
+report/usage only, omitting rejected payloads and host evidence (ADR 0019).
 Plus the survivors:
 `credentials.py` (`Credential` protocol + `ApiKey`, explicit-only, redacted,
 and additive `NoCredential()` for intentionally unauthenticated endpoints;
@@ -489,6 +499,18 @@ snapshot binds the model below conversion, and explicit credentials remain at
 the transport leaf. Caller fidelity policies reject missing reasoning before I/O
 and preserve usage/evidence on response-side rejection (WU-45).
 
+Unary preparation also snapshots an optional `HostResponseAdapter` (§6) and hashes
+its host/name, declared contract, options and callable ownership. Result assembly
+adapts detached driver response evidence, decodes the dialect payload through the
+ordinary catalog, then merges one host report and enforces caller fidelity policy.
+Known usage survives rejection. Contract breaches fail as HostContractError; an
+explicit host rejection retains its neutral taxonomy with native evidence and
+known accounting. Invalid/raising callbacks fail closed without callback text.
+Logical terminal observations include known error report/usage while omitting
+host_evidence, headers, body bytes and adapter metadata.
+A selected unary response adapter rejects streaming preparation before I/O until
+its separate streaming contract is implemented; streaming cannot skip the adapter.
+
 ### 3.4 The front doors — simple facade, switchable by data
 
 The user-facing API is simple, pydantic-ai-shaped: build a model object once
@@ -655,6 +677,16 @@ with failed status and no successful end. Aborts retain evidence under the
 separate stream outcome contract; they never synthesize policy approval. Gateway
 policies may independently enforce the ingress and client-egress leg reports.
 
+`ExecutionInspection.host_effects` contains detached HostEffectDeclaration values
+(host, adapter, contract, configuration identity, conformance_evaluated=False).
+HostEffectContract reuses the codec census partial order and semantic path matching
+but has no graph nodes or planner weight. Its identity hashes declarative content;
+it is distinct from the in-process configuration hash and never proves provider
+qualification. Runtime findings must stay within this bound. Recorded host pairs
+carry explicit declarations and expected field/semantic findings. These execution
+contracts do not change Catalog.lock or invent graph traversal; prepared execution
+also pins the selected host configuration.
+
 ### 4.1 `graph.py` [frozen-candidate mechanics]
 The Dijkstra planner survives. `Edge(src: NodeId, dst: NodeId, fn, contract,
 origin)`; planner cost is **derived** from the contract (§4.2), never
@@ -797,6 +829,13 @@ URL, body bytes and CallContext stay unchanged. The SDK receives no governance
 context. Signer failures raise sanitized CredentialError without chaining SDK
 exceptions; the provider transport is never entered on signing failure.
 
+Both drivers expose `execute_response` returning detached
+`DriverResponse(payload, response)`, after policy retries/Return select the final
+response. The existing `execute` methods retain their dict return type by projecting
+payload. No discarded attempt contributes host findings. Host adaptation occurs in
+the facade after driver execution, never through a transport override. The driver
+response contains no authenticated request or live resource.
+
 HTTP failure refinement first applies the invocation-local host mapper (§6).
 A claimed mapping is final; None declines to the dialect's body-aware refinement.
 Native evidence survives both paths and retry hooks receive the resulting taxonomy.
@@ -867,7 +906,20 @@ provider, headers, bytes and parsed raw evidence survive a claimed classificatio
 missing retry hints and native codes inherit the original evidence. No transport
 mutation or authenticated request crosses this contract. Error evidence is
 application data: authorized exporters must redact it explicitly. Successful
-metadata/fidelity accounting is a separate contract, not implied by this seam.
+metadata/fidelity accounting uses the separate response contract below.
+
+Optional `ResponseMappingHost.response_adapter(spec)` returns
+`HostResponseAdapter(host, name, adapter, contract, options)`. The pure callback
+receives independent HttpResponse, unwrapped payload and options copies, returning
+`HostAdaptation(payload, metadata, losses, shifts, error)`. Callback output must be
+JSON data plus ocai findings/taxonomy. Native evidence remains independent from that
+output. The adapter stamps provenance and checks its HostEffectContract; the facade
+merges its findings once with codec findings and enforces policy with decoded usage.
+Callback failure has a sanitized host_response_adaptation_failed error and native
+evidence. Policy rejection intentionally omits host_evidence, which may include
+rejected content. Legacy hosts without this protocol keep their existing behavior.
+This contract is unary-only; stream-head capture and incremental effects are a
+required follow-up, not implied by HostResponseAdapter.
 
 WU-37 makes Direct/Custom consume resolved trait headers. Vertex consumes
 `body_fields("vertex")`, removes model/stream as before, and keeps the legacy
@@ -936,6 +988,10 @@ External hosting adapters may implement the public `ErrorMappingHost` contract
 classification has precedence and never requires provider branches in the kernel
 or a private transport override. This is a hosting adapter boundary, not a new
 conversion edge or permission for semantic codecs to import wire.
+Likewise, hosting adapters may implement ResponseMappingHost and declare a
+HostEffectContract, keeping semantic provider decoding in the existing catalog.
+They qualify their mappings with native recorded pairs plus expected effects;
+a synthetic host proves the seam, not a named provider's compatibility.
 
 `ocai-aws` is an independent cloud-authentication distribution rather than an AI
 interface fragment. It exports SigV4Credential, has no conversion edges/catalog

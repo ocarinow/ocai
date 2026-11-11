@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Any
 from typing import Literal
 
+from ocai.core.evidence import HostEvidence
 from ocai.core.fidelity import FidelityReport
 from ocai.core.fidelity import Route
 from ocai.core.usage import Usage
@@ -46,6 +47,8 @@ class CallResult[T]:
             dimensional `Usage` model, uniform across capabilities.
         raw: The untouched provider response body for power users — never
             contains credentials.
+        host_evidence: Optional detached native response and host metadata. Not part
+            of the canonical payload and never automatically exported by observers.
     """
 
     value: T
@@ -53,6 +56,7 @@ class CallResult[T]:
     report: FidelityReport | None = None
     usage: Usage | None = None
     raw: Any | None = None
+    host_evidence: HostEvidence | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)

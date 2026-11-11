@@ -761,6 +761,96 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Tier:** 1
 - **Owner:** Codex
 
+## WU-48c — Adapt unary host responses with governed evidence
+
+- [x] **Status:** ✅ implemented; PR #116 review pending.
+- **Context:** G-14 remains after WU-48b: a report can represent host effects but
+  the driver still discards successful headers when returning unwrapped JSON.
+  For example, a host service-tier header disappears and a host masking action
+  cannot reach caller policy through a supported adapter. Bedrock WU-48 needs both.
+- **Goal:** An external host can adapt a detached unary HTTP response into its
+  dialect payload, metadata and declared effects through public APIs, with native
+  evidence retained and caller fidelity policy enforced after decoding known usage.
+- **Scope:** Core HostEvidence and keyword-only CallResult evidence; optional
+  evidence/accounting on OcaiError; public driver response envelope; pure wire
+  response adapter, conversion-layer host effect declaration/census; facade
+  preparation and result assembly; recorded pairs, tests and docs (20–28 files).
+- **Non-goals:** No provider-specific mapping, SDK, graph edge or transport change.
+  Stream response adaptation is a follow-up WU: an adapter selecting this unary-only
+  contract rejects streaming preparation before I/O, so it cannot silently bypass
+  host governance. No provider qualification is inferred from synthetic hosts.
+- **Acceptance:**
+  - Two synthetic hosts preserve native headers/body, metadata and emitted effects
+    in sync/async results — `python/packages/ocai-core/tests/test_host_responses.py`.
+  - Declared census violations and forbidden semantic/field findings reject while
+    retaining known usage/report; blocked output remains a neutral taxonomy error
+    with native evidence — the same test module.
+  - Inspection exposes declarations separately from actual findings, options and
+    adapter replacement invalidate preparation, and callback mutation/failure cannot
+    leak credentials or contaminate concurrent calls — the same test module.
+  - Legacy hosts/drivers keep their public behavior, retry accounting reflects only
+    the final selected response, and unary-only adapters reject streaming with zero
+    provider calls — the same test module, using recorded HTTP pairs.
+- **Done:** Recorded unary tests pass through public preparation/execution with
+  detached native metadata, declared host findings, policy rejection and preserved
+  accounting across both drivers, without provider branches or a streaming bypass.
+- **Deps:** WU-48a and WU-48b; ADR 0019.
+- **Architecture:** §2.3, §2.9, §3.3, §4 inspection, §5–7.
+- **Integration:** Drivers expose a detached final response envelope; the facade
+  invokes the approved pure host adapter, decodes the resulting dialect body through
+  the existing graph, and merges one host report. Native evidence stays separate
+  from the canonical payload and from passive observations.
+  ```mermaid
+  flowchart LR
+    DriverResponse --> HostResponseAdapter
+    HostResponseAdapter --> DialectPayload
+    DialectPayload --> CatalogDecode
+    HostResponseAdapter --> HostEffectReport
+    CatalogDecode --> FidelityPolicy
+    HostEffectReport --> FidelityPolicy
+    FidelityPolicy --> CallResult
+    DriverResponse --> HostEvidence
+    HostEvidence --> CallResult
+  ```
+- **Design sketch:**
+  ```python
+  HostEvidence(host, adapter, response_status, response_headers,
+               response_body, metadata={})
+  CallResult(value, ..., host_evidence=None)  # additive keyword-only evidence
+  HostEffectContract(census={}, semantic_shifts=())  # no graph coordinates
+  HostResponseAdapter(host, name, adapter, contract, options={})
+  # adapter(response_copy, payload_copy, options_copy) -> HostAdaptation
+  HostAdaptation(payload, metadata={}, losses=(), shifts=(), error=None)
+  # Existing execute still returns payload; public execute_response retains HTTP:
+  DriverResponse(payload, response)
+  ```
+- **Before / after:** Before, headers vanish at envelope.unwrap and host effects
+  cannot enter policy. After, a detached HTTP snapshot survives through an approved
+  adapter, with attribution and a separate metadata carrier. Existing raw body
+  behavior stays compatible; original host bytes are available in host_evidence.
+- **Freeze:** Additive HostEvidence, CallResult.host_evidence and optional
+  OcaiError report/usage/host_evidence on frozen-candidate core vocabulary under
+  ADR 0019. Host declaration and wire adapter seams remain provisional. No canonical
+  IR/schema, graph node, revision or existing fixture is rewritten.
+- **Decision:** Approved reusable remediation; ADR 0019 specifies native-evidence
+  ownership, declaration/runtime separation, response rejection and fail-closed
+  streaming. Core has no new dependencies or SDK values.
+- **Risks:** Evidence can contain application data; observers omit it and exporters
+  must redact explicitly. Adapter configuration must be explicit and snapshot-able.
+  A declaration is not qualification; runtime census checks bound actual findings,
+  and each real host still ships its own recorded evidence. Revert restores legacy
+  execution without schema or node migration.
+- **Open:** None for unary adaptation. Streaming response headers, effect timing
+  and partial evidence are a separate required follow-up before stream support.
+- **Evidence:** `test_host_responses.py`: 33 passing recorded behavior cases for
+  both hosts/drivers, inspection, declared findings, policy/census rejection, known
+  usage, blocked taxonomy, snapshots, retry/Return selection, concurrency, lifecycle
+  privacy and zero-I/O streaming rejection. Full gate summary is in PR #116.
+- **Area:** wire
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
+
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 
 - [ ] **Status:** not started.

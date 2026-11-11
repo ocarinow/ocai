@@ -72,6 +72,7 @@ if TYPE_CHECKING:
     from ocai.wire.framing import StreamFraming
     from ocai.wire.hosting import EndpointSpec
     from ocai.wire.hosting import EnvelopeTransform
+    from ocai.wire.http import DriverResponse
     from ocai.wire.http import HttpRequest
     from ocai.wire.http import HttpResponse
     from ocai.wire.outcomes import HostErrorMapper
@@ -256,13 +257,35 @@ class SyncDriver:
         refine_error: ErrorRefiner | None = None,
         error_mapping: HostErrorMapper | None = None,
     ) -> dict[str, Any]:
+        """Return the legacy payload; execute_response also preserves HTTP evidence."""
+        return self.execute_response(
+            spec=spec,
+            payload=payload,
+            ctx=ctx,
+            budget=budget,
+            request_guard=request_guard,
+            refine_error=refine_error,
+            error_mapping=error_mapping,
+        ).payload
+
+    def execute_response(
+        self,
+        *,
+        spec: EndpointSpec,
+        payload: dict[str, Any],
+        ctx: CallContext | None = None,
+        budget: Deadline | None = None,
+        request_guard: Callable[[HttpRequest], None] | None = None,
+        refine_error: ErrorRefiner | None = None,
+        error_mapping: HostErrorMapper | None = None,
+    ) -> DriverResponse:
         """Run one non-streaming operation through the full pipeline (blocking).
 
         Loops attempts: build request → on-request hooks → credential at the
         leaf → send → refine errors → on-outcome hooks; a `Retry` decision
         sleeps and loops, `Return` short-circuits with the policy's response,
         `Fail` raises. When every policy proceeds, the attempt's own result
-        stands: return the unwrapped body, or raise the refined error.
+        stands: return detached response evidence, or raise the refined error.
 
         Args:
             spec: The endpoint spec the facade assembled from the codec.
@@ -274,14 +297,15 @@ class SyncDriver:
             error_mapping: Approved host mapping snapshot, or select from the host.
 
         Returns:
-            The raw response dict after the host envelope's `unwrap` — decode
-            through the graph is the facade's job.
+            DriverResponse containing the selected HTTP snapshot and unwrapped body;
+            host adaptation and graph decode are the facade's job.
 
         Raises:
             OcaiError: The refined taxonomy error when the final attempt
                 fails, a policy `Fail`s, or the attempt ceiling is hit.
         """
         from ocai.wire.hosting import host_error_mapper
+        from ocai.wire.http import DriverResponse
 
         mapping = (
             error_mapping.snapshot()
@@ -306,7 +330,7 @@ class SyncDriver:
             if isinstance(decision, Fail):
                 raise decision.error
             if isinstance(decision, Return):
-                return envelope.unwrap(decision.response.json())
+                return DriverResponse(envelope.unwrap(decision.response.json()), decision.response)
             if isinstance(decision, Retry):
                 budget.sleep(decision.after)
                 admission += 1
@@ -343,11 +367,11 @@ class SyncDriver:
             if isinstance(decision, Fail):
                 raise decision.error
             if isinstance(decision, Return):
-                return envelope.unwrap(decision.response.json())
+                return DriverResponse(envelope.unwrap(decision.response.json()), decision.response)
             if outcome.error is not None:
                 raise outcome.error
             assert outcome.response is not None
-            return envelope.unwrap(outcome.response.json())
+            return DriverResponse(envelope.unwrap(outcome.response.json()), outcome.response)
 
     def stream(
         self,
@@ -565,6 +589,29 @@ class AsyncDriver:
         refine_error: ErrorRefiner | None = None,
         error_mapping: HostErrorMapper | None = None,
     ) -> dict[str, Any]:
+        """Return the legacy payload; execute_response also preserves HTTP evidence."""
+        result = await self.execute_response(
+            spec=spec,
+            payload=payload,
+            ctx=ctx,
+            budget=budget,
+            request_guard=request_guard,
+            refine_error=refine_error,
+            error_mapping=error_mapping,
+        )
+        return result.payload
+
+    async def execute_response(
+        self,
+        *,
+        spec: EndpointSpec,
+        payload: dict[str, Any],
+        ctx: CallContext | None = None,
+        budget: Deadline | None = None,
+        request_guard: Callable[[HttpRequest], None] | None = None,
+        refine_error: ErrorRefiner | None = None,
+        error_mapping: HostErrorMapper | None = None,
+    ) -> DriverResponse:
         """Run one non-streaming operation through the full pipeline (async).
 
         Same attempt loop as `SyncDriver.execute`; see its docstring for the
@@ -580,13 +627,14 @@ class AsyncDriver:
             error_mapping: Approved host mapping snapshot, or select from the host.
 
         Returns:
-            The raw response dict after the host envelope's `unwrap`.
+            DriverResponse containing the selected HTTP snapshot and unwrapped body.
 
         Raises:
             OcaiError: The refined taxonomy error when the final attempt
                 fails, a policy `Fail`s, or the attempt ceiling is hit.
         """
         from ocai.wire.hosting import host_error_mapper
+        from ocai.wire.http import DriverResponse
 
         mapping = (
             error_mapping.snapshot()
@@ -611,7 +659,7 @@ class AsyncDriver:
             if isinstance(decision, Fail):
                 raise decision.error
             if isinstance(decision, Return):
-                return envelope.unwrap(decision.response.json())
+                return DriverResponse(envelope.unwrap(decision.response.json()), decision.response)
             if isinstance(decision, Retry):
                 await budget.asleep(decision.after)
                 admission += 1
@@ -651,11 +699,11 @@ class AsyncDriver:
             if isinstance(decision, Fail):
                 raise decision.error
             if isinstance(decision, Return):
-                return envelope.unwrap(decision.response.json())
+                return DriverResponse(envelope.unwrap(decision.response.json()), decision.response)
             if outcome.error is not None:
                 raise outcome.error
             assert outcome.response is not None
-            return envelope.unwrap(outcome.response.json())
+            return DriverResponse(envelope.unwrap(outcome.response.json()), outcome.response)
 
     async def stream(
         self,
