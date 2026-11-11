@@ -16,7 +16,7 @@ tasks:
       - uv run python scripts/release.py check --base {{.CLI_ARGS | default "origin/main"}}
 
   changeset:
-    desc: Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per .changeset/README.md
+    desc: Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per docs/releasing.md
     interactive: true
     cmds:
       - knope document-change

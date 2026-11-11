@@ -71,18 +71,37 @@ only authoritative statement of what is next.
 
 ```
 AGENTS.md    this file — the one instruction file every agent reads
+SECURITY.md  how to report a vulnerability (private advisory), scope, support
 spec/        language-neutral source of truth: canonical-json.md, JSON Schema,
              golden fixtures (incl. fold triples), extension censuses
 docs/        architecture.md (structural contract) · plans/ (roadmap + WUs) ·
-             decisions/ (ADRs) · providers/ (provider wire research) · guides
-python/      uv workspace:
+             decisions/ (ADRs) · providers/ (provider wire research) ·
+             platform/ (platform design) · releasing.md · guides; zensical.toml
+             at the root builds them into the docs site
+python/      uv workspace (root pyproject.toml, uv.lock); one dist per package:
   packages/ocai-core       dist "ocai": ocai.core / ocai.chat / ocai.embedding /
                            ocai.vectorstore / ocai.convert / ocai.runtime / ocai.wire
   packages/ocai-openai     ocai.openai.chat_completions + ocai.openai.responses
   packages/ocai-anthropic  ocai.anthropic.messages
+  packages/ocai-deepseek   ocai.deepseek (interface descriptors; execution pending)
+platform/    the product built on the kernel — own environments, never imported
+             by the kernel: apps/console (Nuxt) · services/gateway (FastAPI, own
+             uv.lock) · packages/ (nuxt-ui, nuxt-platform, management-client) ·
+             spec/management.openapi.json · deploy/ (compose, pinned images) ·
+             tests/ (client + browser); platform/README.md is its guide
 typescript/  go/           placeholders — mirror spec/ (not yet implemented)
-examples/    cross_conversion_demo.py · ocai-contrib-echo (plugin template)
-scripts/     check.py — the one verification command
+examples/    cross_conversion_demo.py · governed_gateway.py ·
+             ocai-contrib-echo (independently packaged plugin template)
+scripts/     check.py (THE gate) · check_platform.py · workspace_check.py ·
+             privacy_check.py · pr_check.py · release.py · board_sync.py ·
+             serve_platform.py — every one a gate or CI step, strictly typed
+Taskfile.yml + tasks/     domain-scoped verbs over the canonical commands;
+                           tasks/README.md is the generated catalogue
+knope.toml + .changeset/  release mechanics and pending change files (ADR 0010);
+                           ONLY change files may live in .changeset/
+ocai.code-workspace        multi-root VS Code workspace, one folder per environment
+.github/     workflows (ci, docs, board-sync, release-pr, prerelease, release),
+             PR template, dependabot.yml
 .agents/skills/            procedures (Agent Skills format), shared by all tools
 .agents/roles/             sub-agent role bodies, shared by all tools
 .claude/                   Claude Code adapters: skills symlink, agents/*.md pointers
@@ -113,7 +132,7 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13+.
 
 ```bash
 uv sync                        # create env + install workspace distributions
-uv run python scripts/check.py # THE verification command: ruff + import contracts + pyright/mypy strict + pytest
+uv run python scripts/check.py # THE gate: privacy, workspace, ruff + format, import contracts, pyright/mypy strict, pytest, platform
 uv run ruff check              # lint only
 uv run lint-imports            # layer contracts only (architecture §1)
 uv run pyright                 # strict typing: nothing resolves to Unknown (rule 16)
@@ -209,21 +228,22 @@ stale).
     and `mypy --strict` clean, `pytest` green.** Nothing may resolve to
     `Unknown` in an IDE; no `# type: ignore` without a reason code and a
     comment. Mark stubs with `# TODO:` and a one-line note.
-17. **One work unit (WU) per PR.**
-19. **Release intent travels with the change.** Any PR that changes a file
-    under a published package (`python/packages/*`) adds a changeset in
-    `.changeset/` naming each affected package and its semver level
-    (`patch` fix, `minor` additive, `major` breaking — in 0.x a breaking
-    change is `major` and bumps `0.<n>`) with a user-facing note;
-    `pr-hygiene` refuses the PR otherwise. Versions are bumped only by knope (`knope.toml`) in the
-    release workflows, never by hand; each package has its own version and
-    tag `<name>/v<version>`; every merge to `main` publishes an alpha and
-    refreshes the standing Release PR; merging that PR is the stable release
-    (ADR 0010, `docs/releasing.md`).
-    Titles stay `WU-NN: …`.
+17. **One work unit (WU) per PR.** Titles stay `WU-NN: …` (housekeeping:
+    `<Topic>: …`).
 18. **Docstrings are Google style** (`Args:`/`Returns:`/`Raises:`/`Yields:`),
     never reST field lists or NumPy sections; never repeat a type the
     signature already declares; code references in prose are single-backtick.
+19. **Release intent travels with the change.** Any PR that changes a file
+    under a published package (`python/packages/*`) adds a change file in
+    `.changeset/` naming each affected package and its semver level
+    (`patch` fix, `minor` additive, `major` breaking — in 0.x a breaking
+    change is `major` and bumps `0.<n>`) with a user-facing note;
+    `pr-hygiene` refuses the PR otherwise. Versions are bumped only by knope
+    (`knope.toml`) in the release workflows, never by hand; each package has
+    its own version and tag `<name>/v<version>`; every merge to `main`
+    publishes an alpha and refreshes the standing Release PR; merging that
+    PR is the stable release (ADR 0010, `docs/releasing.md`). Only change
+    files may live in `.changeset/`: knope parses every `.md` there.
 
 ## How to work a session
 
@@ -277,7 +297,7 @@ Several agents (and humans) work this repo concurrently. The protocol:
   to mark a non-compliant PR ready, and the `pr-hygiene` CI check is
   required on `main`. A PR whose body is a placeholder is not reviewable
   and will not be reviewed.
-- **Review against the rules, not taste.** A review checks the eighteen
+- **Review against the rules, not taste.** A review checks the nineteen
   rules above, the freeze boundaries (rule 2), and that declared loss
   matches runtime loss. Findings cite a rule or an architecture section.
 - **Commit messages are plain.** `WU-NN: imperative summary` on the first
