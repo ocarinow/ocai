@@ -88,9 +88,14 @@ must follow (coding agents read the same file). In particular:
 - `uv run python scripts/check.py` exits 0 (privacy guard, ruff, import contracts,
   pyright, mypy, pytest) — or `task check` with [Task](https://taskfile.dev)
   installed; `task` lists every development command.
-- The gate is path-aware: the kernel steps always run; the platform gate, the
-  docs build, the isolated plugin install, and the change-file policy run only
-  when your change touches their tree (`--all` forces them, `task check:all`).
+- The gate is path-aware: the kernel steps always run (lint with the bandit
+  rules, format, lockfile, task catalogue, import contracts, strict types,
+  tests with warnings as errors); the platform gate, the docs build, the wheel
+  build, the workflow audit, the plan-entry lint, the isolated plugin install,
+  and the change-file policy run only when your change touches their tree
+  (`--all` forces them, `task check:all`). CI adds Semgrep, actionlint, a
+  dependency review on pull requests, a nightly `npm audit`, and runs the
+  kernel on Python 3.13 and 3.14.
   A platform change needs Docker and the Node and browser runtime described in
   [platform development](platform/README.md).
 - Tests use **recorded HTTP request/response pairs** (respx/VCR-style), never

@@ -109,3 +109,56 @@ but they finish in under a minute. The `python` job's filter now also covers
 the gate reads them. The DCO question above is answered separately: the DCO
 GitHub App is the chosen enforcement, installed by the maintainer, and its
 check joins this list once it reports on pull requests.
+
+## Amendment 2026-11-11 (b) — the gate grows; the checks follow
+
+**Context.** The gate verified lint, types, tests, and the platform, but
+nothing opened the wheels it ships, audited the workflows that publish them,
+scanned the code for the classic security mistakes, reviewed the licenses of
+new dependencies, ran the kernel on the next interpreter, or linted the
+TypeScript. The maintainer judged the gate insufficient for a project of
+this size and set three conditions on every new tool: free, no account or
+key, open source.
+
+**Decision.**
+
+- **Kernel steps added to `scripts/check.py` and CI:** `uv lock --check`
+  (both uv environments), the task catalogue freshness check, ruff's
+  flake8-bandit rules (`S`, with per-file exceptions written next to their
+  reason in `pyproject.toml`), pytest with `filterwarnings = ["error"]`,
+  `--strict-markers`, `--strict-config`, mypy over the gateway tests, and
+  `scripts/wheel_check.py`, which builds every distribution and opens the
+  wheel (no namespace-root `__init__.py`, `py.typed` per portion, license
+  expression and project URLs in METADATA, no OSI classifier).
+- **Interpreters:** the kernel job runs on 3.13 (`python`) and 3.14
+  (`python-next`); both are required checks; the names stay fixed when the
+  versions roll so the ruleset does not change.
+- **Workflows:** `zizmor` (security audit of GitHub Actions workflows) runs
+  locally as a path-aware gate step and in CI with `actionlint`; both are
+  MIT-licensed and keyless. Every finding they raised on the existing
+  workflows was fixed in the same change: no persisted checkout
+  credentials, job-level permissions, no cache in publishing jobs,
+  expressions passed through `env`, every action pinned to a commit.
+- **Static analysis:** Semgrep Community Edition (LGPL, no account) with the
+  Python, TypeScript and GitHub Actions rulesets, blocking. CodeQL was
+  considered and rejected: free on public repositories but its engine is
+  not open source. Suppressions are `# nosemgrep` on the matched line with
+  the reason on the line above.
+- **Dependencies:** `actions/dependency-review-action` on pull requests
+  fails on a high-severity advisory or a copyleft license (GPL, AGPL,
+  SSPL). `npm audit --audit-level=high` runs in a nightly job only; on pull
+  requests it would be noise.
+- **Frontend:** ESLint through `@nuxt/eslint-config` over the console, the
+  platform layer, the client, and the tests; the vendored shadcn-vue
+  catalogue is not linted. Nuxt's routed files (`pages/`, `layouts/`) are
+  exempt from the multi-word component name rule by configuration.
+- **Required checks on `main`** become `python`, `python-next`, `privacy`,
+  `pr-hygiene`, `platform`, `docs`, `workflows`, `semgrep`, and
+  `dependency-review`, all path-filtered or cheap. `audit (nightly)` is
+  not a check.
+
+**Consequences.** The local gate for a kernel change still finishes in
+under a minute; the wheel and zizmor steps add a few seconds when their
+trees change. A warning in a dependency now fails the suite the day it
+appears. The S-rule exceptions name the production asserts that should
+become explicit raises; that is kernel work and is tracked as a follow-up.

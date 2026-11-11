@@ -39,7 +39,7 @@ updates:
       nuxt-vue:
         patterns: ["nuxt", "@nuxt/*", "nuxt-*", "vue", "vue-*", "@vue/*", "@vueuse/*", "shadcn-nuxt", "reka-ui", "@tanstack/*"]
       tooling:
-        patterns: ["typescript", "vue-tsc", "@playwright/*", "@types/*", "openapi-typescript", "eslint", "@eslint/*", "@nuxt/eslint"]
+        patterns: ["typescript", "vue-tsc", "@playwright/*", "@types/*", "openapi-typescript", "eslint", "@eslint/*", "@nuxt/eslint", "@nuxt/eslint-config"]
       platform-other:
         patterns: ["*"]
 

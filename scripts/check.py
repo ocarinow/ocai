@@ -7,14 +7,16 @@ Usage (from the repo root)::
     uv run python scripts/check.py --all      # every step, whatever changed
     uv run python scripts/check.py --no-tests # static checks only (no pytest, no platform tests)
 
-The kernel steps (privacy, workspace, ruff, format, import contracts, pyright,
-mypy, pytest) always run: they finish in seconds. The expensive steps are
-**path-aware**: the platform gate (Docker, Node, Playwright), the docs build,
-the independently installed plugin, and the change-file policy run only when
-the change touches their tree, where "the change" is everything on this branch
-since it left `origin/main` plus the working tree (staged, unstaged, and
-untracked files). `--all` forces every step; CI always runs every job and
-filters inside the job the same way (ADR 0002).
+The kernel steps (privacy, workspace, lockfile, task catalogue, ruff, format,
+import contracts, pyright, mypy, pytest) always run: they finish in seconds.
+The expensive steps are **path-aware**: the platform gate (Docker, Node,
+Playwright, ESLint), the docs build, the wheel build, the workflow audit
+(zizmor), the plan-entry lint, the independently installed plugin, and the
+change-file policy run only when the change touches their tree, where "the
+change" is everything on this branch since it left `origin/main` plus the
+working tree (staged, unstaged, and untracked files). `--all` forces every
+step; CI always runs every job and filters inside the job the same way
+(ADR 0002).
 
 The summary ends with the commit the gate ran on and whether the tree was
 dirty, so a pasted summary says exactly what was verified. Platform
@@ -166,6 +168,8 @@ def steps_for(no_tests: bool) -> list[Step]:
     steps = [
         Step("privacy guard", ("python", "scripts/privacy_check.py")),
         Step("workspace", ("python", "scripts/workspace_check.py")),
+        Step("lockfile", ("uv", "lock", "--check")),
+        Step("task catalogue", ("python", "tasks/render_readme.py", "--check")),
         Step("ruff", ("ruff", "check")),
         Step("format", ("ruff", "format", "--check")),
         Step("import contracts", ("lint-imports",)),
@@ -179,6 +183,20 @@ def steps_for(no_tests: bool) -> list[Step]:
             "plan entries",
             ("python", "scripts/board_sync.py", "lint"),
             paths=("docs/plans/", "scripts/board_sync.py"),
+        )
+    )
+    steps.append(
+        Step(
+            "wheels",
+            ("python", "scripts/wheel_check.py"),
+            paths=("python/packages/", "scripts/wheel_check.py"),
+        )
+    )
+    steps.append(
+        Step(
+            "workflows (zizmor)",
+            ("uvx", "--from", "zizmor==1.32.0", "zizmor", "--no-progress", ".github/workflows"),
+            paths=(".github/",),
         )
     )
     steps.append(

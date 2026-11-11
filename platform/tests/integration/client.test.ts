@@ -46,7 +46,7 @@ test('UI and platform layers cannot depend on product apps or management data', 
     assert.equal('@ocarinow/console' in pkg.dependencies, false)
     if (name === 'nuxt-ui') assert.equal('@ocarinow/management-client' in pkg.dependencies, false)
     for (const path of readdirSync(resolve(base, 'app'), { recursive: true, encoding: 'utf8' })) {
-      if (!/\.(vue|ts)$/.test(path)) continue
+      if (!/\.(?:vue|ts)$/.test(path)) continue
       const source = readFileSync(resolve(base, 'app', path), 'utf8')
       assert.doesNotMatch(source, /from ['"][^'"]*(?:apps\/console|@ocarinow\/console)/)
       if (name === 'nuxt-ui') assert.doesNotMatch(source, /management-client|useFetch|\$fetch|fetch\(/)

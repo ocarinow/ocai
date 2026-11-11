@@ -13,8 +13,7 @@ on:
     paths: ["python/packages/*/pyproject.toml"]
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release
@@ -31,6 +30,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 2
+          persist-credentials: false
       - name: Packages whose version changed in this merge
         id: list
         run: |
@@ -46,10 +46,14 @@ jobs:
     needs: changed
     if: needs.changed.outputs.dirs != '[]'
     runs-on: ubuntu-latest
+    # knope release creates the tags and the GitHub Releases through the API.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
         with:
           version: 0.23.2
@@ -64,16 +68,27 @@ jobs:
     if: needs.changed.outputs.dirs != '[]'
     runs-on: ubuntu-latest
     environment: pypi
+    # Trusted publishing needs the OIDC token; only this job gets it.
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         dir: ${{ fromJson(needs.changed.outputs.dirs) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # No cache in a publishing job: a poisoned cache would ship (zizmor cache-poisoning).
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
       - run: uv python install 3.13
       - name: Build
-        run: uv build --project "${{ matrix.dir }}" --out-dir dist
+        env:
+          DIR: ${{ matrix.dir }}
+        run: uv build --project "$DIR" --out-dir dist
       - name: Publish to PyPI (trusted publishing)
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:

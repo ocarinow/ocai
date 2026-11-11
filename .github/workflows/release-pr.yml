@@ -31,7 +31,9 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, 'Release:')"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # This checkout keeps its credentials on purpose: create-pull-request pushes
+      # the `release` branch with them. zizmor: ignore[artipacked]
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
@@ -45,6 +47,8 @@ jobs:
 
       - name: Describe the release
         id: describe
+        env:
+          RUN_ID: ${{ github.run_id }}
         run: |
           {
             echo "## Work unit"; echo
@@ -65,7 +69,7 @@ jobs:
             echo "## Privacy"; echo
             echo "- [x] Generated from change files that passed the privacy guard in their own PRs"; echo
             echo "## Verification"; echo
-            echo '```'; echo "knope prepare-release (CI run ${{ github.run_id }})"; echo '```'
+            echo '```'; echo "knope prepare-release (CI run $RUN_ID)"; echo '```'
           } > /tmp/release_pr_body.md
           echo "body=/tmp/release_pr_body.md" >> "$GITHUB_OUTPUT"
 

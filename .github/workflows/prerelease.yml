@@ -22,7 +22,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: prerelease
@@ -40,18 +39,22 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
         with:
           version: 0.23.2
       - name: Target versions from the pending change files
         id: plan
+        env:
+          KIND: ${{ github.event.inputs.kind || 'alpha' }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
-          kind="${{ github.event.inputs.kind || 'alpha' }}"
+          kind="$KIND"
           label=$([ "$kind" = "rc" ] && echo rc || echo a)
           knope prerelease --prerelease-label "$kind" --dry-run > plan.txt 2>&1 || true
           # lines: "Would add the following to python/packages/<dir>/pyproject.toml: 0.2.0-alpha.0"
           matrix=$(grep -E 'pyproject.toml: ' plan.txt \
-            | sed -E 's#Would add the following to (python/packages/[^/]+)/pyproject.toml: ([0-9]+\.[0-9]+\.[0-9]+).*#{"dir":"\1","version":"\2'"$label"'${{ github.run_number }}"}#' \
+            | sed -E 's#Would add the following to (python/packages/[^/]+)/pyproject.toml: ([0-9]+\.[0-9]+\.[0-9]+).*#{"dir":"\1","version":"\2'"$label$RUN_NUMBER"'"}#' \
             | jq -s -c '.')
           echo "matrix=${matrix:-[]}" >> "$GITHUB_OUTPUT"
           echo "label=$kind" >> "$GITHUB_OUTPUT"
@@ -63,18 +66,32 @@ jobs:
     if: needs.plan.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     environment: pypi
+    # Trusted publishing needs the OIDC token; only this job gets it.
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         item: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # No cache in a publishing job: a poisoned cache would ship (zizmor cache-poisoning).
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
       - run: uv python install 3.13
       - name: Set the pre-release version (not committed)
-        run: uv version --project "${{ matrix.item.dir }}" "${{ matrix.item.version }}"
+        env:
+          DIR: ${{ matrix.item.dir }}
+          VERSION: ${{ matrix.item.version }}
+        run: uv version --project "$DIR" "$VERSION"
       - name: Build
-        run: uv build --project "${{ matrix.item.dir }}" --out-dir dist
+        env:
+          DIR: ${{ matrix.item.dir }}
+        run: uv build --project "$DIR" --out-dir dist
       - name: Publish to PyPI (trusted publishing)
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:

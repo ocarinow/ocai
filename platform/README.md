@@ -75,8 +75,10 @@ cd ..
 uv run python scripts/check.py
 ```
 
-`scripts/check_platform.py` runs platform lint, strict Python and TypeScript
-checks, OpenAPI/type drift checks, HTTP/client/boundary tests, a production Nuxt
+`scripts/check_platform.py` runs the gateway lockfile check, platform lint
+(ruff with the bandit rules; ESLint through `@nuxt/eslint-config` over the
+console, the platform layer, the client and the tests, not the vendored
+shadcn-vue catalogue), strict Python and TypeScript checks, OpenAPI/type drift checks, HTTP/client/boundary tests, a production Nuxt
 build, real PostgreSQL storage tests, and Playwright against the built console and
 real FastAPI service. Storage tests provision an isolated PostgreSQL 16.15 container
 using `deploy/postgres/image.txt` (immutable multi-platform digest), generated
