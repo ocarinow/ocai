@@ -31,8 +31,9 @@ from ocai.openai.chat_completions.codec import ChatCompletionsStreamTransducer
 from ocai.openai.chat_completions.edges import ENCODE_CHUNK_CONTRACT
 from ocai.wire import SSEvent
 
-FIXTURES = (Path(__file__).resolve().parents[4]
-            / "spec/fixtures/openai/chat_completions/gateway/streams")
+FIXTURES = (
+    Path(__file__).resolve().parents[4] / "spec/fixtures/openai/chat_completions/gateway/streams"
+)
 
 
 @pytest.mark.parametrize("path", sorted(FIXTURES.glob("*.json")), ids=lambda p: p.name)
@@ -42,7 +43,8 @@ def test_reverse_fold_triple_and_catalog(path: Path) -> None:
     source_fold = StreamAccumulator.fold(deepcopy(chunks))
     assert semantic_equal(source_fold.to_dict(), fixture["response"])
     pipeline = Catalog.of(ocai.openai.FRAGMENT).stream_converter(
-        CANONICAL_CHUNK, CHAT_COMPLETIONS_CHUNK)
+        CANONICAL_CHUNK, CHAT_COMPLETIONS_CHUNK
+    )
     events: list[Any] = []
     for chunk in chunks:
         events.extend(pipeline.feed(chunk))
@@ -53,11 +55,15 @@ def test_reverse_fold_triple_and_catalog(path: Path) -> None:
     report = reports[0]
     assert ENCODE_CHUNK_CONTRACT.certify(report.losses, report.shifts) == []
     assert [(loss.path, loss.disposition.value) for loss in report.losses] == [
-        (loss["path"], loss["disposition"]) for loss in fixture["expect_losses"]]
+        (loss["path"], loss["disposition"]) for loss in fixture["expect_losses"]
+    ]
     assert [(shift.kind, shift.path) for shift in report.shifts] == [
-        (shift["kind"], shift["path"]) for shift in fixture["expect_shifts"]]
-    assert encode_response(ChatResponse.from_dict(fixture["response"])).value == (
-        fixture["client_response"])
+        (shift["kind"], shift["path"]) for shift in fixture["expect_shifts"]
+    ]
+    assert (
+        encode_response(ChatResponse.from_dict(fixture["response"])).value
+        == (fixture["client_response"])
+    )
     metadata = ClientMetadata("chatcmpl-client", "deployment", 1767225600)
     decoder = ChatCompletionsStreamTransducer()
     decoded: list[ChatChunk] = []
@@ -75,11 +81,18 @@ def test_parallel_tool_identity_and_order() -> None:
     encoder = ClientStreamTransducer()
     output: list[dict[str, Any]] = []
     for index, name in enumerate(["alpha", "beta"]):
-        output += encoder.feed(ChatChunk(type=ChunkType.PART_START, index=index,
-            part=PartToolCall(call_id=f"call_{name}", name=name, args_json="{}")))
+        output += encoder.feed(
+            ChatChunk(
+                type=ChunkType.PART_START,
+                index=index,
+                part=PartToolCall(call_id=f"call_{name}", name=name, args_json="{}"),
+            )
+        )
     assert [event["choices"][0]["delta"]["tool_calls"][0]["index"] for event in output] == [0, 1]
     assert [event["choices"][0]["delta"]["tool_calls"][0]["id"] for event in output] == [
-        "call_alpha", "call_beta"]
+        "call_alpha",
+        "call_beta",
+    ]
     # No finish is advertised without a canonical successful terminal.
     tail, report = encoder.flush()
     assert tail == []
@@ -93,13 +106,18 @@ def test_no_success_after_failure(failure: str) -> None:
     encoder.feed(ChatChunk(type=ChunkType.PART_START, index=0, part=PartText()))
     encoder.feed(ChatChunk(type=ChunkType.PART_DELTA, index=0, delta=DeltaText(text="hi")))
     if failure == "unknown_delta":
-        encoder.feed(ChatChunk.from_dict({"type": "partDelta", "index": 0,
-                                         "delta": {"type": "future", "data": True}}))
+        encoder.feed(
+            ChatChunk.from_dict(
+                {"type": "partDelta", "index": 0, "delta": {"type": "future", "data": True}}
+            )
+        )
     else:
         with pytest.raises(StreamProtocolError):
-            encoder.feed(ChatChunk(type=ChunkType.ERROR) if failure == "error" else
-                         ChatChunk(type=ChunkType.PART_STOP, index=0,
-                                   part=PartText(text="changed")))
+            encoder.feed(
+                ChatChunk(type=ChunkType.ERROR)
+                if failure == "error"
+                else ChatChunk(type=ChunkType.PART_STOP, index=0, part=PartText(text="changed"))
+            )
         with pytest.raises(StreamProtocolError):
             encoder.feed(ChatChunk(type=ChunkType.STREAM_STOP, end=StreamEnd()))
     tail, report = encoder.flush()

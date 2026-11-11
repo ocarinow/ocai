@@ -109,36 +109,60 @@ def failure_status(error: BaseException) -> str:
 class Invocation:
     """Per-invocation lifecycle state, explicitly carried by a capability wrapper."""
 
-    def __init__(self, observers: Sequence[Observer], ctx: CallContext | None,
-                 *, streaming: bool = False) -> None:
+    def __init__(
+        self, observers: Sequence[Observer], ctx: CallContext | None, *, streaming: bool = False
+    ) -> None:
         """Snapshot context and emit start before any admission policy executes."""
         self.observers = tuple(observers)
-        self.ctx = replace(deepcopy(ctx) if ctx else CallContext(),
-                           call_id=ctx.call_id if ctx and ctx.call_id else uuid4().hex)
+        self.ctx = replace(
+            deepcopy(ctx) if ctx else CallContext(),
+            call_id=ctx.call_id if ctx and ctx.call_id else uuid4().hex,
+        )
         self.call_id = self.ctx.call_id or ""
         self.started = time.monotonic()
         self.finished = False
         safe = replace(self.ctx, tags={}, extensions={})
         dispatch(self.observers, CallStarted(self.call_id, ctx=safe, streaming=streaming))
 
-    def finish(self, *, status: str = "completed", usage: Usage | None = None,
-               report: FidelityReport | None = None, route: Route | None = None,
-               error: BaseException | None = None) -> None:
+    def finish(
+        self,
+        *,
+        status: str = "completed",
+        usage: Usage | None = None,
+        report: FidelityReport | None = None,
+        route: Route | None = None,
+        error: BaseException | None = None,
+    ) -> None:
         """Emit once, after cleanup; error objects never enter the event."""
         if self.finished:
             return
         self.finished = True
-        dispatch(self.observers, CallFinished(
-            self.call_id, status, usage, report, route,
-            type(error).__name__ if error else None, time.monotonic() - self.started,
-        ))
+        dispatch(
+            self.observers,
+            CallFinished(
+                self.call_id,
+                status,
+                usage,
+                report,
+                route,
+                type(error).__name__ if error else None,
+                time.monotonic() - self.started,
+            ),
+        )
 
 
 class Attempt:
     """Per-physical-attempt observations, correlated by explicit CallContext."""
 
-    def __init__(self, observers: Sequence[Observer], ctx: CallContext | None,
-                 node: NodeId, attempt: int, *, streaming: bool = False) -> None:
+    def __init__(
+        self,
+        observers: Sequence[Observer],
+        ctx: CallContext | None,
+        node: NodeId,
+        attempt: int,
+        *,
+        streaming: bool = False,
+    ) -> None:
         """Emit immediately before calling the transport, after credential setup."""
         self.observers = tuple(observers)
         self.call_id = ctx.call_id if ctx and ctx.call_id else uuid4().hex
@@ -155,7 +179,15 @@ class Attempt:
         status = failure_status(error) if error is not None else "completed"
         if isinstance(error, GeneratorExit):
             status = "closed"
-        dispatch(self.observers, WireExchanged(
-            self.call_id, self.attempt, status, self.node, http_status,
-            type(error).__name__ if error else None, time.monotonic() - self.started,
-        ))
+        dispatch(
+            self.observers,
+            WireExchanged(
+                self.call_id,
+                self.attempt,
+                status,
+                self.node,
+                http_status,
+                type(error).__name__ if error else None,
+                time.monotonic() - self.started,
+            ),
+        )

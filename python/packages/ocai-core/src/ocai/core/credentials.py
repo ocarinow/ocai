@@ -143,9 +143,7 @@ class ApiKey:
         Args:
             request: The outgoing `HttpRequest` whose headers are mutated.
         """
-        request.headers[self._header] = (
-            f"{self._scheme} {self._key}" if self._scheme else self._key
-        )
+        request.headers[self._header] = f"{self._scheme} {self._key}" if self._scheme else self._key
 
     # --- Redaction: a secret must never leak through repr/str/logging. -------
     def __repr__(self) -> str:

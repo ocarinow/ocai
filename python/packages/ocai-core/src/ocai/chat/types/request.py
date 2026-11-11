@@ -91,12 +91,16 @@ class ChatRequest(IRObject):
         unparsed: list[dict[str, Any]] = []
         if is_json_array(raw_anchors):
             for index, anchor in enumerate(raw_anchors):
-                if (is_json_object(anchor)
-                    and all(isinstance(anchor.get(key), str)
-                            for key in ("provider", "interface", "kind", "id"))
+                if (
+                    is_json_object(anchor)
+                    and all(
+                        isinstance(anchor.get(key), str)
+                        for key in ("provider", "interface", "kind", "id")
+                    )
                     and anchor.get("replay", "optional") in ("optional", "required")
-                    and set(anchor) <= {"provider", "interface", "kind", "id",
-                                        "replay", "scope", "qualifier"}):
+                    and set(anchor)
+                    <= {"provider", "interface", "kind", "id", "replay", "scope", "qualifier"}
+                ):
                     anchors.append(ProviderRef.from_dict(anchor))
                 else:
                     unparsed.append({"index": index, "value": deepcopy(anchor)})
@@ -105,11 +109,7 @@ class ChatRequest(IRObject):
         result = cls(
             anchors=anchors or None,
             messages=[Message.from_dict(item) for item in messages if is_json_object(item)],
-            tools=(
-                [decode_tool(item) for item in tools]
-                if is_json_array(tools)
-                else None
-            ),
+            tools=([decode_tool(item) for item in tools] if is_json_array(tools) else None),
             tool_choice=ToolChoice.from_dict(choice) if is_json_object(choice) else None,
             config=ChatConfig.from_dict(config) if is_json_object(config) else None,
             **cls._from_dict_common(data),

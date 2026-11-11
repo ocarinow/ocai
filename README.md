@@ -27,7 +27,7 @@ The program that moves the kernel forward is in [`docs/plans/`](docs/plans/READM
 | Directory | Role | Start at |
 |---|---|---|
 | `spec/` | Language-neutral source of truth: canonical JSON, JSON Schema, golden fixtures (incl. fold triples), extension census, interface descriptors, draft proposals | [spec/README.md](spec/README.md) |
-| `python/` | The first implementation: a uv workspace with three distributions (`ocai`, `ocai-openai`, `ocai-anthropic`) | [python/README.md](python/README.md) |
+| `python/` | The first implementation: a uv workspace with four distributions (`ocai`, `ocai-openai`, `ocai-anthropic`, `ocai-deepseek`) | [python/README.md](python/README.md) |
 | `typescript/` | Placeholder; will mirror `spec/` and run the same fixtures | [typescript/README.md](typescript/README.md) |
 | `go/` | Placeholder; will mirror `spec/` and run the same fixtures | [go/README.md](go/README.md) |
 | `docs/` | The constitution (`architecture.md`), roadmap and work units (`plans/`), decisions (`decisions/`), provider wire research (`providers/`), guides | [docs/architecture.md](docs/architecture.md) |

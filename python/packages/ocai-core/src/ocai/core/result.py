@@ -133,5 +133,3 @@ class StreamOutcome:
     usage: Usage | None = None
     report: FidelityReport | None = None
     error: BaseException | None = None
-
-

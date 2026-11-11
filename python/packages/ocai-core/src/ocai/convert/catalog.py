@@ -692,8 +692,7 @@ class Catalog:
             catalog_hash=self.lock().hash,
         )
 
-    def inspect(self, src: NodeId, dst: NodeId, *,
-                streaming: bool = False) -> ConversionInspection:
+    def inspect(self, src: NodeId, dst: NodeId, *, streaming: bool = False) -> ConversionInspection:
         """Inspect selected declarations without executing or claiming conformance."""
         if src.shape != dst.shape:
             raise ConversionError(f"cannot inspect across shapes: {src.shape} -> {dst.shape}")
@@ -702,8 +701,11 @@ class Catalog:
             raise ConversionError(f"no conversion edges registered for shape {src.shape}")
         edges = graph.inspect(src, dst, streaming=streaming)
         origins = {edge.origin for edge in edges}
-        resources = tuple(fragment.conformance for fragment in self.fragments
-                          if fragment.origin in origins and fragment.conformance is not None)
+        resources = tuple(
+            fragment.conformance
+            for fragment in self.fragments
+            if fragment.origin in origins and fragment.conformance is not None
+        )
         return ConversionInspection(src, dst, edges, self.lock().hash, streaming, resources)
 
     def convert(self, payload: Any, src: NodeId, dst: NodeId) -> Converted:
@@ -919,8 +921,11 @@ class Catalog:
                             for component in fragment.components
                         ],
                         "traits": [_lock_traits(trait) for trait in fragment.traits],
-                        **({"hosts": {name: asdict(host) for name, host in fragment.hosts.items()}}
-                           if fragment.hosts else {}),
+                        **(
+                            {"hosts": {name: asdict(host) for name, host in fragment.hosts.items()}}
+                            if fragment.hosts
+                            else {}
+                        ),
                         "conformance": (
                             asdict(fragment.conformance)
                             if fragment.conformance is not None
@@ -1013,8 +1018,12 @@ def default_catalog() -> Catalog:
 def _lock_traits(trait: DialectTraits) -> dict[str, Any]:
     """Fingerprint all host declarations while preserving legacy empty-field hashes."""
     data = asdict(trait)
-    for key in ("version_headers", "feature_headers", "host_body_versions",
-                "host_feature_body_mappings"):
+    for key in (
+        "version_headers",
+        "feature_headers",
+        "host_body_versions",
+        "host_feature_body_mappings",
+    ):
         if not data[key]:
             del data[key]
     return data

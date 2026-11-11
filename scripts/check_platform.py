@@ -23,11 +23,13 @@ def main() -> int:
         ("npm", "run", "typecheck"),
     ]
     if not args.no_tests:
-        commands.extend([
-            ("docker", "info", "--format", "{{.ServerVersion}}"),
-            (*gateway, "pytest"),
-            ("npm", "test"),
-        ])
+        commands.extend(
+            [
+                ("docker", "info", "--format", "{{.ServerVersion}}"),
+                (*gateway, "pytest"),
+                ("npm", "test"),
+            ]
+        )
     commands.append(("npm", "run", "build"))
     if not args.no_tests:
         commands.append(("npm", "run", "test:browser"))

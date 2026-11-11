@@ -65,9 +65,12 @@ def model(policy: Retain, key: str = "sk-isolation") -> tuple[WireChatModel, Htt
     transport = HttpxTransport(provider="openai")
     facade = WireChatModel(
         ChatCompletionsCodec(),
-        Binding(host=Direct("https://api.openai.com"), credentials=ApiKey(key),
-                transport=transport),
-        Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o", policies=[policy],
+        Binding(
+            host=Direct("https://api.openai.com"), credentials=ApiKey(key), transport=transport
+        ),
+        Catalog.of(ocai.openai.FRAGMENT),
+        model_name="gpt-4o",
+        policies=[policy],
     )
     return facade, transport
 
@@ -77,10 +80,14 @@ def model(policy: Retain, key: str = "sk-isolation") -> tuple[WireChatModel, Htt
 @pytest.mark.parametrize("failure", ["none", "provider", "transport"])
 @respx.mock
 async def test_retained_requests_stay_safe(
-    load_http: LoadHttp, asynchronous: bool, streaming: bool, failure: str,
+    load_http: LoadHttp,
+    asynchronous: bool,
+    streaming: bool,
+    failure: str,
 ) -> None:
-    pair = load_http("openai_chat_completion_stream.json" if streaming
-                     else "openai_chat_completion.json")
+    pair = load_http(
+        "openai_chat_completion_stream.json" if streaming else "openai_chat_completion.json"
+    )
     policy = Retain()
     facade, transport = model(policy)
     sent: list[httpx.Request] = []
@@ -96,8 +103,9 @@ async def test_retained_requests_stay_safe(
             error = load_http("openai_chat_completion_auth_error.json")
             return httpx.Response(error["response"]["status"], json=error["response"]["json"])
         if streaming:
-            return httpx.Response(200, content=("\n\n".join(pair["response"]["sse"])
-                                               + "\n\n").encode())
+            return httpx.Response(
+                200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode()
+            )
         return httpx.Response(200, json=pair["response"]["json"])
 
     respx.post(URL).mock(side_effect=respond)
@@ -130,7 +138,8 @@ async def test_retained_requests_stay_safe(
 @pytest.mark.parametrize("asynchronous", [False, True])
 @respx.mock
 async def test_retry_and_concurrent_credentials_do_not_cross(
-    load_http: LoadHttp, asynchronous: bool,
+    load_http: LoadHttp,
+    asynchronous: bool,
 ) -> None:
     pair = load_http("openai_chat_completion.json")
     policies = [Retain(retry=True), Retain(retry=True)]

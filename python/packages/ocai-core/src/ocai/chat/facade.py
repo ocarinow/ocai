@@ -301,8 +301,9 @@ class PreparedChatCall:
     A handle is in-process, not a portable authorization token or durable job.
     """
 
-    def __init__(self, request: ChatRequest, inspection: ExecutionInspection,
-                 model: ChatModel) -> None:
+    def __init__(
+        self, request: ChatRequest, inspection: ExecutionInspection, model: ChatModel
+    ) -> None:
         """Build through a model's prepare method; callers inspect returned handles."""
         self._request = deepcopy(request)
         self._inspection = deepcopy(inspection)
@@ -349,10 +350,17 @@ class PreparedChatCall:
 
 def _wire_identity(request: HttpRequest) -> str:
     """Fingerprint pre-authentication wire semantics; execution metadata is excluded."""
-    return hashlib.sha256(canonical({
-        "method": request.method, "url": request.url, "headers": request.headers,
-        "body": request.body.hex() if request.body else None, "stream": request.stream,
-    }).encode()).hexdigest()
+    return hashlib.sha256(
+        canonical(
+            {
+                "method": request.method,
+                "url": request.url,
+                "headers": request.headers,
+                "body": request.body.hex() if request.body else None,
+                "stream": request.stream,
+            }
+        ).encode()
+    ).hexdigest()
 
 
 def _prepare_port(model: ChatModel, request: ChatRequest, streaming: bool) -> PreparedChatCall:
@@ -370,14 +378,20 @@ class _PreparedModel:
     """Bound approved execution with explicit internal continuations."""
 
     def __init__(
-        self, request: ChatRequest, data: _PreparedCall, *,
-        guard: Callable[[HttpRequest], None], build: Callable[[], HttpRequest],
+        self,
+        request: ChatRequest,
+        data: _PreparedCall,
+        *,
+        guard: Callable[[HttpRequest], None],
+        build: Callable[[], HttpRequest],
         chat: Callable[[_PreparedModel, ChatRequest, CallContext | None], CallResult[ChatResponse]],
-        achat: Callable[[_PreparedModel, ChatRequest, CallContext | None],
-                        Awaitable[CallResult[ChatResponse]]],
+        achat: Callable[
+            [_PreparedModel, ChatRequest, CallContext | None], Awaitable[CallResult[ChatResponse]]
+        ],
         stream: Callable[[_PreparedModel, ChatRequest, CallContext | None], ChatStream],
-        astream: Callable[[_PreparedModel, ChatRequest, CallContext | None],
-                          Awaitable[AsyncChatStream]],
+        astream: Callable[
+            [_PreparedModel, ChatRequest, CallContext | None], Awaitable[AsyncChatStream]
+        ],
         details: dict[str, Any],
     ) -> None:
         self.data = deepcopy(data)
@@ -389,25 +403,30 @@ class _PreparedModel:
         self.request_identity = canonical(request.to_dict())
 
     def consume(self, request: ChatRequest, *, streaming: bool) -> _PreparedCall:
-        if (canonical(request.to_dict()) != self.request_identity
-                or streaming != self.data.spec.op.streaming):
+        if (
+            canonical(request.to_dict()) != self.request_identity
+            or streaming != self.data.spec.op.streaming
+        ):
             raise StalePreparationError("admission changed the approved request; prepare again")
         self.guard(self.build())
         return deepcopy(self.data)
 
-    def chat(self, request: ChatRequest,
-             *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    def chat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         return self.run_chat(self, request, ctx)
 
-    async def achat(self, request: ChatRequest,
-                    *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    async def achat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         return await self.run_achat(self, request, ctx)
 
     def stream(self, request: ChatRequest, *, ctx: CallContext | None = None) -> ChatStream:
         return self.run_stream(self, request, ctx)
 
-    async def astream(self, request: ChatRequest,
-                      *, ctx: CallContext | None = None) -> AsyncChatStream:
+    async def astream(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> AsyncChatStream:
         return await self.run_astream(self, request, ctx)
 
 
@@ -494,37 +513,62 @@ class WireChatModel:
     def _configuration(self, prepared: _PreparedCall) -> str:
         """Identify effective wire/configuration semantics without credentials."""
         _, request = build_request(self._binding, prepared.spec, prepared.payload)
-        return hashlib.sha256(canonical({
-            "wire": _wire_identity(request), "model": self._model_name,
-            "interface": self._interface, "tag": self._tag, "strict": self._strict,
-            "catalog": self._catalog.lock().hash,
-            "profile_key": profile_key(self._binding.host, self._model_name),
-            "framing": (stream_framing(self._binding.host, prepared.spec).configuration_id
-                        if prepared.spec.op.streaming else None),
-            "policy": id(self._conversion_policy) if self._conversion_policy else None,
-        }).encode()).hexdigest()
+        return hashlib.sha256(
+            canonical(
+                {
+                    "wire": _wire_identity(request),
+                    "model": self._model_name,
+                    "interface": self._interface,
+                    "tag": self._tag,
+                    "strict": self._strict,
+                    "catalog": self._catalog.lock().hash,
+                    "profile_key": profile_key(self._binding.host, self._model_name),
+                    "framing": (
+                        stream_framing(self._binding.host, prepared.spec).configuration_id
+                        if prepared.spec.op.streaming
+                        else None
+                    ),
+                    "policy": id(self._conversion_policy) if self._conversion_policy else None,
+                }
+            ).encode()
+        ).hexdigest()
 
     def prepare(self, request: ChatRequest, *, streaming: bool = False) -> PreparedChatCall:
         """Inspect and snapshot conversion without authentication or provider I/O."""
         snapshot = deepcopy(request)
         prepared = self._prepare(deepcopy(snapshot), streaming=streaming)
         profiles = self._catalog.profiles_for(
-            prepared.route.node.provider, prepared.route.node.interface,
+            prepared.route.node.provider,
+            prepared.route.node.interface,
             profile_key(self._binding.host, self._model_name),
         )
-        coverage = tuple(FeatureCoverage(
-            feature, path, declared_support(profiles, feature),
-            next((p.model_pattern for p in profiles if feature in p.features), None),
-        ) for feature, path in _request_features(snapshot))
-        response_src = (self._chunk_node(prepared.route.node) if streaming
-                        else self._response_node(prepared.route.node))
+        coverage = tuple(
+            FeatureCoverage(
+                feature,
+                path,
+                declared_support(profiles, feature),
+                next((p.model_pattern for p in profiles if feature in p.features), None),
+            )
+            for feature, path in _request_features(snapshot)
+        )
+        response_src = (
+            self._chunk_node(prepared.route.node)
+            if streaming
+            else self._response_node(prepared.route.node)
+        )
         inspection = ExecutionInspection(
             prepared.route,
             self._catalog.inspect(CANONICAL_CHAT_REQUEST, prepared.route.node),
-            self._catalog.inspect(response_src,
-                                  CANONICAL_CHAT_CHUNK if streaming else CANONICAL_CHAT_RESPONSE,
-                                  streaming=streaming),
-            tuple(profiles), coverage, prepared.report, self._configuration(prepared), streaming,
+            self._catalog.inspect(
+                response_src,
+                CANONICAL_CHAT_CHUNK if streaming else CANONICAL_CHAT_RESPONSE,
+                streaming=streaming,
+            ),
+            tuple(profiles),
+            coverage,
+            prepared.report,
+            self._configuration(prepared),
+            streaming,
         )
         _, wire = build_request(self._binding, prepared.spec, prepared.payload)
         identity, wire_identity = inspection.configuration_id, _wire_identity(wire)
@@ -533,25 +577,40 @@ class WireChatModel:
 
         def guard(request: HttpRequest) -> None:
             if self._conversion_policy is not None:
-                self._conversion_policy.enforce(prepared.report, phase="request",
-                                                route=prepared.route)
+                self._conversion_policy.enforce(
+                    prepared.report, phase="request", route=prepared.route
+                )
             # Explicit hooks may add transport metadata; changing approved fields
             # or effective host/configuration requires a fresh inspection.
-            if any(name not in header_names and name.casefold() in normalized_headers
-                   for name in request.headers):
+            if any(
+                name not in header_names and name.casefold() in normalized_headers
+                for name in request.headers
+            ):
                 raise StalePreparationError(
-                    "approved header shadowed by a case alias; prepare again")
-            checked = replace(request, headers={key: request.headers[key]
-                                                for key in header_names if key in request.headers})
-            if (prepared.framing is not None and prepared.framing.configuration_id !=
-                    stream_framing(self._binding.host, prepared.spec).configuration_id):
+                    "approved header shadowed by a case alias; prepare again"
+                )
+            checked = replace(
+                request,
+                headers={
+                    key: request.headers[key] for key in header_names if key in request.headers
+                },
+            )
+            if (
+                prepared.framing is not None
+                and prepared.framing.configuration_id
+                != stream_framing(self._binding.host, prepared.spec).configuration_id
+            ):
                 raise StalePreparationError("stream framing changed; prepare again")
-            if (self._configuration(prepared) != identity
-                    or _wire_identity(checked) != wire_identity):
+            if (
+                self._configuration(prepared) != identity
+                or _wire_identity(checked) != wire_identity
+            ):
                 raise StalePreparationError("configuration or wire request changed; prepare again")
 
         executor = _PreparedModel(
-            snapshot, prepared, guard=guard,
+            snapshot,
+            prepared,
+            guard=guard,
             build=lambda: build_request(self._binding, prepared.spec, prepared.payload)[1],
             chat=lambda bound, request, ctx: self._chat_prepared(bound, request, ctx=ctx),
             achat=lambda bound, request, ctx: self._achat_prepared(bound, request, ctx=ctx),
@@ -561,14 +620,16 @@ class WireChatModel:
         )
         return PreparedChatCall(snapshot, inspection, executor)
 
-    def chat(self, request: ChatRequest,
-             *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    def chat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         """Prepare and execute one governed synchronous call."""
         Deadline(ctx).remaining()
         return self.prepare(request).chat(ctx=ctx)
 
-    async def achat(self, request: ChatRequest,
-                    *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    async def achat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         """Prepare and execute one governed async call."""
         Deadline(ctx).remaining()
         return await self.prepare(request).achat(ctx=ctx)
@@ -578,8 +639,9 @@ class WireChatModel:
         Deadline(ctx).remaining()
         return self.prepare(request, streaming=True).stream(ctx=ctx)
 
-    async def astream(self, request: ChatRequest,
-                      *, ctx: CallContext | None = None) -> AsyncChatStream:
+    async def astream(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> AsyncChatStream:
         """Prepare eagerly and return an owned async stream."""
         Deadline(ctx).remaining()
         return await self.prepare(request, streaming=True).astream(ctx=ctx)
@@ -632,8 +694,9 @@ class WireChatModel:
         if not features:
             return FidelityReport()
         profiles = self._catalog.profiles_for(
-            route.node.provider, route.node.interface,
-            profile_key(self._binding.host, self._model_name)
+            route.node.provider,
+            route.node.interface,
+            profile_key(self._binding.host, self._model_name),
         )
         if not profiles:
             return FidelityReport()
@@ -746,7 +809,10 @@ class WireChatModel:
         # exists, so resolution itself never knows clouds exist.
         route = replace(route, host=self._binding.host.endpoint(spec))
         return _PreparedCall(
-            route=route, spec=spec, payload=payload, report=report,
+            route=route,
+            spec=spec,
+            payload=payload,
+            report=report,
             framing=stream_framing(self._binding.host, spec) if streaming else None,
         )
 
@@ -846,10 +912,12 @@ class WireChatModel:
         response: ChatResponse = decoded.value
         report = prepared.report.merge(decoded.report)
         if self._conversion_policy is not None:
-            self._conversion_policy.enforce(report, phase="response", usage=response.usage,
-                                            route=prepared.route)
-        return CallResult(value=response, route=prepared.route, report=report,
-                          usage=response.usage, raw=raw)
+            self._conversion_policy.enforce(
+                report, phase="response", usage=response.usage, route=prepared.route
+            )
+        return CallResult(
+            value=response, route=prepared.route, report=report, usage=response.usage, raw=raw
+        )
 
     def _stamp_stream_report(
         self, terminal: ChatChunk, prepared: _PreparedCall, pipeline: StreamPipeline
@@ -921,8 +989,11 @@ class WireChatModel:
                 self._stamp_stream_report(terminal, prepared, pipeline)
                 if self._conversion_policy is not None and terminal.end is not None:
                     self._conversion_policy.enforce(
-                        terminal.end.report or FidelityReport(), phase="response",
-                        usage=terminal.end.usage, route=prepared.route, delivered_events=delivered,
+                        terminal.end.report or FidelityReport(),
+                        phase="response",
+                        usage=terminal.end.usage,
+                        route=prepared.route,
+                        delivered_events=delivered,
                     )
                 yield terminal
         finally:
@@ -959,8 +1030,11 @@ class WireChatModel:
                 self._stamp_stream_report(terminal, prepared, pipeline)
                 if self._conversion_policy is not None and terminal.end is not None:
                     self._conversion_policy.enforce(
-                        terminal.end.report or FidelityReport(), phase="response",
-                        usage=terminal.end.usage, route=prepared.route, delivered_events=delivered,
+                        terminal.end.report or FidelityReport(),
+                        phase="response",
+                        usage=terminal.end.usage,
+                        route=prepared.route,
+                        delivered_events=delivered,
                     )
                 yield terminal
         finally:
@@ -1130,8 +1204,10 @@ class WireChatModel:
             pipeline=pipeline,
             framing=prepared.framing,
         )
-        return ChatStream(self._pump(events, prepared, pipeline),
-                          report=lambda: self._stream_evidence(prepared, pipeline))
+        return ChatStream(
+            self._pump(events, prepared, pipeline),
+            report=lambda: self._stream_evidence(prepared, pipeline),
+        )
 
     async def _astream_prepared(
         self,
@@ -1182,8 +1258,10 @@ class WireChatModel:
             pipeline=pipeline,
             framing=prepared.framing,
         )
-        return AsyncChatStream(self._apump(events, prepared, pipeline),
-                               report=lambda: self._stream_evidence(prepared, pipeline))
+        return AsyncChatStream(
+            self._apump(events, prepared, pipeline),
+            report=lambda: self._stream_evidence(prepared, pipeline),
+        )
 
     @property
     def details(self) -> dict[str, Any]:
@@ -1229,12 +1307,19 @@ class InterceptedChatModel:
         self._interceptors = tuple(interceptors)
         self._handler = compose(self._interceptors, self._terminal)
         self._ahandler = acompose(self._interceptors, self._aterminal)
-        stream_interceptors = [item for item in self._interceptors
-                               if isinstance(item, StreamInterceptor)]
-        self._stream_handler = (compose_stream(stream_interceptors, self._stream_terminal)
-                                if len(stream_interceptors) == len(self._interceptors) else None)
-        self._astream_handler = (acompose_stream(stream_interceptors, self._astream_terminal)
-                                 if len(stream_interceptors) == len(self._interceptors) else None)
+        stream_interceptors = [
+            item for item in self._interceptors if isinstance(item, StreamInterceptor)
+        ]
+        self._stream_handler = (
+            compose_stream(stream_interceptors, self._stream_terminal)
+            if len(stream_interceptors) == len(self._interceptors)
+            else None
+        )
+        self._astream_handler = (
+            acompose_stream(stream_interceptors, self._astream_terminal)
+            if len(stream_interceptors) == len(self._interceptors)
+            else None
+        )
 
     def prepare(self, request: ChatRequest, *, streaming: bool = False) -> PreparedChatCall:
         """Retain the complete admission chain around an approved inner snapshot."""
@@ -1307,8 +1392,10 @@ class InterceptedChatModel:
             The inner port's canonical chunk stream.
         """
         if self._stream_handler is None:
-            raise CompositionError("every interceptor must implement StreamInterceptor; "
-                                   "streaming cannot bypass unary governance")
+            raise CompositionError(
+                "every interceptor must implement StreamInterceptor; "
+                "streaming cannot bypass unary governance"
+            )
         stream = self._stream_handler(Call(request=request, ctx=deepcopy(ctx)))
         if isinstance(stream, ChatStream):
             return stream
@@ -1330,13 +1417,16 @@ class InterceptedChatModel:
             The inner port's async canonical chunk stream.
         """
         if self._astream_handler is None:
-            raise CompositionError("every interceptor must implement StreamInterceptor; "
-                                   "streaming cannot bypass unary governance")
+            raise CompositionError(
+                "every interceptor must implement StreamInterceptor; "
+                "streaming cannot bypass unary governance"
+            )
         stream = await self._astream_handler(Call(request=request, ctx=deepcopy(ctx)))
         if isinstance(stream, AsyncChatStream):
             return stream
-        return AsyncChatStream(stream,
-                               report=lambda: stream.outcome.report if stream.outcome else None)
+        return AsyncChatStream(
+            stream, report=lambda: stream.outcome.report if stream.outcome else None
+        )
 
     @property
     def details(self) -> dict[str, Any]:
@@ -1373,32 +1463,44 @@ class ObservedChatModel:
         """Describe the underlying target without exporting credentials."""
         return self._inner.details
 
-    def chat(self, request: ChatRequest,
-             *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    def chat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         """Observe one synchronous invocation including admission and conversion."""
         scope = Invocation(self._observers, ctx)
         try:
             result = self._inner.chat(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
         scope.finish(usage=result.usage, report=result.report, route=result.route)
         return result
 
-    async def achat(self, request: ChatRequest,
-                    *, ctx: CallContext | None = None) -> CallResult[ChatResponse]:
+    async def achat(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> CallResult[ChatResponse]:
         """Observe one async invocation with the same correlation and accounting."""
         scope = Invocation(self._observers, ctx)
         try:
             result = await self._inner.achat(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
@@ -1412,34 +1514,59 @@ class ObservedChatModel:
             stream = self._inner.stream(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
-        stream.on_termination(lambda outcome: scope.finish(
-            status=(failure_status(outcome.error)
-                    if outcome.status == "failed" and outcome.error else outcome.status),
-            usage=outcome.usage, report=outcome.report, error=outcome.error,
-        ))
+        stream.on_termination(
+            lambda outcome: scope.finish(
+                status=(
+                    failure_status(outcome.error)
+                    if outcome.status == "failed" and outcome.error
+                    else outcome.status
+                ),
+                usage=outcome.usage,
+                report=outcome.report,
+                error=outcome.error,
+            )
+        )
         return stream
 
-    async def astream(self, request: ChatRequest,
-                      *, ctx: CallContext | None = None) -> AsyncChatStream:
+    async def astream(
+        self, request: ChatRequest, *, ctx: CallContext | None = None
+    ) -> AsyncChatStream:
         """Observe async creation and its one eventual terminal outcome."""
         scope = Invocation(self._observers, ctx, streaming=True)
         try:
             stream = await self._inner.astream(request, ctx=scope.ctx)
         except BaseException as error:
             if isinstance(error, FidelityPolicyError):
-                scope.finish(status="rejected" if error.phase == "request" else "failed",
-                             error=error, usage=error.usage, report=error.report, route=error.route)
+                scope.finish(
+                    status="rejected" if error.phase == "request" else "failed",
+                    error=error,
+                    usage=error.usage,
+                    report=error.report,
+                    route=error.route,
+                )
             else:
                 scope.finish(status=failure_status(error), error=error)
             raise
-        stream.on_termination(lambda outcome: scope.finish(
-            status=(failure_status(outcome.error)
-                    if outcome.status == "failed" and outcome.error else outcome.status),
-            usage=outcome.usage, report=outcome.report, error=outcome.error,
-        ))
+        stream.on_termination(
+            lambda outcome: scope.finish(
+                status=(
+                    failure_status(outcome.error)
+                    if outcome.status == "failed" and outcome.error
+                    else outcome.status
+                ),
+                usage=outcome.usage,
+                report=outcome.report,
+                error=outcome.error,
+            )
+        )
         return stream

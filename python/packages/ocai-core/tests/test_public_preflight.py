@@ -43,10 +43,12 @@ URL = "https://api.openai.com/v1/chat/completions"
 @pytest.mark.parametrize("mode", ["sync", "async", "stream", "astream"])
 @respx.mock
 async def test_snapshot_survives_input_and_inspection_mutation(
-    load_http: LoadHttp, mode: str,
+    load_http: LoadHttp,
+    mode: str,
 ) -> None:
-    pair = load_http("openai_chat_completion_stream.json" if "stream" in mode
-                     else "openai_chat_completion.json")
+    pair = load_http(
+        "openai_chat_completion_stream.json" if "stream" in mode else "openai_chat_completion.json"
+    )
     events: list[ObserveEvent] = []
 
     class Collect:
@@ -54,9 +56,13 @@ async def test_snapshot_survives_input_and_inspection_mutation(
             events.append(event)
 
     transport = HttpxTransport(provider="openai")
-    model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                            catalog=Catalog.of(ocai.openai.FRAGMENT), transport=transport,
-                            observers=[Collect()])
+    model = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        transport=transport,
+        observers=[Collect()],
+    )
     request = ChatRequest(messages=[Message.user("approved")], config=ChatConfig(temperature=0.4))
     prepared = model.prepare(request, streaming="stream" in mode)
     assert events == []
@@ -79,8 +85,9 @@ async def test_snapshot_survives_input_and_inspection_mutation(
         assert payload["messages"] == [{"role": "user", "content": "approved"}]
         assert payload["temperature"] == 0.4
         if "stream" in mode:
-            return httpx.Response(200, content=("\n\n".join(pair["response"]["sse"])
-                                               + "\n\n").encode())
+            return httpx.Response(
+                200, content=("\n\n".join(pair["response"]["sse"]) + "\n\n").encode()
+            )
         return httpx.Response(200, json=pair["response"]["json"])
 
     route = respx.post(URL).mock(side_effect=respond)
@@ -110,11 +117,14 @@ async def test_binding_change_requires_revalidation() -> None:
     headers = {"X-Deployment": "approved"}
     transport = HttpxTransport(provider="openai")
     binding = Binding(
-        host=Direct("https://api.openai.com"), credentials=ApiKey("sk-test"),
-        transport=transport, extra_headers=headers,
+        host=Direct("https://api.openai.com"),
+        credentials=ApiKey("sk-test"),
+        transport=transport,
+        extra_headers=headers,
     )
-    model = WireChatModel(ChatCompletionsCodec(), binding,
-                         Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o")
+    model = WireChatModel(
+        ChatCompletionsCodec(), binding, Catalog.of(ocai.openai.FRAGMENT), model_name="gpt-4o"
+    )
     prepared = model.prepare(ChatRequest(messages=[]))
     assert isinstance(binding.extra_headers, dict)
     binding.extra_headers["X-Deployment"] = "changed"
@@ -134,8 +144,12 @@ async def test_wire_policy_cannot_change_approved_body() -> None:
         def on_outcome(self, outcome: Outcome) -> Decision:
             return Proceed()
 
-    model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                            catalog=Catalog.of(ocai.openai.FRAGMENT), policies=[Mutate()])
+    model = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        policies=[Mutate()],
+    )
     prepared = model.prepare(ChatRequest(messages=[Message.user("approved")]))
     with respx.mock as router:
         with pytest.raises(StalePreparationError):
@@ -158,8 +172,12 @@ async def test_prepared_execution_retains_admission(mutate: bool) -> None:
             call.request.messages.clear()
             return await next(call)
 
-    model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                            catalog=Catalog.of(ocai.openai.FRAGMENT), interceptors=[Admission()])
+    model = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        interceptors=[Admission()],
+    )
     prepared = model.prepare(ChatRequest(messages=[Message.user("approved")]))
     with respx.mock as router:
         with pytest.raises(StalePreparationError if mutate else AuthError):
@@ -171,8 +189,9 @@ def test_undeclared_features_are_not_presented_as_qualified() -> None:
     from dataclasses import replace
 
     fragment = replace(ocai.openai.FRAGMENT, profiles=())
-    model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                            catalog=Catalog.of(fragment))
+    model = ocai.chat.model(
+        "openai/gpt-4o", credentials=ApiKey("sk-test"), catalog=Catalog.of(fragment)
+    )
     prepared = model.prepare(ChatRequest(messages=[], config=ChatConfig(temperature=0.4)))
     assert prepared.inspection.profiles == ()
     assert prepared.inspection.coverage
@@ -191,8 +210,12 @@ async def test_header_case_alias_cannot_change_approved_semantics(mode: str) -> 
         def on_outcome(self, outcome: Outcome) -> Decision:
             return Proceed()
 
-    model = ocai.chat.model("openai/gpt-4o", credentials=ApiKey("sk-test"),
-                            catalog=Catalog.of(ocai.openai.FRAGMENT), policies=[Mutate()])
+    model = ocai.chat.model(
+        "openai/gpt-4o",
+        credentials=ApiKey("sk-test"),
+        catalog=Catalog.of(ocai.openai.FRAGMENT),
+        policies=[Mutate()],
+    )
     prepared = model.prepare(ChatRequest(messages=[]), streaming="stream" in mode)
     with respx.mock as router:
         with pytest.raises(StalePreparationError):

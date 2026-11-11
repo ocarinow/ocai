@@ -43,12 +43,8 @@ line-length = 100
 # Vendored agent skills carry their own upstream scripts; they are not ocai code.
 extend-exclude = [".agents"]
 target-version = "py313"
-src = [
-    "python/packages/ocai-core/src",
-    "python/packages/ocai-openai/src",
-    "python/packages/ocai-anthropic/src",
-    "python/packages/ocai-deepseek/src",
-]
+# One glob, every distribution: adding a package under python/packages needs no edit here.
+src = ["python/packages/*/src"]
 
 [tool.ruff.lint]
 # "D" makes rule 18 (Google-style docstrings) executable. The D1xx
@@ -83,14 +79,8 @@ docstring-code-format = true
 # Rule 16 made executable for the IDE: nothing may resolve to Unknown.
 # Strict mode is what Pylance shows users; CI runs the same configuration.
 include = [
-    "python/packages/ocai-core/src",
-    "python/packages/ocai-openai/src",
-    "python/packages/ocai-anthropic/src",
-    "python/packages/ocai-deepseek/src",
-    "python/packages/ocai-core/tests",
-    "python/packages/ocai-openai/tests",
-    "python/packages/ocai-anthropic/tests",
-    "python/packages/ocai-deepseek/tests",
+    "python/packages/*/src",
+    "python/packages/*/tests",
     "examples",
     "scripts",
     "tasks",
@@ -104,8 +94,10 @@ typeCheckingMode = "strict"
 
 [tool.mypy]
 # Second opinion on the same bar; nearly free because the tree is already
-# fully annotated. Namespace package: the three src roots are on mypy_path
-# and the portions are listed as packages (never `ocai` itself, rule 1).
+# fully annotated. Namespace package: every distribution's src root is on
+# mypy_path and the portions are listed as packages (never `ocai` itself,
+# rule 1). mypy takes no globs, so these lists are explicit;
+# scripts/workspace_check.py fails the gate when a package is missing here.
 strict = true
 python_version = "3.13"
 namespace_packages = true
@@ -124,12 +116,7 @@ packages = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = [
-    "python/packages/ocai-core/tests",
-    "python/packages/ocai-openai/tests",
-    "python/packages/ocai-anthropic/tests",
-    "python/packages/ocai-deepseek/tests",
-]
+testpaths = ["python/packages/*/tests"]
 # importlib mode lets sibling distributions ship same-named test modules
 # (every distribution carries a test_conformance.py).
 addopts = "-q --import-mode=importlib"

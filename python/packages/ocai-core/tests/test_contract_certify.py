@@ -105,9 +105,7 @@ def test_same_band_substitution_is_violation() -> None:
     # Same-band dispositions are incomparable: declaring one never licenses
     # running the other (they occupy different LossGrade slots).
     contract = EdgeContract(
-        census=_census(
-            a=Disposition.APPROXIMATED, b=Disposition.RENAMED, c=Disposition.DROPPED
-        )
+        census=_census(a=Disposition.APPROXIMATED, b=Disposition.RENAMED, c=Disposition.DROPPED)
     )
     violations = contract.certify(
         [
@@ -234,9 +232,7 @@ def test_declared_shift_selector_path_covers_runtime_shift() -> None:
 
 def test_declared_shift_empty_path_covers_any_location() -> None:
     contract = EdgeContract(semantic_shifts=(SemanticShift(kind=ShiftKind.EMULATION),))
-    assert (
-        contract.certify([], [SemanticShift(kind=ShiftKind.EMULATION, path="messages[7]")]) == []
-    )
+    assert contract.certify([], [SemanticShift(kind=ShiftKind.EMULATION, path="messages[7]")]) == []
 
 
 def test_shift_kind_mismatch_is_violation() -> None:
@@ -295,9 +291,7 @@ def test_certify_edge_catches_a_lying_edge() -> None:
     # An edge claiming lossless (empty census) that drops a field at run
     # time cannot ship — the exact dishonesty the gate exists to prevent.
     def _lying(payload: Any) -> EdgeOutput:
-        return EdgeOutput(
-            payload, losses=(_loss("config.top_k", Disposition.DROPPED),)
-        )
+        return EdgeOutput(payload, losses=(_loss("config.top_k", Disposition.DROPPED),))
 
     node_a = NodeId("acme", "chat", "v1", CHAT_REQUEST, date(2026, 1, 1))
     node_b = NodeId("acme", "chat", "v2", CHAT_REQUEST, date(2026, 6, 1))

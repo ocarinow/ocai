@@ -85,9 +85,7 @@ _CODECS = {
 }
 
 # The new audit-direction edges (wire chat.request -> canonical chat.request).
-OPENAI_DECODE_REQUEST = next(
-    edge for edge in OPENAI_EDGES if edge.src == CHAT_COMPLETIONS_REQUEST
-)
+OPENAI_DECODE_REQUEST = next(edge for edge in OPENAI_EDGES if edge.src == CHAT_COMPLETIONS_REQUEST)
 ANTHROPIC_DECODE_REQUEST = next(edge for edge in ANTHROPIC_EDGES if edge.src == MESSAGES_REQUEST)
 OPENAI_ENCODE_REQUEST = next(edge for edge in OPENAI_EDGES if edge.dst == CHAT_COMPLETIONS_REQUEST)
 ANTHROPIC_ENCODE_REQUEST = next(edge for edge in ANTHROPIC_EDGES if edge.dst == MESSAGES_REQUEST)

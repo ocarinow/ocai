@@ -9,7 +9,7 @@ repository's top-level `pyproject.toml`.
 
 ## Distributions
 
-Three distributions share one PEP 420 namespace, `ocai`. No distribution ships
+Four distributions share one PEP 420 namespace, `ocai`. No distribution ships
 an `ocai/__init__.py`; each contributes only its own subpackages.
 
 | Distribution | Directory | Ships | Depends on |
@@ -17,6 +17,7 @@ an `ocai/__init__.py`; each contributes only its own subpackages.
 | `ocai` | [`packages/ocai-core`](packages/ocai-core/) | `ocai.core`, `ocai.chat`, `ocai.embedding`, `ocai.vectorstore`, `ocai.convert`, `ocai.runtime`, `ocai.wire` | nothing at runtime; `httpx` behind the `[http]` extra |
 | `ocai-openai` | [`packages/ocai-openai`](packages/ocai-openai/) | `ocai.openai.chat_completions` (implemented), `ocai.openai.responses` (stub) | `ocai>=0.1,<0.2`, `msgspec` |
 | `ocai-anthropic` | [`packages/ocai-anthropic`](packages/ocai-anthropic/) | `ocai.anthropic.messages` | `ocai>=0.1,<0.2`, `msgspec` |
+| `ocai-deepseek` | [`packages/ocai-deepseek`](packages/ocai-deepseek/) | `ocai.deepseek` (interface descriptors; execution qualification pending) | `ocai>=0.1,<0.2`, `ocai-openai>=0.1,<0.2` |
 
 No distribution imports a provider SDK; ocai owns the wire through
 `ocai.wire`, and the plugins depend on `ocai.core` + `ocai.convert` only, never
@@ -24,8 +25,8 @@ on `ocai.wire` or `httpx`.
 
 ## Install
 
-The `ocai` distribution declares the extras `http` (pulls `httpx`), `openai`
-and `anthropic` (pull the sibling plugin distribution), and `all`
+The `ocai` distribution declares the extras `http` (pulls `httpx`), `openai`,
+`anthropic` and `deepseek` (pull the sibling plugin distribution), and `all`
 (everything), so the intended install lines are:
 
 ```bash

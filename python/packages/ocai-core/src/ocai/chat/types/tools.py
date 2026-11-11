@@ -272,9 +272,7 @@ class Tool(IRObject):
         Raises:
             TypeError: If `obj` matches none of the accepted shapes.
         """
-        schema_getter: Callable[[], dict[str, Any]] | None = getattr(
-            obj, "model_json_schema", None
-        )
+        schema_getter: Callable[[], dict[str, Any]] | None = getattr(obj, "model_json_schema", None)
         if callable(schema_getter):
             raw = schema_getter()
             parameters = JsonSchema.from_dict(raw)
@@ -326,8 +324,10 @@ class ServerToolLocation(IRObject):
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Decode location data without interpreting or normalizing its values."""
         return cls(
-            country=data.get("country"), region=data.get("region"),
-            city=data.get("city"), timezone=data.get("timezone"),
+            country=data.get("country"),
+            region=data.get("region"),
+            city=data.get("city"),
+            timezone=data.get("timezone"),
             **cls._from_dict_common(data),
         )
 
@@ -367,8 +367,9 @@ class ServerTool(IRObject):
             kind=data.get("kind", ""),
             allowed_domains=deepcopy(data.get("allowed_domains")),
             blocked_domains=deepcopy(data.get("blocked_domains")),
-            user_location=(ServerToolLocation.from_dict(location)
-                           if is_json_object(location) else None),
+            user_location=(
+                ServerToolLocation.from_dict(location) if is_json_object(location) else None
+            ),
             **cls._from_dict_common(data),
         )
         if location is not None and not is_json_object(location):

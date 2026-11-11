@@ -94,9 +94,19 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         run: uv sync
 
+      # Every distribution under python/packages must be wired into knope,
+      # uv sources, mypy, import-linter, and the core extras (rules 1, 16, 19).
+      - name: Workspace consistency
+        if: steps.changes.outputs.run == 'true'
+        run: uv run python scripts/workspace_check.py
+
       - name: Ruff
         if: steps.changes.outputs.run == 'true'
         run: uv run ruff check
+
+      - name: Ruff format
+        if: steps.changes.outputs.run == 'true'
+        run: uv run ruff format --check
 
       # Architecture §1 made executable: the layered + forbidden import
       # contracts in the root pyproject [tool.importlinter].
