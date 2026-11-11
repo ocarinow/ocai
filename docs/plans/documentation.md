@@ -5,7 +5,7 @@ user usage/API/platform documentation from development, design and roadmap mater
 
 ## WU-135 — Publish current user documentation with a verified audience boundary
 
-- **Status:** ⬜ defined
+- **Status:** ✅ complete (PR #135)
 - **Context:** The public site publishes internal plans, research and proposed
   platform designs alongside usage guides. Existing guides omit shipped packages
   and repeat obsolete feature and installation claims.
@@ -60,7 +60,13 @@ user usage/API/platform documentation from development, design and roadmap mater
   where possible, validate local links, label unimplemented surfaces, and generate
   reference signatures from source. Rollback is reverting the documentation PR.
 - **Open:** none.
-- **Evidence:** (filled at completion)
+- **Evidence:** `gate: ccc6894` passed against `origin/wu-82-gateway-program`.
+  `scripts/tests/test_docs_contract.py`: 10 checks, including seven executable
+  guide examples and four recorded HTTP/SSE calls. Source reference and repository
+  link checks pass; the clean site build reports no issues. Desktop/mobile browser
+  inspection of home, Python, API and platform pages found no browser errors.
+  `docs/audits/documentation.md` classifies 186 Markdown sources. The PR carries
+  the final clean-commit gate after completion metadata updates.
 - **Area:** docs
 - **Priority:** P0
 - **Tier:** program

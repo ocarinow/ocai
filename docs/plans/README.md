@@ -2,11 +2,13 @@
 
 **Current direction (November 2026):** the Python
 [governed gateway program](gateway-readiness.md) is merged, following WU-17–20;
-see the [integration guide](../user/gateway-integration.md). The proposed
+see the [integration guide](../user/gateway-integration.md). The active
 [tier 1–2 integration program](integration-program.md) sequences host foundations,
 chat completeness, provider qualification and the first telemetry/cost libraries.
-Its plan must merge before implementation; each WU then branches from current
-main and waits for review and merge before the next starts.
+DeepSeek unary/streaming, AWS signing, Anthropic unary Bedrock hosting and bounded
+EventStream framing are merged. The rows below track the remaining work. Independent
+WUs branch from current main; dependent work may use one-WU stacked PRs as defined
+in `AGENTS.md`.
 The release gate remains [ADR 0005](../decisions/0005-revised-freeze-gate.md).
 The platform vision includes agent execution/management, telemetry, auditing,
 evaluation, and typed registries. Other language implementations are deferred.
@@ -182,7 +184,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-132 | Offer explicit semantic response reuse within isolated scopes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | WU-133 | Qualify multimodal chat inputs on supported gateway routes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | WU-134 | Serve the qualified OpenAI Responses compatibility endpoint | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
-| WU-135 | Publish current user documentation with a verified audience boundary | Documentation | [documentation](documentation.md) | ⬜ |
+| WU-135 | Publish current user documentation with a verified audience boundary | Documentation | [documentation](documentation.md) | ✅ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones

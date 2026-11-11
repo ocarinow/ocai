@@ -1,12 +1,14 @@
 # Core modernization
 
-The next program makes Python ocai a foundation for an enterprise agent
+This modernization program defines the longer-term evolution of Python ocai as a foundation for an enterprise agent
 platform while retaining independently usable libraries. Provider conversion,
 canonical contracts, and fidelity reporting remain the first product. Telemetry,
 auditing, evaluation, asset registries, and agent hosting build on those contracts.
 TypeScript and Go implementation are deferred; the specification remains neutral.
 
-This plan supersedes the execution order in [horizon.md](horizon.md). M1–M3
+The [roadmap](README.md) sequences current integration and platform work before
+the remaining modernization gates. This plan supersedes the original execution
+order in [horizon.md](horizon.md). M1–M3
 remain completed history. Each work unit should be reviewed separately; later
 milestones are split into small work units when reached.
 

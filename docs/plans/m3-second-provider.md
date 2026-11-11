@@ -1,5 +1,8 @@
 # M3 — The second provider and the proofs
 
+Historical completed milestone. The scope and original acceptance below are
+retained; current behavior is documented in [the user guides](../user/index.md).
+
 Goal: Anthropic end-to-end **with zero changes to `ocai/chat/facade.py`** (the
 pattern-replay claim, tested), plus the cross-conversion fidelity report demo
 — flagship demo #1. Architecture refs: §7 (plugin shape), §8 (lifecycle), §2.2

@@ -1394,7 +1394,7 @@ and accounting are not implemented in this slice. Root verification includes
 platform typing, API drift, boundary/HTTP tests, production build, and a browser
 integration test against the real service.
 
-### 12.2 Identity boundaries [direction; not implemented]
+### 12.2 Identity boundaries [direction; staged implementation]
 
 [ADR 0013](decisions/0013-platform-identity.md) records the next identity boundary.
 Keycloak is the reference separately deployed provider for local accounts and
@@ -1414,8 +1414,10 @@ reuse, non-human identities, qualification gates and operational responsibilitie
 The [authenticated console program](plans/platform-identity.md) sequences the
 first implementation; [ADR 0011](decisions/0011-authenticated-console-contract.md)
 proposes its persistence/session policy, operator bootstrap and transactional
-audit plus OpenFGA synchronization contract. These remain design requirements;
-subsequent WUs add the corresponding runtime evidence and update this section.
+audit plus OpenFGA synchronization contract. Sections 12.3–12.5 record implemented
+storage, issuer verification and organization authorization. Console sessions,
+protected organization HTTP workflows and machine credentials remain subsequent
+implementation; proposed production profiles are not qualification claims.
 
 ### 12.3 Platform identity persistence [provisional]
 

@@ -1,6 +1,6 @@
 # 0013 — Platform identity and session boundaries
 
-- **Status:** accepted direction; implementation and qualification pending
+- **Status:** accepted direction; internal identity/authorization implemented, console/workloads pending
 - **Date:** 2026-11-10
 - **Deciders:** maintainer, following the platform identity design discussion
 
