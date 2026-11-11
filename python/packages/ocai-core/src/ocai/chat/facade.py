@@ -94,8 +94,10 @@ from ocai.runtime.observe import failure_status
 from ocai.wire.framing import StreamFraming
 from ocai.wire.hosting import EndpointSpec
 from ocai.wire.hosting import Operation
+from ocai.wire.hosting import host_error_mapper
 from ocai.wire.hosting import profile_key
 from ocai.wire.hosting import stream_framing
+from ocai.wire.outcomes import HostErrorMapper
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -287,6 +289,7 @@ class _PreparedCall:
     payload: dict[str, Any]
     report: FidelityReport
     framing: StreamFraming | None = None
+    error_mapping: HostErrorMapper | None = None
 
 
 class StalePreparationError(OcaiError):
@@ -513,6 +516,7 @@ class WireChatModel:
     def _configuration(self, prepared: _PreparedCall) -> str:
         """Identify effective wire/configuration semantics without credentials."""
         _, request = build_request(self._binding, prepared.spec, prepared.payload)
+        mapping = host_error_mapper(self._binding.host, prepared.spec)
         return hashlib.sha256(
             canonical(
                 {
@@ -528,6 +532,7 @@ class WireChatModel:
                         if prepared.spec.op.streaming
                         else None
                     ),
+                    "host_error_mapping": mapping.configuration_id if mapping is not None else None,
                     "policy": id(self._conversion_policy) if self._conversion_policy else None,
                 }
             ).encode()
@@ -814,6 +819,7 @@ class WireChatModel:
             payload=payload,
             report=report,
             framing=stream_framing(self._binding.host, spec) if streaming else None,
+            error_mapping=host_error_mapper(self._binding.host, spec),
         )
 
     def _response_node(self, request_node: NodeId) -> NodeId:
@@ -1094,6 +1100,7 @@ class WireChatModel:
             budget=budget,
             request_guard=bound.guard,
             refine_error=self._refine_error,
+            error_mapping=prepared.error_mapping,
         )
         result = self._assemble(prepared, raw)
         budget.remaining()
@@ -1139,6 +1146,7 @@ class WireChatModel:
             budget=budget,
             request_guard=bound.guard,
             refine_error=self._refine_error,
+            error_mapping=prepared.error_mapping,
         )
         result = self._assemble(prepared, raw)
         budget.remaining()
@@ -1201,6 +1209,7 @@ class WireChatModel:
             budget=budget,
             request_guard=bound.guard,
             refine_error=self._refine_error,
+            error_mapping=prepared.error_mapping,
             pipeline=pipeline,
             framing=prepared.framing,
         )
@@ -1255,6 +1264,7 @@ class WireChatModel:
             budget=budget,
             request_guard=bound.guard,
             refine_error=self._refine_error,
+            error_mapping=prepared.error_mapping,
             pipeline=pipeline,
             framing=prepared.framing,
         )

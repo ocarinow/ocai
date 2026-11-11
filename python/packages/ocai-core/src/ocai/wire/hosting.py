@@ -52,6 +52,7 @@ from ocai.core.identity import NodeId
 from ocai.core.traits import DialectTraits
 from ocai.wire.framing import StreamFraming
 from ocai.wire.framing import sse_framing
+from ocai.wire.outcomes import HostErrorMapper
 
 
 @dataclass(frozen=True)
@@ -196,6 +197,21 @@ def stream_framing(host: Host, spec: EndpointSpec) -> StreamFraming:
     """Snapshot explicit host framing or retain SSE for legacy hosts."""
     selected = host.stream_framing(spec) if isinstance(host, FramingHost) else sse_framing()
     return selected.snapshot()
+
+
+@runtime_checkable
+class ErrorMappingHost(Protocol):
+    """Optional pure host classification, selected from plain endpoint data."""
+
+    def error_mapper(self, spec: EndpointSpec) -> HostErrorMapper | None:
+        """Declare a mapper for this endpoint, or retain legacy refinement."""
+        ...
+
+
+def host_error_mapper(host: Host, spec: EndpointSpec) -> HostErrorMapper | None:
+    """Snapshot a declared mapper without modifying the host or transport."""
+    selected = host.error_mapper(spec) if isinstance(host, ErrorMappingHost) else None
+    return selected.snapshot() if selected is not None else None
 
 
 @dataclass(frozen=True)

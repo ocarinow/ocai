@@ -1,0 +1,32 @@
+{
+  "description": "WU-48a synthetic native host HTTP error for generic adapter qualification. AWS restJson1-style header identity (Bedrock research section 15); this is not a Bedrock success/codec fixture. Stream opening fails before any SSE output, so there is no successful fold triple. No live key or SDK mock.",
+  "request": {
+    "method": "POST",
+    "url": "https://native-host.test/v1/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "model": "gpt-4o",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "x-amzn-errortype": "ThrottlingException"
+    },
+    "json": {
+      "message": "Synthetic host failure",
+      "future_native": {
+        "opaque": true
+      }
+    }
+  }
+}

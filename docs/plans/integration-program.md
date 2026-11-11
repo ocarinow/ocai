@@ -596,7 +596,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-48a — Preserve and adapt host error outcomes
 
-- **Status:** 🔄 in progress; approved reusable remediation for G-13.
+- [x] **Status:** ✅ implemented; PR #112 review pending.
 - **Context:** WU-48 cannot map a header-only native error because transport drops
   response headers. An HTTP 400 with x-amzn-ErrorType=ThrottlingException becomes
   OcaiError(code=None). The maintainer approved reusable host outcome contracts,
@@ -672,7 +672,10 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Dependency impact:** Unblocks G-13 for WU-48; G-14 remains WU-48b. WU-48's
   existing draft is restacked after these prerequisites, avoiding a dependency cycle.
 - **Open:** none within this approved error-adaptation scope.
-- **Evidence:** pending implementation and full gate.
+- **Evidence:** `test_host_errors.py`: 23 recorded/contract cases pass, including
+  both hosts, four faces, retry mapping, response resource closure, dialect fallback,
+  callback failure, concurrent contexts and stale options/callback identity. Full
+  `uv run python scripts/check.py` passes; verbatim summary is in PR #112.
 - **Area:** wire
 - **Priority:** P0
 - **Tier:** 1
