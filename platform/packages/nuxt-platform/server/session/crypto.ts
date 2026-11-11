@@ -40,9 +40,12 @@ export class TokenCipher {
       if (!id || !nonce || !tag || !ciphertext || extra !== undefined) throw new Error()
       const key = this.keys.get(id)
       if (!key) throw new Error()
-      const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(nonce, 'base64url'))
+      const nonceBytes = Buffer.from(nonce, 'base64url')
+      const tagBytes = Buffer.from(tag, 'base64url')
+      if (nonceBytes.length !== 12 || tagBytes.length !== 16) throw new Error()
+      const decipher = createDecipheriv('aes-256-gcm', key, nonceBytes, { authTagLength: 16 })
       decipher.setAAD(Buffer.from(purpose))
-      decipher.setAuthTag(Buffer.from(tag, 'base64url'))
+      decipher.setAuthTag(tagBytes)
       return JSON.parse(Buffer.concat([decipher.update(Buffer.from(ciphertext, 'base64url')), decipher.final()]).toString('utf8')) as unknown
     } catch { throw new Error('Console session material is unavailable.') }
   }

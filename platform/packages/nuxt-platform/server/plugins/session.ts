@@ -8,13 +8,17 @@ import { SessionStore } from '../session/store.ts'
 export default defineNitroPlugin(async (nitro) => {
   const raw = useRuntimeConfig().session
   if (raw.enabled !== true && String(raw.enabled) !== 'true') return
+  let stage = 'configuration'
   let store: SessionStore | undefined
   try {
-    const settings: SessionSettings = { ...raw, enabled: true, local: raw.local === true || String(raw.local) === 'true' }
+    const settings: SessionSettings = { ...raw, keys: typeof raw.keys === 'string' ? raw.keys : JSON.stringify(raw.keys), enabled: true, local: raw.local === true || String(raw.local) === 'true' }
     validateSettings(settings)
+    stage = 'encryption'
     const cipher = new TokenCipher(settings.activeKey, settings.keys)
+    stage = 'storage'
     store = new SessionStore(settings)
     await store.open()
+    stage = 'identity'
     const identity = new IdentityClient(await discover(settings), settings)
     const service = new ConsoleSessions(store, cipher, identity)
     nitro.hooks.hook('request', event => { event.context.consoleSessions = { service, settings } })
@@ -23,6 +27,9 @@ export default defineNitroPlugin(async (nitro) => {
     nitro.hooks.hook('close', async () => { clearInterval(cleanup); await service.store.close() })
   } catch {
     await store?.close()
-    throw new Error('Console sessions could not start; verify explicit configuration and dependencies.')
+    // Nitro catches plugin rejections and may still listen; an enabled broken
+    // identity boundary must instead fail this Node service's startup.
+    console.error('Console session startup failed (' + stage + ').')
+    process.exit(1)
   }
 })

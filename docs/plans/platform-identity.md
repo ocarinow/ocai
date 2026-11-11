@@ -239,7 +239,13 @@ change public liveness or foundation status to expose deployment secrets.
 
 ## WU-76 — Establish durable OIDC console sessions
 
-- [ ] **Status:** in progress; console sessions and real-provider qualification.
+- [x] **Status:** complete (PR #115).
+- **Evidence:** `platform/tests/session/session.spec.ts` qualifies real Keycloak
+  login/refresh across two console processes, replay/browser binding, CSRF,
+  nonce rejection, expiry, ciphertext tampering/key rotation, production cookie
+  flags, invalid startup, concurrent refresh/logout and provider outage.
+  The full repository gate and strict documentation build pass; the exact gate
+  summary and tested commit are recorded in PR #115.
 - **Goal:** Let users sign in and out through durable console sessions while keeping access and refresh tokens out of browser application state.
 - **Scope:** Reusable Nuxt server identity/session modules in `nuxt-platform`,
   console route wiring and sign-in/out UI, console-session schema migration,

@@ -108,7 +108,7 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-73 | Persist organization identity and transactional audit | Platform identity | [identity](platform-identity.md) | ✅ Complete (implementation; review pending) |
 | WU-74 | Authenticate API callers through the reference issuer | Platform identity | [identity](platform-identity.md) | ✅ |
 | WU-75 | Bootstrap an organization with synchronized access | Platform identity | [identity](platform-identity.md) | ✅ Complete (implementation; review pending) |
-| WU-76 | Establish durable OIDC console sessions | Platform identity | [identity](platform-identity.md) | ⬜ |
+| WU-76 | Establish durable OIDC console sessions | Platform identity | [identity](platform-identity.md) | ✅ Complete (PR #115) |
 | WU-77 | Update an organization through the authenticated console | Platform identity | [identity](platform-identity.md) | ⬜ |
 | WU-78 | Administer owned service-account principals | Platform identity | [identity](platform-identity.md) | ⬜ |
 | WU-79 | Bind OAuth workloads to service accounts | Platform identity | [identity](platform-identity.md) | ⬜ |

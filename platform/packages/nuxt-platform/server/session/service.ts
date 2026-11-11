@@ -23,7 +23,7 @@ function tokenMaterial(value: unknown): TokenMaterial {
 
 /** Browser presentation and server-held API credentials have distinct return shapes. */
 export class ConsoleSessions {
-  constructor(readonly store: SessionStore, private readonly cipher: TokenCipher, private readonly identity: IdentityClient) {}
+  constructor(readonly store: SessionStore, private readonly cipher: TokenCipher, private readonly identity: Pick<IdentityClient, 'authorization' | 'exchange' | 'refresh' | 'logoutUrl'>) {}
   async begin(): Promise<{ url: string; browser: string }> {
     const material: LoginMaterial = { verifier: randomId(), state: randomId(), nonce: randomId(), destination: '/' }
     const browser = randomId()

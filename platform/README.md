@@ -346,3 +346,62 @@ The suite exercises real OpenFGA and PostgreSQL, concurrent/replayed bootstrap,
 rollback, owner/viewer isolation, current principal suspension, bounded projection,
 crashes around tuple acknowledgement, concurrent reconcilers and revocation races.
 No live user/provider credentials are required. Missing Docker fails verification.
+
+## Durable console sessions (WU-76)
+
+Run `task serve:setup` after updating an existing checkout to provision the additive
+console schema/role; startup does not migrate it. Local settings gain a separate
+console database password and encryption key without changing existing secrets.
+The console offers sign-in through Keycloak and local sign-out. Organization
+management is the following WU; login alone grants no platform permission.
+
+The shared `nuxt-platform` server layer owns the fixed `/auth/login`,
+`/auth/callback`, `/api/auth/session` and `/api/auth/logout` operations. Tokens stay
+in encrypted PostgreSQL records. The public gateway-status proxy remains separate.
+Run two console instances against the same store, issuer, origin and encryption
+keyring behind the same trusted ingress; do not forward user-selected upstream URLs.
+
+Production operators first apply `deploy/postgres/console.sql` against the dedicated
+application database, after the original bootstrap, using a privileged operator
+connection and explicit `OCAI_CONSOLE_DATABASE_PASSWORD`. This rerunnable additive
+migration creates `console_session`, owned by the migration role, and `ocai_console`.
+The gateway role cannot read its tables. Existing role passwords are preserved;
+credential rotation is a separate operator action. Do not enable statement/parameter
+logging around credential provisioning or session queries.
+
+Configure these private Nuxt settings explicitly (never public runtime config):
+
+| Setting | Meaning |
+|---|---|
+| `NUXT_SESSION_ENABLED` | `true` to enable sessions; otherwise operations return unavailable |
+| `NUXT_SESSION_LOCAL` | `true` only for isolated loopback HTTP development; production defaults false |
+| `NUXT_SESSION_ORIGIN` | Exact public console origin, HTTPS in production |
+| `NUXT_SESSION_ISSUER` | Exact qualified Keycloak realm issuer, HTTPS in production |
+| `NUXT_SESSION_CLIENT_ID`, `NUXT_SESSION_CLIENT_SECRET` | Confidential console client credentials |
+| `NUXT_SESSION_DATABASE_URL` | Explicit `postgresql://` URL for `ocai_console`; no query options, verified TLS in production |
+| `NUXT_SESSION_ACTIVE_KEY` | Encryption key ID used for new records |
+| `NUXT_SESSION_KEYS` | JSON map of key IDs to 32-byte lowercase hex keys, supplied outside PostgreSQL |
+
+Register exactly `ORIGIN/auth/callback` and `ORIGIN/` as callback and post-logout
+redirect respectively. Use Authorization Code/S256 PKCE, RS256, five-minute access
+tokens and refresh-token rotation with reuse disabled. The local realm recipe has
+these settings for new installations; existing realms require an explicit operator
+update. Do not reimport/reset an existing realm to change its settings.
+
+Sessions expire after 30 minutes idle or eight hours absolute; login transactions
+expire after five minutes. Keep previous encryption keys during rotation for at
+least eight hours, then remove them. Removing a key early invalidates its sessions;
+tampered or unavailable material never triggers credential recovery. A refresh
+interrupted after possible token rotation requires login again. Expired records
+are deleted in bounded batches once per minute by each running instance.
+
+Local logout deletes the console session even when the identity provider is down.
+The optional provider sign-out action visits Keycloak after that deletion; it is
+not a guarantee of globally revoking issued tokens. Do not log callback query
+strings or cookies at reverse proxies. Production ingress/TLS, backup restore and
+back-channel logout still require deployment qualification.
+
+`npm run test:sessions --prefix platform` runs real PostgreSQL/Keycloak and two
+built console processes on isolated ports, with generated disposable credentials
+and teardown. It checks actual login/refresh, browser binding, replay, expiry,
+CSRF, encryption and refresh/logout races; the repository gate includes it.

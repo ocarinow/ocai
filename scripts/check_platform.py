@@ -21,16 +21,20 @@ def main() -> int:
         (*gateway, "mypy"),
         ("npm", "run", "check:client"),
         ("npm", "run", "typecheck"),
+        ("npm", "run", "typecheck:sessions"),
     ]
     if not args.no_tests:
-        commands.extend([
-            ("docker", "info", "--format", "{{.ServerVersion}}"),
-            (*gateway, "pytest"),
-            ("npm", "test"),
-        ])
+        commands.extend(
+            [
+                ("docker", "info", "--format", "{{.ServerVersion}}"),
+                (*gateway, "pytest"),
+                ("npm", "test"),
+            ]
+        )
     commands.append(("npm", "run", "build"))
     if not args.no_tests:
         commands.append(("npm", "run", "test:browser"))
+        commands.append(("npm", "run", "test:sessions"))
     for command in commands:
         print(f"\n--- platform: {' '.join(command)}", flush=True)
         result = subprocess.run(command, cwd=ROOT / "platform", check=False)
