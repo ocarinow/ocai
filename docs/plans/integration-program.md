@@ -60,7 +60,9 @@ streaming edges additionally include deltas, PART_STOP checks and fold triples
 paired with unary recordings. An unsupported advertised feature is an explicit
 report/admission result, never an untested claim. New fixture formats are defined
 in `spec/README.md` and validated in the same owning WU. No live keys or SDK mocks.
-No provider SDKs, no new core dependencies. All non-I/O logic stays sans-io.
+Provider-maintained authentication dependencies are permitted only in the relevant
+external packages (ADR 0016). No AI provider client replaces ocai conversion or
+transport, and no new core dependency is authorized. All non-I/O logic stays sans-io.
 
 Where a dependent survey claim is unverified, the entry's **First step** is
 vendor verification, with source URL, date and result in its provider page (or
@@ -555,24 +557,42 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-47 — Sign independent transport attempts with SigV4
 
-- [ ] **Status:** not started.
-- **First step:** Verify Bedrock canonical URI/query/header rules and whether
-  content-sha256 is required; record sourced answers in `providers/amazon-bedrock.md`.
-- **Scope:** Independent `python/packages/ocai-aws` credential package using only
-  stdlib/core, explicit access/secret/session-token inputs and per-attempt signing;
-  10–18 files. Official synthetic signing vectors and recorded retry requests.
-- **Done:** A signing-vector/recording test passes exact authorization for fixed
-  clocks and payload bytes across sync/async retries while all hooks, observers,
-  retained references and reprs remain free of credentials.
-- **Deps:** WU-46.
-- **Architecture:** §2.9, §5–7.
-- **Freeze:** none changed: existing Credential protocol/ApiKey and request/result
-  contracts remain intact; SigV4Credential is an external implementation.
-- **Decision:** HMAC/SHA-256 are stdlib, no AWS SDK/signing dependency
-  ([Bedrock §11/13(b)](../providers/amazon-bedrock.md)); no implicit IMDS/env/STS
-  discovery. Token refresh is explicit caller-supplied state, outside this WU.
-- **Open:** Signing verification is required before implementation; no speculative
-  header requirement becomes a permanent signing rule.
+- [ ] **Status:** in progress; provider authentication dependency approved.
+- **Goal:** Authenticate AWS requests through the existing explicit Credential
+  seam using AWS-maintained signing code. The current ApiKey can set a bearer
+  header but cannot sign a final method, URI, headers and body; putting signing
+  in a hook would expose credentials and sign before final request preparation.
+- **First step:** Verify the vendor signing API and URI/query/header behavior,
+  including the content-sha256 requirement; record sources in the Bedrock page.
+- **Scope:** Independent `python/packages/ocai-aws`, explicit access/secret/session
+  token inputs, a thin adapter over AWS's `awscrt` signing API, recorded requests
+  and upstream signing vectors; about 20–25 files including package/typing setup.
+  No local canonicalization/HMAC implementation, discovery chain, STS/IMDS access,
+  credential refresh, Bedrock host, AI SDK client or new core dependency.
+- **Done:** Official signing vectors and recorded requests pass exact authorization
+  checks with fixed clocks across sync/async attempts and retries, while hooks,
+  observers, retained requests and credential representations contain no secrets.
+- **Deps:** WU-46; ADR 0016.
+- **Architecture:** §1, §2.9, §5–7.
+- **Integration:** Application → explicit SigV4Credential → driver leaf → detached
+  transport request → AWS-maintained signer → existing transport. `ocai.aws` uses
+  core's Credential contract and AWS authentication primitives; it does not import
+  Bedrock, a capability codec or a provider client. Core never imports this package.
+  A caller composes the credential with any compatible host; service defaults to
+  bedrock and region is explicit. Each attempt gets a new signing configuration.
+- **Freeze:** none changed: Credential, ApiKey, HttpRequest and result contracts
+  remain intact; the implementation lives in an external distribution.
+- **Decision:** The maintainer superseded the original stdlib-only signing plan
+  on 2026-11-11: delegate provider authentication to maintained provider packages,
+  keep dependencies outside core, and separate shared cloud access from service
+  hosting. ADR 0016 records this boundary; Bedrock §14 records verification.
+- **Open:** No shape decision blocks this scope. Runtime SDK errors must be
+  sanitized at the boundary. Native SDK debug logging is not enabled by ocai.
+  S3-specific signing, SigV4a, presigned URLs and credential refresh are excluded.
+- **Area:** plugin: aws
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-48 — Host Anthropic unary calls on Bedrock InvokeModel
 

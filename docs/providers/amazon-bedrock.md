@@ -272,11 +272,12 @@ Inference profiles do not support Provisioned Throughput.
   pattern with one more field.
 
 **(b) Auth.** Bearer API keys are a plain `ApiKey` applied at the driver leaf.
-SigV4 is HMAC-SHA256 + SHA-256 over a canonical request — stdlib `hmac`/
-`hashlib` suffice, so a `SigV4Credential` can live in a cloud-hosting plugin
-(`ocai-aws`) with **no third-party signing library**; rule 12 would permit a
-narrow one but it is not needed. Credential refresh (STS session tokens, IMDS)
-is the credential's concern, applied per attempt after hooks.
+SigV4 is delegated to AWS-maintained signing code in the independent `ocai-aws`
+package. The original stdlib-only recommendation was superseded by the maintainer
+on 2026-11-11 (ADR 0016): provider authentication is not reimplemented. Inputs
+remain explicit, with no discovery chain or automatic STS/IMDS access. Bedrock
+hosting and semantic conversion are separate from shared AWS credentials.
+
 
 **(c) Honesty.** `trace.guardrail` → censused extension `bedrock.guardrail_trace`;
 `stopReason: guardrail_intervened` and `content_filtered` → `ContentFilterError`
@@ -347,3 +348,26 @@ compatibility routes are a half-WU rider on (1).
 - https://docs.aws.amazon.com/nova/latest/nova2-userguide/extended-thinking.html
 - https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html
 - https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html (event-stream framing)
+
+## 14. WU-47 authentication verification (2026-11-11)
+
+The [AWS CRT Python authentication API](https://awslabs.github.io/aws-crt-python/api/auth.html)
+provides an explicit static credential source and request signing with a supplied
+UTC date. WU-47 selects its SigV4 header-signing mode, normal path normalization,
+double URI encoding and hashing of the exact serialized body. It creates no AWS
+client, session, default credential chain or network connection.
+
+[AWS's signing rules](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html)
+require host and applicable x-amz headers in the signature. Canonical query pairs
+are encoded and sorted; header names are lowercased and whitespace normalized.
+The signer owns those transformations. The content-sha256 **header** is identified
+as required for S3; the [InvokeModel operation](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
+does not declare it required. WU-47 therefore signs the body hash without inventing
+an unconditional Bedrock checksum-header requirement. Temporary session tokens
+are included in signing. No unsigned-payload mode is exposed.
+
+Independent expected signatures come from the
+[AWS C Auth signing suite](https://github.com/awslabs/aws-c-auth/tree/bdb7cef99d8bd1ad3c189b1400140a7787e47105/tests/aws-signing-test-suite/v4).
+These are published synthetic credentials/vectors, not live AWS exchanges.
+Recorded application attempts verify the adapter and driver boundary, not live
+service availability. SDK native debug logging is never enabled by ocai.
