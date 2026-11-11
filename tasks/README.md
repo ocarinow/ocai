@@ -29,7 +29,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | `task default` | List every task |
 | `task env` | Activate an environment: copy .envs/.env.<ENV> to the root .env (task env -- <ENV>); with no argument, list the available ones |
 | `task ide` | Open the multi-root VS Code workspace (one folder per environment, so Pylance uses each project's own venv) |
-| `task setup` | One-time setup for a fresh clone — environment, docs group, gh auth check |
+| `task setup` | One-time setup for a fresh clone — environment, docs group, git hooks (.githooks), gh auth check |
 
 ## Python workspace — environment, lint, types, tests, the gate
 

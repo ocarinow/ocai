@@ -83,8 +83,9 @@ tasks:
       - python3 tasks/render_readme.py --check
 
   setup:
-    desc: One-time setup for a fresh clone — environment, docs group, gh auth check
+    desc: One-time setup for a fresh clone — environment, docs group, git hooks (.githooks), gh auth check
     cmds:
       - task: py:sync
       - uv sync --group docs
+      - git config core.hooksPath .githooks
       - gh auth status

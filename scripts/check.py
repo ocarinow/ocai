@@ -172,7 +172,7 @@ def steps_for(no_tests: bool) -> list[Step]:
         Step("mypy (strict)", ("mypy",)),
     ]
     if not no_tests:
-        steps.append(Step("pytest", ("pytest",)))
+        steps.append(Step("pytest", ("pytest", "--cov", "--cov-report=term-missing")))
     steps.append(
         Step(
             "change files",

@@ -23,6 +23,7 @@ ocai-deepseek = { workspace = true }
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6",
     "ruff>=0.6",
     "respx>=0.21",
     "httpx>=0.27",
@@ -114,6 +115,18 @@ packages = [
     "ocai.core", "ocai.chat", "ocai.embedding", "ocai.vectorstore",
     "ocai.convert", "ocai.runtime", "ocai.wire", "ocai.openai", "ocai.anthropic", "ocai.deepseek",
 ]
+
+# Coverage is INFORMATIONAL (no threshold yet): the gate's pytest step and CI
+# print a term-missing report over the distributions' sources so untested
+# lines are visible; plain `uv run pytest` stays fast and silent about it.
+[tool.coverage.run]
+source_pkgs = ["ocai"]
+branch = true
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+precision = 1
 
 [tool.pytest.ini_options]
 testpaths = ["python/packages/*/tests"]
