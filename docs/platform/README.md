@@ -31,6 +31,7 @@ outcome it did not observe.
 | [Product portfolio](products.md) | Users, product responsibilities, longer-term modules, and positioning |
 | [AI Gateway](gateway.md) | First product, fidelity policies, routing, receipts, and production qualification |
 | [Platform stack and console](stack.md) | Selected technologies, reusable frontend layers, and management boundaries |
+| [Identity and access](identity.md) | OIDC/SAML/local login, Keycloak selection, browser/backend boundaries, service accounts and delegation |
 | [Security and enterprise trust](security.md) | Proposed controls, verification, release gates, and customer evidence |
 | [Evidence and observability](evidence.md) | Identity, telemetry, audit, accounting, evaluation, and privacy |
 | [Compartments and knowledge](compartments.md) | Isolation, controlled sharing, domain packages, and retrieval |

@@ -61,15 +61,54 @@ and the supported inference paths have been exercised together.
 - **Open:** none for this slice. Exact auth and resource contracts are qualified
   in subsequent WUs before any protected administration or inference is exposed.
 
+## WU-71 — Record platform identity and access design
+
+Source: maintainer request to "document everything you have documented on your
+answers so far so we do not loose this knowledge" before further implementation.
+
+- [x] **Status:** complete (documentation; review pending).
+- **Goal:** Preserve the platform identity architecture and its qualification
+  boundaries so implementation does not depend on knowledge held outside the repo.
+- **Scope:** Own the identity design, its ADR, architecture §12.2, platform
+  overview/stack/security/direction cross-references, documentation navigation,
+  and this WU's roadmap entry.
+- **Done:** A linked design records the protocol/local-login strategy, reference
+  provider rationale and alternatives, frontend/backend ownership, service
+  interconnection, non-human identities, delegation limits, operations and
+  qualification requirements without presenting them as implemented features;
+  repository verification passes.
+- **Deps:** WU-33 and WU-35.
+- **Architecture:** §12.2; §12.1 implementation claims remain unchanged.
+- **Integration:** Platform documentation only: identity design → ADR 0013 →
+  architecture §12.2 and the MVP queue. No runtime dependency arrows change.
+- **Freeze:** none. No shapes, nodes, edges, censuses, fixtures, fields, extension
+  keys, provider options, streaming contracts, schemas or dependencies change.
+- **Decision:** [ADR 0013](../decisions/0013-platform-identity.md); preserve
+  ADRs 0006 and 0009 and the independent kernel boundary.
+- **Out:** Runtime code, package changes, identity-provider deployment, production
+  support claims, and implementation of subsequent identity workflows.
+- **Open:** none for recording the design. Version/library selection, session
+  persistence, realm mapping, revocation bounds and permission synchronization
+  are explicitly assigned to future implementation WUs.
+- **Area:** platform
+- **Priority:** P1
+- **Tier:** program
+- **Owner:** Codex
+
 ## Next slices to define
 
 Define each as a separate WU before implementation, keeping one observable
 workflow per PR. This ordering is a dependency guide, not completed scope:
 
 1. PostgreSQL migrations and an OIDC-backed organization/session workflow;
-   qualify the identity-provider reference and browser session boundary.
+   implement the selected Keycloak reference and Nuxt server session boundary
+   from [the identity design](../platform/identity.md), with controlled bootstrap,
+   one protected operation, logout and durable audit.
 2. OpenFGA resource checks, organizations/teams/service accounts, and scoped-key
-   administration with durable audit and tested revocation behavior.
+   administration with durable audit and tested revocation behavior. Include
+   service-account OAuth client-credentials access. Qualify direct customer OIDC,
+   brokered SAML and workload federation separately; preview agent delegation
+   remains outside the initial production dependency set.
 3. Provider connection/deployment administration and versioned configuration,
    with secret handling and approved egress.
 4. Native and OpenAI-compatible governed chat, unary and streaming, through

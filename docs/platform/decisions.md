@@ -24,6 +24,9 @@ direction register, not a replacement for [engineering ADRs](../decisions/README
 | D-15 | Organizations, teams, users, scoped API keys, and resource-specific permissions are foundational | Anticipate federation and attribute conditions; detailed model remains to qualify |
 | D-16 | Use Nuxt/Vue, shadcn-vue/Tailwind, FastAPI, PostgreSQL, and OpenFGA | Product stack; no new dependencies in the kernel |
 | D-17 | Reuse UI and platform shell through shallow Nuxt layers | Shared frontend composition; product features remain modular in one console initially |
+| D-18 | Bundle Keycloak as the reference identity provider; retain qualified customer OIDC integration | Local accounts and brokered SAML; separate provider deployment; [ADR 0013](../decisions/0013-platform-identity.md) |
+| D-19 | Nuxt server owns browser sessions; FastAPI enforces API authentication and resource authorization | Server-held tokens, opaque cookies, modular backend integration; [identity design](identity.md) |
+| D-20 | Non-human identities are first-class platform principals | Service accounts, OAuth client credentials and scoped API keys; human delegation is separately qualified |
 
 The existing kernel/satellite boundary remains authoritative. These technology
 choices do not freeze schemas or establish that features are built. See
@@ -70,6 +73,9 @@ independent documentation or kernel work continues.
 | Q-13 | What service objectives and spending guarantees can the deployment sustain? | Production release | Measure and qualify; no invented SLA or absolute budget claim |
 | Q-14 | What package namespaces and commercial model serve the satellites? | Packaging and distribution | Repository layout settled by ADR 0006; exact package namespaces, naming, and licensing remain open |
 | Q-15 | Should model operations or application experiences move earlier? | Portfolio planning after pilot feedback | Conditional on customer needs |
+| Q-16 | Which versions, client libraries, session store and provider profiles are qualified? | First authenticated workflow | Keycloak reference and Nuxt session ownership settled; implementation choices and compatibility evidence pending |
+| Q-17 | What are the session/token lifetimes, revocation bounds and queued/in-flight behavior? | Protected resource release | Explicit policy and outage tests required; logout alone does not revoke all issued tokens |
+| Q-18 | How are provider realms, platform organizations and external identity migrations mapped? | Identity schema and federation administration | Stable platform IDs and explicit issuer/subject bindings; no email-only linking or implicit realm/organization equivalence |
 
 ## Recording resolutions
 

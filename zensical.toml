@@ -49,6 +49,7 @@ nav = [
     { "Product portfolio" = "platform/products.md" },
     { "AI Gateway" = "platform/gateway.md" },
     { "Stack and console" = "platform/stack.md" },
+    { "Identity and access" = "platform/identity.md" },
     { "Security and trust" = "platform/security.md" },
     { "Evidence and observability" = "platform/evidence.md" },
     { "Compartments and knowledge" = "platform/compartments.md" },
@@ -122,6 +123,7 @@ nav = [
     { "WU entry template" = "plans/WU-TEMPLATE.md" },
     { "Gateway readiness" = "plans/gateway-readiness.md" },
     { "Platform design" = "plans/platform-design.md" },
+    { "Platform MVP" = "plans/platform-mvp.md" },
     { "WU-20 — Catalog conformance" = "plans/wu-20-catalog-conformance.md" },
     { "Horizon milestones" = "plans/horizon.md" },
     { "Kernel gaps" = "plans/gaps.md" },
@@ -139,8 +141,9 @@ nav = [
     { "0006 — Platform product layout" = "decisions/0006-platform-product-layout.md" },
     { "0007 — Governed execution through public package contracts" = "decisions/0007-governed-execution.md" },
     { "0008 — Additive integration contracts before the qualification gate" = "decisions/0008-integration-contract-additions.md" },
-    { "0009 — Platform foundation" = "decisions/0009-platform-foundation.md" },
+    { "0009 — Platform application and reusable layers" = "decisions/0009-platform-foundation.md" },
     { "0010 — Versioning and releases" = "decisions/0010-versioning-and-releases.md" },
+    { "0013 — Platform identity and session boundaries" = "decisions/0013-platform-identity.md" },
   ] },
 ]
 
