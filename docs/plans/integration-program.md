@@ -572,7 +572,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Done:** Official signing vectors and recorded requests pass exact authorization
   checks with fixed clocks across sync/async attempts and retries, while hooks,
   observers, retained requests and credential representations contain no secrets.
-- **Deps:** WU-46; ADR 0016.
+- **Deps:** WU-47a (role-aware workspace gate) and WU-46; ADR 0016.
 - **Architecture:** §1, §2.9, §5–7.
 - **Integration:** Application → explicit SigV4Credential → driver leaf → detached
   transport request → AWS-maintained signer → existing transport. `ocai.aws` uses

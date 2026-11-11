@@ -9,7 +9,7 @@ repository's top-level `pyproject.toml`.
 
 ## Distributions
 
-Four distributions share one PEP 420 namespace, `ocai`. No distribution ships
+The distributions share one PEP 420 namespace, `ocai`. No distribution ships
 an `ocai/__init__.py`; each contributes only its own subpackages.
 
 | Distribution | Directory | Ships | Depends on |
@@ -19,9 +19,11 @@ an `ocai/__init__.py`; each contributes only its own subpackages.
 | `ocai-anthropic` | [`packages/ocai-anthropic`](packages/ocai-anthropic/) | `ocai.anthropic.messages` | `ocai>=0.1,<0.2`, `msgspec` |
 | `ocai-deepseek` | [`packages/ocai-deepseek`](packages/ocai-deepseek/) | `ocai.deepseek` (interface descriptors; execution qualification pending) | `ocai>=0.1,<0.2`, `ocai-openai>=0.1,<0.2` |
 
-No distribution imports a provider SDK; ocai owns the wire through
-`ocai.wire`, and the plugins depend on `ocai.core` + `ocai.convert` only, never
-on `ocai.wire` or `httpx`.
+| `ocai-aws` | [`packages/ocai-aws`](packages/ocai-aws/) | `ocai.aws` credentials | `ocai>=0.1,<0.2`, AWS CRT signing library |
+
+ocai owns the wire through `ocai.wire`. Semantic codecs depend on core/convert,
+never wire/httpx. The independent cloud credential package delegates signing to
+AWS-maintained code behind ocai contracts; SDK objects remain private (ADR 0016).
 
 ## Install
 

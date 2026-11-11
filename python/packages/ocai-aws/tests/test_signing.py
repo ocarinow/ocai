@@ -63,12 +63,12 @@ def test_official_vectors(vector: dict[str, Any], caplog: pytest.LogCaptureFixtu
 @pytest.mark.parametrize("field", ["access_key", "secret_key", "region", "session_token"])
 @pytest.mark.parametrize("value", ["", " ", "\r\n"])
 def test_empty_credentials_fail_without_echo(field: str, value: str) -> None:
-    args = dict(
-        access_key="synthetic-access",
-        secret_key="synthetic-secret",
-        region="us-east-1",
-        session_token="synthetic-token",
-    )
+    args = {
+        "access_key": "synthetic-access",
+        "secret_key": "synthetic-secret",
+        "region": "us-east-1",
+        "session_token": "synthetic-token",
+    }
     args[field] = value
     with pytest.raises(CredentialError) as error:
         SigV4Credential(

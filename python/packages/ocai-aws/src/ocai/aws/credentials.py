@@ -77,7 +77,7 @@ class SigV4Credential:
             )
         except Exception:
             # Do not propagate SDK text or retain the original exception as context.
-            pass
+            provider = None
         if provider is None:
             raise CredentialError("AWS static credential initialization failed")
         self._provider = provider
@@ -143,7 +143,7 @@ class SigV4Credential:
         except Exception:
             # Signing may mention headers or keys in upstream exception messages.
             # Raise outside the handler so no secret-bearing exception is chained.
-            pass
+            signed = None
         if signed is None:
             raise CredentialError("AWS request signing failed")
         request.headers.clear()

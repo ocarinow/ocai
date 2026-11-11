@@ -23,3 +23,6 @@ packages = ["src/ocai"]
 
 [tool.hatch.build]
 dev-mode-dirs = ["src"]
+
+[tool.ocai]
+role = "credential"
