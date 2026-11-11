@@ -28,7 +28,7 @@ holds only a thin adapter.
 |---|---|---|
 | Instructions | `AGENTS.md` (canonical) | `CLAUDE.md` is `@AGENTS.md` + Claude-only notes |
 | Procedures (skills) | `.agents/skills/<name>/SKILL.md` | `.claude/skills` → symlink |
-| Provider research | `docs/providers/` | none needed |
+| Provider research | `docs/research/providers/` | none needed |
 | Decisions | `docs/decisions/` (this directory) | none needed |
 | Kernel gaps found by consumers | `docs/plans/gaps.md` | none needed |
 | Verification | `scripts/check.py` (one command; CI runs the same steps) | none needed |

@@ -38,7 +38,16 @@ PATHS: dict[str, tuple[str, ...]] = {
         "LICENSE",
     ),
     "platform": ("platform/", "python/", "spec/", "scripts/", "tasks/", "Taskfile.yml"),
-    "docs": ("docs/", "zensical.toml", "scripts/docs_check.py"),
+    "docs": (
+        "docs/",
+        "zensical.toml",
+        "scripts/docs_check.py",
+        "scripts/docs_reference.py",
+        "scripts/docs_contract.py",
+        "python/",
+        "platform/spec/",
+        "platform/packages/management-client/",
+    ),
     "workflows": (".github/",),
     "semgrep": ("python/", "platform/", "scripts/", "tasks/", "examples/", ".github/"),
     # Reviewing dependencies is cheap and remains unconditional on code PR events.

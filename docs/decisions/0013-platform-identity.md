@@ -39,7 +39,7 @@ preview delegation for the initial production release. Exact versions, providers
 libraries, persistence, TTLs and revocation behavior require implementing WUs.
 
 The detailed requirements, protocol references, alternatives and acceptance matrix
-live in [the identity design](../platform/identity.md).
+live in [the identity design](../design/platform/identity.md).
 
 ## Alternatives considered
 

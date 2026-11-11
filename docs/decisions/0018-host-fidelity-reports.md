@@ -1,6 +1,6 @@
 # 0018 — Keep host effects separate from conversion edges
 
-- **Status:** accepted direction; WU-48b implementation for review
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer
 

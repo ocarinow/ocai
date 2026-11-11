@@ -79,12 +79,12 @@ Everything else is in service of those two demos. Do them carefully.
 The architecture is wired; treat the items below as **starting points to finish
 and harden**, not greenfield. Don't redo them — extend them.
 
-- ✅ Canonical IR dataclasses + `Report.merge()` — [types.py](../python/packages/ocai-core/src/ocai/core/types.py) (WU 1.1 mostly done; `ToolCall` exists as a stub, no sampling/`stop_reason` fields yet).
-- ✅ Ports — [ports.py](../python/packages/ocai-core/src/ocai/core/ports.py) (`ChatModel`, `EmbeddingModel`, `VectorStore`, `Tracer`).
-- ✅ Conversion graph (Dijkstra, loss-weighted, path cache, canonical backbone) — [graph.py](../python/packages/ocai-core/src/ocai/core/graph.py) (WU 2.2 largely done).
-- ✅ Middleware base + `RetryMiddleware` — [middleware.py](../python/packages/ocai-core/src/ocai/core/middleware.py) (WU 1.5 partial: no usage/cost accounting yet; retry lacks jitter/Retry-After).
-- ✅ Plugin discovery via entry points — [plugins.py](../python/packages/ocai-core/src/ocai/core/plugins.py).
-- ✅ OpenAI adapter + codec **stub** (no network I/O, canned response) — [adapter.py](../python/packages/ocai-openai/src/ocai/openai/adapter.py) (WU 1.2 / 2.3 OpenAI side partial).
+- ✅ Canonical IR dataclasses + `Report.merge()` — types.py (`../python/packages/ocai-core/src/ocai/core/types.py`, historical path) (WU 1.1 mostly done; `ToolCall` exists as a stub, no sampling/`stop_reason` fields yet).
+- ✅ Ports — ports.py (`../python/packages/ocai-core/src/ocai/core/ports.py`, historical path) (`ChatModel`, `EmbeddingModel`, `VectorStore`, `Tracer`).
+- ✅ Conversion graph (Dijkstra, loss-weighted, path cache, canonical backbone) — graph.py (`../python/packages/ocai-core/src/ocai/core/graph.py`, historical path) (WU 2.2 largely done).
+- ✅ Middleware base + `RetryMiddleware` — middleware.py (`../python/packages/ocai-core/src/ocai/core/middleware.py`, historical path) (WU 1.5 partial: no usage/cost accounting yet; retry lacks jitter/Retry-After).
+- ✅ Plugin discovery via entry points — plugins.py (`../python/packages/ocai-core/src/ocai/core/plugins.py`, historical path).
+- ✅ OpenAI adapter + codec **stub** (no network I/O, canned response) — adapter.py (`../python/packages/ocai-openai/src/ocai/openai/adapter.py`, historical path) (WU 1.2 / 2.3 OpenAI side partial).
 - ✅ Spec: JSON Schema + one golden fixture + conformance test — [spec/](https://github.com/ocarinow/ocai/blob/main/spec/README.md).
 - ✅ Path-filtered CI (python active; ts/go stubbed).
 - ❌ Missing: real HTTP I/O, streaming/`ChatChunk`, error taxonomy, recorded-fixture harness, Anthropic/Gemini, capabilities, embeddings/vector store, polyglot.

@@ -1,7 +1,7 @@
 # Tier 1–2 integration program
 
 Source: maintainer request to "produce docs/plans/integration-program.md" from
-[the capability roadmap](../capabilities/README.md), then implement one WU per
+[the capability roadmap](../research/capabilities/README.md), then implement one WU per
 PR. The maintainer subsequently authorized stacked PRs, retaining one WU per PR.
 
 ## Baseline and sequencing
@@ -141,7 +141,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** additive `ocai.core.DialectTraits`; no chat shape changes; accepted WU-37 portion of the
   integration ADR covers the legacy-field preservation rule.
 - **Decision:** Use a per-host map, never overload the Vertex tuple for Bedrock
-  ([Bedrock §13(a)](../providers/amazon-bedrock.md#13-mapping-to-ocai)).
+  ([Bedrock §13(a)](../research/providers/amazon-bedrock.md#13-mapping-to-ocai)).
 - **Open:** None for WU-37; unsupported mapping conflicts fail at
   composition rather than selecting a silent winner.
 
@@ -168,10 +168,10 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** additive explicit credential value in `ocai.core.credentials`;
   preserve `Credential`/`ApiKey` signatures; no chat IR changes (integration ADR).
 - **Decision:** Hosts are composed values with data-driven profiles and no copied
-  codec ([Hosting, Mapping (a)](../capabilities/hosting-and-aggregators.md));
+  codec ([Hosting, Mapping (a)](../research/capabilities/hosting-and-aggregators.md));
   Concrete endpoint/header/profile precedence is recorded in the accepted WU-38
   portion of [ADR 0008](../decisions/0008-integration-contract-additions.md);
-  query/version handling follows [Azure §13](../providers/azure-openai.md#13-mapping-to-ocai).
+  query/version handling follows [Azure §13](../research/providers/azure-openai.md#13-mapping-to-ocai).
 - **Open:** None for the supported composition surface; automatic deployment-to-model
   discovery and secret-bearing static headers are excluded.
 - **Area:** wire
@@ -200,7 +200,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: `ChatChunk`, `StreamEnd`, `StreamOutcome`, `CallContext`
   and their schemas remain intact; wire protocols are provisional.
 - **Decision:** Binary framing belongs beside SSE in wire, semantic decode stays
-  in plugins ([Bedrock §6/13(a)](../providers/amazon-bedrock.md)). The optional
+  in plugins ([Bedrock §6/13(a)](../research/providers/amazon-bedrock.md)). The optional
   selector, decoder ownership and approval identity are recorded in
   [ADR 0014](../decisions/0014-host-selected-stream-framing.md).
 - **Open:** None; any need to change canonical chunk shape becomes a separate gap.
@@ -233,7 +233,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Decision:** ADR 0008 accepts the additive citation fields and contextual
   validation. Validated code-point spans only; whole-block citations may stay
   unpositioned; marker-only citations stay in extensions
-  ([Search §1.3–1.4](../capabilities/web-search-and-retrieval.md)).
+  ([Search §1.3–1.4](../research/capabilities/web-search-and-retrieval.md)).
 - **Open:** Provider offset units remain unverified for some interfaces; no
   OpenAI Responses/Gemini/xAI edge is claimed by this canonical-only WU.
 - **Area:** chat IR
@@ -263,7 +263,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   function Tool constructors and serialization preserved (integration ADR).
 - **Decision:** ADR 0008 records the additive union. Server tools are declared request intent, not client-side execution;
   max_uses/search_context_size remain provider lanes
-  ([Search §1.4](../capabilities/web-search-and-retrieval.md)).
+  ([Search §1.4](../research/capabilities/web-search-and-retrieval.md)).
 - **Open:** None for this union; MCP registry/client execution and Tool.strict/origin
   promotion are excluded and must receive separate WUs if later required.
 
@@ -295,7 +295,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** additive ChatRequest.anchors and request schema; existing ProviderRef,
   part.anchor and Annotation.opaque semantics preserved (integration ADR).
 - **Decision:** ADR 0008 accepts request anchors. Encrypted search tokens and continuation ids are scoped replay
-  anchors, not portable content ([Search §1.4](../capabilities/web-search-and-retrieval.md));
+  anchors, not portable content ([Search §1.4](../research/capabilities/web-search-and-retrieval.md));
   this closes the data-carrier part of G-01, not the deferred Responses interface.
 - **Open:** None for the canonical contract; provider-specific replay qualification
   remains the responsibility of each codec WU.
@@ -331,7 +331,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Decision:** Vendor verification is recorded in Anthropic section 16. The selected
   version is explicitly pinned web_search_20250305; complete-part publication buffers only a server
   call input, without adding a canonical delta. Billable search operations and visible server-tool calls are
-  different counts ([Search §1.1/1.4](../capabilities/web-search-and-retrieval.md)).
+  different counts ([Search §1.1/1.4](../research/capabilities/web-search-and-retrieval.md)).
 - **Open:** No design blocker in the selected basic surface. Later tool versions,
   dynamic filtering and programmatic callers remain excluded; synthetic recordings
   establish documented-wire conformance, not live vendor certification.
@@ -359,7 +359,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: provider interface nodes only; canonical nodes,
   ChatRequest/PartReasoning and their schemas stay intact.
 - **Decision:** Share the compatible wire implementation but preserve DeepSeek
-  vendor identity and replay scope ([DeepSeek §13(a)](../providers/deepseek.md));
+  vendor identity and replay scope ([DeepSeek §13(a)](../research/providers/deepseek.md));
   declaring the graph identity and certifying its edges are separate WUs
   (ADR 0008, compatible interface identity).
 - **Integration:** A separate ocai-deepseek distribution exports descriptor-only
@@ -393,7 +393,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: PartReasoning, ProviderRef, ChatRequest and Usage
   retain their existing shapes; new provider variant nodes are not canonical nodes.
 - **Decision:** Reuse the OpenAI-compatible codec with DeepSeek traits/profiles
-  ([DeepSeek §13(a–c)](../providers/deepseek.md)); distinct effect declarations
+  ([DeepSeek §13(a–c)](../research/providers/deepseek.md)); distinct effect declarations
   cover ignored knobs and effort aliases without clamping input values.
   [ADR 0008](../decisions/0008-integration-contract-additions.md#compatible-unary-qualification-wu-44b)
   records bounded mapping reuse and conservative model-dependent effects.
@@ -428,7 +428,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   through those public seams. No kernel mapping or provider SDK is introduced.
 - **Freeze:** none changed: chat port/IR, CallContext, credentials and schemas stay intact.
 - **Decision:** Missing tool-history reasoning is a correctness failure, not a
-  summary substitution ([DeepSeek §5/7/13](../providers/deepseek.md)).
+  summary substitution ([DeepSeek §5/7/13](../research/providers/deepseek.md)).
 - **Open:** None once WU-44b's verified subset is fixed; FIM, media, Responses and
   Anthropic compatibility routes are excluded.
 - **Area:** plugin: deepseek
@@ -486,7 +486,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   wire import or provider SDK enters the plugin.
 - **Freeze:** none changed: ChatChunk/StreamEnd/deltas and their schemas remain intact.
 - **Decision:** Usage is not required to arrive in a separate empty-choices chunk
-  ([DeepSeek §6/13](../providers/deepseek.md)); pattern replay of WU-14b.
+  ([DeepSeek §6/13](../research/providers/deepseek.md)); pattern replay of WU-14b.
 - **Open:** none for the qualified scope; ADR 0015/WU-46a supplies response-info
   folding. Unknown finish values retain native strings. G-12 separately tracks
   folding unknown response-envelope extensions; event-level evidence is retained.
@@ -1052,7 +1052,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Architecture:** §3.3, §4.5, §5–7, §10.
 - **Freeze:** none changed: StreamEnd/StreamOutcome/ChatChunk and schemas remain intact.
 - **Decision:** Reuse Anthropic semantics after envelope decoding
-  ([Bedrock §6/13(a/d)](../providers/amazon-bedrock.md)); no streaming restart.
+  ([Bedrock §6/13(a/d)](../research/providers/amazon-bedrock.md)); no streaming restart.
 - **Open:** None for InvokeModel; SSE behavior of compatibility routes stays
   unverified and excluded.
 
@@ -1071,7 +1071,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Architecture:** §2.1, §4.3, §7, §10.
 - **Freeze:** none changed: new provider nodes only; no canonical node/shape/schema changes.
 - **Decision:** Converse is Bedrock's own interface, not Anthropic under another
-  host ([Bedrock §13(a)](../providers/amazon-bedrock.md)).
+  host ([Bedrock §13(a)](../research/providers/amazon-bedrock.md)).
 - **Open:** Structured-output members are unverified; exclude that feature unless
   verification settles its wire schema before the supported matrix is fixed.
 
@@ -1090,7 +1090,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: consumes existing parts and open usage dimensions;
   cache writes use the open `cache_write` code pending WU-66's named constant.
 - **Decision:** Converse inputTokens excludes cache reads/writes; cache and output
-  masking semantics must be reported ([Bedrock §8/13(c)](../providers/amazon-bedrock.md)).
+  masking semantics must be reported ([Bedrock §8/13(c)](../research/providers/amazon-bedrock.md)).
 - **Open:** None for verified subset; out-of-range temperature passes verbatim
   with APPROXIMATED evidence, never a silent clamp.
 
@@ -1107,7 +1107,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: chat port, preparation contract, CallResult and schemas
   are used without new fields.
 - **Decision:** Resource routing remains host data; capability facts are model-specific
-  ([Bedrock §1/13(a)](../providers/amazon-bedrock.md)).
+  ([Bedrock §1/13(a)](../research/providers/amazon-bedrock.md)).
 - **Open:** None; cross-region routing policy and account enablement belong to callers.
 
 ## WU-54 — Certify Converse streaming conversion
@@ -1124,7 +1124,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: existing chat chunks/deltas/StreamEnd and schemas suffice;
   any missing part/delta is a new gap, not an implicit scope extension.
 - **Decision:** messageStop is not the end of accounting
-  ([Bedrock §6](../providers/amazon-bedrock.md#6-streaming)).
+  ([Bedrock §6](../research/providers/amazon-bedrock.md#6-streaming)).
 - **Open:** None within the unary matrix; media deltas and server-tool expansion defer.
 
 ## WU-55 — Host Chat Completions on Azure v1
@@ -1143,7 +1143,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Architecture:** §2.5/2.9, §3.4, §6–7.
 - **Freeze:** none changed: Credential/ApiKey, ChatRequest and CallContext are reused.
 - **Decision:** Azure v1 is a host of existing codecs; model is a deployment name
-  ([Azure §1/11/13](../providers/azure-openai.md)).
+  ([Azure §1/11/13](../research/providers/azure-openai.md)).
 - **Open:** Entra scopes require verification; legacy dated deployment APIs, token
   acquisition, and user_security_context inference from governance context are out.
 
@@ -1162,7 +1162,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   no alteration to successful StreamEnd or partial-result semantics.
 - **Decision:** Asynchronous filters can arrive after delivered tokens; disclose
   that fact rather than promising pre-delivery safety
-  ([Azure §6/13(c)](../providers/azure-openai.md)).
+  ([Azure §6/13(c)](../research/providers/azure-openai.md)).
 - **Open:** None for recorded v1 filtering; unsupported future fields are preserved.
 
 ## WU-57 — Honor Azure millisecond retry hints
@@ -1180,7 +1180,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Architecture:** §2.3, §5–6, §8.
 - **Freeze:** none changed: Retry/CallContext/error contracts retain their shapes.
 - **Decision:** Azure retry-after-ms is a pacing signal, never a deadline extension
-  ([Azure §11/13](../providers/azure-openai.md)).
+  ([Azure §11/13](../research/providers/azure-openai.md)).
 - **Open:** Header precedence is a verification gate; no undocumented guess ships.
 
 ## WU-58 — Qualify vLLM as an existing-codec host
@@ -1198,7 +1198,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Architecture:** §2.5, §4.2/4.5, §6–7.
 - **Freeze:** none changed: PartReasoning and stream error contracts stay intact.
 - **Decision:** Parser-dependent support is profile data; preserve source spelling
-  and unknown fields ([Hosting, vLLM; Mapping (a/c)](../capabilities/hosting-and-aggregators.md)).
+  and unknown fields ([Hosting, vLLM; Mapping (a/c)](../research/capabilities/hosting-and-aggregators.md)).
 - **Open:** The selected release/configuration must be pinned by verification;
   native Ollama, TGI and unrelated server configurations are excluded.
 
@@ -1217,7 +1217,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** additive payment_required error code/constant in core taxonomy;
   no existing error code renamed (integration ADR).
 - **Decision:** Prefer the common billing distinction explicitly requested by the
-  maintainer and [Hosting, Mapping (d)](../capabilities/hosting-and-aggregators.md)
+  maintainer and [Hosting, Mapping (d)](../research/capabilities/hosting-and-aggregators.md)
   over DeepSeek §13(e)'s older suggestion to classify 402 as authentication.
 - **Open:** None for verified 402 recordings; additional billing statuses need evidence.
 
@@ -1238,7 +1238,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: Usage/Route/chat IR shapes remain intact; host cost stays
   in censused extensions until an explicit cost adapter consumes it.
 - **Decision:** Variant normalization affects profile lookup only; routing controls
-  stay provider_options ([Hosting, OpenRouter; Mapping (a/c/d)](../capabilities/hosting-and-aggregators.md)).
+  stay provider_options ([Hosting, OpenRouter; Mapping (a/c/d)](../research/capabilities/hosting-and-aggregators.md)).
 - **Open:** Anthropic-compatible routing and transform/plugin schemas are unverified
   and excluded; provider-reported cost is not a first-party price estimate.
 
@@ -1256,7 +1256,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** additive CallContext.trace_context and stdlib TraceContext vocabulary;
   existing call/parent/correlation ids preserved (integration ADR).
 - **Decision:** G-04 needs inbound trace context, not a second invocation-id system
-  ([Observability §3/5](../capabilities/observability.md)); document generated
+  ([Observability §3/5](../research/capabilities/observability.md)); document generated
   32-lowercase-hex UUID ids and caller responsibility for supplied-id uniqueness.
 - **Open:** None for transport: the exporter validates W3C syntax and decides
   whether to join; invalid context does not authenticate or fail a model call.
@@ -1278,7 +1278,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   StreamEnd unchanged; additive provisional Observer event variants only.
 - **Decision:** Existing CallFinished remains the invocation terminal; StreamEnded
   adds stream accounting without finalizing twice; pending lazy streams follow
-  ADR 0007 ([Observability §3–5](../capabilities/observability.md)).
+  ADR 0007 ([Observability §3–5](../research/capabilities/observability.md)).
 - **Open:** None; content capture and durable audit are deliberately excluded.
 
 ## WU-63 — Export metadata through the first OTel satellite
@@ -1300,7 +1300,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   data-contract schema additions or automatic hook freeze.
 - **Decision:** OTel-first passive export with a pinned convention revision and
   ocai.* fields for facts with no standard equivalent
-  ([Observability §4–6](../capabilities/observability.md)); ADR 0007's metadata-only
+  ([Observability §4–6](../research/capabilities/observability.md)); ADR 0007's metadata-only
   events supersede the survey's obsolete payload-bearing event descriptions.
 - **Open:** Unstable convention names require verification; payload opt-in,
   archive refs, vendor adapters and metrics are follow-up scope, not hidden TODOs.
@@ -1322,7 +1322,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   canonical schemas unchanged; descriptor schema is separate from chat IR.
 - **Decision:** Versioned descriptors under spec feed existing feature keys, with
   independently identified pricing data; lock hashes declarations, not artifact
-  reproducibility ([Model catalog, Proposal/Shape](../capabilities/model-catalog.md)).
+  reproducibility ([Model catalog, Proposal/Shape](../research/capabilities/model-catalog.md)).
 - **Open:** None for the schema; unverified fields stay absent. A pricing data
   identity must be included explicitly rather than claiming today's lock already
   hashes arbitrary descriptor contents.
@@ -1341,7 +1341,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: no core/chat contract additions; descriptor data and
   its provisional loader only.
 - **Decision:** Human-reviewed refresh, provider facts ahead of third-party claims
-  ([Model catalog, Refresh cadence and verification](../capabilities/model-catalog.md)).
+  ([Model catalog, Refresh cadence and verification](../research/capabilities/model-catalog.md)).
 - **Open:** None for recorded OpenAI/Anthropic inputs; LiteLLM data licensing is
   unverified and its importer is excluded.
 
@@ -1359,7 +1359,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** additive core UsageSource.CACHE_WRITE and usage schema vocabulary;
   old open codes remain readable (integration ADR).
 - **Decision:** Cache writes are a distinct bucket before hint execution ships
-  ([Caching §4.2](../capabilities/caching-cost-and-rate-limits.md)).
+  ([Caching §4.2](../research/capabilities/caching-cost-and-rate-limits.md)).
 - **Open:** None; no OpenAI Responses cache-write support is inferred from Bedrock docs.
 
 ## WU-67 — Add a request-level cache hint without replacing CacheConfig
@@ -1378,7 +1378,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   CacheConfig and per-part CacheHint retained (integration ADR).
 - **Decision:** The maintainer explicitly requests CacheHint on ChatConfig; it
   complements the survey's existing per-part marker and mode/ref lanes
-  ([Caching §3/4.1](../capabilities/caching-cost-and-rate-limits.md)).
+  ([Caching §3/4.1](../research/capabilities/caching-cost-and-rate-limits.md)).
 - **Open:** ADR review must accept the proposed request-level meaning; a plan
   merge alone does not settle contradictory placement intent.
 
@@ -1399,7 +1399,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: consumes WU-67's additive config fields and WU-66 usage;
   no further canonical shape changes.
 - **Decision:** Cache hints are opt-in provider knobs; read/write prices and
-  placement differ ([Caching §2/4.1–4.2/5](../capabilities/caching-cost-and-rate-limits.md)).
+  placement differ ([Caching §2/4.1–4.2/5](../research/capabilities/caching-cost-and-rate-limits.md)).
 - **Open:** None after vendor verification; Responses and Gemini cache lifecycle
   are deferred, and one provider's hint support does not itself earn a freeze.
 
@@ -1420,8 +1420,8 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: existing Consumption open dimensions and extensions;
   no kernel price table or CallResult schema addition.
 - **Decision:** Pricing is a satellite lookup; descriptor facts supply provenance
-  ([Caching §4.5](../capabilities/caching-cost-and-rate-limits.md);
-  [Model catalog, Shape](../capabilities/model-catalog.md)).
+  ([Caching §4.5](../research/capabilities/caching-cost-and-rate-limits.md);
+  [Model catalog, Shape](../research/capabilities/model-catalog.md)).
 - **Open:** None for explicit pinned prices; negotiated rates, taxes, budgets and
   automatic catalog refresh are caller responsibilities.
 
@@ -1441,7 +1441,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Freeze:** none changed: existing CallContext/Decision contracts stay intact;
   RateState/backend protocols remain provisional wire machinery.
 - **Decision:** Provider pacing belongs at wire tier; tenant budgets do not
-  ([Caching §4.4/5](../capabilities/caching-cost-and-rate-limits.md)).
+  ([Caching §4.4/5](../research/capabilities/caching-cost-and-rate-limits.md)).
 - **Open:** None for the verified two-provider subset; distributed limiters and
   undocumented Bedrock headers are excluded.
 

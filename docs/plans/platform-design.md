@@ -6,7 +6,7 @@ Source: maintainer request, "Make the appropriate commit and PR" for the platfor
 documentation developed in the product discussion.
 
 - [x] **Status:** complete.
-- **Scope:** Publish one coherent documentation set under `docs/platform/`,
+- **Scope:** Publish one coherent documentation set under `docs/design/platform/`,
   reconcile its index with the existing platform landing page, record accepted
   product layout in ADR 0006 and architecture §12, and distinguish agreed product
   choices from proposed controls and open implementation decisions. Own those
@@ -29,4 +29,4 @@ documentation developed in the product discussion.
 - **Out:** Application scaffolding, kernel implementation, dependency changes,
   security certification, and implementation WUs for the wider portfolio.
 - **Open:** none for publishing this design. Product questions are explicitly
-  tracked in `docs/platform/decisions.md` and do not block documentation.
+  tracked in `docs/design/platform/decisions.md` and do not block documentation.

@@ -1,13 +1,13 @@
 # 0014 — Host-selected stream framing before semantic conversion
 
-- **Status:** proposed; implemented for review in WU-39
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-10
 - **Deciders:** maintainer review of the WU-39 implementation
 
 ## Context
 
 The integration program's WU-39 requires host framing selection without another
-provider codec. The [Bedrock survey §6/13(a)](../providers/amazon-bedrock.md)
+provider codec. The [Bedrock survey §6/13(a)](../research/providers/amazon-bedrock.md)
 distinguishes binary transport framing and InvokeModel envelope removal from
 Converse's provider semantics. The drivers previously hard-coded SSE. Existing
 public preparation, lifecycle, credential isolation and stream ownership from

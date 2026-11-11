@@ -1,6 +1,6 @@
 # 0019 — Adapt successful host responses through governed public contracts
 
-- **Status:** accepted direction; WU-48c implementation for review
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer
 

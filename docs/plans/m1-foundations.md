@@ -230,7 +230,7 @@ door.
   `ENCODE_REQUEST_CONTRACT` in `edges.py`.
 - **Decision (the implicit harness dependency):** the edge-fixture runner did
   not exist; implemented `check_edge` in `ocai/convert/conformance.py` (the
-  name `docs/writing-a-plugin.md` already advertised). It asserts output
+  name `docs/user/writing-a-plugin.md` already advertised). It asserts output
   equality under `semantic_equal` plus **exact** loss/shift match — records
   compare on `(path, disposition)` / `(kind, path)` as multisets; notes and
   severities are prose/diagnostics and are never compared, mirroring

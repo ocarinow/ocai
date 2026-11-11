@@ -71,4 +71,4 @@ Third-party distributions may ship schemas inside their own wheels using
 with `ocai.convert.resources.load_conformance_resources`, then validate schema
 syntax and canonical bag values in the plugin test suite. Conflicting definitions
 of one extension key fail bundle loading. Discovery records manifests without
-reading resources or claiming certification. See [the author guide](../../docs/writing-a-plugin.md).
+reading resources or claiming certification. See [the author guide](../../docs/user/writing-a-plugin.md).

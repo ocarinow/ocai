@@ -1,6 +1,6 @@
 # 0020 — Validate package wiring according to explicit responsibility
 
-- **Status:** proposed; WU-47a implementation for review
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer review
 

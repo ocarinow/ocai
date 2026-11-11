@@ -59,7 +59,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | `task docs:build` | Render the static site into ./site (gitignored), exactly as the deploy job does |
 | `task docs:check` | Build and fail on any warning (missing nav page, broken link) — the gate's docs step |
 | `task docs:clean` | Remove the built site |
-| `task docs:orphans` | List docs pages that are not in the zensical.toml nav |
+| `task docs:orphans` | Check user navigation coverage and documentation link boundaries |
 | `task docs:serve` | Live preview at http://127.0.0.1:8000 (rebuilds on save) |
 
 ## Privacy guard — nothing from a session goes public
@@ -131,7 +131,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
-| `task release:changeset` | Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per docs/releasing.md |
+| `task release:changeset` | Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per docs/development/releasing.md |
 | `task release:check` | Change-file policy for the current branch — required when a published package changed (task release:check [-- BASE]) |
 | `task release:packages` | Published packages and their current versions (from knope.toml) |
 | `task release:preview:alpha` | What the next ALPHA pre-release would do, without changing anything |

@@ -26,10 +26,11 @@ package at all.
 
 - `ocai[http]` — `httpx`, used only by `ocai.wire.transport.HttpxTransport`
   and imported lazily there. Required for live calls.
-- `ocai[openai]`, `ocai[anthropic]` — the sibling plugin distributions
-  (`ocai-openai`, `ocai-anthropic`); the extra and the standalone package
+- `ocai[openai]`, `ocai[anthropic]`, `ocai[deepseek]` — the sibling codec distributions
+  (`ocai-openai`, `ocai-anthropic`, `ocai-deepseek`); the extra and the standalone package
   resolve to the same wheel.
-- `ocai[all]` — all of the above.
+- `ocai[all]` — HTTP plus those three codecs; AWS credentials and Bedrock
+  hosting are separate distributions.
 
 ## Usage
 

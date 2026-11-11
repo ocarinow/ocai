@@ -46,7 +46,7 @@ platform/
     integration/                    tests spanning platform components
 
 examples/gateway-knowledge-assistant/  pilot integration example
-docs/platform/                      platform architecture and product documentation
+docs/design/platform/                      platform architecture and product documentation
 docs/plans/                         authoritative WU queue for all tracks
 docs/decisions/                     shared architectural decision records
 scripts/check.py                    repository verification entry point

@@ -256,7 +256,7 @@ separate product programs, not implied market-parity claims.
 - **Integration:**
   - Layer: platform documentation and schema examples;
     no public-library dependency or contract changes.
-  - Modules: `docs/decisions/`, `docs/platform/identity.md`, `docs/platform/compartments.md`,
+  - Modules: `docs/decisions/`, `docs/design/platform/identity.md`, `docs/design/platform/compartments.md`,
     `platform/spec/authorization.schema.json`, contract fixtures/tests.
   - Flow: maintainer requirements → reviewed contract → fixture validation → dependent WUs.
   - Diagram:

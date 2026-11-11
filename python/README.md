@@ -17,7 +17,7 @@ an `ocai/__init__.py`; each contributes only its own subpackages.
 | `ocai` | [`packages/ocai-core`](packages/ocai-core/) | `ocai.core`, `ocai.chat`, `ocai.embedding`, `ocai.vectorstore`, `ocai.convert`, `ocai.runtime`, `ocai.wire` | nothing at runtime; `httpx` behind the `[http]` extra |
 | `ocai-openai` | [`packages/ocai-openai`](packages/ocai-openai/) | `ocai.openai.chat_completions` (implemented), `ocai.openai.responses` (stub) | `ocai>=0.1,<0.2`, `msgspec` |
 | `ocai-anthropic` | [`packages/ocai-anthropic`](packages/ocai-anthropic/) | `ocai.anthropic.messages` | `ocai>=0.1,<0.2`, `msgspec` |
-| `ocai-deepseek` | [`packages/ocai-deepseek`](packages/ocai-deepseek/) | `ocai.deepseek` (interface descriptors; execution qualification pending) | `ocai>=0.1,<0.2`, `ocai-openai>=0.1,<0.2` |
+| `ocai-deepseek` | [`packages/ocai-deepseek`](packages/ocai-deepseek/) | `ocai.deepseek` (qualified unary and streaming chat) | `ocai>=0.1,<0.2`, `ocai-openai>=0.1,<0.2` |
 | `ocai-aws` | [`packages/ocai-aws`](packages/ocai-aws/) | `ocai.aws` credentials | `ocai>=0.1,<0.2`, AWS CRT signing library |
 | `ocai-bedrock` | [`packages/ocai-bedrock`](packages/ocai-bedrock/) | `ocai.bedrock` hosting | `ocai>=0.1,<0.2`; optional AWS credentials and Anthropic codec |
 
@@ -27,26 +27,13 @@ AWS-maintained code behind ocai contracts; SDK objects remain private (ADR 0016)
 
 ## Install
 
-The `ocai` distribution declares the extras `http` (pulls `httpx`), `openai`,
-`anthropic` and `deepseek` (pull the sibling plugin distribution), and `all`
-(everything), so the intended install lines are:
-
-```bash
-uv add "ocai[http,openai]"        # core + HTTP transport + the OpenAI plugin
-uv add "ocai[all]"                # core + httpx + both provider plugins
-```
-
-The distributions are **not yet published to PyPI** (checked November 2026),
-so today they resolve only from a checkout of this repository. Inside the
-checkout, `uv sync` installs all three as editable workspace members; from
-another project, point uv at the package directories, for example:
-
-```bash
-uv run --isolated --no-project --python 3.13 \
-  --with "./python/packages/ocai-core[http]" \
-  --with ./python/packages/ocai-openai \
-  python -c "import ocai.openai, httpx; print('ok')"
-```
+For applications, follow the [user installation guide](../docs/user/libraries/python/README.md).
+Released packages are available on [PyPI](https://pypi.org/project/ocai/); this
+workspace can be ahead of an installed release. `ocai[all]` includes HTTP and the
+OpenAI, Anthropic and DeepSeek codecs, not the separate AWS/Bedrock adapters.
+From this repository root, `uv sync` installs all six members as editable packages.
+The [generated package reference](../docs/user/reference/README.md) reads actual
+package versions, Python constraints and dependencies from their metadata.
 
 ## Usage
 
@@ -155,7 +142,7 @@ through the `ocai.fragments` entry point; installing it has exactly one
 structural effect, adding nodes and edges to the conversion graph. Start from
 [`examples/ocai-contrib-echo`](../examples/ocai-contrib-echo/README.md), the
 independently packaged template, and read
-[`docs/writing-a-plugin.md`](../docs/writing-a-plugin.md) for the contracts a
+[`docs/user/writing-a-plugin.md`](../docs/user/writing-a-plugin.md) for the contracts a
 plugin must honour to serve live calls.
 
 ## License

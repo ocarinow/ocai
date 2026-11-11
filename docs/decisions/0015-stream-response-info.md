@@ -1,6 +1,6 @@
 # 0015 — Preserve response identity through canonical streams
 
-- **Status:** accepted direction; implementation for review
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer
 

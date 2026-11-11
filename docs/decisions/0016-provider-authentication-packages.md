@@ -1,6 +1,6 @@
 # 0016 — Delegate authentication within external provider packages
 
-- **Status:** accepted direction; WU-47 implementation for review
+- **Status:** accepted; corresponding implementation merged on main
 - **Date:** 2026-11-11
 - **Deciders:** maintainer
 

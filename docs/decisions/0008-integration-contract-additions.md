@@ -8,7 +8,7 @@
 
 ## Context
 
-The [capability roadmap](../capabilities/README.md) selects chat completeness,
+The [capability roadmap](../research/capabilities/README.md) selects chat completeness,
 enterprise hosts and observability as tiers 1–2. The merged gateway mechanisms
 already provide the enforcement and lifecycle boundary in ADR 0007. Several
 survey recommendations need additive changes to frozen-candidate core/chat
@@ -94,9 +94,9 @@ Recordings cover all four call faces, existing fold parity, escaped resources,
 credential isolation, detached maps and stale approval. They do not qualify a vendor
 endpoint, and no conversion edge or canonical schema changes in WU-38.
 
-Sources: [Hosting, Mapping (a)](../capabilities/hosting-and-aggregators.md),
-[Bedrock §13(a–b)](../providers/amazon-bedrock.md),
-[Azure §11/13](../providers/azure-openai.md).
+Sources: [Hosting, Mapping (a)](../research/capabilities/hosting-and-aggregators.md),
+[Bedrock §13(a–b)](../research/providers/amazon-bedrock.md),
+[Azure §11/13](../research/providers/azure-openai.md).
 
 ### Citations and server-tool intent (WU-40–41 accepted)
 
@@ -145,7 +145,7 @@ remain explicit, and malformed location data is retained in a registered extensi
 edges report whole unsupported entries at `tools[index]` and never encode them
 as functions. Provider-specific search qualification belongs to WU-43.
 
-Sources: [Web search §1.3–1.4](../capabilities/web-search-and-retrieval.md).
+Sources: [Web search §1.3–1.4](../research/capabilities/web-search-and-retrieval.md).
 The survey's sketch mentions max_uses/search_context_size as possible fields;
 its explicit three-lane mapping places them in extensions. That narrower mapping
 is the proposal here.
@@ -189,8 +189,8 @@ terminal. Search counters use text/search_requests/output and stream settlement
 keys the complete modality/unit/source tuple, so output tokens cannot be replaced
 by search counts. Unknown counters are censused evidence, not invented usage.
 
-Sources: [Web search §1.1/1.4](../capabilities/web-search-and-retrieval.md),
-[DeepSeek §5/7](../providers/deepseek.md), and gap G-01.
+Sources: [Web search §1.1/1.4](../research/capabilities/web-search-and-retrieval.md),
+[DeepSeek §5/7](../research/providers/deepseek.md), and gap G-01.
 
 ### Compatible interface identity (WU-44a)
 
@@ -203,7 +203,7 @@ The `2026-11` tag orders the ocai observation snapshot dated 2026-11-11; it is n
 vendor version header or model release date. Stable node metadata alone grants no
 execution eligibility. Unverified historical model retirement dates are omitted.
 
-Source: [DeepSeek §14](../providers/deepseek.md#14-wu-44a-descriptor-verification-2026-11-11).
+Source: [DeepSeek §14](../research/providers/deepseek.md#14-wu-44a-descriptor-verification-2026-11-11).
 
 ### Compatible unary qualification (WU-44b)
 
@@ -221,7 +221,7 @@ clamping counts. G-10 tracks model-dependent sampling: without a model-aware edg
 context, top_p remains unsupported and verbatim. No routing field or canonical
 shape is added to work around the gap. Streaming remains WU-46's qualification.
 
-Source: [DeepSeek §15](../providers/deepseek.md#15-wu-44b-conversion-verification-2026-11-11).
+Source: [DeepSeek §15](../research/providers/deepseek.md#15-wu-44b-conversion-verification-2026-11-11).
 
 ### Payment and trace vocabulary (WU-59/61)
 
@@ -239,8 +239,8 @@ call. Preserve existing caller call_id/parent_id/correlation_id. Document genera
 ids as 32 lowercase hexadecimal UUID characters; supplied ids stay opaque, with
 uniqueness and reuse responsibility on the caller. No process-global correlation.
 
-Sources: [Hosting, Mapping (d)](../capabilities/hosting-and-aggregators.md),
-[Observability §3/5](../capabilities/observability.md). ADR 0007 supersedes the
+Sources: [Hosting, Mapping (d)](../research/capabilities/hosting-and-aggregators.md),
+[Observability §3/5](../research/capabilities/observability.md). ADR 0007 supersedes the
 survey's old payload-bearing observer examples: stream events remain passive,
 metadata-only, correlated and independent of durable audit enforcement.
 
@@ -264,7 +264,7 @@ execution validation reports/rejects them before I/O. TTL stays an open string:
 unsupported values are preserved and reported, never silently rounded or clamped.
 No caching is requested implicitly and no hint is evidence of a cache hit.
 
-Sources: [Caching §3/4.1–4.2](../capabilities/caching-cost-and-rate-limits.md).
+Sources: [Caching §3/4.1–4.2](../research/capabilities/caching-cost-and-rate-limits.md).
 The request-level field is an explicit maintainer requirement beyond the survey's
 per-part hint. This proposal needs review before WU-67 starts. Cost pricing remains
 an independently packaged port interceptor, not a price table or budget engine
