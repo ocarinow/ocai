@@ -15,7 +15,7 @@
     "tools": {
       "type": "array",
       "description": "The tools the model may call; omitted when none.",
-      "items": { "$ref": "#/$defs/tool" }
+      "items": { "$ref": "#/$defs/toolEntry" }
     },
     "tool_choice": {
       "$ref": "#/$defs/toolChoice",
@@ -56,6 +56,110 @@
         }
       },
       "required": ["name", "parameters"]
+    },
+    "toolEntry": {
+      "description": "Legacy untagged functions, tagged server intent, or preserved future entries.",
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/tool"
+            },
+            {
+              "not": {
+                "required": [
+                  "type"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "$ref": "#/$defs/serverTool"
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "type": "object",
+                "not": {
+                  "required": [
+                    "type"
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "server"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "serverTool": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "parts.schema.json#/$defs/envelope"
+        }
+      ],
+      "properties": {
+        "type": {
+          "const": "server"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "allowed_domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blocked_domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "user_location": {
+          "$ref": "#/$defs/serverToolLocation"
+        }
+      },
+      "required": [
+        "type",
+        "kind"
+      ]
+    },
+    "serverToolLocation": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "parts.schema.json#/$defs/envelope"
+        }
+      ],
+      "properties": {
+        "country": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        }
+      }
     },
     "toolChoice": {
       "$comment": "ocai/chat/types/tools.py ToolChoice — codecs map the open mode onto each dialect's idiom (OpenAI tool_choice, Anthropic tool_choice, Gemini functionCallingConfig).",

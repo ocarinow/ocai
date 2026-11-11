@@ -93,9 +93,13 @@ from ocai.chat.types.stream import StreamAccumulator
 from ocai.chat.types.stream import StreamEnd
 from ocai.chat.types.stream import StreamOutcome
 from ocai.chat.types.stream import cast_delta
+from ocai.chat.types.tools import ServerTool
+from ocai.chat.types.tools import ServerToolLocation
 from ocai.chat.types.tools import Tool
 from ocai.chat.types.tools import ToolChoice
 from ocai.chat.types.tools import ToolChoiceMode
+from ocai.chat.types.tools import ToolDefinition
+from ocai.chat.types.tools import ToolUnknown
 from ocai.chat.types.usage import Consumption
 from ocai.chat.types.usage import Usage
 from ocai.chat.types.usage import UsageModality
@@ -171,6 +175,10 @@ __all__ = [
     "StreamAccumulator",
     "StreamEnd",
     "StreamOutcome",
+    "ServerTool",
+    "ServerToolLocation",
+    "ToolUnknown",
+    "ToolDefinition",
     "Tool",
     "ToolCallStatus",
     "ToolChoice",

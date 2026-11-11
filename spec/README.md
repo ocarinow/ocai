@@ -284,3 +284,13 @@ precede text deltas; contextual validation runs when text is final.
 `ocai.annotation_unparsed_source` preserves an undecodable source-result reference.
 These are evidence extensions, never valid positional or replay authority.
 No provider edge or new canonical node is registered by this qualification.
+
+### Server-tool request intent
+
+`fixtures/canonical/server_tools.json` qualifies the open request tool union:
+legacy functions remain untagged, `type: server` declares provider-executed intent,
+and future/non-object tool entries retain their complete original value. Provider
+request fixtures report `tools[index]` as unsupported until mapping is qualified.
+`ocai.server_tool_unparsed_location` preserves uninterpreted location evidence.
+The accompanying recorded unary/SSE pairs reuse the existing response fold
+fixtures; this request-only change registers no streaming conversion edge.

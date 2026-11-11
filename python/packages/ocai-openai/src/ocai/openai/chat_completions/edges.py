@@ -92,6 +92,9 @@ ENCODE_REQUEST_CONTRACT = EdgeContract(
         # No replay lane on this interface; /responses is the reasoning home.
         "messages[].parts[reasoning]": DeclaredDisposition(Disposition.DROPPED),
         "tools": DeclaredDisposition(Disposition.EXACT),
+        "tools[]": DeclaredDisposition(
+            Disposition.UNSUPPORTED, "server or unknown intent requires a qualified mapping"
+        ),
         "tool_choice": DeclaredDisposition(Disposition.EXACT),
         "config.temperature": DeclaredDisposition(
             Disposition.APPROXIMATED, "range-limited (0..2): out-of-range passes verbatim"

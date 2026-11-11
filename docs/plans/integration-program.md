@@ -239,7 +239,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-41 — Admit server-tool definitions on ChatRequest
 
-- [ ] **Status:** not started.
+- [x] **Status:** implemented; stacked PR #80, pending review.
+- **Goal:** Portable requests distinguish provider-executed tool intent from
+  function definitions, preserving unknown tools and reporting unsupported intent.
 - **Scope:** `chat/types/tools.py`, request reader/schema, generic edge census
   fallbacks and canonical/unknown fixtures; 15–25 files. Add a tagged ServerTool
   alternative while preserving existing untagged function Tool payloads. Initial
@@ -250,13 +252,21 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
   intent instead of interpreting it as a function or dropping it.
 - **Deps:** WU-40; accepted integration ADR.
 - **Architecture:** §3.1, §3.5, §4.2, §7, §10.
+- **Integration:** ChatRequest decodes the tool union in chat IR. Provider request
+  edges consume it and report unsupported server/unknown entries before execution;
+  preflight policies can reject those findings. No tool executor enters core.
 - **Freeze:** additive ChatRequest.tools union and tool/request schemas; existing
   function Tool constructors and serialization preserved (integration ADR).
-- **Decision:** Server tools are declared request intent, not client-side execution;
+- **Decision:** ADR 0008 records the additive union. Server tools are declared request intent, not client-side execution;
   max_uses/search_context_size remain provider lanes
   ([Search §1.4](../capabilities/web-search-and-retrieval.md)).
 - **Open:** None for this union; MCP registry/client execution and Tool.strict/origin
   promotion are excluded and must receive separate WUs if later required.
+
+- **Area:** chat IR
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-42 — Preserve required server-tool replay anchors
 

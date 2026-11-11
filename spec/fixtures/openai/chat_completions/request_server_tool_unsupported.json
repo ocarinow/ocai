@@ -1,0 +1,100 @@
+{
+  "description": "Synthetic WU-41 request edge fixture: a function survives and complete server/future tool intent is reported unsupported. Provider search mapping is not qualified by this fixture.",
+  "src": {
+    "provider": "ocai",
+    "interface": "ocai",
+    "tag": "2026-07",
+    "shape": "chat.request"
+  },
+  "dst": {
+    "provider": "openai",
+    "interface": "chat_completions",
+    "tag": "2023-11",
+    "shape": "chat.request"
+  },
+  "input": {
+    "version": "2026-07",
+    "messages": [
+      {
+        "version": "2026-07",
+        "role": "user",
+        "parts": [
+          {
+            "version": "2026-07",
+            "text": "Say hello.",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "version": "2026-07",
+        "name": "lookup",
+        "parameters": {
+          "type": "object"
+        }
+      },
+      {
+        "version": "2026-07",
+        "type": "server",
+        "kind": "web_search",
+        "allowed_domains": [
+          "example.test"
+        ],
+        "blocked_domains": [
+          "blocked.test"
+        ],
+        "user_location": {
+          "version": "2026-07",
+          "country": "FR",
+          "city": "Paris"
+        }
+      },
+      {
+        "version": "2026-07",
+        "type": "future_tool",
+        "future_payload": {
+          "meaning": [
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "model": "gpt-4o-2024-08-06",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "lookup",
+          "parameters": {
+            "type": "object"
+          }
+        }
+      }
+    ]
+  },
+  "expect_losses": [
+    {
+      "path": "tools[1]",
+      "disposition": "unsupported",
+      "note": "server or unknown tool intent has no qualified mapping on this interface"
+    },
+    {
+      "path": "tools[2]",
+      "disposition": "unsupported",
+      "note": "server or unknown tool intent has no qualified mapping on this interface"
+    }
+  ],
+  "expect_shifts": []
+}

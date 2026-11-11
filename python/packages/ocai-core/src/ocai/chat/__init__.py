@@ -36,11 +36,15 @@ from ocai.chat.types import FinishInfo
 from ocai.chat.types import Message
 from ocai.chat.types import Part
 from ocai.chat.types import Role
+from ocai.chat.types import ServerTool
+from ocai.chat.types import ServerToolLocation
 from ocai.chat.types import StreamAccumulator
 from ocai.chat.types import StreamEnd
 from ocai.chat.types import StreamOutcome
 from ocai.chat.types import Tool
 from ocai.chat.types import ToolChoice
+from ocai.chat.types import ToolDefinition
+from ocai.chat.types import ToolUnknown
 from ocai.chat.types import Usage
 
 if TYPE_CHECKING:
@@ -79,6 +83,10 @@ __all__ = [
     "StreamAccumulator",
     "StreamEnd",
     "StreamOutcome",
+    "ServerTool",
+    "ServerToolLocation",
+    "ToolUnknown",
+    "ToolDefinition",
     "Tool",
     "ToolChoice",
     "Usage",

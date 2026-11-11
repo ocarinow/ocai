@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.server_tool_unparsed_location",
+  "description": "Unparsed server tool location retained verbatim; no location meaning is inferred.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected"
+}

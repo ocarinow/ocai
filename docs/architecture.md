@@ -297,6 +297,15 @@ must treat delta positions as provisional until final text is available.
 These canonical checks alone do not qualify any provider's offset convention
 (ADR 0008).
 
+**`types/tools.py`** — `ChatRequest.tools` accepts `ToolDefinition`, the union
+of legacy untagged function `Tool`, `ServerTool(type="server", kind, allowed_domains,
+blocked_domains, user_location)`, and preserving `ToolUnknown`. The common server
+kind is open; unknown tags and non-object entries never become function tools.
+`ServerToolLocation` carries approximate country/region/city/timezone data. Explicit
+empty domain lists remain explicit intent; codecs qualify their semantics rather
+than inferring a policy. Unparsed locations retain registered extension evidence.
+No tool definition executes code, fetches a URL, or implies an MCP registry.
+
 **`types/config.py` — `ChatConfig`, shipped FULL** (the empty-scaffold failure
 is over). First-class by the three-lane law (§3.4): `temperature`, `top_p`,
 `max_output_tokens`, `stop_sequences`, `seed`, `frequency_penalty`,
@@ -448,7 +457,9 @@ credentials/catalogs).
 Citation kind and local result reference are first-class fields; provider-native
 search controls and citation metadata remain censused extensions or scoped
 options. Invalid position evidence is preserved in registered canonical
-extensions rather than represented as a valid attribution.
+extensions rather than represented as a valid attribution. Server-tool kinds,
+domain intent and approximate location are first-class; provider max-uses,
+context-size and dynamic-search controls stay in registered/scoped lanes.
 
 ### Stream ownership and incomplete execution (WU-24)
 
@@ -541,6 +552,13 @@ metadata. Unary and streaming planners break equal-grade ties by destination
 coordinates, independently of registration order.
 
 ### 4.2 `contract.py` — EdgeContract
+
+Request edges declare `tools[]` coverage independently from legacy function tools.
+An unqualified server/unknown entry emits an `UNSUPPORTED` finding at its original
+index, covering the whole intent. The prepared request retains the original data;
+reports do not embed payloads. Fidelity policy can reject the finding before any
+unary or streaming I/O; permissive execution omits the unsupported wire entry.
+
 An edge's declared per-field disposition census. Core derives the planner
 weight as a lexicographic `LossGrade` (unsupported+dropped, approximated,
 emulated, hops) — impossible to game with a magic float. The conformance
@@ -741,6 +759,14 @@ See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
 
+WU-41 qualifies safe fallback for server-tool request intent on Chat Completions
+and Anthropic Messages: only functions use the existing mapping; whole server or
+unknown entries are reported unsupported. No server-search version is claimed
+until its provider-specific WU qualifies mappings and replay. Request census and
+golden fixtures cover these exclusions; recorded unary/SSE pairs preserve the
+existing response fold law with the supported function lane intact.
+
+
 ```
 ocai-openai/src/ocai/openai/
   __init__.py            FRAGMENT (CatalogFragment) + model prefill helpers
@@ -873,6 +899,9 @@ suite on `spec/**` changes; fixtures are validated against schemas so
 spec-vs-code contradictions are structurally detectable. WU-40 adds canonical
 citation triples and registered invalid-evidence extensions under ADR 0008;
 these qualify the existing canonical revision without registering a new node.
+WU-41 extends the request schema with a tool union and location definition, plus
+canonical round-trip and provider fallback fixtures; legacy function schemas
+remain valid and no canonical revision is registered.
 
 ## 11. Adding a capability (normative recipe)
 

@@ -70,6 +70,8 @@ from ocai.chat.types.parts import PartVideo
 from ocai.chat.types.request import ChatRequest
 from ocai.chat.types.response import ChatResponse
 from ocai.chat.types.response import ResponseInfo
+from ocai.chat.types.tools import ServerTool
+from ocai.chat.types.tools import ServerToolLocation
 from ocai.chat.types.tools import Tool
 from ocai.chat.types.tools import ToolChoice
 from ocai.chat.types.usage import Consumption
@@ -195,6 +197,8 @@ FIELD_CASES: list[tuple[type, str]] = [
     (Message, "message.schema.json"),
     (ChatRequest, "chat_request.schema.json"),
     (Tool, "chat_request.schema.json#/$defs/tool"),
+    (ServerTool, "chat_request.schema.json#/$defs/serverTool"),
+    (ServerToolLocation, "chat_request.schema.json#/$defs/serverToolLocation"),
     (ToolChoice, "chat_request.schema.json#/$defs/toolChoice"),
     (ChatConfig, "chat_request.schema.json#/$defs/chatConfig"),
     (ReasoningConfig, "chat_request.schema.json#/$defs/reasoningConfig"),
