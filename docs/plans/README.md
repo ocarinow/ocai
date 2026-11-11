@@ -120,6 +120,68 @@ interface and Gemini are horizon items, not the near-term goal.
 | WU-79 | Bind OAuth workloads to service accounts | Platform identity | [identity](platform-identity.md) | ⬜ |
 | WU-80 | Issue and revoke scoped platform API keys | Platform identity | [identity](platform-identity.md) | ⬜ |
 | WU-81 | Integrate the full shadcn-vue component layer | Platform identity | [identity](platform-identity.md) | ✅ |
+| WU-82 | Define the gateway console program | Gateway console | [gateway console](platform-gateway.md) | ✅ |
+| WU-82a | Define the scoped RBAC, ReBAC and ABAC contract | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82b | Migrate pinned authorization models with recoverable projection | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82c | Administer human organization membership | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82d | Establish project and environment resource scopes | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82e | Grant project permissions through teams | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82f | Resolve trusted attributes for authorization | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82g | Evaluate versioned attribute policies with explained decisions | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82h | Enforce compartment access and processing boundaries | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-82i | Authorize application invocation with scoped workload credentials | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-83 | Store provider connections with sealed secrets | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-84 | Administer deployments on qualified interfaces | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-85 | Register applications and their contracts | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-86 | Version routing policies with explained eligibility | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-87 | Execute governed unary chat on the compatibility endpoint | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-88 | Stream governed chat with explicit partial outcomes | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-89 | Admit requests under concurrency and rate reservations | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-90 | Record the usage ledger with provenance and reconciliation | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-91 | Price usage from a dated pricing table with overrides | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-92 | Enforce scoped budgets with explicit uncertainty | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-92a | Allocate team and principal budgets from trusted attribution | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-93 | Inspect requests and receipts with shared saved filters | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-94 | Govern scoped payload capture and conditional content access | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-95 | Break down usage by dimension with export | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-96 | Deliver alert rules to webhook and chat destinations | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-97 | Group executions by client session and tags | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-98 | Publish the routes catalogue for application developers | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-99 | Generate connect snippets for a route and key | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-100 | Replay a captured request through the current policy | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-101 | Qualify effective access across gateway resources | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-102 | Provide bounded audited emergency recovery access | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-103 | Run the qualification suite and report inference readiness | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-104 | Produce a migration report from a traffic sample | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-105 | Roll out a policy version to a canary share with rollback | Gateway console | [gateway console](platform-gateway.md) | ⬜ |
+| WU-107 | Serve the qualified Anthropic Messages compatibility endpoint | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-108 | Serve governed embeddings with attributable usage | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-109 | Route eligible traffic with measured balancing and circuit recovery | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-110 | Cache exact responses within authorized execution scopes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-111 | Execute versioned guardrails with explicit failure semantics | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-112 | Apply qualified PII and secret-redaction policies | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-113 | Export correlated gateway traces through the telemetry satellite | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-114 | Inspect and export scoped administrative audit evidence | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-115 | Version prompt templates with scoped publication | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-116 | Invoke published prompts through governed application bindings | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-117 | Curate scoped datasets from authorized request evidence | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-118 | Compare governed model and prompt changes with evaluations | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-119 | Provision users and teams through scoped SCIM synchronization | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-120 | Delegate custom roles through bounded permission templates | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-121 | Authenticate one federated Kubernetes workload profile | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-122 | Resolve provider credentials from a qualified external vault | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-123 | Apply declarative gateway configuration with a reviewed diff | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-124 | Qualify a replicated customer-hosted gateway deployment | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-125 | Restore a gateway installation with consistent authorization and evidence | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-126 | Measure gateway service health and operational limits | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-127 | Govern evidence retention and approved export destinations | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-128 | Publish model discovery from reviewed capability evidence | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-129 | Run approved shadow traffic for a bounded migration comparison | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-130 | Issue personal development keys with current human authority | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-131 | Qualify enterprise SSO through the reference identity broker | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-132 | Offer explicit semantic response reuse within isolated scopes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-133 | Qualify multimodal chat inputs on supported gateway routes | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
+| WU-134 | Serve the qualified OpenAI Responses compatibility endpoint | Gateway competitive features | [gateway features](platform-gateway-parity.md) | ⬜ |
 | H1–H7 | Historical horizon scope; reordered by modernization | — | [horizon](horizon.md) | Superseded order |
 
 ## Milestones
