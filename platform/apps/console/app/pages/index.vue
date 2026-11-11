@@ -44,6 +44,7 @@ const connected = computed(() => status.value === 'success' && !!data.value)
         <UiBadge variant="outline">{{ connected ? 'Not configured' : 'Status unknown' }}</UiBadge></div>
       <p class="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{{ connected ? 'The platform foundation is available. Organization access and provider connections are not available in this development preview.' : 'Connect to the management service to check gateway setup.' }}</p>
     </UiCard>
+    <PlatformSession />
     <p class="mt-8 text-xs leading-6 text-muted-foreground">Service availability is separate from inference readiness. This preview cannot process model requests.</p>
   </div>
 </template>

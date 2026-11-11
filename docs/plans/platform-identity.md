@@ -239,7 +239,7 @@ change public liveness or foundation status to expose deployment secrets.
 
 ## WU-76 — Establish durable OIDC console sessions
 
-- [ ] **Status:** defined.
+- [ ] **Status:** in progress; console sessions and real-provider qualification.
 - **Goal:** Let users sign in and out through durable console sessions while keeping access and refresh tokens out of browser application state.
 - **Scope:** Reusable Nuxt server identity/session modules in `nuxt-platform`,
   console route wiring and sign-in/out UI, console-session schema migration,
@@ -281,6 +281,18 @@ change public liveness or foundation status to expose deployment secrets.
 - **Priority:** P1
 - **Tier:** 1
 - **Owner:** Codex
+
+### Design sketch
+
+The shared Nuxt layer owns fixed login, callback, session and logout routes.
+A dedicated PostgreSQL role accesses only the console session schema. Login
+transactions are browser-bound and consumed before token exchange; encrypted
+records bind their ciphertext to the hashed record identifier. Refresh acquires
+a 15-second lease and increments a version, then writes rotated tokens only
+if that version still exists and is unexpired. Logout deletes the record before
+any optional provider sign-out. An expired lease is terminal, never reclaimable.
+Production enables the module explicitly and fails startup on invalid settings;
+the public foundation can run with the module disabled.
 
 ## WU-77 — Update an organization through the authenticated console
 

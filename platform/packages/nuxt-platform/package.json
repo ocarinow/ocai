@@ -6,7 +6,9 @@
     ".": "./nuxt.config.ts"
   },
   "dependencies": {
-    "@ocarinow/nuxt-ui": "*"
+    "@ocarinow/nuxt-ui": "*",
+    "openid-client": "^6.8.9",
+    "pg": "^8.23.1"
   },
   "peerDependencies": {
     "nuxt": "^4.6.4",
