@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ocai-aws"
-version = "0.1.0"
+version = "0.1.1"
 description = "Explicit AWS authentication for ocai transport requests."
 readme = "README.md"
 requires-python = ">=3.13"

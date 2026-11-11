@@ -2,6 +2,17 @@
 
 All notable changes to the `ocai-anthropic` distribution. Generated from the change files in
 `.changeset/` by the release workflow (ADR 0010); do not edit released sections by hand.
+## 0.1.2 (2026-11-11)
+
+### Features
+
+#### Preserve response identity through canonical streams
+
+Add optional streamed ResponseInfo, detached partial accumulation and reported
+conflict/malformed evidence. OpenAI and Anthropic fold comparisons now include
+response identity; client stream conversion reports unsupported source metadata.
+(WU-46a, #101)
+
 ## 0.1.1 (2026-11-11)
 
 ### Features
