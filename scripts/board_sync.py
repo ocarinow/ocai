@@ -642,7 +642,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
         entry = read_entry(row, args.ref)
         if row.done and pull is not None and pull.state == "OPEN":
             findings.append(
-                f"{row.wu}: plan row is ✅ but PR #{pull.number} is still open (flip the row in the PR that merges)"
+                f"{row.wu}: plan row is ✅ but PR #{pull.number} is still open "
+                "(flip the row in the PR that merges)"
             )
         if not row.done:  # historical rows predate the template; only open work is held to it
             if entry is None:
