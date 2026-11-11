@@ -55,3 +55,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0018](0018-host-fidelity-reports.md) | Keep host effects separate from conversion edges | accepted direction; WU-48b implementation for review |
 | [0019](0019-host-response-adaptation.md) | Adapt successful host responses through governed public contracts | accepted direction; WU-48c implementation for review |
 | [0020](0020-distribution-roles.md) | Distribution roles in the workspace gate | proposed (WU-47a) |
+| [0021](0021-eventstream-framing.md) | Bound EventStream framing and retain verified prefix evidence | proposed; WU-49 implementation for review |

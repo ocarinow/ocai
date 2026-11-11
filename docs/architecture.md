@@ -900,8 +900,8 @@ factory. Every frame retains typed headers and opaque payload bytes; timestamp
 headers retain signed milliseconds and UUID headers use stdlib UUID. Prelude
 CRC is checked before lengths are trusted, full-message CRC before decoding.
 Only one partial frame is retained, bounded by a configurable local wire-frame
-budget (default 64 MiB); decoded Python objects/output lists have additional
-bounded overhead. Service-only header/payload quotas are not checked by a client.
+budget (default 64 MiB); decoded objects have additional per-frame overhead.
+Caller-owned input and completed-frame output lists are outside that budget. Service-only header/payload quotas are not checked by a client.
 Malformed framing closes the parser; finish rejects partial frames and never
 asserts semantic completion. close is idempotent and releases partial bytes.
 EventStreamProtocolError.completed contains verified frames from the failed feed
@@ -909,6 +909,7 @@ only, for explicit evidence inspection; already returned frames are not repeated
 Current drivers propagate this error without feeding that same-batch prefix into
 semantic conversion (G-16). Bedrock streaming is still disabled pending WU-50 and
 its host-outcome prerequisites. No SDK or canonical type is introduced here.
+See [ADR 0021](decisions/0021-eventstream-framing.md).
 
 The physical transport remains ocai-owned when an external credential uses an
 SDK signer. AWS CRT request values are private signing inputs, never a replacement

@@ -947,7 +947,7 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 
 ## WU-49 — Parse AWS EventStream without I/O
 
-- **Status:** 🔄 in progress.
+- **Status:** ✅ complete (PR #130).
 - **Context:** WU-50 cannot feed Bedrock response bytes to the existing Anthropic
   stream codec: InvokeModel streams binary EventStream frames, while the default
   framing is SSE. WU-39 exposes a decoder factory but provides no EventStream parser.
@@ -1015,7 +1015,8 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   StreamProtocolError rather than treating transport EOF as provider completion.
 - **Freeze:** No frozen-candidate surface changes: wire parser/frame/error values
   are provisional; core vocabulary, chat IR/deltas and canonical schemas untouched.
-- **Decision:** EventStream is a CRC-checked sans-io sibling of SSE (Bedrock
+- **Decision:** [ADR 0021](../decisions/0021-eventstream-framing.md) records the
+  parser contract and partial-evidence boundary. EventStream is a CRC-checked sans-io sibling of SSE (Bedrock
   research §6/13(a), WU-39). Header type codes are closed by the Smithy protocol;
   unknown semantic event names remain opaque. No service-only size validation in
   a client. The finite configurable frame budget is a local resource policy.
@@ -1026,10 +1027,11 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
   Revert is sufficient; no persisted format or canonical migration changes.
 - **Open:** None for byte-level parsing. Semantic stream evidence remains outside
   this WU and must be qualified before enabling the Bedrock stream surface.
-- **Evidence:** Parser implementation and recorded binary vectors are present.
-  `uv run pytest python/packages/ocai-core/tests/test_eventstream.py -q` and
-  `uv run pyright` pass. Expanded full gate, stack refresh and ADR close-out
-  remain pending; this WU is not complete.
+- **Evidence:** `python/packages/ocai-core/tests/test_eventstream.py` qualifies all
+  Acceptance items using `tests/http/eventstream_frames.json`; strict Pyright and
+  focused parser tests pass. The full clean-commit gate summary is recorded in
+  PR #130. ADR 0021 and architecture §6/§10 document the provisional contracts
+  and G-16 limitation; no semantic streaming completion is claimed.
 - **Area:** wire
 - **Priority:** P0
 - **Tier:** 1
