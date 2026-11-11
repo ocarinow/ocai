@@ -1,5 +1,5 @@
 {
-  "description": "Decode+fold, usage in the final chunk via stream_options include_usage: every content frame carries `usage: null` and the choices-empty final frame reports the whole request's consumption, decoded as a cumulative USAGE chunk and carried into the terminal StreamEnd beside the accumulated finish. PAIRED with ../response_plain_text.json — the same logical request answered over the blocking path (same model echo, message, finish, and usage buckets) — so fold(chunks) must be semantic_equal to that fixture's unary canonical `expect`, the fold law on wire data (raw lanes excluded per canonical-json.md §8; response `info` excluded: stream identity has no canonical chunk lane and rides each frame's raw_event verbatim). Synthetic, wire-accurate, hand-authored against ChatCompletionChunk/CompletionUsage (wire.py).",
+  "description": "Decode+fold, usage in the final chunk via stream_options include_usage: every content frame carries `usage: null` and the choices-empty final frame reports the whole request's consumption, decoded as a cumulative USAGE chunk and carried into the terminal StreamEnd beside the accumulated finish. PAIRED with ../response_plain_text.json — the same logical request answered over the blocking path (same model echo, message, finish, and usage buckets) — so fold(chunks) must be semantic_equal to that fixture's unary canonical `expect`, the fold law on wire data (raw lanes excluded per canonical-json.md §8; response `info` excluded: stream identity has no canonical chunk lane and rides each frame's raw_event verbatim). Synthetic, wire-accurate, hand-authored against ChatCompletionChunk/CompletionUsage (wire.py). WU-46a strengthens the canonical expectations with response info from the unchanged wire envelope.",
   "node": {
     "provider": "openai",
     "interface": "chat_completions",
@@ -22,21 +22,27 @@
     },
     {
       "version": "2026-07",
-      "type": "partStart",
-      "seq": 1,
-      "index": 0,
-      "part": {
+      "type": "metadata",
+      "info": {
         "version": "2026-07",
-        "text": "",
-        "type": "text"
-      }
+        "id": {
+          "provider": "openai",
+          "interface": "chat_completions",
+          "kind": "response_id",
+          "id": "chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz",
+          "replay": "optional"
+        },
+        "model": "gpt-4o-2024-08-06",
+        "created": "2026-01-01T00:00:00+00:00"
+      },
+      "seq": 1
     },
     {
       "version": "2026-07",
-      "type": "partDelta",
+      "type": "partStart",
       "seq": 2,
       "index": 0,
-      "delta": {
+      "part": {
         "version": "2026-07",
         "text": "",
         "type": "text"
@@ -49,7 +55,7 @@
       "index": 0,
       "delta": {
         "version": "2026-07",
-        "text": "Hello! How can",
+        "text": "",
         "type": "text"
       }
     },
@@ -60,6 +66,17 @@
       "index": 0,
       "delta": {
         "version": "2026-07",
+        "text": "Hello! How can",
+        "type": "text"
+      }
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "seq": 5,
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
         "text": " I help you today?",
         "type": "text"
       }
@@ -67,7 +84,7 @@
     {
       "version": "2026-07",
       "type": "finish",
-      "seq": 5,
+      "seq": 6,
       "finish": {
         "version": "2026-07",
         "reason": "complete",
@@ -77,7 +94,7 @@
     {
       "version": "2026-07",
       "type": "usage",
-      "seq": 6,
+      "seq": 7,
       "usage": {
         "version": "2026-07",
         "consumptions": [
@@ -112,7 +129,7 @@
     {
       "version": "2026-07",
       "type": "streamStop",
-      "seq": 7,
+      "seq": 8,
       "end": {
         "version": "2026-07",
         "usage": {
@@ -198,6 +215,18 @@
           "source": "reasoning"
         }
       ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "openai",
+        "interface": "chat_completions",
+        "kind": "response_id",
+        "id": "chatcmpl-BUKUViL3mVFDbXCjRO5m2GD0Q6bcz",
+        "replay": "optional"
+      },
+      "model": "gpt-4o-2024-08-06",
+      "created": "2026-01-01T00:00:00+00:00"
     }
   }
 }

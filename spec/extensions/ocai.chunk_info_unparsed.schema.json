@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.chunk_info_unparsed",
+  "description": "Non-object canonical chunk info retained verbatim.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected \u2014 evidence for tolerant response metadata"
+}

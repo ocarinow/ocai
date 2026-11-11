@@ -434,7 +434,7 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-46a — Preserve response identity through canonical streams
 
-- [ ] **Status:** in progress; carrier resolution approved by the maintainer.
+- [x] **Status:** implemented; review pending in PR #101.
 - **Goal:** Make streamed response identity usable through the same canonical
   ResponseInfo contract as unary results, closing G-11 without weakening fold equality.
 - **Scope:** Add optional keyword-only ChatChunk.info, robust ResponseInfo decoding,

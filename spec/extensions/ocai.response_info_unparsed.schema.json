@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.response_info_unparsed",
+  "description": "Malformed or unknown response-info fields retained verbatim by source field.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected \u2014 evidence for tolerant response metadata",
+  "type": "object"
+}

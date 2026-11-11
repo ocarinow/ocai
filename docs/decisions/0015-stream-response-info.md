@@ -34,8 +34,7 @@ reusable carrier resolution rather than weakening equality.
    reject findings; this does not promise an accumulator report is evaluated by
    a caller that never folds a stream.
 5. ResponseInfo's tolerant reader retains malformed known fields and envelope
-   values under `ocai.response_info_unparsed`; unknown keys follow the existing
-   extension sweep. Non-object chunk info is retained under
+   values under `ocai.response_info_unparsed`; unknown keys also ride that registered evidence bank. Non-object chunk info is retained under
    `ocai.chunk_info_unparsed`. Accumulation reports this fallback evidence. No
    exception or silent timestamp loss is introduced on this newly qualified path.
 6. Qualify existing OpenAI and Anthropic stream edges with censuses and complete

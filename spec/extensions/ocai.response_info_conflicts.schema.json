@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocai.response_info_conflicts",
+  "description": "Distinct conflicting response metadata alternatives; first typed value remains authoritative.",
+  "x-ocai-origin": "ocai",
+  "x-ocai-promotion": "none expected \u2014 evidence for tolerant response metadata",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "path",
+      "value"
+    ],
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "value": {}
+    },
+    "additionalProperties": false
+  }
+}

@@ -62,22 +62,52 @@ class ResponseInfo(IRObject):
         Returns:
             The decoded `ResponseInfo`.
         """
-        ref = data.get("id")
-        raw_created = data.get("created")
+        safe = deepcopy(data)
+        unparsed: dict[str, Any] = {}
+        known = {"id", "model", "created", "version", "extensions", "provider_options"}
+        for name in list(safe):
+            if name not in known:
+                unparsed[name] = safe.pop(name)
+        for name in ("extensions", "provider_options"):
+            if name in safe and not is_json_object(safe[name]):
+                unparsed[name] = safe.pop(name)
+        if "version" in safe and not isinstance(safe["version"], str):
+            unparsed["version"] = safe.pop("version")
+        ref = safe.get("id")
+        identity: ProviderRef | None = None
+        if ref is not None:
+            keys = {"provider", "interface", "kind", "id"}
+            optional = {"replay", "scope", "qualifier"}
+            if (is_json_object(ref) and all(isinstance(ref.get(k), str) for k in keys)
+                    and all(isinstance(ref[k], str) for k in optional if k in ref)
+                    and ref.get("replay", "optional") in ("optional", "required")
+                    and not set(ref) - keys - optional):
+                identity = ProviderRef.from_dict(ref)
+            else:
+                unparsed["id"] = ref
+        model = safe.get("model")
+        if model is not None and not isinstance(model, str):
+            unparsed["model"] = model
+            model = None
+        raw_created = safe.get("created")
         created: datetime | None = None
-        if isinstance(raw_created, str):
+        if raw_created is not None:
             try:
+                if not isinstance(raw_created, str):
+                    raise ValueError("expected an ISO timestamp")
                 created = datetime.fromisoformat(raw_created)
             except ValueError:
-                # TODO: an unparseable timestamp should be preserved (swept
-                # to extensions) rather than silently dropped.
-                created = None
-        return cls(
-            id=ProviderRef.from_dict(ref) if is_json_object(ref) else None,
-            model=data.get("model"),
-            created=created,
-            **cls._from_dict_common(data),
-        )
+                unparsed["created"] = raw_created
+        common = cls._from_dict_common(safe)
+        if unparsed:
+            extensions = common["extensions"]
+            previous = extensions.get("ocai.response_info_unparsed")
+            # Preserve even a collision with caller-supplied fallback evidence.
+            if previous is not None:
+                unparsed["extensions[ocai.response_info_unparsed]"] = previous
+            extensions["ocai.response_info_unparsed"] = unparsed
+        return cls(id=identity, model=model, created=created, **common)
+
 
 
 @dataclass

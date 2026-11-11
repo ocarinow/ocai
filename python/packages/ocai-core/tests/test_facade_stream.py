@@ -78,6 +78,7 @@ CATALOG = Catalog.of(ocai.openai.FRAGMENT)
 # `content: ""`), the finish, the stream_options usage frame, the terminal.
 EXPECTED_TYPES = [
     ChunkType.STREAM_START,
+    ChunkType.METADATA,
     ChunkType.PART_START,
     ChunkType.PART_DELTA,
     ChunkType.PART_DELTA,
@@ -227,17 +228,9 @@ async def test_astream_yields_canonical_chunks_with_terminal_report(load_http: L
 
 
 def _assert_fold_law(folded: ChatResponse, unary_value: ChatResponse) -> None:
-    """fold(chunks) reproduces the blocking value, raw/info excluded.
-
-    The exclusions follow WU-10's paired-assertion precedent: verbatim
-    `raw` lanes per canonical-json.md §8, and the response `info` because
-    stream identity (id/model echo/created) has no canonical chunk lane —
-    it rides every frame's `raw_event` verbatim.
-    """
+    """Compare the complete canonical response, excluding only raw wire evidence."""
     expected = _strip_raw(unary_value.to_dict())
-    assert expected.pop("info", None) is not None  # the unary side carries identity
     actual = _strip_raw(folded.to_dict())
-    actual.pop("info", None)
     assert semantic_equal(actual, expected), (
         "fold(stream(req)) did not reproduce chat(req).value.\n"
         f"  expected: {canonical(expected)}\n"
@@ -313,6 +306,7 @@ def test_mid_stream_death_maps_to_transient_error(load_http: LoadHttp) -> None:
 
     assert [c.type for c in received] == [
         ChunkType.STREAM_START,
+        ChunkType.METADATA,
         ChunkType.PART_START,
         ChunkType.PART_DELTA,
         ChunkType.PART_DELTA,

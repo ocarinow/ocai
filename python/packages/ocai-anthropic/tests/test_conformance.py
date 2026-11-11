@@ -368,20 +368,12 @@ def test_fold_triples_over_recorded_streams() -> None:
 
 
 def test_paired_stream_fold_matches_the_unary_canonical() -> None:
-    # The fold law on wire data: the cumulative-usage stream is PAIRED with
-    # the unary response_plain_text.json — the same logical response
-    # answered over both paths — so folding the stream's canonical chunks
-    # must be semantic_equal to the unary edge's canonical response. The
-    # verbatim `raw` lanes are excluded per canonical-json.md §8, and the
-    # response `info` is excluded because stream identity (id/model echo)
-    # has no canonical chunk lane — it rides each event's `raw_event`
-    # verbatim.
+    # Full paired equality includes info; only raw evidence is excluded.
     triple = _load(STREAMS_DIR / "stream_usage_paired.json")
     unary = _load(FIXTURES_DIR / "response_plain_text.json")
 
     folded = _fold_dicts(triple["chunks"])
     expected = _strip_raw(unary["expect"])
-    assert expected.pop("info", None) is not None  # the unary side carries identity
     assert semantic_equal(folded, expected), (
         "fold(chunks) did not reproduce the paired unary canonical.\n"
         f"  expected: {canonical(expected)}\n"
@@ -445,6 +437,7 @@ def test_transducer_settles_cumulative_usage_into_the_terminal() -> None:
 
     assert [c.type for c in fed] == [
         ChunkType.STREAM_START,
+        ChunkType.METADATA,
         ChunkType.USAGE,
         ChunkType.FINISH,
         ChunkType.USAGE,

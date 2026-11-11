@@ -97,6 +97,7 @@ MODEL = "claude-opus-4-6"
 # message_stop is the enriched terminal.
 EXPECTED_TYPES = [
     ChunkType.STREAM_START,
+    ChunkType.METADATA,
     ChunkType.USAGE,
     ChunkType.PING,
     ChunkType.PART_START,
@@ -256,17 +257,9 @@ async def test_astream_yields_canonical_chunks_with_terminal_report(load_http: L
 
 
 def _assert_fold_law(folded: ChatResponse, unary_value: ChatResponse) -> None:
-    """fold(chunks) reproduces the blocking value, raw/info excluded.
-
-    The exclusions follow WU-10/11's paired-assertion precedent: verbatim
-    `raw` lanes per canonical-json.md §8, and the response `info` because
-    stream identity (id/model echo) has no canonical chunk lane — it rides
-    every event's `raw_event` verbatim.
-    """
+    """Compare the complete canonical response, excluding only raw wire evidence."""
     expected = _strip_raw(unary_value.to_dict())
-    assert expected.pop("info", None) is not None  # the unary side carries identity
     actual = _strip_raw(folded.to_dict())
-    actual.pop("info", None)
     assert semantic_equal(actual, expected), (
         "fold(stream(req)) did not reproduce chat(req).value.\n"
         f"  expected: {canonical(expected)}\n"
@@ -306,6 +299,7 @@ def _assert_error_stream(chunks: list[ChatChunk], stream_end: StreamEnd | None) 
     """The in-band error contract, asserted identically for both twins."""
     assert [c.type for c in chunks] == [
         ChunkType.STREAM_START,
+        ChunkType.METADATA,
         ChunkType.USAGE,
         ChunkType.PART_START,
         ChunkType.PART_DELTA,

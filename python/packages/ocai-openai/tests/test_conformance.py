@@ -336,20 +336,12 @@ def test_fold_triples_over_recorded_streams() -> None:
 
 
 def test_paired_stream_fold_matches_the_unary_canonical() -> None:
-    # The fold law on wire data: the usage-in-final-chunk stream is PAIRED
-    # with the unary response_plain_text.json — the same logical request
-    # answered over both paths — so folding the stream's canonical chunks
-    # must be semantic_equal to the unary edge's canonical response. The
-    # verbatim `raw` lanes are excluded per canonical-json.md §8, and the
-    # response `info` is excluded because stream identity (id/model echo/
-    # created) has no canonical chunk lane — it rides each frame's
-    # `raw_event` verbatim.
+    # Full paired equality includes info; only raw evidence is excluded.
     triple = _load(STREAMS_DIR / "stream_usage_final_chunk.json")
     unary = _load(FIXTURES_DIR / "response_plain_text.json")
 
     folded = _fold_dicts(triple["chunks"])
     expected = _strip_raw(unary["expect"])
-    assert expected.pop("info", None) is not None  # the unary side carries identity
     assert semantic_equal(folded, expected), (
         "fold(chunks) did not reproduce the paired unary canonical.\n"
         f"  expected: {canonical(expected)}\n"
@@ -390,11 +382,12 @@ def test_transducer_splits_role_and_content_frame() -> None:
 
     assert [c.type for c in chunks] == [
         ChunkType.STREAM_START,
+        ChunkType.METADATA,
         ChunkType.PART_START,
         ChunkType.PART_DELTA,
     ]
-    assert [c.seq for c in chunks] == [0, 1, 2]
-    start, delta = chunks[1], chunks[2]
+    assert [c.seq for c in chunks] == [0, 1, 2, 3]
+    start, delta = chunks[2], chunks[3]
     assert isinstance(start.part, PartText) and start.part.text == ""
     assert start.index == delta.index == 0
     assert delta.delta is not None and delta.delta.text == "Hi"  # type: ignore[union-attr]
@@ -422,8 +415,9 @@ def test_transducer_splits_id_and_arguments_frame() -> None:
         )
     )
 
-    assert [c.type for c in chunks] == [ChunkType.PART_START, ChunkType.PART_DELTA]
-    start, delta = chunks
+    assert [c.type for c in chunks] == [
+        ChunkType.METADATA, ChunkType.PART_START, ChunkType.PART_DELTA]
+    _, start, delta = chunks
     assert isinstance(start.part, PartToolCall)
     assert start.part.call_id == "call_1"
     assert start.part.name == "get_weather"
@@ -460,9 +454,10 @@ def test_transducer_splits_several_tool_call_entries_in_one_frame() -> None:
         )
     )
 
-    assert [c.type for c in chunks] == [ChunkType.PART_START, ChunkType.PART_START]
-    assert [c.index for c in chunks] == [1, 2]
-    assert [c.seq for c in chunks] == [0, 1]
+    assert [c.type for c in chunks] == [
+        ChunkType.METADATA, ChunkType.PART_START, ChunkType.PART_START]
+    assert [c.index for c in chunks] == [None, 1, 2]
+    assert [c.seq for c in chunks] == [0, 1, 2]
 
 
 def test_transducer_emits_terminal_stream_stop_on_done() -> None:

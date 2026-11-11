@@ -1589,6 +1589,9 @@ class MessagesCodec:
         finish = self._decode_finish(payload, extensions, losses)
         usage = _usage(payload.get("usage"), losses)
         info = self._decode_info(payload)
+        if info.extensions:
+            losses.append(FieldLoss("response_info", Disposition.EXTENSIONS,
+                                    note="malformed response identity retained verbatim"))
         for key in sorted(set(payload) - _KNOWN_RESPONSE_KEYS):
             extensions[f"anthropic.{key}"] = payload[key]
             losses.append(
@@ -1623,19 +1626,12 @@ class MessagesCodec:
             The canonical `ResponseInfo`.
         """
         raw_id = payload.get("id")
-        return ResponseInfo(
-            id=(
-                ProviderRef(
-                    provider=PROVIDER,
-                    interface=INTERFACE,
-                    kind="response_id",
-                    id=raw_id,
-                )
-                if isinstance(raw_id, str)
-                else None
-            ),
-            model=payload.get("model"),
-        )
+        return ResponseInfo.from_dict({
+            "id": (ProviderRef(provider=PROVIDER, interface=INTERFACE,
+                               kind="response_id", id=raw_id).to_dict()
+                   if isinstance(raw_id, str) else raw_id),
+            "model": payload.get("model"),
+        })
 
     def _decode_block(
         self,
@@ -1859,6 +1855,12 @@ class MessagesCodec:
         if etype == "message_start":
             chunks.append(ChatChunk(type=ChunkType.STREAM_START, raw_event=raw))
             message: dict[str, Any] = raw.get("message") or {}
+            if any(message.get(key) is not None for key in ("id", "model")):
+                info = self._decode_info(message)
+                if info.extensions:
+                    losses.append(FieldLoss("response_info", Disposition.EXTENSIONS,
+                                            note="malformed response identity retained verbatim"))
+                chunks.append(ChatChunk(type=ChunkType.METADATA, info=info, raw_event=raw))
             usage = _usage(message.get("usage"), losses, "message_start.usage")
             if usage is not None:
                 chunks.append(
