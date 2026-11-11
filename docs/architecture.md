@@ -89,6 +89,15 @@ adapters require a named forbidden-import contract excluding httpx and the wire
 transport; credential adapters additionally exclude chat, convert and runtime.
 This is verification metadata, never a process-global runtime registry.
 
+Provider-owned authentication is an external adapter track (ADR 0016).
+`ocai.aws` implements `Credential` using AWS's signing library; the kernel has
+no AWS dependency. SDK types, sessions and exceptions are private implementation
+details: public callers use ocai credentials and errors. Runtime code branches
+on contracts, never on the provider or its SDK. Hosting and semantic conversion
+remain separate responsibilities, with no reverse dependency from cloud access
+to a service package. A future Bedrock/Vertex host belongs in its service package;
+general host protocols and transport mechanics remain here.
+
 ## 2. `ocai.core` — the contract layer
 
 Nothing in this package performs I/O, imports a third-party module, or knows
@@ -286,6 +295,12 @@ and additive `NoCredential()` for intentionally unauthenticated endpoints;
 *application* stays at the driver leaf, §5), `jsonschema.py`,
 `sources.py` (gains `SourceRef(ProviderRef)` for provider file handles),
 `primitives.py`.
+
+The external `ocai.aws.SigV4Credential` implements the unchanged Credential
+protocol. It accepts explicit key/token strings and region, with a Bedrock service
+default and optional aware clock. AWS CRT owns signing and canonicalization; no
+provider session, discovery chain, SDK credential object or SDK exception is
+required at the public API. It adds no core dependency (ADR 0016).
 
 ## 3. `ocai.chat` — the chat capability contract
 
@@ -746,6 +761,13 @@ Use `ApiKey(header=..., scheme=...)` for custom authentication, or explicitly us
 `NoCredential()` for a no-auth endpoint. Passing None still fails; nothing performs
 ambient credential discovery.
 
+AWS authentication follows this same seam without a driver special case.
+A new AWS signing configuration is built per attempt over a private SDK request;
+only signed headers are copied to the transport request after success. Method,
+URL, body bytes and CallContext stay unchanged. The SDK receives no governance
+context. Signer failures raise sanitized CredentialError without chaining SDK
+exceptions; the provider transport is never entered on signing failure.
+
 Port middleware implements both `CallInterceptor` and `StreamInterceptor` to
 govern all four call faces. Stream continuations return owned `SyncStream` or
 `AsyncStream` protocols; runtime remains capability-neutral. `StreamOutcome`
@@ -792,6 +814,10 @@ protocol, `Direct`/`Custom`/`Vertex` values — dialect-agnostic, reading
 survives), and
 `policies.py` (Decision-based `RetryPolicy`, `RateLimitPolicy` [stub],
 `WireTap` audit hook [stub] — feeds content-addressed archive satellites).
+
+The physical transport remains ocai-owned when an external credential uses an
+SDK signer. AWS CRT request values are private signing inputs, never a replacement
+transport or a public wire type. No AWS client or network connection is created.
 
 WU-37 makes Direct/Custom consume resolved trait headers. Vertex consumes
 `body_fields("vertex")`, removes model/stream as before, and keeps the legacy
@@ -854,6 +880,18 @@ seam, not AWS EventStream; no canonical shape or conversion edge changed.
 See [ADR 0014](decisions/0014-host-selected-stream-framing.md).
 
 ## 7. Plugins — one subpackage per interface
+
+`ocai-aws` is an independent cloud-authentication distribution rather than an AI
+interface fragment. It exports SigV4Credential, has no conversion edges/catalog
+registration, and depends on `ocai` plus the maintained AWS CRT signing package.
+It imports no service package, wire/runtime implementation or capability codec.
+Its annotation-only HttpRequest reference follows the existing Credential seam.
+`_sdk` supplies a narrow typed view of AWS CRT's untyped public signing/value API;
+it contains no authentication algorithm and exports no SDK object publicly.
+AWS vectors qualify normalized/double-encoded paths, query ordering, headers and
+temporary tokens; recorded attempts qualify body bytes, policy headers, retries,
+context isolation and generic failures. Presigning, SigV4a, S3-specific behavior,
+credential discovery/refresh and SDK-native debug logging are not enabled.
 
 `ocai-deepseek` is separately packaged and attributable. Its Chat Completions
 variant reuses the pure `ChatCompletionsVariant` configuration and compatible

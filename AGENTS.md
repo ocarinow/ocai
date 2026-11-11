@@ -210,9 +210,13 @@ stale).
     `model_json_schema()` acceptance and optional satellite dists — never a
     core dependency. The hand-authored JSON Schema in `spec/` is the neutral
     source of truth; dataclasses are conformance-tested against it.
-12. **No provider SDKs anywhere.** ocai owns the wire via `ocai.wire`. The
-    only permitted provider-adjacent dependency is a narrow signing library
-    inside a cloud-hosting plugin.
+12. **Provider authentication dependencies stay in external packages.**
+    Maintained provider libraries may implement authentication in the relevant
+    cloud package (for example AWS signing in `ocai-aws`; ADR 0016). No new
+    third-party dependency enters a core library without explicit approval.
+    AI provider clients must not replace ocai-owned wire execution, conversion
+    or fidelity reporting. Cloud access and service/dialect packages have
+    one-way dependencies; the kernel never imports them.
 13. **Credentials are explicit-only** — no ambient discovery; only
     `ApiKey.from_env/.from_file` may read env/filesystem and only when called.
     Applied by the driver at the leaf, per attempt, after all hooks; redacted
