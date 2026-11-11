@@ -6,7 +6,7 @@
         <span aria-hidden="true" class="grid size-9 place-items-center rounded-xl bg-primary text-white">o.</span>
         ocarinow<span class="hidden font-normal text-muted-foreground sm:inline">/ console</span>
       </NuxtLink>
-      <span class="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">Development preview</span>
+      <UiBadge variant="outline" class="text-muted-foreground">Development preview</UiBadge>
     </header>
     <div class="mx-auto flex max-w-7xl flex-col md:flex-row">
       <aside class="border-b px-5 py-6 md:min-h-[calc(100vh-5rem)] md:w-56 md:shrink-0 md:border-r md:border-b-0 md:px-6 md:py-10">

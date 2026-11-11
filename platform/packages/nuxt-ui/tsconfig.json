@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@ocarinow/nuxt-ui/*": [
+        "./app/*"
+      ]
+    },
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "target": "ES2022"
+  }
+}

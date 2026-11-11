@@ -870,8 +870,12 @@ errors, forwards streamed bodies without accumulation, and emits allowlisted
 completion diagnostics. Diagnostic observers do not provide durable audit.
 
 The console extends the `nuxt-platform` shell layer, which extends `nuxt-ui`.
-Product navigation and pages belong to the console; generic components and
-tokens belong to the UI layer. A framework-independent management client uses
+Product navigation and pages belong to the console. The UI layer contains the
+complete shadcn-vue UI registry snapshot, neutral semantic tokens, and on-demand
+`Ui*` registration through `shadcn-nuxt`; Ocarinow token overrides belong to the
+higher platform layer. Tailwind scans every consuming layer without hardcoded
+app paths. Component types/composables use explicit package subpath imports.
+[ADR 0012](decisions/0012-shadcn-component-layer.md) records this boundary. A framework-independent management client uses
 generated OpenAPI types and validates its status response at runtime. The
 console server exposes a fixed status proxy with no caller credential forwarding.
 

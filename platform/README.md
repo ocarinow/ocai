@@ -18,8 +18,8 @@ services/gateway/
   tests/                        service and middleware qualification
   pyproject.toml, uv.lock        isolated application environment; no wheel
 packages/
-  nuxt-ui/                      owned UI components and theme
-  nuxt-platform/                reusable shell with navigation slot
+  nuxt-ui/                      complete upstream shadcn-vue catalogue and neutral theme
+  nuxt-platform/                Ocarinow theme and reusable shell with navigation slot
   management-client/            plain TypeScript client and generated API types
 spec/management.openapi.json    provisional management API contract
 tests/                         client/layer boundary and browser integration tests
@@ -29,9 +29,10 @@ deploy/postgres/                operator role bootstrap and pinned PostgreSQL te
 The gateway is an application, not a published Python distribution. Reuse its
 middleware modules within the service; extract a backend package only when another
 service demonstrates the need. Frontend packages are private npm workspaces.
-The UI button follows the shadcn-vue composition approach using Reka UI, CVA, and
-Tailwind; its source and Ocarinow theme are owned here. Additional components and
-TanStack Table enter when a product workflow uses them.
+The [UI layer](packages/nuxt-ui/README.md) contains the full shadcn-vue registry
+catalogue, registered through `shadcn-nuxt`. Apps consume upstream components
+directly; Ocarinow theme overrides belong to the higher platform layer. TanStack
+Table and chart dependencies are installed for future product compositions.
 
 ## Install and run
 
