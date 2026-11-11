@@ -45,6 +45,15 @@ jobs:
       - name: Prepare the release (versions, changelogs, consume change files)
         run: knope prepare-release --verbose
 
+      # uv.lock records every workspace member's version; the bump above must
+      # travel with its lockfile or `uv sync --locked` fails on the Release PR.
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
+      - run: uv python install 3.13
+      - name: Refresh the lockfile for the bumped versions
+        run: uv lock
+
       - name: Describe the release
         id: describe
         env:
