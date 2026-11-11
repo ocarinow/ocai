@@ -449,3 +449,20 @@ Initial qualification covers text/function tools through existing Anthropic edge
 request version/beta placement, identifier encoding, native errors, metadata and
 blocked/masked/uncertain guardrail outcomes. Streaming, Converse, media, managed
 prompts, live availability and compatibility endpoints remain separate work.
+
+
+## 17. WU-49 binary framing verification (2026-11-11)
+
+The [Smithy EventStream specification](https://smithy.io/2.0/aws/amazon-eventstream.html)
+defines big-endian lengths, separate prelude/message CRC checks, typed headers,
+and opaque payloads. Clients validate integrity; the documented service header
+and payload quotas are not client validation rules. ocai therefore uses an
+explicit local frame budget, independent of those quotas. Unknown event names
+remain data; unknown header type codes violate the closed wire encoding.
+
+The timestamp table's unsigned wording disagrees with its int64 wire layout.
+[AWS botocore's header-type mapping](https://github.com/boto/botocore/blob/develop/botocore/eventstream.py)
+also reads timestamps as signed int64. The parser retains signed milliseconds,
+including pre-epoch values, rather than narrowing to datetime's range. The
+recorded protocol vectors exercise every type and both CRCs without using an
+SDK client or copying an SDK implementation.

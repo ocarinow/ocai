@@ -1,0 +1,182 @@
+{
+  "description": "Synthetic, hand-authored Smithy Amazon EventStream binary recording for WU-49. This is a protocol test endpoint, not a live provider capture. Typed headers, opaque future events and empty frames are independent of capability semantics. Corrupt vectors intentionally violate framing. See docs/providers/amazon-bedrock.md section 17 and spec/README.md binary recording format.",
+  "request": {
+    "method": "POST",
+    "url": "https://framing.example.test/events",
+    "json": {
+      "probe": "frames"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.amazon.eventstream"
+    },
+    "body": {
+      "encoding": "base64",
+      "data": "AAAAjgAAAHbSkgWTBHRydWUABWZhbHNlAQRieXRlAoAFc2hvcnQDgAADaW50BH////8EbG9uZwWAAAAAAAAAAARibG9iBgACAP8Gc3RyaW5nBwAFY2Fmw6kJdGltZXN0YW1wCP//////////BHV1aWQJABEiM0RVZneImaq7zN3u/wD/b3BhcXVlXEHLPQAAAHIAAABabY7ULA06bWVzc2FnZS10eXBlBwAFZXZlbnQLOmV2ZW50LXR5cGUHAAxmdXR1cmUuZXZlbnQNOmNvbnRlbnQtdHlwZQcAGGFwcGxpY2F0aW9uL29jdGV0LXN0cmVhbW5vdC1qc29uX3lpMAAAABAAAAAABcJI632YyP8="
+    }
+  },
+  "expected": [
+    {
+      "headers": [
+        {
+          "name": "true",
+          "type_code": 0,
+          "value": true
+        },
+        {
+          "name": "false",
+          "type_code": 1,
+          "value": false
+        },
+        {
+          "name": "byte",
+          "type_code": 2,
+          "value": -128
+        },
+        {
+          "name": "short",
+          "type_code": 3,
+          "value": -32768
+        },
+        {
+          "name": "int",
+          "type_code": 4,
+          "value": 2147483647
+        },
+        {
+          "name": "long",
+          "type_code": 5,
+          "value": -9223372036854775808
+        },
+        {
+          "name": "blob",
+          "type_code": 6,
+          "value": {
+            "hex": "00ff"
+          }
+        },
+        {
+          "name": "string",
+          "type_code": 7,
+          "value": "café"
+        },
+        {
+          "name": "timestamp",
+          "type_code": 8,
+          "value": -1
+        },
+        {
+          "name": "uuid",
+          "type_code": 9,
+          "value": {
+            "uuid": "00112233-4455-6677-8899-aabbccddeeff"
+          }
+        }
+      ],
+      "payload_hex": "00ff6f7061717565"
+    },
+    {
+      "headers": [
+        {
+          "name": ":message-type",
+          "type_code": 7,
+          "value": "event"
+        },
+        {
+          "name": ":event-type",
+          "type_code": 7,
+          "value": "future.event"
+        },
+        {
+          "name": ":content-type",
+          "type_code": 7,
+          "value": "application/octet-stream"
+        }
+      ],
+      "payload_hex": "6e6f742d6a736f6e"
+    },
+    {
+      "headers": [],
+      "payload_hex": ""
+    }
+  ],
+  "frame_sizes": [
+    142,
+    114,
+    16
+  ],
+  "corrupt": [
+    {
+      "name": "prelude_crc",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAjgAAAHbTkgWTBHRydWUABWZhbHNlAQRieXRlAoAFc2hvcnQDgAADaW50BH////8EbG9uZwWAAAAAAAAAAARibG9iBgACAP8Gc3RyaW5nBwAFY2Fmw6kJdGltZXN0YW1wCP//////////BHV1aWQJABEiM0RVZneImaq7zN3u/wD/b3BhcXVlXEHLPQ=="
+      }
+    },
+    {
+      "name": "message_crc",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAjgAAAHbSkgWTBHRydWUABWZhbHNlAQRieXRlAoAFc2hvcnQDgAADaW50BH////8EbG9uZwWAAAAAAAAAAARibG9iBgACAP8Gc3RyaW5nBwAFY2Fmw6kJdGltZXN0YW1wCP//////////BHV1aWQJABEiM0RVZneImaq7zN3u/wD/b3BhcXVlXEHLPA=="
+      }
+    },
+    {
+      "name": "unknown_type",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAEwAAAAPba2OBAXgKZKs/Og=="
+      }
+    },
+    {
+      "name": "empty_name",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAEgAAAAKRDHqnAAB7wTYe"
+      }
+    },
+    {
+      "name": "duplicate",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAFgAAAAZj4Rh+AXgAAXgACXgE4g=="
+      }
+    },
+    {
+      "name": "bad_utf8",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAEwAAAAPba2OBAf8A8LzYqA=="
+      }
+    },
+    {
+      "name": "truncated_header",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAFAAAAAT3LyoyAXgFAOtN5U0="
+      }
+    },
+    {
+      "name": "truncated_string",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAFgAAAAZj4Rh+AXgHAAV4USKo2Q=="
+      }
+    },
+    {
+      "name": "short_frame",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAADwAAAADncki4"
+      }
+    },
+    {
+      "name": "headers_beyond_frame",
+      "body": {
+        "encoding": "base64",
+        "data": "AAAAEAAAAAFyxXh9"
+      }
+    }
+  ]
+}

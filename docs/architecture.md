@@ -895,6 +895,22 @@ survives), and
 `policies.py` (Decision-based `RetryPolicy`, `RateLimitPolicy` [stub],
 `WireTap` audit hook [stub] — feeds content-addressed archive satellites).
 
+`eventstream.py` supplies the sans-io EventStreamParser and a StreamFraming
+factory. Every frame retains typed headers and opaque payload bytes; timestamp
+headers retain signed milliseconds and UUID headers use stdlib UUID. Prelude
+CRC is checked before lengths are trusted, full-message CRC before decoding.
+Only one partial frame is retained, bounded by a configurable local wire-frame
+budget (default 64 MiB); decoded objects have additional per-frame overhead.
+Caller-owned input and completed-frame output lists are outside that budget. Service-only header/payload quotas are not checked by a client.
+Malformed framing closes the parser; finish rejects partial frames and never
+asserts semantic completion. close is idempotent and releases partial bytes.
+EventStreamProtocolError.completed contains verified frames from the failed feed
+only, for explicit evidence inspection; already returned frames are not repeated.
+Current drivers propagate this error without feeding that same-batch prefix into
+semantic conversion (G-16). Bedrock streaming is still disabled pending WU-50 and
+its host-outcome prerequisites. No SDK or canonical type is introduced here.
+See [ADR 0021](decisions/0021-eventstream-framing.md).
+
 The physical transport remains ocai-owned when an external credential uses an
 SDK signer. AWS CRT request values are private signing inputs, never a replacement
 transport or a public wire type. No AWS client or network connection is created.
@@ -1235,6 +1251,11 @@ thinking replay pairs. No existing canonical fixture is rewritten. WU-43 adds pr
 audit, response and paired SSE fold fixtures, two-turn replay recordings, in-band
 tool failure and interrupted-input evidence. Its only core vocabulary addition is
 an open usage-unit constant; no new canonical node or part is registered.
+
+WU-49 binary framing tests replay the recorded base64 wire format documented in
+spec/README.md, across every byte split and corruption boundary. They qualify
+framing and ownership only; provider streaming edges still require full fold
+triples and terminal evidence under rules 7 and 9.
 
 ## 11. Adding a capability (normative recipe)
 

@@ -947,22 +947,95 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 
 ## WU-49 — Parse AWS EventStream without I/O
 
-- [ ] **Status:** not started.
-- **Scope:** `wire/eventstream.py`, framing adapter and a binary recording format
-  extension described in spec; 12–20 files. Parse typed headers, bounded lengths,
-  prelude/message CRCs, fragmented bytes, unknown event kinds and truncation.
-  Record binary bodies as encoded bytes with explicit encoding; no AWS SDK mocks.
-- **Done:** Recorded binary vectors pass every chunk-boundary split and CRC/length
-  corruption case, producing identical typed frames or explicit framing failure
-  without unbounded allocation or invented completion.
-- **Deps:** WU-48 (and framing contract WU-39).
+- **Status:** ✅ complete (PR #130).
+- **Context:** WU-50 cannot feed Bedrock response bytes to the existing Anthropic
+  stream codec: InvokeModel streams binary EventStream frames, while the default
+  framing is SSE. WU-39 exposes a decoder factory but provides no EventStream parser.
+  Treating binary bytes as text loses framing, typed metadata and CRC validation.
+- **Goal:** A public sans-io parser produces exact typed frames from arbitrary
+  network byte splits, or an explicit bounded framing failure, without I/O or
+  provider interpretation.
+- **Scope:** `ocai.wire.eventstream`, a StreamFraming factory, recorded binary
+  vectors and format documentation, parser/driver tests, architecture §6/§10,
+  research and an ADR (roughly 12 files). No third-party dependency.
+- **Non-goals:** Bedrock chunk unwrapping, native exception semantics and canonical
+  fold triples belong to WU-50. G-14 still owns streaming host-outcome accounting.
+  No credential, SDK client, semantic conversion edge, canonical node or part type.
+- **First step:** Verify the Smithy wire layout, typed headers and CRC coverage;
+  distinguish local memory limits from service-only protocol size limits. Record
+  that distinction and signed timestamp encoding in the provider research page.
+- **Acceptance:**
+  - Every split of recorded binary frames preserves header types, values and exact
+    payload bytes — `python/packages/ocai-core/tests/test_eventstream.py` and its
+    `tests/http/eventstream_frames.json` recording.
+  - Bad prelude/message CRC, impossible lengths, malformed/duplicate headers and
+    truncation fail explicitly; verified frames preceding a bad frame remain
+    available on the parsing error — the same test module and corrupt vectors.
+  - Limits are checked after validating the prelude and before buffering a large
+    declared frame; close clears retained bytes and finish never invents a semantic
+    terminal — the same test module.
+  - A fresh decoder per stream composes with the existing public framing contract,
+    with matching sync/async cleanup and opaque unknown event values — the same
+    test module through recorded HttpxTransport input.
+- **Done:** Recorded binary vectors pass all chunk-boundary, typed-header,
+  CRC/length-corruption and cleanup cases, yielding identical frames or explicit
+  bounded failure with verified prefix evidence.
+- **Deps:** WU-48 and framing contract WU-39.
 - **Architecture:** §6, §10.
-- **Freeze:** none changed: wire parser is provisional; canonical IR, deltas and
-  schemas are untouched; the new recording format is not a canonical revision.
-- **Decision:** EventStream is a CRC-checked sans-io sibling of SSE
-  ([Bedrock §6/13(a)](../providers/amazon-bedrock.md)).
-- **Open:** None; unknown semantic event payloads remain available to the codec,
-  whereas corrupt framing fails explicitly.
+- **Integration:** The wire layer parses transport bytes below semantic codecs.
+  StreamFraming constructs a fresh EventStreamParser; drivers iterate its frames.
+  The parser never selects a provider, decodes JSON, or determines completion.
+  ```mermaid
+  flowchart LR
+    TransportBytes --> EventStreamParser
+    EventStreamParser --> TypedFrames
+    TypedFrames --> FutureHostEnvelope
+    FutureHostEnvelope --> ExistingCodec
+  ```
+- **Design sketch:**
+  ```python
+  EventStreamHeader(name: str, type_code: int, value: bool | int | bytes | str | UUID)
+  EventStreamFrame(headers: tuple[EventStreamHeader, ...], payload: bytes)
+  EventStreamParser(max_frame_bytes=64 * 1024 * 1024)
+  parser.feed(chunk: bytes) -> list[EventStreamFrame]
+  parser.finish() -> list[EventStreamFrame]
+  parser.close() -> None
+  # A failed feed retains its already verified prefix frames on the error.
+  EventStreamProtocolError.completed: tuple[EventStreamFrame, ...]
+  eventstream_framing(max_frame_bytes=64 * 1024 * 1024) -> StreamFraming
+  ```
+- **Before / after:** Binary responses currently have no selected parser. After,
+  applications can inspect exact typed frames independently of any capability.
+- **Alternatives considered:** SSE/text parsing cannot validate binary CRCs or
+  header types. An AWS SDK client would own I/O and breach the wire boundary.
+  Unbounded buffering accepts hostile length declarations; the explicit local
+  frame budget bounds memory without pretending to enforce service payload quotas.
+- **Reproduce:** Feed a recorded frame one byte at a time, then truncate its final
+  CRC. The valid case emits the expected frame; finish on the truncated case raises
+  StreamProtocolError rather than treating transport EOF as provider completion.
+- **Freeze:** No frozen-candidate surface changes: wire parser/frame/error values
+  are provisional; core vocabulary, chat IR/deltas and canonical schemas untouched.
+- **Decision:** [ADR 0021](../decisions/0021-eventstream-framing.md) records the
+  parser contract and partial-evidence boundary. EventStream is a CRC-checked sans-io sibling of SSE (Bedrock
+  research §6/13(a), WU-39). Header type codes are closed by the Smithy protocol;
+  unknown semantic event names remain opaque. No service-only size validation in
+  a client. The finite configurable frame budget is a local resource policy.
+- **Risks:** Corrupt lengths must never trigger allocation before prelude CRC
+  validation. A batch parser error can carry verified frames from the failing
+  feed; automatic semantic delivery/accounting of that prefix is a separate
+  framing-contract issue to record before WU-50, not a success claim here.
+  Revert is sufficient; no persisted format or canonical migration changes.
+- **Open:** None for byte-level parsing. Semantic stream evidence remains outside
+  this WU and must be qualified before enabling the Bedrock stream surface.
+- **Evidence:** `python/packages/ocai-core/tests/test_eventstream.py` qualifies all
+  Acceptance items using `tests/http/eventstream_frames.json`; strict Pyright and
+  focused parser tests pass. The full clean-commit gate summary is recorded in
+  PR #130. ADR 0021 and architecture §6/§10 document the provisional contracts
+  and G-16 limitation; no semantic streaming completion is claimed.
+- **Area:** wire
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-50 — Stream Anthropic through Bedrock envelopes
 
@@ -974,7 +1047,8 @@ conversion, with acyclic dependencies and no SDK objects in public APIs.
 - **Done:** Recorded binary Anthropic streams pass fold parity against paired InvokeModel unary
   responses with exact usage/replay evidence, and close/cancellation/mid-stream
   exceptions release transport resources while preserving partial accounting.
-- **Deps:** WU-49 and the generic streaming host-outcome prerequisite tracked by G-14.
+- **Deps:** WU-49, generic streaming host outcomes (G-14), and chunk-independent
+  framing failure accounting (G-16).
 - **Architecture:** §3.3, §4.5, §5–7, §10.
 - **Freeze:** none changed: StreamEnd/StreamOutcome/ChatChunk and schemas remain intact.
 - **Decision:** Reuse Anthropic semantics after envelope decoding

@@ -17,6 +17,11 @@ peers at the capability port.
 from __future__ import annotations
 
 from ocai.core.traits import DialectTraits
+from ocai.wire.eventstream import EventStreamFrame
+from ocai.wire.eventstream import EventStreamHeader
+from ocai.wire.eventstream import EventStreamParser
+from ocai.wire.eventstream import EventStreamProtocolError
+from ocai.wire.eventstream import eventstream_framing
 from ocai.wire.framing import StreamDecoder
 from ocai.wire.framing import StreamFraming
 from ocai.wire.framing import sse_framing
@@ -47,6 +52,11 @@ from ocai.wire.transport import SyncTransport
 from ocai.wire.transport import Transport
 
 __all__ = [
+    "EventStreamFrame",
+    "EventStreamHeader",
+    "EventStreamParser",
+    "EventStreamProtocolError",
+    "eventstream_framing",
     "Custom",
     "DialectTraits",
     "Direct",
