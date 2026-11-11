@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Local privacy guard for commit messages (AGENTS.md "Never publish session or
+# tool metadata"). CI and a server-side ruleset reject the same patterns, but
+# by then the message has left the machine; this catches it at `git commit`.
+#
+# Installed per clone by `task setup` (git config core.hooksPath .githooks).
+# Bypass is deliberately not offered: rewrite the message instead.
+set -eu
+root=$(git rev-parse --show-toplevel)
+exec python3 "$root/scripts/privacy_check.py" --no-files --range HEAD..HEAD --text "$1"
