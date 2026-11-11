@@ -67,7 +67,9 @@ folder you work in (`task setup` does the root one).
 Each distribution under `python/packages/` has its own semantic version. A
 PR that changes one adds a changeset in `.changeset/` (package, level, note);
 versions are bumped only by the release script when a release is cut.
-Alphas publish from `dev`, stable releases from `main`. See ADR 0010.
+Every merge to `main` publishes an alpha of each package with pending change
+files; merging the standing Release PR publishes the stable release. See ADR
+0010 and [`docs/releasing.md`](docs/releasing.md).
 
 ## Before you open a PR
 

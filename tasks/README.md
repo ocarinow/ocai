@@ -130,7 +130,7 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 
 | Task | Does |
 |---|---|
-| `task release:changeset` | Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per .changeset/README.md |
+| `task release:changeset` | Write a change file in .changeset/ interactively (knope document-change); or write the file by hand per docs/releasing.md |
 | `task release:check` | Change-file policy for the current branch — required when a published package changed (task release:check [-- BASE]) |
 | `task release:packages` | Published packages and their current versions (from knope.toml) |
 | `task release:preview:alpha` | What the next ALPHA pre-release would do, without changing anything |
