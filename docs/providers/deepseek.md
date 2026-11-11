@@ -303,3 +303,28 @@ Registration carries DeepSeek provenance and no executable edge or codec factory
 sharing OpenAI wire DTOs does not inherit OpenAI conversion qualification.
 Only the documented lack of JSON-schema response output is declared in the
 initial model profiles. Other coverage remains unknown until WU-44b fixtures.
+
+## 15. WU-44b conversion verification (2026-11-11)
+
+[Thinking mode](https://api-docs.deepseek.com/guides/thinking_mode/) confirms
+that thinking defaults on, effort aliases have provider-defined effects, and
+sampling controls can be ignored or bounded differently by model and mode.
+Values must pass unchanged with visible findings. With tools present, prior
+reasoning accompanies history; without tools the provider ignores that lane.
+The [tool guide](https://api-docs.deepseek.com/guides/tool_calls/) requires retaining
+prior reasoning across subsequent requests, including turns without tool calls.
+Missing required history is unsupported, never reconstructed from final text.
+
+[JSON output](https://api-docs.deepseek.com/guides/json_mode/) can return spaces
+with a stop finish when JSON validation fails. Conversion preserves those bytes;
+it never fabricates a JSON value or upgrades the finish semantics.
+[Errors](https://api-docs.deepseek.com/quick_start/error_codes/) verifies HTTP
+400/401/402/422/429/500/503 meanings, but does not document stable native error
+code strings. Those strings are not invented for fixtures. Payment taxonomy
+qualification remains WU-59.
+
+The [reference](https://api-docs.deepseek.com/api/create-chat-completion/)
+identifies hit/miss prompt buckets and reasoning as part of output tokens.
+Missing or inconsistent measurements retain evidence rather than inferred zero.
+Model-dependent top_p is conservatively unsupported in the model-independent
+conversion edge (G-10); no request body gains routing metadata to work around it.

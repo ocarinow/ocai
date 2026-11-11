@@ -371,7 +371,9 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 
 ## WU-44b — Certify the DeepSeek compatible dialect variant
 
-- [ ] **Status:** not started.
+- [ ] **Status:** in progress; stacked on WU-44a (PR #89).
+- **Goal:** Qualify unary DeepSeek conversion without duplicating the compatible
+  text/tool codec or inheriting OpenAI identity and fidelity claims.
 - **First step:** Verify selected model ids, thinking/tool replay rules, error
   envelopes and supported parameters; record results in `providers/deepseek.md`.
 - **Scope:** Existing Chat Completions codec's pure dialect configuration,
@@ -389,8 +391,17 @@ core only. Converse lives in a separate `ocai-bedrock` conversion plugin.
 - **Decision:** Reuse the OpenAI-compatible codec with DeepSeek traits/profiles
   ([DeepSeek §13(a–c)](../providers/deepseek.md)); distinct effect declarations
   cover ignored knobs and effort aliases without clamping input values.
-- **Open:** Model retirement dates and native error codes are unverified; no
-  pin/code-dependent support claim ships until the first step resolves it.
+- **Integration:** A pure Chat Completions variant config supplies identity,
+  reasoning lane and max-token field; DeepSeek owns its semantic policy and edge
+  contracts. No serving component or stream edge is registered in this WU.
+- **Open:** G-10 prevents precise model-dependent top_p qualification in a
+  model-independent edge. This WU conservatively reports that knob unsupported
+  while retaining the supplied value. Undocumented native error strings and
+  historical retirement dates remain unclaimed.
+- **Area:** plugin: deepseek
+- **Priority:** P0
+- **Tier:** 1
+- **Owner:** Codex
 
 ## WU-45 — Qualify DeepSeek unary execution
 
