@@ -302,7 +302,7 @@ the public foundation can run with the module disabled.
 
 ## WU-77 — Update an organization through the authenticated console
 
-- [ ] **Status:** defined.
+- [ ] **Status:** in progress; protected management workflow and qualification.
 - **Goal:** Deliver the first complete authenticated product workflow: an organization owner can change a display name with resource authorization and durable audit.
 - **Scope:** Organization read/update API, request/response contracts and typed
   client, console organization settings, fixed Nuxt authenticated forwarding,

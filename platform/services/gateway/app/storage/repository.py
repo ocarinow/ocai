@@ -16,6 +16,7 @@ from app.storage.models import Installation
 from app.storage.models import Membership
 from app.storage.models import Organization
 from app.storage.models import Principal
+from app.storage.models import SecurityEvent
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,39 @@ class Repository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def identity_organizations(self, principal_id: UUID) -> tuple[UUID, ...]:
+        """Discover only this principal's candidate scopes; callers still authorize each read."""
+        rows = await self._session.scalars(
+            select(Membership.organization_id)
+            .where(Membership.principal_id == principal_id, Membership.active.is_(True))
+            .order_by(Membership.organization_id)
+            .limit(101)
+        )
+        result = tuple(rows)
+        if len(result) > 100:
+            raise ValueError("Organization discovery exceeds the initial bounded profile.")
+        return result
+
+    async def record_denial(
+        self,
+        *,
+        request_id: UUID,
+        target_id: UUID | None,
+        action: Literal["organization.read", "organization.update", "identity.read"],
+        outcome: Literal["unauthenticated", "denied"],
+    ) -> None:
+        """Persist fixed-schema security evidence without claims, bodies or secret fields."""
+        self._session.add(
+            SecurityEvent(
+                id=uuid4(),
+                request_id=request_id,
+                target_id=target_id,
+                action=action,
+                outcome=outcome,
+            )
+        )
+        await self._session.flush()
 
     async def pending_authorization(self) -> tuple[UUID, ...]:
         """Maintenance-only discovery of at most ten organization IDs; not a tenant query."""

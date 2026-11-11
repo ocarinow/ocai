@@ -4,7 +4,7 @@ import { SessionStore } from './store.ts'
 
 export class SessionFailure extends Error {
   readonly status: number
-  constructor(status = 503) { super(status === 401 ? 'Sign in to continue.' : status === 403 ? 'Request not permitted.' : 'Sign-in service unavailable.'); this.status = status }
+  constructor(status = 503) { super(({ 401: 'Sign in to continue.', 403: 'Request not permitted.', 404: 'Resource not found.', 409: 'The resource changed. Reload before saving.', 422: 'The request is invalid.' } as Record<number, string>)[status] ?? 'Service temporarily unavailable.'); this.status = status }
 }
 
 function loginMaterial(value: unknown): LoginMaterial {

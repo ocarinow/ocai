@@ -68,6 +68,10 @@ class Database:
                         'platform.audit_events', 'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
                       AND has_table_privilege(current_user, 'platform.audit_events', 'INSERT')
                       AND has_table_privilege(current_user, 'platform.audit_events', 'SELECT')
+                      AND has_table_privilege(current_user, 'platform.security_events', 'INSERT')
+                      AND has_table_privilege(current_user, 'platform.security_events', 'SELECT')
+                      AND NOT has_table_privilege(current_user,
+                        'platform.security_events', 'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
                       AND has_table_privilege(current_user, 'platform.installation', 'SELECT')
                       AND has_table_privilege(current_user, 'platform.installation', 'UPDATE')
                       AND NOT has_table_privilege(current_user,

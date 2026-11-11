@@ -1,5 +1,6 @@
 import { createError, getCookie, getHeader, setCookie, setHeader, type H3Event } from 'h3'
 import type { SessionSettings } from './config.ts'
+import { equalSecret } from './crypto.ts'
 import { ConsoleSessions, SessionFailure } from './service.ts'
 
 export interface SessionRuntime { service: ConsoleSessions; settings: SessionSettings }
@@ -35,3 +36,20 @@ export async function safeSession<T>(event: H3Event, operation: () => Promise<T>
     throw createError({ statusCode: failure.status, statusMessage: failure.message, message: failure.message })
   }
 }
+
+
+/** Shared BFF admission; never forward a credential from the incoming browser. */
+export async function authenticatedSession(event: H3Event, mutation = false): Promise<{ accessToken: string; csrf: string }> {
+  const { service, settings } = runtime(event)
+  if (mutation) requireOrigin(event, settings)
+  try {
+    const current = await service.current(readSession(event, settings))
+    if (mutation && !equalSecret(getHeader(event, 'x-csrf-token') ?? '', current.csrf)) throw new SessionFailure(403)
+    return current
+  } catch (error) {
+    if (error instanceof SessionFailure && error.status === 401) writeCookie(event, settings, '')
+    throw error
+  }
+}
+
+export { SessionFailure } from './service.ts'
