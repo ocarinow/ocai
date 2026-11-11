@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 # Distribution name is "ocai" — the meta-package / core. Plugin distributions
 # ship additional subpackages into the SAME `ocai` namespace.
 name = "ocai"
-version = "0.1.1"            # library public API version (semver), kept stable
+version = "0.1.2"            # library public API version (semver), kept stable
 description = "One Common interface for AI: ports & adapters + middleware + a canonical-IR conversion graph. Source-available."
 readme = "README.md"
 requires-python = ">=3.13"

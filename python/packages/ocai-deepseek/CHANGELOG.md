@@ -2,6 +2,22 @@
 
 All notable changes to the `ocai-deepseek` distribution. Generated from the change files in
 `.changeset/` by the release workflow (ADR 0010); do not edit released sections by hand.
+## 0.1.2 (2026-11-11)
+
+### Features
+
+#### Execute DeepSeek through the public chat facade
+
+Enable sync and async unary calls through explicit catalogs or plugin discovery,
+with public preparation, conversion policies, context and credential isolation,
+reasoning replay and measured usage. Streaming remains unqualified. (WU-45, #99)
+
+#### Qualify DeepSeek streaming through public chat execution
+
+Add a censused DeepSeek stream edge with reasoning, tools, response metadata and
+final-choice usage, plus explicit incomplete-stream evidence. Allow compatible
+stream transducers to use an explicitly configured codec. (WU-46, #100)
+
 ## 0.1.1 (2026-11-11)
 
 ### Features
