@@ -16,7 +16,9 @@ Rules (AGENTS.md "Working alongside other agents" and "The board"):
   or replace it with a one-line reason, and a non-empty Verification block;
 - a stacked PR (base other than `main`) says `Stacked on #N` in its body;
 - the privacy rule holds for title and body (`scripts/privacy_check.py` runs
-  separately in CI).
+  separately in CI);
+- a PR opened by a dependency bot (`dependabot[bot]`) has a generated body:
+  only its title is checked (`Deps: …`), the template is not required.
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ TEMPLATE = ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md"
 TITLE_RE = re.compile(r"^(WU-[0-9A-Za-z]+): \S|^[A-Z][A-Za-z0-9 /&-]{1,40}: \S")
 UNCHECKED_RE = re.compile(r"^\s*- \[ \]", re.MULTILINE)
 STACKED_RE = re.compile(r"\bStacked on #\d+", re.IGNORECASE)
+BOT_AUTHORS = frozenset({"dependabot[bot]"})
 PLACEHOLDER_RE = re.compile(
     r"WU-__|§__|<title from docs/plans/>|<two or three sentences[^>]*>|<imperative title>"
 )
@@ -47,11 +50,24 @@ def template_headings() -> list[str]:
     ]
 
 
-def check(title: str, body: str, draft: bool, base: str) -> list[str]:
-    """Return the findings for one PR; empty when it complies."""
+def check(title: str, body: str, draft: bool, base: str, author: str = "") -> list[str]:
+    """Return the findings for one PR; empty when it complies.
+
+    Args:
+        title: The PR title.
+        body: The PR body (Markdown).
+        draft: Whether the PR is still a draft.
+        base: The base branch name.
+        author: The PR author's login; bot authors get the title-only check.
+
+    Returns:
+        One finding per violated rule.
+    """
     findings: list[str] = []
     if not TITLE_RE.match(title):
         findings.append("title must be `WU-NN: <imperative title>` (housekeeping: `<Topic>: …`)")
+    if author in BOT_AUTHORS:
+        return findings
     headings = template_headings()
     missing = [h for h in headings if h not in body]
     if missing:
@@ -86,12 +102,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--body-file")
     parser.add_argument("--draft", action="store_true")
     parser.add_argument("--base", default="main")
+    parser.add_argument(
+        "--author", default="", help="PR author login (bots get a title-only check)"
+    )
     args = parser.parse_args(argv)
 
-    title, body, draft, base = args.title, "", args.draft, args.base
+    title, body, draft, base, author = args.title, "", args.draft, args.base, args.author
     if args.pr:
         raw = subprocess.run(
-            ["gh", "pr", "view", str(args.pr), "--json", "title,body,isDraft,baseRefName"],
+            ["gh", "pr", "view", str(args.pr), "--json", "title,body,isDraft,baseRefName,author"],
             capture_output=True,
             text=True,
             check=True,
@@ -99,11 +118,14 @@ def main(argv: list[str] | None = None) -> int:
         data = json.loads(raw)
         title, body = str(data["title"]), str(data["body"] or "")
         draft, base = bool(data["isDraft"]), str(data["baseRefName"])
+        author = str(data.get("author", {}).get("login", ""))
     elif args.body_file:
         body = Path(args.body_file).read_text(encoding="utf-8")
 
-    findings = check(title, body, draft, base)
+    findings = check(title, body, draft, base, author)
     label = "draft" if draft else "ready"
+    if author in BOT_AUTHORS:
+        label += f", bot {author}"
     if findings:
         print(f"PR HYGIENE ({label}, base {base}): {len(findings)} finding(s)")
         for f in findings:

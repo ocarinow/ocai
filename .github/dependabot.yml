@@ -1,0 +1,62 @@
+# Dependency updates (AGENTS.md rule 19 still applies: a bump that changes a
+# file under python/packages/ needs a change file, so those never happen here).
+#
+# - github-actions: weekly, grouped into one PR; SHA pins and their version
+#   comments are updated together.
+# - npm (the platform workspace): weekly, grouped by area so a Nuxt/Vue bump
+#   and a tooling bump are separate PRs.
+# - uv (kernel workspace and gateway): SECURITY UPDATES ONLY. Dependabot's uv
+#   support ignores versioning-strategy and rewrites `>=` lower bounds in
+#   pyproject.toml to the latest resolved version, which is wrong for a
+#   library; `open-pull-requests-limit: 0` disables version updates while
+#   security fixes still open PRs. Routine Python bumps stay manual
+#   (`uv lock --upgrade`, reviewed in a PR).
+#
+# Dependabot PR titles use the `Deps:` topic prefix so pr-hygiene accepts them;
+# their bodies are generated, so pr-hygiene checks only the title for bots.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "Deps"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /platform
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps"
+    groups:
+      nuxt-vue:
+        patterns: ["nuxt", "@nuxt/*", "nuxt-*", "vue", "vue-*", "@vue/*", "@vueuse/*", "shadcn-nuxt", "reka-ui", "@tanstack/*"]
+      tooling:
+        patterns: ["typescript", "vue-tsc", "@playwright/*", "@types/*", "openapi-typescript", "eslint", "@eslint/*", "@nuxt/eslint"]
+      platform-other:
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "Deps"
+
+  - package-ecosystem: uv
+    directory: /platform/services/gateway
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "Deps"
