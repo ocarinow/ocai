@@ -64,7 +64,7 @@ Rules:
   files per PR is fine. File names are free (`wu-41-server-tools.md`).
 
 Lifecycle: `task release:status` previews the next stable release;
-pre-releases (`alpha` from `dev`, `rc` on demand) compute their version from
+pre-releases (`alpha` on every merge to `main`, `rc` on demand) compute their version from
 these files but keep them; the stable release PR consumes them.
 
 

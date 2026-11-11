@@ -9,7 +9,7 @@ only the repo-specific rule, run by the `pr-hygiene` CI job and locally by
     uv run python scripts/release.py packages                   # published packages and versions
 
 A change file lives in `.changeset/<id>.md` with `package: level` front matter
-and a note (see `.changeset/README.md`). The check validates every pending file
+and a note (see `docs/releasing.md`). The check validates every pending file
 (known package names, levels patch|minor|major, non-empty body) and fails when
 a file under a published package changed in this branch without a change file
 added in this branch.
@@ -63,9 +63,12 @@ def validate_change_files(known: dict[str, Package]) -> list[str]:
     """Return one problem per malformed pending change file."""
     problems: list[str] = []
     for path in sorted(CHANGESET.glob("*.md")):
-        if path.name == "README.md":
-            continue
         rel = path.relative_to(ROOT)
+        if path.name == "README.md":
+            # knope parses every .md in .changeset/ as a change file and fails on one
+            # without front matter; the guide lives in docs/releasing.md instead.
+            problems.append(f"{rel}: only change files may live in .changeset/ (knope parses all)")
+            continue
         m = FRONT_RE.match(path.read_text(encoding="utf-8"))
         if not m:
             problems.append(f"{rel}: missing front matter (--- package: level ---)")
@@ -112,11 +115,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         prefix = str(pkg.path.relative_to(ROOT)) + "/"
         if any(p.startswith(prefix) and not p.endswith("CHANGELOG.md") for p in changed):
             touched.add(pkg.name)
-    added = [
-        p
-        for p in changed
-        if p.startswith(".changeset/") and p.endswith(".md") and p != ".changeset/README.md"
-    ]
+    added = [p for p in changed if p.startswith(".changeset/") and p.endswith(".md")]
     if touched and not added and not args.release_pr:
         problems.append(
             "published package(s) changed without a change file in this branch: "
