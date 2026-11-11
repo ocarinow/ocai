@@ -420,3 +420,28 @@ channel (G-14). A wire policy could observe success headers, but that is not a
 supported host metadata/effect contract and cannot recover discarded error headers.
 Host implementation waits for those reusable seams; no private transport override
 or provider-specific driver branch is introduced here.
+
+
+## 16. WU-48 verified unary subset (2026-11-11)
+
+The [InvokeModel operation](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
+verifies path placement, service-tier/performance response headers and the documented
+US Claude 3.5 Sonnet profile used by recordings. These establish wire examples,
+not account access or regional availability. The
+[Anthropic request/response reference](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages-request-response.html)
+requires the Bedrock version and describes beta as a body string array. Existing
+Anthropic traits already declare both relocations; no codec rewrite is needed.
+
+The [guardrail response reference](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-test.html)
+places detailed assessments under the guardrail trace's input and outputs lanes.
+Only explicit policy assessment actions determine blocked versus anonymized output;
+modelOutput is retained evidence, never searched for classification tokens.
+INTERVENED without a recognized assessment remains unclassified and reported.
+Unknown host fields and trace content remain in HostEvidence. Trace may contain
+original content, so passive lifecycle observations exclude it. Successful provider
+usage remains authoritative; absent usage is unknown rather than zero.
+
+Initial qualification covers text/function tools through existing Anthropic edges,
+request version/beta placement, identifier encoding, native errors, metadata and
+blocked/masked/uncertain guardrail outcomes. Streaming, Converse, media, managed
+prompts, live availability and compatibility endpoints remain separate work.
