@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "deepseek.system_fingerprint",
+  "description": "Provider backend fingerprint retained verbatim as response metadata.",
+  "x-ocai-origin": "ocai-deepseek",
+  "x-ocai-promotion": "none expected"
+}

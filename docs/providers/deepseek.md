@@ -328,3 +328,25 @@ identifies hit/miss prompt buckets and reasoning as part of output tokens.
 Missing or inconsistent measurements retain evidence rather than inferred zero.
 Model-dependent top_p is conservatively unsupported in the model-independent
 conversion edge (G-10); no request body gains routing metadata to work around it.
+
+
+## 16. Streaming preflight verification (WU-46, 2026-11-11)
+
+Rechecked the official [Chat Completions API](https://api-docs.deepseek.com/api/create-chat-completion/)
+and [error-code reference](https://api-docs.deepseek.com/quick_start/error_codes/).
+The streaming contract supplies `id`, `model`, `created`, reasoning/content/tool
+fragments, finish state, and usage. Usage on the final content chunk must be
+processed alongside its finish; that final choice carries no new content. Do not
+assume a separate empty-choices usage event. The HTTP error reference still does not specify a
+stable SSE error-envelope schema: unknown error payloads must remain evidence,
+without asserting an undocumented provider-specific error-code mapping.
+
+WU-46a resolves G-11 with a reusable response-info carrier under ADR 0015.
+DeepSeek streaming qualification uses that carrier and must compare full
+canonical responses; existing unary expectations retain their response identity.
+
+WU-46 qualifies `system_fingerprint` as a censused response-info extension on both
+unary and streaming paths; it is provider metadata, not a new first-class canonical
+field. Recorded text/tools/parallel-tools and unknown-finish streams include full
+identity and paired unary values. Future stream fields retain event-level evidence
+and findings; G-12 tracks folding such unknown response-envelope extensions.

@@ -1,4 +1,4 @@
-"""DeepSeek unary semantics over the shared, explicitly configured compatible codec."""
+"""DeepSeek qualified semantics over the shared, explicitly configured compatible codec."""
 
 from copy import deepcopy
 from dataclasses import replace
@@ -70,7 +70,7 @@ def _notes(losses: list[FieldLoss]) -> tuple[FieldLoss, ...]:
 
 
 class DeepSeekCodec(ChatCompletionsCodec):
-    """Qualify text, tools, JSON-object and reasoning without enabling execution yet."""
+    """Qualify text, tools, JSON-object and reasoning through the standard execution machinery."""
 
     def __init__(self) -> None:
         """Use DeepSeek coordinates and field lanes, never OpenAI routing identity."""
@@ -148,13 +148,27 @@ class DeepSeekCodec(ChatCompletionsCodec):
 
     def decode_response(self, payload: dict[str, Any]) -> EdgeOutput:
         """Preserve reasoning, native identity and disjoint measured usage through total decode."""
-        safe, evidence = response_payload(payload)
+        native: Any = deepcopy(payload)
+        fingerprint: Any = None
+        has_fingerprint = is_json_object(native) and "system_fingerprint" in native
+        if has_fingerprint:
+            fingerprint = native.pop("system_fingerprint")
+        safe, evidence = response_payload(native)
         native_usage = safe.pop("usage", None)
         out = super().decode_response(safe)
         response = out.value
         losses = list(out.losses)
         response.usage = decode_usage(native_usage, losses)
         response.raw = deepcopy(payload)
+        if has_fingerprint and response.info is not None:
+            response.info.extensions["deepseek.system_fingerprint"] = fingerprint
+            losses.append(
+                FieldLoss(
+                    "system_fingerprint",
+                    Disposition.EXTENSIONS,
+                    note="provider fingerprint retained as response metadata",
+                )
+            )
         additional_evidence = bool(evidence)
         response.extensions = _bank(response.extensions, evidence, "deepseek.response_unmapped")
         if additional_evidence:

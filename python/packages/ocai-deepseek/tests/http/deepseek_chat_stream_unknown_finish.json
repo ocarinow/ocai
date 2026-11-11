@@ -1,0 +1,37 @@
+{
+  "description": "WU-46 synthetic forward-compatibility vector with unknown finish value. Paired with deepseek_chat_stream_unknown_finish_paired.json and stream_unknown_finish.json; all other text wire fields unchanged.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.deepseek.com/chat/completions",
+    "json": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say hello."
+        }
+      ],
+      "max_tokens": 128,
+      "model": "deepseek-flash",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "sse": [
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      ": keep-alive",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"reasoning_content\": \"Use a\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"reasoning_content\": \" short greeting.\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"Hel\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"lo.\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+      "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {}, \"finish_reason\": \"future_finish\", \"logprobs\": null}], \"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 6, \"total_tokens\": 16, \"prompt_cache_hit_tokens\": 4, \"prompt_cache_miss_tokens\": 6, \"prompt_tokens_details\": {\"cached_tokens\": 4}, \"completion_tokens_details\": {\"reasoning_tokens\": 2}}}",
+      "data: [DONE]"
+    ]
+  }
+}

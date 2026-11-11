@@ -16,7 +16,6 @@ import ocai.openai
 from ocai.chat.types import ChatRequest
 from ocai.convert import Catalog
 from ocai.convert.catalog import ENTRY_POINT_GROUP
-from ocai.convert.graph import ConversionError
 from ocai.core import ApiKey
 from ocai.core.identity import CHAT
 from ocai.core.profile import Support
@@ -38,7 +37,7 @@ def test_installed_fragment_preserves_vendor_provenance() -> None:
     assert len(catalog.nodes) == 3
     assert len(ocai.deepseek.FRAGMENT.edges) == 3
     assert len(ocai.deepseek.FRAGMENT.components) == 1
-    assert not ocai.deepseek.FRAGMENT.transducers
+    assert len(ocai.deepseek.FRAGMENT.transducers) == 1
 
 
 def test_composition_lock_is_deterministic_and_does_not_inherit_profiles() -> None:
@@ -63,17 +62,17 @@ def test_composition_lock_is_deterministic_and_does_not_inherit_profiles() -> No
 
 @pytest.mark.parametrize("model", descriptor.MODEL_IDS)
 @pytest.mark.parametrize("tag", [None, descriptor.TAG])
-def test_unqualified_streaming_cannot_reach_provider_io(model: str, tag: str | None) -> None:
+def test_streaming_preparation_is_pure(model: str, tag: str | None) -> None:
     catalog = Catalog.of(ocai.openai.FRAGMENT, ocai.deepseek.FRAGMENT)
     with respx.mock as router:
-        with pytest.raises(ConversionError, match="no stream conversion path"):
-            ocai.chat.model(
-                "deepseek/" + model,
-                interface="chat_completions",
-                tag=tag,
-                credentials=ApiKey("sk-test"),
-                catalog=catalog,
-            ).prepare(ChatRequest(messages=[]), streaming=True)
+        prepared = ocai.chat.model(
+            "deepseek/" + model,
+            interface="chat_completions",
+            tag=tag,
+            credentials=ApiKey("sk-test"),
+            catalog=catalog,
+        ).prepare(ChatRequest(messages=[]), streaming=True)
+        assert prepared.inspection.response_path.edges
         assert not router.calls
 
 

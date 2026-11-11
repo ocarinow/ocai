@@ -1,0 +1,288 @@
+{
+  "description": "WU-46 tools: synthetic documented-wire SSE, mandatory final-choice usage, reasoning, response identity, tools and keepalive. Paired HTTP archive deepseek_chat_stream_tools_paired.json. Expectations are hand-authored from the wire contract, not codec snapshots.",
+  "node": {
+    "provider": "deepseek",
+    "interface": "chat_completions",
+    "tag": "2026-11",
+    "shape": "chat.chunk"
+  },
+  "wire_events": [
+    "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+    ": keep-alive",
+    "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"reasoning_content\": \"Check\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+    "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"reasoning_content\": \" the record.\"}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+    "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call_synthetic\", \"type\": \"function\", \"function\": {\"name\": \"lookup\", \"arguments\": \"{\"}}]}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+    "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"}\"}}]}, \"finish_reason\": null, \"logprobs\": null}], \"usage\": null}",
+    "data: {\"id\": \"completion-synthetic\", \"object\": \"chat.completion.chunk\", \"created\": 1794355200, \"model\": \"deepseek-flash\", \"system_fingerprint\": \"fp-synthetic\", \"choices\": [{\"index\": 0, \"delta\": {}, \"finish_reason\": \"tool_calls\", \"logprobs\": null}], \"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 6, \"total_tokens\": 16, \"prompt_cache_hit_tokens\": 4, \"prompt_cache_miss_tokens\": 6, \"prompt_tokens_details\": {\"cached_tokens\": 4}, \"completion_tokens_details\": {\"reasoning_tokens\": 2}}}",
+    "data: [DONE]"
+  ],
+  "chunks": [
+    {
+      "version": "2026-07",
+      "type": "streamStart",
+      "seq": 0
+    },
+    {
+      "version": "2026-07",
+      "type": "metadata",
+      "info": {
+        "version": "2026-07",
+        "id": {
+          "provider": "deepseek",
+          "interface": "chat_completions",
+          "kind": "response_id",
+          "id": "completion-synthetic",
+          "replay": "optional"
+        },
+        "model": "deepseek-flash",
+        "created": "2026-11-11T00:00:00+00:00",
+        "extensions": {
+          "deepseek.system_fingerprint": "fp-synthetic"
+        }
+      },
+      "seq": 1
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "index": 0,
+      "part": {
+        "version": "2026-07",
+        "type": "reasoning",
+        "text": ""
+      },
+      "seq": 2
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "reasoning",
+        "text": "Check"
+      },
+      "seq": 3
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 0,
+      "delta": {
+        "version": "2026-07",
+        "type": "reasoning",
+        "text": " the record."
+      },
+      "seq": 4
+    },
+    {
+      "version": "2026-07",
+      "type": "partStart",
+      "index": 2,
+      "part": {
+        "version": "2026-07",
+        "type": "tool_call",
+        "call_id": "call_synthetic",
+        "name": "lookup",
+        "args_json": "",
+        "status": "input_streaming",
+        "executed_by": "client"
+      },
+      "seq": 5
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 2,
+      "delta": {
+        "version": "2026-07",
+        "type": "tool_args",
+        "fragment": "{"
+      },
+      "seq": 6
+    },
+    {
+      "version": "2026-07",
+      "type": "partDelta",
+      "index": 2,
+      "delta": {
+        "version": "2026-07",
+        "type": "tool_args",
+        "fragment": "}"
+      },
+      "seq": 7
+    },
+    {
+      "version": "2026-07",
+      "type": "finish",
+      "finish": {
+        "version": "2026-07",
+        "reason": "tool_call",
+        "native": "tool_calls"
+      },
+      "seq": 8
+    },
+    {
+      "version": "2026-07",
+      "type": "usage",
+      "usage": {
+        "version": "2026-07",
+        "consumptions": [
+          {
+            "value": 6,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "input"
+          },
+          {
+            "value": 4,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "output"
+          },
+          {
+            "value": 4,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "cached"
+          },
+          {
+            "value": 2,
+            "modality": "text",
+            "unit": "tokens",
+            "source": "reasoning"
+          }
+        ]
+      },
+      "usage_cumulative": true,
+      "seq": 9
+    },
+    {
+      "version": "2026-07",
+      "type": "partStop",
+      "index": 2,
+      "seq": 10
+    },
+    {
+      "version": "2026-07",
+      "type": "streamStop",
+      "end": {
+        "version": "2026-07",
+        "usage": {
+          "version": "2026-07",
+          "consumptions": [
+            {
+              "value": 6,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "input"
+            },
+            {
+              "value": 4,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "output"
+            },
+            {
+              "value": 4,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "cached"
+            },
+            {
+              "value": 2,
+              "modality": "text",
+              "unit": "tokens",
+              "source": "reasoning"
+            }
+          ]
+        },
+        "finish": {
+          "version": "2026-07",
+          "reason": "tool_call",
+          "native": "tool_calls"
+        }
+      },
+      "seq": 11
+    }
+  ],
+  "response": {
+    "version": "2026-07",
+    "message": {
+      "version": "2026-07",
+      "role": "model",
+      "parts": [
+        {
+          "version": "2026-07",
+          "type": "reasoning",
+          "text": "Check the record."
+        },
+        {
+          "version": "2026-07",
+          "type": "tool_call",
+          "call_id": "call_synthetic",
+          "name": "lookup",
+          "args_json": "{}",
+          "status": "input_complete",
+          "executed_by": "client"
+        }
+      ]
+    },
+    "finish": {
+      "version": "2026-07",
+      "reason": "tool_call",
+      "native": "tool_calls"
+    },
+    "usage": {
+      "version": "2026-07",
+      "consumptions": [
+        {
+          "value": 6,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "input"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "output"
+        },
+        {
+          "value": 4,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "cached"
+        },
+        {
+          "value": 2,
+          "modality": "text",
+          "unit": "tokens",
+          "source": "reasoning"
+        }
+      ]
+    },
+    "info": {
+      "version": "2026-07",
+      "id": {
+        "provider": "deepseek",
+        "interface": "chat_completions",
+        "kind": "response_id",
+        "id": "completion-synthetic",
+        "replay": "optional"
+      },
+      "model": "deepseek-flash",
+      "created": "2026-11-11T00:00:00+00:00",
+      "extensions": {
+        "deepseek.system_fingerprint": "fp-synthetic"
+      }
+    }
+  },
+  "expect_losses": [
+    {
+      "path": "system_fingerprint",
+      "disposition": "extensions"
+    }
+  ],
+  "expect_shifts": []
+}
