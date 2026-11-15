@@ -2,8 +2,7 @@
 
 Every work unit (WU) is one entry in a plan file under `docs/plans/`, written
 with the `wu-define` skill and reviewed in a PR. The entry is the definition:
-what is written here is what the maintainer reads, and the PR body is
-pre-filled from it by `task pr:body`. One heading, one `Done`, bullets in this order.
+what is written here is what the maintainer reads. One heading, one `Done`, bullets in this order.
 
 Two kinds of bullet:
 
@@ -92,15 +91,7 @@ A filled example that passes the check is
 - **Owner:** Codex | Claude | maintainer | unassigned
 ```
 
-## How the PR body is built
-
-`task pr:body -- WU-NN` fills `.github/PULL_REQUEST_TEMPLATE.md` from the
-entry: **Why** from Context and Goal, **What did not change** from Non-goals,
-**Design** from Design sketch, **Before / after** and **Try it** from the
-matching bullets, **Evidence** from Acceptance (one checkbox per item), the
-**Contracts** architecture sections from Architecture. The implementer edits
-the result; the generator saves the retyping, it does not replace the
-thinking.
+## Size
 
 Size rule (`wu-define` §4): two outcomes, two capabilities, or more than
 about 40 non-mechanical files means two WUs.

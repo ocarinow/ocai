@@ -35,10 +35,10 @@ or introduced by the PR.
 
 ## 3. Hygiene first, then the entry
 
-`task pr:check -- NN` runs `scripts/pr_check.py`: a non-compliant body
-(missing sections, unchecked boxes while ready, placeholders, no gate
-output, missing `Stacked on #N`) is a finding on its own and the review
-stops there until the author fixes it.
+`uv run python scripts/pr_check.py --pr NN` checks the body: a missing
+mandatory section (Goal, How, Impact), an empty section, a leftover
+placeholder or a missing `Stacked on #N` is a finding on its own, and the
+review stops there until the author fixes it.
 
 
 - The PR title starts with the WU id (`WU-NN: …`); that is how the PR
