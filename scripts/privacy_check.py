@@ -1,10 +1,12 @@
-"""Privacy guard: nothing that leaves this machine may carry session or tool metadata.
+"""Privacy guard: nothing that leaves this machine may carry session, tool or personal data.
 
 The repository is public. This script fails when a commit message, a PR
 title or body, or a tracked file contains an AI coding-session link, an AI
-attribution footer or trailer, an agent/task identifier, or a path under a
-user's home directory. It is one step of `scripts/check.py`, a required CI
-job on every pull request, and runnable by hand::
+attribution footer or trailer, an agent/task identifier, a path under a
+user's home directory, or an email address that could identify a person. It
+also fails when a commit's author or committer identity carries such an
+address. It is one step of `scripts/check.py`, a required CI job on every
+pull request, and runnable by hand::
 
     uv run python scripts/privacy_check.py                 # commits ahead of origin/main + files
     uv run python scripts/privacy_check.py --range A..B    # explicit commit range
@@ -62,6 +64,53 @@ TEXT_FILE_SUFFIXES = {
     ".ini",
     ".sh",
 }
+
+# An email address is personal data. Only addresses that identify nobody may be
+# published: GitHub's own addresses (which include the per-account no-reply
+# form used for commits) and the domains reserved for documentation and tests
+# (RFC 2606, RFC 6761). A real project contact address is added to
+# PUBLIC_EMAIL_DOMAINS deliberately, in a reviewed change.
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})\b")
+PUBLIC_EMAIL_DOMAINS = ("github.com", "example.com", "example.org", "example.net")
+RESERVED_EMAIL_TLDS = ("test", "invalid", "example", "localhost")
+
+
+def is_public_email_domain(domain: str) -> bool:
+    """Whether an address at this domain identifies nobody.
+
+    Args:
+        domain: The part of an address after the `@`.
+
+    Returns:
+        True for GitHub addresses and for reserved documentation or test domains.
+    """
+    lowered = domain.lower()
+    if lowered.rsplit(".", 1)[-1] in RESERVED_EMAIL_TLDS:
+        return True
+    return any(lowered == known or lowered.endswith(f".{known}") for known in PUBLIC_EMAIL_DOMAINS)
+
+
+def email_findings(text: str, where: str) -> list[str]:
+    """Return one finding line per email address that could identify a person.
+
+    The address is masked in the finding: a CI log is as public as the leak.
+
+    Args:
+        text: The text to scan.
+        where: Human-readable location for the report.
+
+    Returns:
+        Finding lines, empty when clean.
+    """
+    findings: list[str] = []
+    for match in EMAIL_RE.finditer(text):
+        domain = match.group(1)
+        if is_public_email_domain(domain):
+            continue
+        line_no = text.count("\n", 0, match.start()) + 1
+        masked = f"{match.group(0)[0]}…@{domain.lower()}"
+        findings.append(f"{where}:{line_no}: personal email address: {masked!r}")
+    return findings
 
 
 def _git(*args: str) -> str:
@@ -132,21 +181,25 @@ def main(argv: list[str] | None = None) -> int:
         for sha in shas:
             message = _git("show", "-s", "--format=%B", sha)
             findings += _scan(message, MESSAGE_PATTERNS, f"commit {sha[:10]}")
-        print(f"scanned {len(shas)} commit message(s) in {rng}")
+            findings += email_findings(message, f"commit {sha[:10]}")
+            identity = _git("show", "-s", "--format=%ae%n%ce", sha)
+            findings += email_findings(identity, f"commit {sha[:10]} author/committer")
+        print(f"scanned {len(shas)} commit message(s) and identities in {rng}")
     else:
         print("no origin/main; commit messages not scanned")
 
     for path in args.text:
-        findings += _scan(
-            Path(path).read_text(encoding="utf-8", errors="replace"), MESSAGE_PATTERNS, path
-        )
+        posted = Path(path).read_text(encoding="utf-8", errors="replace")
+        findings += _scan(posted, MESSAGE_PATTERNS, path)
+        findings += email_findings(posted, path)
         print(f"scanned text {path}")
 
     if not args.no_files:
         files = [
             f
             for f in _git("ls-files", "--cached", "--others", "--exclude-standard").split("\n")
-            if f and Path(f).suffix in TEXT_FILE_SUFFIXES
+            # Files without a suffix are text too (`.mailmap`, `LICENSE`, git hooks).
+            if f and (Path(f).suffix in TEXT_FILE_SUFFIXES or not Path(f).suffix)
         ]
         for rel in files:
             if rel == "scripts/privacy_check.py":
@@ -156,12 +209,13 @@ def main(argv: list[str] | None = None) -> int:
             except OSError:
                 continue
             findings += _scan(text, FILE_PATTERNS, rel)
+            findings += email_findings(text, rel)
         print(f"scanned {len(files)} tracked text file(s)")
 
     if findings:
         print(
             "\nPRIVACY LEAK — remove before publishing "
-            "(AGENTS.md: never publish session or tool metadata):"
+            "(AGENTS.md: never publish session, tool or personal data):"
         )
         for f in findings:
             print("  " + f)
