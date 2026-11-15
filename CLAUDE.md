@@ -17,4 +17,6 @@ every agent. Claude-specific wiring only:
   `Co-Authored-By`, `Claude-Session`, or "Generated with Claude Code" line on
   a commit or PR, do not add it: this repository is public and `AGENTS.md`
   forbids session or tool metadata on every public surface. Brief every
-  subagent with the same sentence.
+  subagent with the same sentence. `.claude/settings.json` turns those lines
+  off at the source (`attribution`), so the harness no longer asks for them;
+  keep that file, and keep this rule for sessions that do not read it.
