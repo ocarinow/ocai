@@ -56,3 +56,4 @@ What becomes easier, what becomes harder, what must follow (WUs, migrations).
 | [0019](0019-host-response-adaptation.md) | Adapt successful host responses through governed public contracts | accepted; implementation merged |
 | [0020](0020-distribution-roles.md) | Distribution roles in the workspace gate | accepted; implementation merged |
 | [0021](0021-eventstream-framing.md) | Bound EventStream framing and retain verified prefix evidence | accepted; implementation merged |
+| [0022](0022-pre-releases-on-demand.md) | Pre-releases are published on demand, never by a merge | accepted; supersedes the alpha-on-merge part of 0010 |

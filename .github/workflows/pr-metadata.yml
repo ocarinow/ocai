@@ -1,9 +1,9 @@
 name: PR metadata
 
+# The text of a pull request (title, body, commit messages and identities) is
+# checked on every pull request event, including an edit of the title or the
+# body. Code checks live in ci.yml and are not replayed by an edit.
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "41 4 * * *"
   pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
@@ -89,3 +89,21 @@ jobs:
             python3 scripts/privacy_check.py --range "HEAD~1..HEAD"
           fi
 
+  # The one required check for the text of a pull request. It always runs and
+  # fails when either job above failed or was cancelled.
+  pr:
+    name: pr
+    needs: [pr-hygiene, privacy]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job that ran succeeded
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
+            echo "::error::a job failed or was cancelled"
+            exit 1
+          fi

@@ -4,8 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  # No `edited`: changing a title or a body neither replays nor replaces the code
+  # results of a commit. pr-metadata.yml re-checks the text.
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, synchronize, reopened]
   # Nightly full run on main: catches drift in pinned images, package indexes
   # and advisories that no commit triggered.
   schedule:
@@ -16,19 +18,42 @@ on:
 permissions:
   contents: read
 
-# Metadata edits use a separate concurrency group so they cannot cancel code runs.
-# Every event reports the stable required job names. Base edits rerun all suites.
-# New code cancels obsolete PR code runs; main and full runs are never cancelled.
+# New code cancels the obsolete run of the same pull request; main and full
+# runs are never cancelled.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null && 'metadata' || 'code' }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The kernel gate on every supported interpreter. `python` (3.13) and
-  # `python-next` (3.14) are both required checks; the names stay fixed so the
-  # ruleset does not change when a version rolls.
+  # Decides once which suites this change must run (scripts/ci_scope.py). A
+  # suite that is not affected never starts. If this job fails, its outputs are
+  # empty and every suite runs: the conditions below test for `'false'`, so
+  # uncertainty means more validation, never less.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.scope.outputs.python }}
+      platform: ${{ steps.scope.outputs.platform }}
+      docs: ${{ steps.scope.outputs.docs }}
+      workflows: ${{ steps.scope.outputs.workflows }}
+      semgrep: ${{ steps.scope.outputs.semgrep }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select affected suites
+        id: scope
+        run: python3 scripts/ci_scope.py
+
+  # The kernel on every supported interpreter. The checks are the git hooks
+  # (.pre-commit-config.yaml), so a contributor and CI run one definition.
   python:
     name: ${{ matrix.name }}
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.python != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -37,149 +62,95 @@ jobs:
         include:
           - { name: python, python: "3.13" }
           - { name: python-next, python: "3.14" }
+    env:
+      UV_PYTHON: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
-
-      # Cheap path filter: decide whether the rest of the job should run.
-      - name: Select affected checks
-        id: go
-        run: python3 scripts/ci_scope.py --suite python
 
       - name: Install uv
-        if: steps.go.outputs.run == 'true'
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
       - name: Set up Python
-        if: steps.go.outputs.run == 'true'
-        env:
-          PY: ${{ matrix.python }}
-        run: uv python install "$PY"
+        run: uv python install "$UV_PYTHON"
 
       # --locked: a lockfile that no longer matches pyproject.toml is a failure,
       # never a silent re-resolution on the runner.
       - name: Sync workspace
-        if: steps.go.outputs.run == 'true'
+        run: uv sync --locked
+
+      # Privacy on files, lint, format, lockfile, import contracts, workspace
+      # consistency, strict types, plan entries. The workflow audit has its own
+      # job below.
+      - name: Commit hooks
         env:
-          PY: ${{ matrix.python }}
-        run: uv sync --locked --python "$PY"
+          SKIP: workflows
+        run: uv run pre-commit run --all-files
 
-      - name: Verify lockfile
-        if: steps.go.outputs.run == 'true'
-        run: uv lock --check
-
-      # Every distribution under python/packages must be wired into knope,
-      # uv sources, mypy, import-linter, and the core extras (rules 1, 16, 19).
-      - name: Plan entries
-        if: steps.go.outputs.run == 'true'
-        run: uv run python scripts/plan_entries.py lint
-
-      - name: Workspace consistency
-        if: steps.go.outputs.run == 'true'
-        run: uv run python scripts/workspace_check.py
-
-      - name: Ruff
-        if: steps.go.outputs.run == 'true'
-        run: uv run ruff check
-
-      - name: Ruff format
-        if: steps.go.outputs.run == 'true'
-        run: uv run ruff format --check
-
-      # Architecture §1 made executable: the layered + forbidden import
-      # contracts in the root pyproject [tool.importlinter].
-      - name: Import contracts
-        if: steps.go.outputs.run == 'true'
-        run: uv run lint-imports
-
-      # Rule 16 for the IDE: pyright strict is what Pylance shows users —
-      # nothing may resolve to Unknown. mypy strict is the second opinion.
-      - name: Pyright (strict)
-        if: steps.go.outputs.run == 'true'
-        run: uv run pyright
-
-      - name: Mypy (strict)
-        if: steps.go.outputs.run == 'true'
-        run: uv run mypy
-
-      # Coverage is informational (no threshold yet).
-      - name: Pytest
-        if: steps.go.outputs.run == 'true'
-        run: uv run pytest --cov --cov-report=term-missing
+      # Tests. The change-file policy and the privacy guard on commits need the
+      # pull request's real base and text: pr-metadata.yml runs them.
+      - name: Push hooks
+        env:
+          SKIP: change-files,privacy-commits
+        run: uv run pre-commit run --all-files --hook-stage pre-push
 
       # What ships: every wheel built and opened (no namespace-root __init__,
       # py.typed per portion, license and URLs in METADATA).
       - name: Wheels
-        if: steps.go.outputs.run == 'true'
         run: uv run python scripts/wheel_check.py
 
       # Build/install ordinary wheels in a fresh environment: source-path
       # injection would miss broken namespace packaging and entry points.
       - name: Independently installed community plugin
-        if: steps.go.outputs.run == 'true'
-        env:
-          PY: ${{ matrix.python }}
         run: >-
-          uv run --no-cache --isolated --no-project --python "$PY"
+          uv run --no-cache --isolated --no-project --python "$UV_PYTHON"
           --with ./python/packages/ocai-core
           --with ./examples/ocai-contrib-echo --with pytest --with jsonschema
           python -m pytest -c /dev/null --rootdir examples/ocai-contrib-echo --import-mode=importlib
           examples/ocai-contrib-echo/tests -q
 
-  # The platform gate provisions PostgreSQL, Keycloak and OpenFGA from pinned
-  # digests and drives the built console with Playwright. Required on main, so
-  # it always reports; it only does the work when the platform tree changed.
+  # Provisions PostgreSQL, Keycloak and OpenFGA from pinned digests and drives
+  # the built console with Playwright.
   platform:
     name: platform
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.platform != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Select affected checks
-        id: go
-        run: python3 scripts/ci_scope.py --suite platform
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.go.outputs.run == 'true'
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: platform/package-lock.json
 
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        if: steps.go.outputs.run == 'true'
         with:
           enable-cache: true
           cache-dependency-glob: platform/services/gateway/uv.lock
 
-      - if: steps.go.outputs.run == 'true'
-        run: uv python install 3.13
+      - run: uv python install 3.13
 
-      - if: steps.go.outputs.run == 'true'
-        run: uv sync --project platform/services/gateway --frozen
+      - run: uv sync --project platform/services/gateway --frozen
 
       # Missing Docker must fail the integration job, never silently skip integration.
       - name: Verify Docker for platform integration
-        if: steps.go.outputs.run == 'true'
         run: docker info --format '{{.ServerVersion}}'
 
-      - if: steps.go.outputs.run == 'true'
-        run: npm ci
+      - run: npm ci
         working-directory: platform
 
       # Browser binaries are keyed on the lockfile (which pins @playwright/test);
       # a hit skips the download and only installs the OS packages it needs.
       - name: Cache Playwright browsers
-        if: steps.go.outputs.run == 'true'
         id: playwright
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -187,44 +158,55 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('platform/package-lock.json') }}
 
       - name: Install Playwright Chromium
-        if: steps.go.outputs.run == 'true' && steps.playwright.outputs.cache-hit != 'true'
+        if: steps.playwright.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
         working-directory: platform
 
       - name: Install Playwright system dependencies (browsers cached)
-        if: steps.go.outputs.run == 'true' && steps.playwright.outputs.cache-hit == 'true'
+        if: steps.playwright.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
         working-directory: platform
 
-      - if: steps.go.outputs.run == 'true'
-        run: uv run --project platform/services/gateway python scripts/check_platform.py
+      - run: uv run --project platform/services/gateway python scripts/check_platform.py
 
-  # The workflows themselves: zizmor (security audit of GitHub Actions
-  # workflows) and actionlint (syntax, expressions, shellcheck). Both open
-  # source, keyless, pinned.
-  workflows:
-    name: workflows
+  # The published site builds without a warning. docs.yml deploys it from main.
+  docs:
+    name: docs
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.docs != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
-      - name: Select affected checks
-        id: go
-        run: python3 scripts/ci_scope.py --suite workflows
-      - if: steps.go.outputs.run == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv python install 3.13
+      - run: uv sync --locked --group docs
+      - name: Build site
+        run: uv run python scripts/docs_check.py
+
+  # The workflows themselves: zizmor (security audit of GitHub Actions
+  # workflows) and actionlint (syntax, expressions, shellcheck). Both open
+  # source, keyless, pinned.
+  workflows:
+    name: workflows
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.workflows != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
-      - if: steps.go.outputs.run == 'true'
-        name: zizmor
+      - name: zizmor
         env:
           GH_TOKEN: ${{ github.token }}
         run: uvx --from zizmor==1.32.0 zizmor --no-progress --persona regular .github/workflows
-      - if: steps.go.outputs.run == 'true'
-        name: actionlint
+      - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color # 1.7.12
 
   # Static analysis with Semgrep Community Edition (LGPL, no account, no key):
@@ -232,22 +214,18 @@ jobs:
   # Suppressions are inline `# nosemgrep` with a reason on the line above.
   semgrep:
     name: semgrep
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.semgrep != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
-      - name: Select affected checks
-        id: go
-        run: python3 scripts/ci_scope.py --suite semgrep
-      - if: steps.go.outputs.run == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
-      - if: steps.go.outputs.run == 'true'
-        name: Semgrep CE
+      - name: Semgrep CE
         run: >-
           uvx semgrep==1.185.0 scan --metrics=off --error
           --config p/python --config p/typescript --config p/github-actions
@@ -291,34 +269,22 @@ jobs:
       - run: npm audit --audit-level=high
         working-directory: platform
 
-  typescript:
-    name: typescript
+  # The one required check for code. It always runs and fails when any job
+  # above failed or was cancelled. A job that was skipped because its suite is
+  # not affected does not fail it.
+  ci:
+    name: ci
+    needs: [changes, python, platform, docs, workflows, semgrep, dependency-review, audit]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Select affected checks
-        id: go
-        run: python3 scripts/ci_scope.py --suite typescript
-      - name: Not yet implemented
-        if: steps.go.outputs.run == 'true'
-        run: echo "typescript implementation not yet implemented (scaffold mirrors spec/)"
-
-  go:
-    name: go
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Select affected checks
-        id: go
-        run: python3 scripts/ci_scope.py --suite go
-      - name: Not yet implemented
-        if: steps.go.outputs.run == 'true'
-        run: echo "go implementation not yet implemented (scaffold mirrors spec/)"
+      - name: Every job that ran succeeded
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
+            echo "::error::a job failed or was cancelled"
+            exit 1
+          fi

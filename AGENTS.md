@@ -257,8 +257,9 @@ first. A new task needs a one-line `desc`.
     `pr-hygiene` refuses the PR otherwise. Versions are bumped only by knope
     (`knope.toml`) in the release workflows, never by hand; each package has
     its own version and tag `<name>/v<version>`; every merge to `main`
-    publishes an alpha and refreshes the standing Release PR; merging that
-    PR is the stable release (ADR 0010, `docs/development/releasing.md`). Only change
+    refreshes the standing Release PR and publishes nothing; merging that PR
+    is the stable release; an alpha or a release candidate is published only
+    on demand (ADR 0010, ADR 0022, `docs/development/releasing.md`). Only change
     files may live in `.changeset/`: knope parses every `.md` there.
 
 ## How to work a session

@@ -1,182 +1,113 @@
-"""Exercise the actual workflow expressions against representative webhook events.
-
-A deliberately small interpreter supports only the expression syntax used here;
-unsupported syntax fails the test rather than silently inventing Actions behavior.
-"""
+"""The workflows keep one decision, one required check per concern, and no masked failure."""
 
 from __future__ import annotations
 
-import ast
 import re
 from pathlib import Path
-from typing import Any
-from typing import cast
 
 import pytest
+from ci_rules import REQUIRED
+from ci_scope import PATHS
 
-ROOT = Path(__file__).resolve().parents[2]
-
-
-def expression(source: str, context: dict[str, Any]) -> Any:
-    text = source.removeprefix("${{").removesuffix("}}").strip()
-    text = text.replace("&&", " and ").replace("||", " or ")
-
-    def visit(node: ast.AST) -> Any:
-        if isinstance(node, ast.Constant):
-            return node.value
-        if isinstance(node, ast.Name):
-            return context.get(node.id)
-        if isinstance(node, ast.Attribute):
-            parent = visit(node.value)
-            return (
-                cast("dict[str, Any]", parent).get(node.attr) if isinstance(parent, dict) else None
-            )
-        if isinstance(node, ast.BoolOp):
-            values = [visit(value) for value in node.values]
-            if isinstance(node.op, ast.And):
-                return next((value for value in values if not value), values[-1])
-            return next((value for value in values if value), values[-1])
-        if isinstance(node, ast.Compare) and len(node.ops) == 1:
-            left, right = visit(node.left), visit(node.comparators[0])
-            if isinstance(node.ops[0], ast.Eq):
-                return left == right
-            if isinstance(node.ops[0], ast.NotEq):
-                return left != right
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "format"
-        ):
-            template = str(visit(node.args[0]))
-            return template.format(*(visit(arg) for arg in node.args[1:]))
-        raise AssertionError(f"Unsupported workflow expression: {ast.dump(node)}")
-
-    return visit(ast.parse(text, mode="eval").body)
+WORKFLOWS = Path(__file__).resolve().parents[2] / ".github/workflows"
+SUITE_JOBS = ("python", "platform", "docs", "workflows", "semgrep")
 
 
-def workflow_job(workflow: str, job: str) -> str:
-    text = (ROOT / ".github/workflows" / workflow).read_text()
-    body = text.split(f"\n  {job}:\n", 1)[1]
-    return re.split(r"\n  [\w-]+:\n", body, maxsplit=1)[0]
+def workflow(name: str) -> str:
+    return (WORKFLOWS / name).read_text()
 
 
-def value(block: str, key: str) -> str:
+def jobs(name: str) -> dict[str, str]:
+    """Each job key of a workflow mapped to the text of its definition."""
+    body = workflow(name).split("\njobs:\n", 1)[1]
+    keys = re.findall(r"^  ([\w-]+):\n", body, re.MULTILINE)
+    parts = re.split(r"^  [\w-]+:\n", body, flags=re.MULTILINE)[1:]
+    return dict(zip(keys, parts, strict=True))
+
+
+def field(block: str, key: str) -> str:
     match = re.search(rf"^    {key}: (.+)$", block, re.MULTILINE)
-    assert match
+    assert match, key
     return match[1]
 
 
-@pytest.mark.parametrize("action", ["opened", "synchronize", "reopened", "edited"])
-def test_every_pr_event_materializes_stable_required_jobs(action: str) -> None:
-    # A skipped reusable caller leaves its required leaf checks pending. Keep
-    # required jobs directly in the event workflow and decide scope in steps.
-    for workflow, jobs in [
-        ("ci.yml", ["python", "platform", "workflows", "semgrep", "dependency-review"]),
-        ("docs.yml", ["docs"]),
-    ]:
-        text = (ROOT / ".github/workflows" / workflow).read_text()
-        types = re.search(r"types: \[(.+)\]", text)
-        assert types and action in types[1]
-        for job in jobs:
-            block = workflow_job(workflow, job)
-            assert "runs-on:" in block
-            assert "uses: ./.github/workflows/" not in block
-            if job != "dependency-review":
-                assert re.search(r"^    if:", block, re.MULTILINE) is None
+def triggers(name: str) -> set[str]:
+    head = workflow(name).split("\njobs:\n", 1)[0]
+    return set(re.findall(r"^  (\w+):", head.split("\non:\n", 1)[1], re.MULTILINE)) - {
+        "contents",
+        "group",
+    }
 
 
-def test_ready_events_only_run_metadata_and_board() -> None:
-    for workflow in ["ci.yml", "docs.yml"]:
-        text = (ROOT / ".github/workflows" / workflow).read_text()
-        types = re.search(r"types: \[(.+)\]", text)
-        assert types
-        assert "ready_for_review" not in types[1]
-        assert "converted_to_draft" not in types[1]
-    metadata = (ROOT / ".github/workflows/pr-metadata.yml").read_text()
-    assert "ready_for_review, converted_to_draft" in metadata
-    assert "group: pr-metadata-" in metadata
-    assert "ci_scope.py" not in metadata
+def test_suites_are_selected_once_and_every_suite_reads_that_decision() -> None:
+    assert set(SUITE_JOBS) == set(PATHS)
+    assert workflow("ci.yml").count("scripts/ci_scope.py") == 2  # one comment, one command
+    changes = jobs("ci.yml")["changes"]
+    assert "fetch-depth: 0" in changes
+    for suite in SUITE_JOBS:
+        assert f"      {suite}: ${{{{ steps.scope.outputs.{suite} }}}}" in changes
+        block = jobs("ci.yml")[suite]
+        assert field(block, "needs") == "changes"
+        # `!= 'false'`: a failed or empty selection runs the suite.
+        assert field(block, "if") == (
+            f"${{{{ !cancelled() && needs.changes.outputs.{suite} != 'false' }}}}"
+        )
 
 
-def test_required_code_jobs_fail_if_selector_fails() -> None:
-    # The selector is an ordinary failing step, never continue-on-error, and
-    # precedes heavy work. There is no final success job masking a dependency failure.
-    for workflow, jobs in [
-        ("ci.yml", ["python", "platform", "workflows", "semgrep"]),
-        ("docs.yml", ["docs"]),
-    ]:
-        for job in jobs:
-            block = workflow_job(workflow, job)
-            assert "continue-on-error" not in block
-            assert f"scripts/ci_scope.py --suite {job}" in block
-            assert "fetch-depth: 0" in block
-            assert (
-                "steps.go.outputs.run == 'true'" in block
-                or "steps.changes.outputs.run == 'true'" in block
-            )
+@pytest.mark.parametrize(
+    ("name", "check", "covered"),
+    [
+        ("ci.yml", "ci", None),
+        ("pr-metadata.yml", "pr", {"pr-hygiene", "privacy"}),
+    ],
+)
+def test_one_required_check_per_workflow_sees_every_job(
+    name: str, check: str, covered: set[str] | None
+) -> None:
+    blocks = jobs(name)
+    aggregate = blocks[check]
+    needs = set(re.findall(r"[\w-]+", field(aggregate, "needs")))
+
+    assert needs == (covered if covered is not None else set(blocks) - {check})
+    assert field(aggregate, "name") == check
+    assert "always()" in field(aggregate, "if")
+    assert "toJSON(needs.*.result)" in aggregate
+    assert "(failure|cancelled)" in aggregate
+    assert REQUIRED == ("ci", "pr")
 
 
-def test_push_schedule_dispatch_preserve_code_checks() -> None:
-    for workflow in ["ci.yml", "docs.yml"]:
-        text = (ROOT / ".github/workflows" / workflow).read_text()
-        for event in ["push", "schedule", "workflow_dispatch"]:
-            assert f"  {event}:" in text
+def test_no_job_tolerates_a_failure() -> None:
+    for name in ("ci.yml", "pr-metadata.yml", "docs.yml"):
+        assert "continue-on-error" not in workflow(name)
 
 
-def test_nightly_docs_does_not_supersede_pages_and_manual_deploy_remains() -> None:
-    text = (ROOT / ".github/workflows/docs.yml").read_text()
-    group = re.search(r"^  group: (.+)$", text, re.MULTILINE)
-    assert group
-    for event, expected in [
-        ("schedule", "docs-full-7"),
-        ("push", "pages"),
-        ("workflow_dispatch", "pages"),
-    ]:
-        context: dict[str, Any] = {
-            "github": {"event_name": event, "event": {}, "run_id": 7},
-            "needs": {"docs": {"outputs": {"pages_enabled": "true"}}},
-        }
-        assert expression(group[1], context) == expected
-        condition = value(workflow_job("docs.yml", "deploy"), "if")
-        assert bool(expression(condition, context)) == (event != "schedule")
+def test_editing_pull_request_text_rechecks_the_text_but_never_the_code() -> None:
+    code = re.search(r"pull_request:\n    types: \[(.+)\]", workflow("ci.yml"))
+    text = re.search(r"pull_request:\n    types: \[(.+)\]", workflow("pr-metadata.yml"))
+
+    assert code and text
+    assert "edited" not in code[1]
+    assert {"opened", "synchronize", "reopened"} <= set(code[1].split(", "))
+    assert {"edited", "ready_for_review", "converted_to_draft"} <= set(text[1].split(", "))
 
 
-def test_required_checks_have_readable_names_on_every_event() -> None:
-    for workflow, jobs in [
-        (
-            "ci.yml",
-            ["platform", "workflows", "semgrep", "dependency-review", "go", "typescript"],
-        ),
-        ("docs.yml", ["docs", "deploy"]),
-    ]:
-        text = (ROOT / ".github/workflows" / workflow).read_text()
-        assert "  workflow_call:" not in text
-        assert "  pull_request:" in text
-        for job in jobs:
-            assert value(workflow_job(workflow, job), "name") == job
-    python = workflow_job("ci.yml", "python")
-    assert value(python, "name") == "${{ matrix.name }}"
-    assert re.search(r"^    if:", python, re.MULTILINE) is None
-    for interpreter in ["python", "python-next"]:
-        assert expression(value(python, "name"), {"matrix": {"name": interpreter}}) == interpreter
+def test_full_runs_remain_and_nothing_is_published_by_a_merge() -> None:
+    assert {"push", "schedule", "workflow_dispatch", "pull_request"} == triggers("ci.yml")
+    assert {"push", "pull_request"} == triggers("pr-metadata.yml")
+    assert {"push", "workflow_dispatch"} == triggers("docs.yml")
+    assert {"workflow_dispatch"} == triggers("prerelease.yml")
+
+
+def test_job_names_are_the_plain_job_keys() -> None:
+    blocks = jobs("ci.yml")
+    for job in ("changes", "platform", "docs", "workflows", "semgrep", "dependency-review", "ci"):
+        assert field(blocks[job], "name") == job
+    assert field(blocks["python"], "name") == "${{ matrix.name }}"
+    assert re.findall(r"name: (python[\w-]*),", blocks["python"]) == ["python", "python-next"]
 
 
 def test_documentation_permissions_remain_scoped_to_deployment() -> None:
-    build = workflow_job("docs.yml", "docs")
-    assert "    permissions:\n      contents: read" in build
-    assert "pages: write" not in build and "id-token: write" not in build
-    deploy = workflow_job("docs.yml", "deploy")
-    assert "pages: write" in deploy and "id-token: write" in deploy
-
-
-def test_required_contexts_match_the_actual_job_names() -> None:
-    from ci_rules import REQUIRED
-
-    names = {"python", "python-next"}
-    for workflow, jobs in [
-        ("ci.yml", ["platform", "workflows", "semgrep", "dependency-review"]),
-        ("docs.yml", ["docs"]),
-        ("pr-metadata.yml", ["privacy", "pr-hygiene"]),
-    ]:
-        names.update(value(workflow_job(workflow, job), "name") for job in jobs)
-    assert set(REQUIRED) == names
+    blocks = jobs("docs.yml")
+    assert "    permissions:\n      contents: read" in blocks["docs"]
+    assert "pages: write" not in blocks["docs"] and "id-token: write" not in blocks["docs"]
+    assert "pages: write" in blocks["deploy"] and "id-token: write" in blocks["deploy"]

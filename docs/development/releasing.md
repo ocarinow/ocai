@@ -64,20 +64,20 @@ Rules:
   files per PR is fine. File names are free (`wu-41-server-tools.md`).
 
 Lifecycle: `task release:status` previews the next stable release;
-pre-releases (`alpha` on every merge to `main`, `rc` on demand) compute their version from
+pre-releases (`alpha` and `rc`, on demand only) compute their version from
 these files but keep them; the stable release PR consumes them.
 
 
 ## One branch, three kinds of release
 
-Every WU PR merges into `main`. Nothing is released by that merge except an
-alpha. The stable release is a PR like any other.
+Every PR merges into `main`. Nothing is published by that merge (ADR 0022).
+The stable release is a PR like any other.
 
 | Event | Workflow | What happens | Version |
 |---|---|---|---|
-| A PR merges into `main` and change files are pending | `prerelease.yml` | computes each affected package's target version from the change files, publishes an **alpha** with the CI run number, commits and tags nothing, keeps the change files | `0.2.0a123` |
-| Same push | `release-pr.yml` | runs `knope prepare-release`: bumps versions, writes `CHANGELOG.md`, consumes the change files, and opens or updates the standing **Release PR** (branch `release`) | the diff shows `0.2.0` |
-| Maintainer runs `task release:rc` | `prerelease.yml` (dispatch `kind=rc`) | same as the alpha with the `rc` label | `0.2.0rc124` |
+| A PR merges into `main` | `release-pr.yml` | runs `knope prepare-release`: bumps versions, writes `CHANGELOG.md`, consumes the change files, and opens or updates the standing **Release PR** (branch `release`) | the diff shows `0.2.0` |
+| Maintainer runs `task release:alpha` | `prerelease.yml` (dispatch `kind=alpha`) | computes each affected package's target version from the change files, publishes an **alpha** with the CI run number, commits and tags nothing, keeps the change files | `0.2.0a123` |
+| Maintainer runs `task release:rc` | `prerelease.yml` (dispatch `kind=rc`) | the same with the `rc` label | `0.2.0rc124` |
 | Maintainer merges the Release PR | `release.yml` | `knope release` tags `<name>/v<version>` and creates one GitHub Release per package from its changelog section; each released package is built and published to PyPI through trusted publishing | `0.2.0` |
 
 Only packages with pending change files appear in any of this. The Release
@@ -109,7 +109,7 @@ same visible behavior with nothing to reconcile (ADR 0010).
 | `task release:changeset` | write a change file interactively (`knope document-change`) |
 | `task release:check` | the policy check the `pr-hygiene` job runs |
 | `task release:status` | dry run of the next stable release |
-| `task release:rc` | publish a release candidate now (dispatches `prerelease.yml`) |
+| `task release:alpha`, `task release:rc` | publish an alpha or a release candidate now (dispatches `prerelease.yml`) |
 | `task release:preview:alpha`, `task release:preview:rc` | dry run of the next pre-release |
 | `task release:packages` | packages and current versions |
 
