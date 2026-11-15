@@ -58,8 +58,8 @@ In the milestone or program file under `docs/plans/`, following
 [`docs/plans/WU-TEMPLATE.md`](../../../docs/plans/WU-TEMPLATE.md) exactly —
 copy the filled example
 [`docs/plans/WU-EXAMPLE.md`](../../../docs/plans/WU-EXAMPLE.md) and replace
-its content. The PR body is generated from these bullets, so what you write
-here is what the maintainer reads and what the implementer starts from.
+its content. What you write here is what the maintainer reads and what the
+implementer starts from.
 `uv run python scripts/plan_entries.py lint` (a gate step) fails the entry when a mandatory
 bullet is missing, the Design sketch has no code block, Acceptance names no
 test path, or a Decision without an ADR has no Alternatives bullet. The

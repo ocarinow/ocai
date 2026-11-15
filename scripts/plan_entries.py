@@ -1,12 +1,10 @@
 """Plan entries: read and check the work-unit entries under `docs/plans/`.
 
 The plan table in `docs/plans/README.md` links each WU to its entry in a plan
-file. This script parses those entries, checks them against
-`docs/plans/WU-TEMPLATE.md`, and pre-fills a PR body from one::
+file. This script parses those entries and checks them against
+`docs/plans/WU-TEMPLATE.md`::
 
-    uv run python scripts/plan_entries.py lint                  # a gate step, offline
-    uv run python scripts/plan_entries.py entry WU-NN [--json]  # one entry's bullets
-    uv run python scripts/plan_entries.py pr-body WU-NN [--stacked-on N]
+    uv run python scripts/plan_entries.py lint   # a gate step, offline
 
 Nothing here talks to GitHub: the project board and its synchronization were
 removed, and the plan files are the only record of planned work.
@@ -15,7 +13,6 @@ removed, and the plan files are the only record of planned work.
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys
@@ -243,58 +240,6 @@ def lint_entry(row: PlanRow, entry: Entry | None) -> list[str]:
     return findings
 
 
-def _first(entry: Entry | None, name: str) -> str:
-    """First line of a bullet, stripped, or empty."""
-    if entry is None:
-        return ""
-    return entry.sections.get(name, "").split("\n")[0].strip("` ").strip()
-
-
-def _fill(body: str, heading: str, text: str) -> str:
-    """Replace the placeholder paragraph under `## heading` with `text` (no-op when empty)."""
-    if not text:
-        return body
-    marker = f"## {heading}\n"
-    start = body.find(marker)
-    if start < 0:
-        return body
-    start += len(marker)
-    end = body.find("\n## ", start)
-    end = len(body) if end < 0 else end
-    section = body[start:end]
-    lines = section.split("\n")
-    for i, ln in enumerate(lines):
-        s = ln.strip()
-        if s.startswith("<") and s.endswith(">"):
-            lines[i] = text
-            break
-    return body[:start] + "\n".join(lines) + body[end:]
-
-
-def _section(entry: Entry | None, name: str) -> str:
-    """Full text of a bullet (or the concatenation of its topics), or empty."""
-    if entry is None:
-        return ""
-    parts = [v for k, v in entry.sections.items() if k == name or k.startswith(name + " (")]
-    return "\n\n".join(p for p in parts if p.strip())
-
-
-def cmd_entry(args: argparse.Namespace) -> int:
-    """Print a WU entry's bullets (JSON with --json), for other scripts and for a quick look."""
-    rows = {r.wu: r for r in read_plan()}
-    row = rows.get(args.wu)
-    entry = read_entry(row) if row else None
-    if entry is None:
-        print("{}" if args.json else f"no entry for {args.wu}")
-        return 1
-    if args.json:
-        print(json.dumps(entry.sections, ensure_ascii=False))
-    else:
-        for key, text in entry.sections.items():
-            print(f"### {key}\n{text}\n")
-    return 0
-
-
 def cmd_lint(args: argparse.Namespace) -> int:
     """Check every plan entry against the template, offline (a gate step)."""
     findings: list[str] = []
@@ -311,49 +256,6 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_pr_body(args: argparse.Namespace) -> int:
-    """Print a PR body from the template, pre-filled from the WU entry."""
-    rows = {r.wu: r for r in read_plan()}
-    row = rows.get(args.wu)
-    if row is None:
-        print(f"no plan row for {args.wu}")
-        return 1
-    entry = read_entry(row)
-    body = (ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
-    anchor = entry.anchor if entry else "wu-__"
-    body = body.replace(
-        "WU-__ — <title from docs/plans/>. Entry: docs/plans/<file>.md#wu-__.",
-        f"{row.wu} — {row.title}. Entry: docs/plans/{row.file or '<file>.md'}#{anchor}.",
-    )
-    why = "\n\n".join(x for x in (_section(entry, "Context"), _section(entry, "Goal")) if x)
-    body = _fill(body, "Why", why)
-    body = _fill(body, "What did not change", _section(entry, "Non-goals"))
-    body = _fill(body, "Design", _section(entry, "Design sketch"))
-    body = _fill(body, "Before / after", _section(entry, "Before / after"))
-    body = _fill(body, "Try it", _section(entry, "Reproduce"))
-    body = _fill(body, "Alternatives considered", _section(entry, "Alternatives considered"))
-    acceptance = [
-        ln.strip()[2:]
-        for ln in _section(entry, "Acceptance").splitlines()
-        if ln.strip().startswith("- ")
-    ]
-    if acceptance:
-        boxes = "\n".join(f"- [ ] {item}" for item in acceptance)
-        body = re.sub(
-            r"- \[ \] <behavior>[^\n]*\n(?:- \[ \] <behavior>[^\n]*\n)*", boxes + "\n", body
-        )
-    arch = _first(entry, "Architecture")
-    if arch:
-        body = body.replace("§__", arch)
-    if args.stacked_on:
-        body = body.replace(
-            "<!-- Stacked on #N  (keep this line only when the base branch is not main) -->",
-            f"Stacked on #{args.stacked_on}.",
-        )
-    print(body)
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     """Entry point.
 
@@ -365,16 +267,8 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(description="Read and check the plan entries.")
     sub = parser.add_subparsers(dest="command", required=True)
-    p_body = sub.add_parser("pr-body", help="print a PR body pre-filled from the WU entry")
-    p_body.add_argument("wu")
-    p_body.add_argument("--stacked-on", type=int, default=0, help="parent PR number when stacked")
-    p_body.set_defaults(func=cmd_pr_body)
     p_lint = sub.add_parser("lint", help="check every plan entry against the template (offline)")
     p_lint.set_defaults(func=cmd_lint)
-    p_entry = sub.add_parser("entry", help="print one WU entry's bullets (offline)")
-    p_entry.add_argument("wu")
-    p_entry.add_argument("--json", action="store_true")
-    p_entry.set_defaults(func=cmd_entry)
     args = parser.parse_args(argv)
     try:
         return int(args.func(args))

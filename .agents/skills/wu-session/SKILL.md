@@ -45,16 +45,17 @@ If another agent is working the same checkout and your file sets would
 overlap, take a worktree instead:
 `git worktree add ../ocai-wu-NN-short-slug -b wu-NN-short-slug`.
 
-Work is visible only when a branch exists on GitHub: push the branch at
-your first commit and open a **draft PR** whose title starts with the WU
-id. A WU with work but no PR is invisible.
+Work is visible only when a branch exists on GitHub. Open the pull request
+as soon as there is something to review; pass `draft` as a third argument
+to open it as a draft.
 
 ```bash
-task pr:draft -- "WU-NN: <title>" [parent-branch]   # privacy guard, push, draft PR, body generated from the entry
+task pr:open -- "WU-NN: <title>" <body-file> [draft]   # hygiene and privacy checks, push, PR
 ```
 
-The body is the full template pre-filled from the entry; keep its sections
-and fill the boxes as you go — a placeholder body fails `pr-hygiene`.
+Write the body in English against `.github/PULL_REQUEST_TEMPLATE.md`: Goal,
+How and Impact always, the optional sections only when they have content. A
+placeholder body fails `pr-hygiene`.
 
 ## 4. Implement only the WU
 
@@ -92,21 +93,17 @@ by design (`--all` forces them).
       (the `gate: <sha>` line, tests added, fixtures and wire pairs added,
       anything verified by hand). `scripts/plan_entries.py lint` fails a ✅
       entry without Evidence.
-- [ ] Fill the PR body's **How to review** (reading order, the invariant to
-      try to break), **Evidence** (one checked box per Acceptance item with
-      its test path), **Design** (the surface as it landed), and
-      **Follow-ups** (every TODO the diff adds, as a gap row or WU id);
-      `pr-hygiene` checks each has content and names real paths.
+- [ ] The PR body states the Goal, How and Impact, and lists the decisions
+      made without review, the open questions and what was not verified
+      when there are any; `pr-hygiene` checks the mandatory sections.
 - [ ] Update every `docs/architecture.md` section the change affected
       (blueprint law: code and constitution never disagree across a PR).
 - [ ] A decision that outlives the PR (shape, boundary, policy) becomes an
       ADR in `docs/decisions/` and is linked from the WU's **Decision**
       bullet.
 - [ ] New fixture kinds or censuses are described in `spec/README.md`.
-- [ ] Every template box checked or replaced by a one-line reason, the
-      gate output pasted, `Stacked on #N` kept if stacked; then `task
-      pr:ready` (it runs `scripts/pr_check.py` and refuses a non-compliant
-      body). Commit message is `WU-NN: imperative summary`, plain.
+- [ ] `Stacked on #N` kept if stacked. Commit message is `WU-NN: imperative
+      summary`, plain.
 - [ ] Anything only the maintainer can settle is written in the PR (with a
       linked file when it needs room) and raised in the session chat.
 - [ ] **Privacy (public repo):** no AI session link, "Generated with"

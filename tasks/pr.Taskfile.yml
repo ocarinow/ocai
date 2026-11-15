@@ -1,5 +1,4 @@
-# Branches, worktrees, and pull requests — the one-WU-per-PR workflow from
-# AGENTS.md and the wu-session skill. Every task that publishes runs the
+# Branches, worktrees, and pull requests. Every task that publishes runs the
 # privacy guard first.
 version: "3"
 
@@ -44,52 +43,14 @@ tasks:
       - git rebase origin/main
       - git push --force-with-lease
 
-  body:
-    desc: "Print a PR body generated from the template and the WU entry (task pr:body -- WU-NN [PARENT_PR])"
-    silent: true
-    cmds:
-      - |
-        wu="{{index (splitArgs .CLI_ARGS) 0}}"; parent="{{if gt (len (splitArgs .CLI_ARGS)) 1}}{{index (splitArgs .CLI_ARGS) 1}}{{end}}"
-        if [ -n "$parent" ]; then uv run python scripts/plan_entries.py pr-body "$wu" --stacked-on "$parent"; else uv run python scripts/plan_entries.py pr-body "$wu"; fi
-
-  draft:
-    desc: "Push and open a DRAFT PR with a body generated from the WU entry (task pr:draft -- \"WU-NN: title\" [PARENT_BRANCH]); stacked when a parent branch is given"
-    cmds:
-      - uv run python scripts/privacy_check.py --no-files
-      - git push -u origin HEAD
-      - |
-        title="{{index (splitArgs .CLI_ARGS) 0}}"; parent="{{if gt (len (splitArgs .CLI_ARGS)) 1}}{{index (splitArgs .CLI_ARGS) 1}}{{end}}"
-        wu=$(echo "$title" | sed -nE 's/^(WU-[0-9A-Za-z]+):.*/\1/p')
-        body=$(mktemp)
-        if [ -n "$parent" ]; then
-          n=$(gh pr list --head "$parent" --json number -q '.[0].number')
-          uv run python scripts/plan_entries.py pr-body "$wu" --stacked-on "$n" > "$body"
-          uv run python scripts/pr_check.py --title "$title" --body-file "$body" --draft --base "$parent"
-          gh pr create --draft --base "$parent" --title "$title" --body-file "$body"
-        else
-          uv run python scripts/plan_entries.py pr-body "$wu" > "$body"
-          uv run python scripts/pr_check.py --title "$title" --body-file "$body" --draft
-          gh pr create --draft --title "$title" --body-file "$body"
-        fi
-
-  check:
-    desc: "PR hygiene for an open PR — template sections with content, review/evidence paths, gate summary, stacked note (task pr:check -- NN)"
-    cmds:
-      - uv run python scripts/pr_check.py --pr {{.CLI_ARGS}}
-
   open:
-    desc: Open a PR from a body file that was written against the template (task pr:open -- "title" BODYFILE)
+    desc: "Open a PR from a body file written against the template (task pr:open -- \"Topic: title\" BODYFILE [draft]); hygiene and privacy are checked before anything is pushed"
     cmds:
+      - uv run python scripts/pr_check.py --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}{{if gt (len (splitArgs .CLI_ARGS)) 2}} --draft{{end}}
       - uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text {{index (splitArgs .CLI_ARGS) 1}}
       - uv run python scripts/privacy_check.py --no-files
       - git push -u origin HEAD
-      - gh pr create --base main --head "$(git branch --show-current)" --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}
-
-  ready:
-    desc: Mark the current branch's draft PR ready for review — only if the hygiene check passes as ready
-    cmds:
-      - uv run python scripts/pr_check.py --pr "$(gh pr view --json number -q .number)"
-      - gh pr ready
+      - gh pr create --base main --head "$(git branch --show-current)" --title "{{index (splitArgs .CLI_ARGS) 0}}" --body-file {{index (splitArgs .CLI_ARGS) 1}}{{if gt (len (splitArgs .CLI_ARGS)) 2}} --draft{{end}}
 
   checks:
     desc: Watch the checks of a PR until they finish (task pr:checks -- NN)

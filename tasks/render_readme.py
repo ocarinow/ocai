@@ -53,7 +53,7 @@ Two rules hold for every task here, from `AGENTS.md`:
 
 For a coding agent: `task check` before every claim of done, `task
 privacy:text -- FILE` before every PR body, review, or issue you post,
-`task pr:draft` at the first commit of a WU so the work is visible.
+`task pr:open` to open a pull request.
 """
 
 

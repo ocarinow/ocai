@@ -153,8 +153,9 @@ never a paraphrase of it.
 catalogue every session should read is [`tasks/README.md`](tasks/README.md)**
 (generated from the Taskfiles by `task tasks:readme`; `task` prints the
 same list live). The ones to know: `task check` is the gate; `task
-privacy:text -- FILE` before posting anything; `task pr:draft -- "WU-NN:
-title" ISSUE` at a WU's first commit; `task pr:review -- NN` to review. The Taskfiles call the canonical commands above and never add
+privacy:text -- FILE` before posting anything; `task pr:open -- "Topic:
+title" BODYFILE` to open a pull request; `task pr:review -- NN` to review.
+The Taskfiles call the canonical commands above and never add
 a check CI does not run; every task that publishes (`pr:*`) runs
 the privacy guard first. A new task needs a one-line `desc` and a
 regenerated catalogue (`task tasks:check` tells a reviewer when it is
@@ -295,20 +296,19 @@ Several agents (and humans) work this repo concurrently. The protocol:
   the WU owner edits the sections their change touches; new tiers and
   positioning get new sections. `docs/plans/README.md` status rows are
   flipped by the WU owner in the same PR.
-- **A PR follows the template from its first draft.** Title `WU-NN:
-  <imperative title>` (housekeeping: `<Topic>: …`); every mandatory section
-  of `.github/PULL_REQUEST_TEMPLATE.md` present (Why, What changed, What
-  did not change, How to review, Evidence, Follow-ups, the ledgers,
-  Verification; Design when a frozen-candidate surface changes); once ready
-  for review every section has content, How to review names a file of the
-  diff, Evidence names the tests that prove each acceptance item, no
-  unchecked box remains (check it or replace it with a one-line reason),
-  and the pasted gate summary covers every step the diff needs and ends
-  with the `gate: <sha>` line of a commit in the PR; `Stacked on #N` when
-  the base is not `main`. `task pr:draft` generates the body from the WU
-  entry, `task pr:ready` refuses to mark a non-compliant PR ready, and the
-  `pr-hygiene` CI check is required on `main`. A PR whose body is a
-  placeholder is not reviewable and will not be reviewed.
+- **A pull request says what it is for, how, and what it affects.** Title
+  `<Topic>: <imperative summary>`; a work-unit PR uses its id as the topic
+  (`WU-NN: …`). The body is written in English against
+  `.github/PULL_REQUEST_TEMPLATE.md`: three mandatory sections (Goal, How,
+  Impact) and four optional ones, kept only when they have content
+  (Decisions made without review, Open questions, Risks and not verified,
+  How to try it). How is plain prose when that is enough; a snippet,
+  pseudo-code or a diagram is added only where it explains what prose
+  cannot. Do not paste check output: CI shows it. `Stacked on #N` when the
+  base is not `main`. `task pr:open` checks the body and runs the privacy
+  guard before anything is pushed, and the `pr-hygiene` CI check is
+  required on `main`. A PR whose body is a placeholder is not reviewable
+  and will not be reviewed.
 - **Review against the rules, not taste.** A review checks the nineteen
   rules above, the freeze boundaries (rule 2), and that declared loss
   matches runtime loss. Findings cite a rule or an architecture section.
@@ -347,7 +347,8 @@ progress:
   reviewed in a PR. `scripts/plan_entries.py lint` (a gate step) fails an
   open entry missing a mandatory bullet or a Design sketch.
 - The PR title is the link: `WU-NN: <imperative title>`. Work with no PR is
-  invisible: open the draft PR at the first commit (`task pr:draft`).
+  invisible: open one with `task pr:open` as soon as there is something to
+  review.
 - A question only the maintainer can answer goes in the pull request, which
   may link a file in the repository when the decision needs room, and in
   the session chat. Keep working on what does not depend on the answer.

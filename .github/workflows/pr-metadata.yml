@@ -17,9 +17,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Every PR follows .github/PULL_REQUEST_TEMPLATE.md: WU-NN title, every
-  # section present from the first draft, content once ready, a Stacked-on
-  # note when the base is not main (AGENTS.md). Required on main.
+  # Every PR follows .github/PULL_REQUEST_TEMPLATE.md: a topic in the title,
+  # the three mandatory sections from the first draft, content once ready, a
+  # Stacked-on note when the base is not main (AGENTS.md). Required on main.
   pr-hygiene:
     name: pr-hygiene
     if: github.event_name == 'pull_request'
@@ -51,7 +51,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           flag=""; [ "$PR_DRAFT" = "true" ] && flag="--draft"
-          python3 scripts/pr_check.py --title "$PR_TITLE" --body-file /tmp/pr_body.md --base "$PR_BASE" --author "$PR_AUTHOR" --diff $flag
+          python3 scripts/pr_check.py --title "$PR_TITLE" --body-file /tmp/pr_body.md --base "$PR_BASE" --author "$PR_AUTHOR" $flag
       # Every WU entry in docs/plans/ follows WU-TEMPLATE.md (offline, no token).
       - name: Plan entries
         run: python3 scripts/plan_entries.py lint
