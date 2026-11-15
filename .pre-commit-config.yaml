@@ -1,0 +1,116 @@
+# Checks that run by themselves, at commit, on the commit message, and at push.
+#
+# Every hook is local and runs through `uv run`, so tool versions come from
+# uv.lock and match CI; nothing is downloaded from a hook repository. A hook
+# runs only when a file it cares about changed, and prints nothing when it
+# passes. Install once per clone with `task setup`; run everything on the
+# whole repository with `task check`.
+#
+# What is too slow or needs services stays in CI: wheels, the docs build, the
+# isolated plugin install and the platform suite.
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      # --- at commit: seconds ---------------------------------------------
+      - id: privacy-files
+        name: privacy (files)
+        entry: uv run python scripts/privacy_check.py --range HEAD..HEAD
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --check --force-exclude
+        language: system
+        types_or: [python, pyi]
+
+      - id: lockfile
+        name: lockfile
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        files: (^|/)pyproject\.toml$|^uv\.lock$
+
+      - id: import-contracts
+        name: import contracts
+        entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+        files: ^python/|^pyproject\.toml$
+
+      - id: workspace
+        name: workspace consistency
+        entry: uv run python scripts/workspace_check.py
+        language: system
+        pass_filenames: false
+        files: ^python/|^pyproject\.toml$|^knope\.toml$|^scripts/workspace_check\.py$
+
+      - id: pyright
+        name: pyright (strict)
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+        files: \.pyi?$|^pyproject\.toml$
+
+      - id: mypy
+        name: mypy (strict)
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        files: \.pyi?$|^pyproject\.toml$
+
+      - id: plan-entries
+        name: plan entries
+        entry: uv run python scripts/plan_entries.py lint
+        language: system
+        pass_filenames: false
+        files: ^docs/plans/|^scripts/plan_entries\.py$
+
+      - id: workflows
+        name: workflows (zizmor)
+        entry: uvx --from zizmor==1.32.0 zizmor --no-progress .github/workflows
+        language: system
+        pass_filenames: false
+        files: ^\.github/
+
+      # --- on the commit message ------------------------------------------
+      - id: privacy-message
+        name: privacy (commit message)
+        entry: uv run python scripts/privacy_check.py --no-files --range HEAD..HEAD --text
+        language: system
+        stages: [commit-msg]
+
+      # --- at push: under a minute ----------------------------------------
+      - id: tests
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^python/|^spec/|^scripts/|^examples/|^pyproject\.toml$|^uv\.lock$
+
+      - id: change-files
+        name: change files
+        entry: uv run python scripts/release.py check --base origin/main
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^python/|^\.changeset/|^knope\.toml$|^scripts/release\.py$
+
+      - id: privacy-commits
+        name: privacy (commits and identities)
+        entry: uv run python scripts/privacy_check.py --no-files
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

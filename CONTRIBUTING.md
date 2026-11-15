@@ -55,10 +55,10 @@ such content. If you use a coding agent, this applies to it too — see
 
 ## Clone setup
 
-`task setup` creates the environment, installs the docs group, points git at
-the repository's hooks (`.githooks/`: a `commit-msg` hook runs the privacy
-guard on every commit message before it can leave your machine), and checks
-`gh` authentication. `.editorconfig`, `.python-version` (3.13), and
+`task setup` creates the environment, installs the docs group, installs the
+git hooks (`.pre-commit-config.yaml`: checks at commit, on the commit message
+and at push, so a failing check or a privacy leak is caught before it leaves
+your machine), and checks `gh` authentication. `.editorconfig`, `.python-version` (3.13), and
 `.node-version` (the Node release CI uses) are honoured by the usual tools.
 
 ## Editor setup
@@ -85,17 +85,17 @@ Read [`AGENTS.md`](./AGENTS.md) — it holds the cross-cutting rules every chang
 must follow (coding agents read the same file). In particular:
 
 - **One work unit per PR.** Keep diffs small and reviewable.
-- `uv run python scripts/check.py` exits 0 (privacy guard, ruff, import contracts,
-  pyright, mypy, pytest) — or `task check` with [Task](https://taskfile.dev)
-  installed; `task` lists every development command.
-- The gate is path-aware: the kernel steps always run (lint with the bandit
-  rules, format, lockfile, task catalogue, import contracts, strict types,
-  tests with warnings as errors); the platform gate, the docs build, the wheel
-  build, the workflow audit, the plan-entry lint, the isolated plugin install,
-  and the change-file policy run only when your change touches their tree
-  (`--all` forces them, `task check:all`). CI adds Semgrep, actionlint, a
-  dependency review on pull requests, a nightly `npm audit`, and runs the
-  kernel on Python 3.13 and 3.14.
+- Checks run by themselves once `task setup` has installed the hooks: the
+  privacy guard, lint with the bandit rules, format, lockfile, import
+  contracts and strict types at commit; the tests (warnings are errors), the
+  change-file policy and the privacy guard on commits at push. Each hook runs
+  only when a file it covers changed. `task check` runs all of them on the
+  whole repository with [Task](https://taskfile.dev) installed; `task` lists
+  every development command. Do not bypass a hook.
+- CI runs the same tools and adds what is too slow for a hook: the wheel
+  build, the docs build, the isolated plugin install and the platform suite,
+  plus Semgrep, actionlint, a dependency review on pull requests, a nightly
+  `npm audit`, and the kernel on Python 3.13 and 3.14.
   A platform change needs Docker and the Node and browser runtime described in
   [platform development](platform/README.md).
 - Tests use **recorded HTTP request/response pairs** (respx/VCR-style), never
@@ -109,7 +109,6 @@ unit, and [`docs/decisions/`](docs/decisions/README.md) for settled decisions.
 
 PR text edits run privacy/template checks without restarting code validation.
 Push a coherent revision after local checks, and batch title/body edits together.
-For stacked branches, use `uv run python scripts/check.py --base origin/<parent>`.
 Drafts still run all affected checks. Base retargets force full validation.
 See [CI verification](docs/development/ci.md) for impact selection, timing comparisons, and
 required-check rollout.

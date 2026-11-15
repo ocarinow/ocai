@@ -221,7 +221,7 @@ introduced on the unary path, so the streaming-first ratchet is not violated.
 1. Pick the first unchecked WU whose dependencies are ✅ (prefer Track A).
 2. Read its entry in the milestone file + the architecture.md sections it cites.
 3. Implement only that WU; add the tests/fixtures its done-criteria name.
-4. `uv run python scripts/check.py` — report results.
+4. Commit and push: the hooks run the checks, and CI must be green.
 5. Check the WU off here and in the milestone file; update any architecture.md
    section the change affected (blueprint law: they must not drift).
 

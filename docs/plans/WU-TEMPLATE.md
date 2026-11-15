@@ -7,7 +7,7 @@ what is written here is what the maintainer reads. One heading, one `Done`, bull
 Two kinds of bullet:
 
 - **Mandatory** bullets are present on every entry. `scripts/plan_entries.py
-  lint` (a gate step) fails a ⬜ or 🔄 row whose entry lacks one, and fails a
+  lint` (a commit hook) fails a ⬜ or 🔄 row whose entry lacks one, and fails a
   ✅ row without **Evidence**. Write "none" rather than omitting a bullet: a
   missing bullet is an oversight, "none" is a decision.
 - **Optional** bullets (marked *optional* below) are added when they carry
@@ -79,10 +79,9 @@ A filled example that passes the check is
   unblocks, or re-sequences, stated as plan facts, not inferred.
 - **Open:** none, or the question that blocks starting (then the WU is not
   ready; raise it in the entry's PR and in the session chat).
-- **Evidence:** Filled at completion, empty until then. The gate summary's
-  final `gate: <sha> …` line, the number of tests added, the fixtures and
-  wire pairs added, and anything verified by hand that the gate does not
-  cover.
+- **Evidence:** Filled at completion, empty until then. The number of tests
+  added, the fixtures and wire pairs added, and anything verified by hand
+  that the checks do not cover.
 - **Area:** core | chat IR | convert | runtime | wire | plugin: openai |
   plugin: anthropic | plugin: deepseek | plugin: other | spec | docs |
   platform | satellite | tooling

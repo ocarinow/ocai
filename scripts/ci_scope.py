@@ -1,4 +1,4 @@
-"""Shared conservative impact policy for local verification and GitHub Actions.
+"""Conservative impact policy: which CI suites a change must run.
 
 Diffs use git, not an API's truncated file list. Renames are represented as a
 removal plus an addition. Unknown history or an unclassified path runs everything.
@@ -22,7 +22,6 @@ GLOBAL = (
     ".gitignore",
     ".gitattributes",
     "scripts/ci_scope.py",
-    "scripts/check.py",
     "scripts/tests/",
     ".github/workflows/",
 )
@@ -52,10 +51,6 @@ PATHS: dict[str, tuple[str, ...]] = {
     "semgrep": ("python/", "platform/", "scripts/", "tasks/", "examples/", ".github/"),
     # Reviewing dependencies is cheap and remains unconditional on code PR events.
     "dependency-review": ("",),
-    "wheels": ("python/", "scripts/wheel_check.py", "knope.toml", "LICENSE"),
-    "echo": ("python/", "examples/", "spec/", "LICENSE"),
-    "plans": ("docs/plans/", "scripts/plan_entries.py"),
-    "changesets": ("python/", ".changeset/", "knope.toml", "scripts/release.py"),
     "typescript": ("typescript/", "spec/"),
     "go": ("go/", "spec/"),
 }
@@ -74,7 +69,7 @@ KNOWN = (
     ".claude/",
     ".codex/",
     ".gitignore",
-    ".githooks/",
+    ".pre-commit-config.yaml",
     ".editorconfig",
     ".vscode/",
     "ocai.code-workspace",

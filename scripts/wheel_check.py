@@ -5,13 +5,12 @@ root of any wheel (PEP 420, so sibling distributions merge into one `ocai`),
 `py.typed` inside every namespace portion, and metadata that names the real
 project (license expression, project URLs). Those invariants hold in `src/`
 today, but a build-backend misconfiguration would break them only in the
-artifact, which no other gate step opens. This script builds each
+artifact, which no other check opens. This script builds each
 distribution into a scratch directory with `uv build` and inspects the wheel::
 
     uv run python scripts/wheel_check.py
 
-It is a path-aware step of `scripts/check.py` (runs when `python/packages/`
-changed) and a step of the CI `python` job.
+It runs in the CI `python` job.
 """
 
 from __future__ import annotations

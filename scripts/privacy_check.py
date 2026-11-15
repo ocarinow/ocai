@@ -5,7 +5,8 @@ title or body, or a tracked file contains an AI coding-session link, an AI
 attribution footer or trailer, an agent/task identifier, a path under a
 user's home directory, or an email address that could identify a person. It
 also fails when a commit's author or committer identity carries such an
-address. It is one step of `scripts/check.py`, a required CI job on every
+address. It runs from the git hooks (files at commit, the commit message, commits
+at push), as a required CI job on every
 pull request, and runnable by hand::
 
     uv run python scripts/privacy_check.py                 # commits ahead of origin/main + files

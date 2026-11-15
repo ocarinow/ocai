@@ -4,7 +4,7 @@ The plan table in `docs/plans/README.md` links each WU to its entry in a plan
 file. This script parses those entries and checks them against
 `docs/plans/WU-TEMPLATE.md`::
 
-    uv run python scripts/plan_entries.py lint   # a gate step, offline
+    uv run python scripts/plan_entries.py lint   # a commit hook, offline
 
 Nothing here talks to GitHub: the project board and its synchronization were
 removed, and the plan files are the only record of planned work.
@@ -193,7 +193,7 @@ def lint_entry(row: PlanRow, entry: Entry | None) -> list[str]:
     "n/a"), an Acceptance list that names a test or fixture path, and an
     Alternatives considered bullet when a Decision is not backed by an ADR.
     Older open rows only need a Done bullet. Completed rows held to the
-    template must carry Evidence with the gate line.
+    template must carry a filled Evidence bullet.
 
     Args:
         row: The plan table row.
@@ -210,9 +210,8 @@ def lint_entry(row: PlanRow, entry: Entry | None) -> list[str]:
         return [] if row.done or _has(entry, "Done") else [f"{row.wu}: entry has no Done bullet"]
     findings: list[str] = []
     if row.done:
-        evidence = entry.sections.get("Evidence", "")
-        if "gate:" not in evidence:
-            findings.append(f"{row.wu}: row is ✅ but Evidence has no `gate: <sha>` line")
+        if not _has(entry, "Evidence"):
+            findings.append(f"{row.wu}: row is ✅ but its Evidence bullet is empty")
         return findings
     for name in MANDATORY_V2:
         if name == "Evidence":
@@ -241,7 +240,7 @@ def lint_entry(row: PlanRow, entry: Entry | None) -> list[str]:
 
 
 def cmd_lint(args: argparse.Namespace) -> int:
-    """Check every plan entry against the template, offline (a gate step)."""
+    """Check every plan entry against the template, offline (a commit hook)."""
     findings: list[str] = []
     rows = read_plan()
     for row in rows:

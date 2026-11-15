@@ -4,7 +4,7 @@ This material supports repository development; it is not published in the user s
 
 - [Contributing](../../CONTRIBUTING.md): setup, DCO and review requirements.
 - [Agent and maintainer rules](../../AGENTS.md): canonical repository instructions.
-- [Task catalogue](../../tasks/README.md): generated development commands.
+- Development commands: run `task` to list them; `task setup` installs the git hooks.
 - [Python workspace](../../python/README.md): package/layer development.
 - [Platform development](../../platform/README.md): isolated environments and local infrastructure.
 - [CI](ci.md): scope selection, required checks and measurement.

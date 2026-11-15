@@ -2,9 +2,8 @@
 
 Zensical reports a missing nav page or a broken internal link as an issue and
 still exits 0, so the build output is inspected for its "No issues found"
-line. This is the one definition of the docs check: `scripts/check.py` runs
-it when `docs/` or `zensical.toml` changed, `task docs:check` wraps it, and
-the CI `docs` job runs the same command::
+line. This is the one definition of the docs check: `task docs:check` wraps
+it and the CI `docs` job runs the same command::
 
     uv run python scripts/docs_check.py
 

@@ -14,7 +14,7 @@ tasks:
       - uv run --group docs zensical build --clean
 
   check:
-    desc: Build and fail on any warning (missing nav page, broken link) — the gate's docs step
+    desc: Build and fail on any warning (missing nav page, broken link) — the same command as the CI docs job
     cmds:
       - uv run python scripts/docs_check.py
 

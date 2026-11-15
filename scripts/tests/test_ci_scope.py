@@ -110,21 +110,6 @@ def test_unknown_suite_is_an_error() -> None:
         affected("typo", frozenset())
 
 
-def test_local_gate_and_pr_evidence_use_the_same_policy() -> None:
-    from check import steps_for
-
-    for changed in [
-        frozenset({"pyproject.toml"}),
-        frozenset({"spec/new.json"}),
-        frozenset({"docs/example.md"}),
-        frozenset({"unclassified.txt"}),
-        None,
-    ]:
-        for step in steps_for(False):
-            if step.suite is not None:
-                assert step.relevant(changed) == affected(step.suite, changed)
-
-
 def test_selector_error_runs_everything_but_configuration_errors_fail(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

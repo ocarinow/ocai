@@ -110,4 +110,4 @@ respx.post(URL).mock(return_value=httpx.Response(200, headers=pair["response"]["
 - [ ] zero secrets or identifying ids (grep for `sk-`, `@`, `org-`)
 - [ ] request body equals what the codec emits for the canonical request in the test
 - [ ] a stream recording has its blocking twin and its fold triple
-- [ ] `uv run python scripts/check.py` passes
+- [ ] `task check` passes

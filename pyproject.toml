@@ -33,6 +33,7 @@ dev = [
     "import-linter>=2.1",
     "pyright>=1.1.400",
     "mypy>=1.14",
+    "pre-commit>=4",
 ]
 docs = [
     "zensical>=0.0.45",
@@ -150,8 +151,8 @@ packages = [
     "ocai.convert", "ocai.runtime", "ocai.wire", "ocai.openai", "ocai.anthropic", "ocai.deepseek", "ocai.aws", "ocai.bedrock",
 ]
 
-# Coverage is INFORMATIONAL (no threshold yet): the gate's pytest step and CI
-# print a term-missing report over the distributions' sources so untested
+# Coverage is INFORMATIONAL (no threshold yet): CI
+# prints a term-missing report over the distributions' sources so untested
 # lines are visible; plain `uv run pytest` stays fast and silent about it.
 [tool.coverage.run]
 source_pkgs = ["ocai"]

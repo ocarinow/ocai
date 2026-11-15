@@ -45,4 +45,4 @@ the PR names before reading the diff. You never edit files; you report.
 - No style remarks unless ruff would miss them and they hide a rule
   violation.
 - End with one line: the verdict (ship / ship after fixes / do not ship) and
-  the verification output you ran (`uv run python scripts/check.py`).
+  the verification output you ran (`task check`).

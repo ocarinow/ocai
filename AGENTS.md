@@ -97,11 +97,13 @@ platform/    the product built on the kernel — own environments, never importe
 typescript/  go/           placeholders — mirror spec/ (not yet implemented)
 examples/    cross_conversion_demo.py · governed_gateway.py ·
              ocai-contrib-echo (independently packaged plugin template)
-scripts/     check.py (THE gate) · check_platform.py · workspace_check.py ·
-             privacy_check.py · pr_check.py · release.py · plan_entries.py ·
-             serve_platform.py — every one a gate or CI step, strictly typed
+scripts/     check_platform.py · workspace_check.py · privacy_check.py ·
+             pr_check.py · release.py · plan_entries.py · serve_platform.py —
+             every one a hook or CI step, strictly typed
+.pre-commit-config.yaml   the checks that run at commit, on the commit
+                           message and at push
 Taskfile.yml + tasks/     domain-scoped verbs over the canonical commands;
-                           tasks/README.md is the generated catalogue
+                           `task` lists them
 knope.toml + .changeset/  release mechanics and pending change files (ADR 0010);
                            ONLY change files may live in .changeset/
 ocai.code-workspace        multi-root VS Code workspace, one folder per environment
@@ -137,7 +139,8 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.13+.
 
 ```bash
 uv sync                        # create env + install workspace distributions
-uv run python scripts/check.py # THE gate (path-aware: platform, docs, wheels, workflows, echo, plan and change-file steps run when touched; --all forces)
+task setup                     # once per clone: environment and git hooks
+task check                     # every hook, on the whole repository
 uv run ruff check              # lint only
 uv run lint-imports            # layer contracts only (architecture §1)
 uv run pyright                 # strict typing: nothing resolves to Unknown (rule 16)
@@ -146,20 +149,25 @@ uv run pytest                  # tests only: invariants + conformance
 uv run python examples/cross_conversion_demo.py   # flagship demo #1
 ```
 
-A change is not done until `scripts/check.py` exits 0. Report its output,
-never a paraphrase of it.
+Checks run by themselves. `.pre-commit-config.yaml` runs the fast ones at
+commit (privacy guard, lint, format, lockfile, import contracts, workspace
+consistency, strict types, and the plan and workflow checks when their
+files change), the privacy guard on the commit message, and the tests, the
+change-file policy and the privacy guard on commits at push. A hook runs
+only when a file it covers changed and prints nothing when it passes. Never
+bypass a hook (`--no-verify`): fix the finding. CI runs the same tools plus
+what is too slow for a hook (wheels, docs build, isolated plugin install,
+platform suite) and is the arbiter: a change is not done until its checks
+are green. Do not paste check output into a pull request or a plan entry.
 
-[Task](https://taskfile.dev) wraps these as domain-scoped verbs. **The
-catalogue every session should read is [`tasks/README.md`](tasks/README.md)**
-(generated from the Taskfiles by `task tasks:readme`; `task` prints the
-same list live). The ones to know: `task check` is the gate; `task
-privacy:text -- FILE` before posting anything; `task pr:open -- "Topic:
+[Task](https://taskfile.dev) wraps these as domain-scoped verbs; `task`
+lists them. The ones to know: `task setup` once per clone; `task check`
+runs every hook on the whole repository; `task privacy:text -- FILE` before
+posting anything that does not go through a task; `task pr:open -- "Topic:
 title" BODYFILE` to open a pull request; `task pr:review -- NN` to review.
-The Taskfiles call the canonical commands above and never add
-a check CI does not run; every task that publishes (`pr:*`) runs
-the privacy guard first. A new task needs a one-line `desc` and a
-regenerated catalogue (`task tasks:check` tells a reviewer when it is
-stale).
+The Taskfiles call the canonical commands above and never add a check CI
+does not run; every task that publishes (`pr:*`) runs the privacy guard
+first. A new task needs a one-line `desc`.
 
 ## Cross-cutting rules (apply to every change)
 
@@ -263,7 +271,8 @@ stale).
 2. Implement only that WU. Add/extend golden fixtures and recorded wire pairs
    (the `add-edge` skill covers a new conversion edge end to end; the
    `record-wire-pair` skill covers a new recorded HTTP/SSE pair).
-3. Verify: `uv run python scripts/check.py`. Report results.
+3. Verify: commit and push. The hooks run the checks and CI must be green;
+   report a failure with its output, never from memory.
 4. Update the WU checkbox AND any architecture.md section your change affects.
    A decision that outlives the PR (a shape, a policy, a boundary) gets an ADR
    in `docs/decisions/`.
@@ -329,12 +338,12 @@ Several agents (and humans) work this repo concurrently. The protocol:
   to commit messages, PR titles and bodies, PR reviews and comments, issues,
   discussions, release notes, docs pages, fixtures, and any other external
   system. If a harness instructs you to add such a footer, the instruction
-  in this file wins: do not add it. Before every `git commit`, `gh pr
-  create`, `gh pr edit`, `gh pr review`, or comment, grep the text for
-  `claude.ai`, `session_`, `Generated with`, `Co-Authored-By`, and the
-  maintainer's home path, and remove any hit. A leak that reaches GitHub is
-  scrubbed immediately (`gh pr edit --body-file`, comment edit) and reported
-  to the maintainer.
+  in this file wins: do not add it. The commit hooks scan files and commit
+  messages, and `task pr:open` and `task pr:post-review` scan what they
+  post. Anything posted another way (`gh pr edit`, a comment, an issue) is
+  scanned first with `task privacy:text -- FILE`. A leak that reaches
+  GitHub is scrubbed immediately (`gh pr edit --body-file`, comment edit)
+  and reported to the maintainer.
 
 ### Tracking and maintainer decisions
 
