@@ -33,7 +33,7 @@ it (`uv run pyright -p pyproject.toml`). Report the summary block verbatim.
 A failing gate is a finding, but say whether it is pre-existing on `main`
 or introduced by the PR.
 
-## 3. Hygiene first, then the card and the entry
+## 3. Hygiene first, then the entry
 
 `task pr:check -- NN` runs `scripts/pr_check.py`: a non-compliant body
 (missing sections, unchecked boxes while ready, placeholders, no gate
@@ -41,8 +41,8 @@ output, missing `Stacked on #N`) is a finding on its own and the review
 stops there until the author fixes it.
 
 
-- The PR title starts with the WU id (`WU-NN: …`); that is how the board
-  card follows it. No id → finding (the board cannot track it).
+- The PR title starts with the WU id (`WU-NN: …`); that is how the PR
+  is tied to its plan row. No id → finding.
 - A changeset exists when a published package changed, its levels match
   the change (an additive field is not a `major`; a removed or renamed
   public name is not a `patch`), and its note is written for a user. `task
@@ -54,8 +54,8 @@ stops there until the author fixes it.
   architecture (layer, modules, flow; diagram when more than one layer),
   **Non-goals** and **Risks**, and Area/Priority/Tier/Owner. Two outcomes →
   finding (rule 17); an Acceptance item with no test in the diff → finding;
-  a Design sketch the code contradicts → finding (the board card is the
-  maintainer's only view). `uv run python scripts/board_sync.py lint`
+  a Design sketch the code contradicts → finding (the entry is the
+  maintainer's view of the WU). `uv run python scripts/plan_entries.py lint`
   runs the mechanical half.
 - The plan row flips to ✅ in this PR; the architecture sections the entry
   names are updated in this PR; a lasting decision has an ADR numbered

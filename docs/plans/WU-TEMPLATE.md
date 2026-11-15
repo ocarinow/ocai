@@ -1,16 +1,14 @@
 # Work unit entry template
 
 Every work unit (WU) is one entry in a plan file under `docs/plans/`, written
-with the `wu-define` skill and reviewed in a PR. The entry is the definition;
-the board card on the GitHub Project is **generated from it** by
-`scripts/board_sync.py` (body and fields), so what is written here is what
-the maintainer reads on the board, and the PR body is pre-filled from it by
-`task pr:body`. One heading, one `Done`, bullets in this order.
+with the `wu-define` skill and reviewed in a PR. The entry is the definition:
+what is written here is what the maintainer reads, and the PR body is
+pre-filled from it by `task pr:body`. One heading, one `Done`, bullets in this order.
 
 Two kinds of bullet:
 
-- **Mandatory** bullets are present on every entry. `scripts/board_sync.py
-  check` (a gate step) fails a ⬜ or 🔄 row whose entry lacks one, and fails a
+- **Mandatory** bullets are present on every entry. `scripts/plan_entries.py
+  lint` (a gate step) fails a ⬜ or 🔄 row whose entry lacks one, and fails a
   ✅ row without **Evidence**. Write "none" rather than omitting a bullet: a
   missing bullet is an oversight, "none" is a decision.
 - **Optional** bullets (marked *optional* below) are added when they carry
@@ -23,7 +21,7 @@ A filled example that passes the check is
 ## WU-NN — <imperative title, identical to the plan table row>
 
 - **Status:** ⬜ defined | 🔄 in progress (PR #N) | ✅ complete (PR #N).
-  One token first, so the board can parse it; the PR number once one exists.
+  One token first, so it can be parsed; the PR number once one exists.
 - **Context:** Why now. The situation today, who is blocked or at risk, and
   what stays broken if this never lands. Cite the gap row (`gaps.md` G-NN),
   the program paragraph, or the maintainer request it comes from.
@@ -81,7 +79,7 @@ A filled example that passes the check is
 - **Dependency impact** *(optional)*: which WUs or open PRs this blocks,
   unblocks, or re-sequences, stated as plan facts, not inferred.
 - **Open:** none, or the question that blocks starting (then the WU is not
-  ready; file it with `task board:decision`).
+  ready; raise it in the entry's PR and in the session chat).
 - **Evidence:** Filled at completion, empty until then. The gate summary's
   final `gate: <sha> …` line, the number of tests added, the fixtures and
   wire pairs added, and anything verified by hand that the gate does not
@@ -93,18 +91,6 @@ A filled example that passes the check is
 - **Tier:** program | 1 … 6 (the roadmap's sequencing tier)
 - **Owner:** Codex | Claude | maintainer | unassigned
 ```
-
-## How the card is built
-
-| Card | From |
-|---|---|
-| Title | the heading |
-| Body | Status, Context, Goal, Scope, Non-goals, Acceptance, Done, Deps, Architecture, Integration (diagram included), Design sketch, Before / after, Alternatives considered, Reproduce, Freeze, Decision, Risks, Dependency impact, Open, Evidence, then links to the plan entry and the PR |
-| Status | derived: no PR → Defined; draft PR titled `WU-NN: …` → In progress; ready → In review; merged or row ✅ → Done; parked by the maintainer → Blocked on maintainer |
-| Program | the plan table's Milestone column |
-| Area, Priority, Tier, Owner | the bullets above (Owner may also be set with `task board:set`) |
-| Kind | WU (decision and gap cards are added separately) |
-| PR, Plan | the PR URL once one exists; the GitHub URL of the entry |
 
 ## How the PR body is built
 

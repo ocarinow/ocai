@@ -27,9 +27,6 @@ includes:
   pr:
     taskfile: ./tasks/pr.Taskfile.yml
     desc: Branches, worktrees, pull requests, reviews
-  board:
-    taskfile: ./tasks/board.Taskfile.yml
-    desc: The GitHub Project board — cards, sync, handoffs
   spec:
     taskfile: ./tasks/spec.Taskfile.yml
     desc: spec/ — schemas and fixtures validation

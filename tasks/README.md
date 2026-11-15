@@ -13,13 +13,12 @@ Two rules hold for every task here, from `AGENTS.md`:
 - the Taskfiles **wrap** the canonical commands and never add a check CI
   does not run — the gate has one definition, `scripts/check.py`
   (`task check`);
-- every task that publishes anything (`pr:*`, `board:*`) runs the privacy
+- every task that publishes anything (`pr:*`) runs the privacy
   guard first; a leak fails the task before `gh` is called.
 
 For a coding agent: `task check` before every claim of done, `task
 privacy:text -- FILE` before every PR body, review, or issue you post,
-`task pr:draft` at the first commit of a WU so its card is In progress,
-`task board:decision` instead of asking the maintainer in chat.
+`task pr:draft` at the first commit of a WU so the work is visible.
 
 ## Root — aliases and setup
 
@@ -88,18 +87,6 @@ privacy:text -- FILE` before every PR body, review, or issue you post,
 | `task pr:status` | Open PRs with merge state and the required checks |
 | `task pr:worktree` | New worktree + branch from origin/main (task pr:worktree -- wu-NN-slug) |
 | `task pr:worktree:rm` | Remove a worktree and its local branch after merge (task pr:worktree:rm -- wu-NN-slug) |
-
-## The GitHub Project board — cards, sync, maintainer handoffs
-
-| Task | Does |
-|---|---|
-| `task board:card` | Add a WU card now (task board:card -- "WU-NN: title"); the sync would create it anyway |
-| `task board:decision` | Add a decision card in Blocked on maintainer (task board:decision -- "Decision: question" BODYFILE); see maintainer-handoff |
-| `task board:gap` | Add a kernel-gap card mirroring a gaps.md row (task board:gap -- "Gap: what" BODYFILE) |
-| `task board:open` | Open the board in the browser |
-| `task board:set` | Set Owner and/or Tier on a WU card (task board:set -- WU-NN --owner Claude --tier "1 chat completeness and hosts") |
-| `task board:sync` | Report plan ↔ PRs ↔ cards differences (exit 1 when out of sync) |
-| `task board:sync:apply` | Create missing cards and set statuses from the facts |
 
 ## Local platform — services, dependencies and lifecycle
 

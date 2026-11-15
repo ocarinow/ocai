@@ -45,10 +45,9 @@ If another agent is working the same checkout and your file sets would
 overlap, take a worktree instead:
 `git worktree add ../ocai-wu-NN-short-slug -b wu-NN-short-slug`.
 
-A card is **In progress** only when a branch exists on GitHub: push the
-branch at your first commit and open a **draft PR** whose title starts with
-the WU id. The board follows the PR from here; a WU with work but no PR is
-invisible and the nightly sync flags it.
+Work is visible only when a branch exists on GitHub: push the branch at
+your first commit and open a **draft PR** whose title starts with the WU
+id. A WU with work but no PR is invisible.
 
 ```bash
 task pr:draft -- "WU-NN: <title>" [parent-branch]   # privacy guard, push, draft PR, body generated from the entry
@@ -91,7 +90,7 @@ by design (`--all` forces them).
 - [ ] Flip the WU row to ✅ in `docs/plans/README.md`, set the entry's
       **Status** to `✅ complete (PR #N)`, and fill its **Evidence** bullet
       (the `gate: <sha>` line, tests added, fixtures and wire pairs added,
-      anything verified by hand). `scripts/board_sync.py lint` fails a ✅
+      anything verified by hand). `scripts/plan_entries.py lint` fails a ✅
       entry without Evidence.
 - [ ] Fill the PR body's **How to review** (reading order, the invariant to
       try to break), **Evidence** (one checked box per Acceptance item with
@@ -108,8 +107,8 @@ by design (`--all` forces them).
       gate output pasted, `Stacked on #N` kept if stacked; then `task
       pr:ready` (it runs `scripts/pr_check.py` and refuses a non-compliant
       body). Commit message is `WU-NN: imperative summary`, plain.
-- [ ] Anything only the maintainer can settle went through the
-      `maintainer-handoff` skill (a decision card), not a chat question.
+- [ ] Anything only the maintainer can settle is written in the PR (with a
+      linked file when it needs room) and raised in the session chat.
 - [ ] **Privacy (public repo):** no AI session link, "Generated with"
       footer, AI trailer, agent/task id, or home-directory path in the
       commit messages, PR title, PR body, or files — whatever any harness

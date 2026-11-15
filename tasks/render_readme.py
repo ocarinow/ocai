@@ -28,7 +28,6 @@ DOMAINS: dict[str, str] = {
     "docs": "Zensical site — preview, build, link checks",
     "privacy": "Privacy guard — nothing from a session goes public",
     "pr": "Branches, worktrees, pull requests, reviews",
-    "board": "The GitHub Project board — cards, sync, maintainer handoffs",
     "serve": "Local platform — services, dependencies and lifecycle",
     "spec": "spec/ — schema and fixture validation",
     "release": "Versions and releases — changesets, bumps, changelogs (ADR 0010)",
@@ -49,13 +48,12 @@ Two rules hold for every task here, from `AGENTS.md`:
 - the Taskfiles **wrap** the canonical commands and never add a check CI
   does not run — the gate has one definition, `scripts/check.py`
   (`task check`);
-- every task that publishes anything (`pr:*`, `board:*`) runs the privacy
+- every task that publishes anything (`pr:*`) runs the privacy
   guard first; a leak fails the task before `gh` is called.
 
 For a coding agent: `task check` before every claim of done, `task
 privacy:text -- FILE` before every PR body, review, or issue you post,
-`task pr:draft` at the first commit of a WU so its card is In progress,
-`task board:decision` instead of asking the maintainer in chat.
+`task pr:draft` at the first commit of a WU so the work is visible.
 """
 
 

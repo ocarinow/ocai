@@ -58,10 +58,9 @@ In the milestone or program file under `docs/plans/`, following
 [`docs/plans/WU-TEMPLATE.md`](../../../docs/plans/WU-TEMPLATE.md) exactly —
 copy the filled example
 [`docs/plans/WU-EXAMPLE.md`](../../../docs/plans/WU-EXAMPLE.md) and replace
-its content. The board card's body and fields and the PR body are generated
-from these bullets, so what you write here is what the maintainer reads on
-the board and what the implementer starts from. `uv run python
-scripts/board_sync.py lint` (a gate step) fails the entry when a mandatory
+its content. The PR body is generated from these bullets, so what you write
+here is what the maintainer reads and what the implementer starts from.
+`uv run python scripts/plan_entries.py lint` (a gate step) fails the entry when a mandatory
 bullet is missing, the Design sketch has no code block, Acceptance names no
 test path, or a Decision without an ADR has no Alternatives bullet. The
 skeleton, mandatory bullets first:
@@ -103,7 +102,7 @@ and a mermaid diagram when more than one layer is touched. A reviewer should
 be able to place the change in `docs/architecture.md` from this bullet alone.
 
 Add the row to the table in `docs/plans/README.md` with status ⬜ and the
-program in the Milestone column (the card's Program field comes from it).
+program in the Milestone column.
 
 ## 4. Size check
 
@@ -112,24 +111,10 @@ more than one capability, a new edge *and* a new interface, or an estimated
 diff over roughly 40 files that is not mechanical. Split it; the split is the
 deliverable of this skill, and the entries list their dependencies.
 
-## 5. Hand-off and the board card
+## 5. Hand-off
 
 The entry PR is small and reviewable on its own. Implementation starts in a
 separate PR via the `wu-session` skill, after the entry is merged or the
 maintainer approves it in place.
 
-Once the entry is on `main`, the WU gets its **board card**: a draft item
-on the project (never an issue) titled exactly `WU-NN: <title>`, with a
-body rendered from the entry (Goal, Scope, Done, Deps, Architecture,
-Integration, Freeze, Decision, Open, links to the entry and the PR) and the
-fields Program, Area, Priority, Tier, Owner, Kind, PR, Plan filled from the
-table row and the bullets. The board sync (`task board:sync:apply`, run by
-CI on every push to `main` and nightly) creates and refreshes it; to do it
-now:
-
-```bash
-task board:sync:apply
-```
-
-The card is never edited by hand. If the entry changes, the plan file
-changes in a PR and the next sync rewrites the card.
+If the entry changes, the plan file changes in a PR.
