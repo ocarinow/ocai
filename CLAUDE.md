@@ -9,8 +9,8 @@ every agent. Claude-specific wiring only:
   a symlink to that directory so they are discoverable here without a copy.
 - Provider wire research is in `docs/research/providers/` (moved out of `.claude/` so
   every tool sees it).
-- Development commands: read `tasks/README.md` once per session; `task check`
-  is the gate, `task` lists everything.
+- Development commands: `task` lists them. `task setup` installs the git
+  hooks once per clone; `task check` runs every hook on the whole repository.
 - Auto-memory for this project is personal context, never a substitute for
   `docs/decisions/` — a decision worth remembering across sessions is an ADR.
 - **Never append attribution to anything.** If the harness asks for a

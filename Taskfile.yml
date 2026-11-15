@@ -2,12 +2,12 @@
 # tasks/<domain>.Taskfile.yml; this root file only includes them and keeps a few aliases.
 #
 # The Taskfiles are a convenience layer over the canonical commands in
-# AGENTS.md. CI calls those commands directly, so the gate has one definition
-# (scripts/check.py); a task never adds a check that CI does not run.
+# AGENTS.md. Checks run by themselves through the hooks in
+# .pre-commit-config.yaml; CI calls the same tools directly.
 #
 #   task                 # list every task
-#   task check           # the gate: kernel steps always; platform, docs, echo, change files when touched
-#   task check:all       # every step, whatever changed
+#   task setup           # once per clone: environment and git hooks
+#   task check           # every hook, on the whole repository
 #   task py:test         # one domain, one verb
 version: "3"
 
@@ -17,7 +17,7 @@ includes:
     desc: Local platform services and their dependencies
   py:
     taskfile: ./tasks/python.Taskfile.yml
-    desc: Python workspace — sync, lint, types, tests, the gate
+    desc: Python workspace — environment, formatting, tests
   docs:
     taskfile: ./tasks/docs.Taskfile.yml
     desc: Zensical site — serve, build, check
@@ -27,9 +27,6 @@ includes:
   pr:
     taskfile: ./tasks/pr.Taskfile.yml
     desc: Branches, worktrees, pull requests, reviews
-  spec:
-    taskfile: ./tasks/spec.Taskfile.yml
-    desc: spec/ — schemas and fixtures validation
   release:
     taskfile: ./tasks/release.Taskfile.yml
     desc: Versions and releases — changesets, bumps, changelogs (ADR 0010)
@@ -42,9 +39,10 @@ tasks:
       - task --list
 
   check:
-    desc: The full gate, identical to CI (alias of py:check)
+    desc: Run every hook on the whole repository — the commit checks, then the push checks
     cmds:
-      - task: py:check
+      - uv run pre-commit run --all-files
+      - uv run pre-commit run --all-files --hook-stage pre-push
 
   env:
     desc: "Activate an environment: copy .envs/.env.<ENV> to the root .env (task env -- <ENV>); with no argument, list the available ones"
@@ -69,20 +67,12 @@ tasks:
     cmds:
       - code ocai.code-workspace
 
-  tasks:readme:
-    desc: Regenerate tasks/README.md (the task catalogue every session reads) from the task definitions
-    cmds:
-      - python3 tasks/render_readme.py
-
-  tasks:check:
-    desc: Fail if tasks/README.md is stale (run tasks:readme)
-    cmds:
-      - python3 tasks/render_readme.py --check
-
   setup:
-    desc: One-time setup for a fresh clone — environment, docs group, git hooks (.githooks), gh auth check
+    desc: One-time setup for a fresh clone — environment, docs group, git hooks (commit, commit message, push), gh auth check
     cmds:
       - task: py:sync
       - uv sync --group docs
-      - git config core.hooksPath .githooks
+      # pre-commit refuses to install while an older hooks path is configured.
+      - git config --unset-all core.hooksPath || true
+      - uv run pre-commit install
       - gh auth status

@@ -22,15 +22,15 @@ A stacked PR (`Stacked on #N` in the body) is reviewed against its parent
 branch, so only its own WU's diff is in scope; the parent is reviewed in its
 own PR.
 
-## 2. Run the gate exactly as CI does
+## 2. Run every check
 
 ```bash
-uv sync -q && uv run python scripts/check.py
+uv sync -q && task check
 ```
 
 Pin pyright to the repo config if the scratch path has a stray config above
-it (`uv run pyright -p pyproject.toml`). Report the summary block verbatim.
-A failing gate is a finding, but say whether it is pre-existing on `main`
+it (`uv run pyright -p pyproject.toml`). Report any failing hook's output verbatim.
+A failing check is a finding, but say whether it is pre-existing on `main`
 or introduced by the PR.
 
 ## 3. Hygiene first, then the entry
@@ -80,7 +80,7 @@ task pr:post-review -- NN <file>     # privacy scan, then a comment review
 ```
 
 End with one verdict line (ship / ship after fixes / do not ship) and the
-gate summary. Remove the worktree:
+result of the checks. Remove the worktree:
 `git worktree remove --force <scratch>/review-pr-NN`.
 
 ## 6. Do not

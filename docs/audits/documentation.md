@@ -247,5 +247,5 @@ draft-only protocol mismatch above remain separate follow-ups.
 | [spec/interfaces/README.md](../../spec/interfaces/README.md) | Specification | Normative/proposal distinction retained; conformance gate |
 | [spec/proposals/ordered-items/README.md](../../spec/proposals/ordered-items/README.md) | Specification | Normative/proposal distinction retained; conformance gate |
 | [spec/schema/README.md](../../spec/schema/README.md) | Specification | Normative/proposal distinction retained; conformance gate |
-| [tasks/README.md](../../tasks/README.md) | Contributor/operator | Commands, ownership and status reconciled |
+| `tasks/README.md` (removed since: `task` lists the commands) | Contributor/operator | Commands, ownership and status reconciled |
 | [typescript/README.md](../../typescript/README.md) | Repository documentation | Audience/link inventory; see role in documentation map |

@@ -1,4 +1,5 @@
-# Python workspace: the canonical commands from AGENTS.md "Commands", one verb each.
+# Python workspace: environment, formatting and tests. Lint and type checks
+# run from the hooks in .pre-commit-config.yaml, not from a task.
 version: "3"
 
 tasks:
@@ -7,56 +8,10 @@ tasks:
     cmds:
       - uv sync
 
-  check:
-    desc: The gate — kernel steps always, platform/docs/echo/change-file steps when their tree changed (task check:all forces them)
-    cmds:
-      - uv run python scripts/check.py {{.CLI_ARGS}}
-
-  check:all:
-    desc: The full gate with every path-aware step forced (platform, docs, echo plugin, change files)
-    cmds:
-      - uv run python scripts/check.py --all
-
-  check:fast:
-    desc: The gate without tests (lint, contracts, types)
-    cmds:
-      - uv run python scripts/check.py --no-tests
-
-  lint:
-    desc: Ruff lint (includes the Google-convention docstring rules)
-    cmds:
-      - uv run ruff check {{.CLI_ARGS}}
-
   fmt:
-    desc: Ruff format the tree (ruff format --check is part of the gate)
+    desc: Ruff format the tree (the commit hook only checks; this fixes)
     cmds:
       - uv run ruff format {{.CLI_ARGS}}
-
-  fmt:check:
-    desc: Report files ruff would reformat
-    cmds:
-      - uv run ruff format --check
-
-  imports:
-    desc: Architecture §1 layer contracts (import-linter)
-    cmds:
-      - uv run lint-imports
-
-  types:
-    desc: Strict typing — pyright then mypy (nothing may resolve to Unknown)
-    cmds:
-      - uv run pyright {{.CLI_ARGS}}
-      - uv run mypy
-
-  pyright:
-    desc: Pyright strict only
-    cmds:
-      - uv run pyright {{.CLI_ARGS}}
-
-  mypy:
-    desc: Mypy strict only
-    cmds:
-      - uv run mypy
 
   test:
     desc: Pytest — invariants and conformance (pass -- -k expr to filter)

@@ -64,7 +64,7 @@ tasks:
       - gh pr list --state open --json number,title,mergeStateStatus,isDraft,statusCheckRollup --jq '.[] | "#\(.number)  \(.mergeStateStatus)\(if .isDraft then " draft" else "" end)  " + ([.statusCheckRollup[]? | select(.name=="python" or .name=="privacy") | .name + ":" + (.conclusion // .status)] | join(",")) + "  \(.title)"'
 
   review:
-    desc: Review a PR in a scratch worktree with the full gate (task pr:review -- NN); see the review-pr skill
+    desc: Review a PR in a scratch worktree with every hook run on it (task pr:review -- NN); see the review-pr skill
     cmds:
       - git fetch -q origin
       - |
@@ -72,7 +72,7 @@ tasks:
         dir={{.SCRATCH}}/review-pr-{{.CLI_ARGS}}
         git worktree add --detach "$dir" "origin/$head"
         echo "review worktree: $dir"
-        (cd "$dir" && uv sync -q && git diff origin/main...HEAD --stat && uv run python scripts/check.py) || true
+        (cd "$dir" && uv sync -q && git diff origin/main...HEAD --stat && uv run pre-commit run --all-files && uv run pre-commit run --all-files --hook-stage pre-push) || true
         echo "when done: git worktree remove --force $dir"
 
   post-review:

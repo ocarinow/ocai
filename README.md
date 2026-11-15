@@ -36,8 +36,8 @@ inference gateway. Product designs and planned satellites are not shipped featur
 | `go/` | Placeholder; will mirror `spec/` and run the same fixtures | [go/README.md](go/README.md) |
 | `docs/` | Published user docs (`user/`), contributor docs (`development/`), proposed designs (`design/`), dated research (`research/`), architecture, decisions and plans | [docs/README.md](docs/README.md) |
 | `examples/` | The cross-conversion fidelity demo and `ocai-contrib-echo`, the plugin template | [examples/ocai-contrib-echo/README.md](examples/ocai-contrib-echo/README.md) |
-| `scripts/` | `check.py`, the one verification command (lint, import contracts, strict typing, tests) | [scripts/check.py](scripts/check.py) |
-| `Taskfile.yml`, `tasks/` (one `<domain>.Taskfile.yml` each) | Domain-scoped development commands over the canonical ones (`task` lists them, `task check` is the gate) | [Taskfile.yml](Taskfile.yml) |
+| `scripts/` | The checks that the git hooks and CI run (privacy guard, workspace consistency, PR hygiene, release policy) | [.pre-commit-config.yaml](.pre-commit-config.yaml) |
+| `Taskfile.yml`, `tasks/` (one `<domain>.Taskfile.yml` each) | Domain-scoped development commands over the canonical ones (`task` lists them, `task check` runs every hook) | [Taskfile.yml](Taskfile.yml) |
 | `.agents/` | Procedures and role bodies for coding agents, shared by every tool; `.claude/` and `.codex/` hold only pointers | [.agents/skills/README.md](.agents/skills/README.md) |
 
 ## Start here

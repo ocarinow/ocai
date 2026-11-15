@@ -4,8 +4,8 @@ Adding a distribution touches lists that no tool globs for us: knope's package
 table, uv's workspace sources, mypy's search path and portions, import-linter's
 root packages and role-specific import contracts, plus codec convenience extras. A
 package missing from any of them is silently unreleased, untyped, unchecked, or
-uninstallable through `ocai[<provider>]`. This script makes the wiring a gate
-step (``scripts/check.py`` and the CI ``python`` job)::
+uninstallable through `ocai[<provider>]`. This script checks the wiring (a commit
+hook and the CI ``python`` job)::
 
     uv run python scripts/workspace_check.py
 

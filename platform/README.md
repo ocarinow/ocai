@@ -67,13 +67,13 @@ only service identity, foundation stage, and false inference readiness.
 
 ## Verification
 
-Install the test browser once and start Docker, then run the repository gate:
+Install the test browser once and start Docker, then run the platform checks:
 
 ```bash
 cd platform
 npx playwright install chromium
 cd ..
-uv run python scripts/check.py
+uv run --project platform/services/gateway python scripts/check_platform.py
 ```
 
 `scripts/check_platform.py` runs the gateway lockfile check, platform lint
@@ -85,7 +85,7 @@ real FastAPI service. Storage tests provision an isolated PostgreSQL 16.15 conta
 using `deploy/postgres/image.txt` (immutable multi-platform digest), generated
 disposable credentials and a random loopback port, then remove that container and
 its anonymous volume. They never reuse or reset a developer database. Docker or
-image startup failure fails the gate instead of skipping the tests. Ports
+image startup failure fails the checks instead of skipping the tests. Ports
 8000 and 3100 must be free; tests never silently reuse a developer's server.
 The deployment-source test imports a copy of `app/` outside the repository with
 the service dependencies. It does not claim a container deployment was tested.
@@ -235,7 +235,7 @@ uv run --directory platform/services/gateway pytest tests/test_identity.py tests
 The real Keycloak test runs Authorization Code + PKCE and token exchange with
 disposable accounts, then verifies access-token acceptance and ID-token rejection.
 It uses ephemeral H2 storage for protocol qualification; the development Compose
-service uses a separate PostgreSQL database/role. Missing Docker fails the gate.
+service uses a separate PostgreSQL database/role. Missing Docker fails the checks.
 For unit-only iteration, use `pytest -m 'not storage and not identity and not authorization'`; this is not
 full verification. No live user or provider credentials are required.
 

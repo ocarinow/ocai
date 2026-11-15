@@ -1,6 +1,6 @@
 ---
 name: wu-session
-description: Run one ocai work-unit (WU) session end to end — pick the WU, read its contract, implement only it, verify with scripts/check.py, flip the checkbox, update architecture.md. Use whenever asked to "do the next WU", "implement WU-NN", or "pick up the roadmap".
+description: Run one ocai work-unit (WU) session end to end — pick the WU, read its contract, implement only it, verify with the hooks and CI, flip the checkbox, update architecture.md. Use whenever asked to "do the next WU", "implement WU-NN", or "pick up the roadmap".
 ---
 
 # WU session
@@ -75,22 +75,23 @@ placeholder body fails `pr-hygiene`.
 
 ## 5. Verify
 
+The hooks run the checks at commit and at push; do not bypass one. To run
+everything on the whole repository before opening the pull request:
+
 ```bash
-task check                                 # = uv run python scripts/check.py
+task check
 ```
 
-Paste the summary block into the PR, including its final `gate: <sha> …`
-line: `pr-hygiene` checks that every step the diff needs shows `ok`, that
-the commit is in the PR, and that the tree was not dirty. If a step fails,
-fix it or stop and report the failing output verbatim; never report "tests
-pass" from memory. A kernel-only change skips the platform and docs steps
-by design (`--all` forces them).
+If a check fails, fix it or stop and report the failing output verbatim;
+never report "tests pass" from memory. What is too slow for a hook (wheels,
+docs build, isolated plugin install, platform suite) runs in CI, which must
+be green.
 
 ## 6. Close the loop (same PR)
 
 - [ ] Flip the WU row to ✅ in `docs/plans/README.md`, set the entry's
       **Status** to `✅ complete (PR #N)`, and fill its **Evidence** bullet
-      (the `gate: <sha>` line, tests added, fixtures and wire pairs added,
+      (tests added, fixtures and wire pairs added,
       anything verified by hand). `scripts/plan_entries.py lint` fails a ✅
       entry without Evidence.
 - [ ] The PR body states the Goal, How and Impact, and lists the decisions
@@ -129,6 +130,6 @@ contract.
 
 ## What a finished WU looks like
 
-The **Done** bullet is true, `scripts/check.py` exits 0, the three documents
+The **Done** bullet is true, CI is green, the three documents
 (README table, milestone file, architecture section) agree with the code,
 nothing outside the WU's scope changed, and the next WU has started.

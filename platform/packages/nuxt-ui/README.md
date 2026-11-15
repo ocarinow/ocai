@@ -48,7 +48,7 @@ From the repository root, with the supported Node version:
 ```bash
 npx --yes shadcn-vue@2.9.0 add --all --yes --overwrite --cwd platform/packages/nuxt-ui
 npm run --prefix platform typecheck
-uv run python scripts/check.py
+uv run --project platform/services/gateway python scripts/check_platform.py
 ```
 
 Run updates on a branch and review the generated diff and dependency advisories.

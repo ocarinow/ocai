@@ -124,15 +124,15 @@ Run from the repository root.
 
 ```bash
 uv sync                                          # create the env, install the workspace
-uv run python scripts/check.py                   # THE gate (path-aware; --all forces every step)
-task check                                       # the same gate via Task (task lists every command)
+task setup                                       # once per clone: environment and git hooks
+task check                                       # every hook on the whole repository (task lists every command)
 uv run python examples/cross_conversion_demo.py  # the cross-conversion fidelity demo (offline)
 ```
 
 Tests are wire-level: recorded HTTP/SSE pairs (under
 `packages/ocai-core/tests/http/`) and golden fixtures from `spec/`, never
-live keys, never provider-SDK mocks. A change is not done until
-`scripts/check.py` exits 0.
+live keys, never provider-SDK mocks. A change is not done until its CI
+checks are green.
 
 ## Writing a plugin
 

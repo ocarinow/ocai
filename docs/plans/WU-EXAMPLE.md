@@ -137,4 +137,4 @@ non-empty (Evidence may be the placeholder while the row is ⬜ or 🔄);
 **Design sketch** present with content; **Alternatives considered** present
 because a Decision bullet cites an ADR number that does not exist yet
 (`NNNN`); **Acceptance** has at least one item naming a test path. When the
-row flips to ✅, Evidence must carry the `gate: <sha> …` line.
+row flips to ✅, Evidence must be filled.

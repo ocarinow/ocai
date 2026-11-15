@@ -29,11 +29,9 @@ serialized and is never cancelled in flight.
 
 ## Impact selection
 
-`scripts/ci_scope.py` owns the suite dependency map used by Actions, the local
-gate and PR verification-evidence checks. Git reads the full PR base/head diff;
-there is no API file-count cutoff. Renames include the old and new paths, and
-local verification includes staged, unstaged and untracked files. Use
-`uv run python scripts/check.py --base origin/<parent>` for stacked work.
+`scripts/ci_scope.py` owns the suite dependency map used by Actions. Git reads
+the full PR base/head diff; there is no API file-count cutoff. Renames include
+the old and new paths.
 
 Shared runtime versions, root dependency/configuration files and CI policy
 changes force all suites. Kernel or language-neutral spec changes also select

@@ -135,7 +135,7 @@ certified edge. Recorded wire pairs for the facade live in
 ## 8. Verify and document
 
 ```bash
-uv run python scripts/check.py
+task check
 ```
 
 Then: `spec/README.md` if a fixture kind changed; the plugin section of
