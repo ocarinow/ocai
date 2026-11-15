@@ -1,17 +1,13 @@
 name: Pre-release
 
-# Pre-releases (ADR 0010, docs/releasing.md). Every merge into main that is
-# not the release merge publishes an ALPHA of each package with pending change
-# files: knope computes the target version from the change files, the CI run
-# number makes the alpha unique and monotonic (`0.2.0a123`), nothing is
-# committed or tagged, change files are kept. A RELEASE CANDIDATE is the same
-# on demand (`gh workflow run prerelease.yml -f kind=rc`). Pre-release
-# versions are never installed by default by pip or uv.
-
+# Pre-releases, on demand only (ADR 0022, docs/development/releasing.md). Nothing is
+# published by a merge. Dispatching this workflow publishes an ALPHA or a
+# RELEASE CANDIDATE of each package with pending change files: knope computes
+# the target version from the change files, the CI run number makes it unique
+# and monotonic (`0.2.0a123`, `0.2.0rc124`), nothing is committed or tagged,
+# and the change files are kept. Pre-release versions are never installed by
+# default by pip or uv.
 on:
-  push:
-    branches: [main]
-    paths: ["python/packages/**", ".changeset/**"]
   workflow_dispatch:
     inputs:
       kind:
@@ -30,7 +26,6 @@ concurrency:
 jobs:
   plan:
     name: pre-release plan
-    if: "!startsWith(github.event.head_commit.message, 'Release:')"
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
@@ -46,7 +41,7 @@ jobs:
       - name: Target versions from the pending change files
         id: plan
         env:
-          KIND: ${{ github.event.inputs.kind || 'alpha' }}
+          KIND: ${{ inputs.kind }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
           kind="$KIND"

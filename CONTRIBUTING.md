@@ -75,9 +75,9 @@ folder you work in (`task setup` does the root one).
 Each distribution under `python/packages/` has its own semantic version. A
 PR that changes one adds a changeset in `.changeset/` (package, level, note);
 versions are bumped only by the release script when a release is cut.
-Every merge to `main` publishes an alpha of each package with pending change
-files; merging the standing Release PR publishes the stable release. See ADR
-0010 and [`docs/development/releasing.md`](docs/development/releasing.md).
+A merge to `main` publishes nothing; merging the standing Release PR publishes
+the stable release, and an alpha or a release candidate is published only on
+demand. See ADR 0010, ADR 0022 and [`docs/development/releasing.md`](docs/development/releasing.md).
 
 ## Before you open a PR
 
@@ -107,8 +107,7 @@ unit, and [`docs/decisions/`](docs/decisions/README.md) for settled decisions.
 
 ## CI feedback
 
-PR text edits run privacy/template checks without restarting code validation.
-Push a coherent revision after local checks, and batch title/body edits together.
-Drafts still run all affected checks. Base retargets force full validation.
-See [CI verification](docs/development/ci.md) for impact selection, timing comparisons, and
-required-check rollout.
+Editing a pull request's title or body re-checks the text and never replays the
+code checks. A change runs only the suites that depend on the files it touches;
+two checks are required, `ci` for the code and `pr` for the text.
+See [CI verification](docs/development/ci.md) for the selection rules and the required checks.

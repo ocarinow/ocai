@@ -37,26 +37,41 @@ def test_docs_only_keeps_code_suites_unaffected() -> None:
 
 
 @pytest.mark.parametrize(
-    "path",
+    ("path", "suites"),
     [
-        "python/packages/ocai-core/src/ocai/core/result.py",
-        "spec/schema/chat.json",
-        "platform/package-lock.json",
-        "scripts/serve_platform.py",
+        ("python/packages/ocai-core/src/ocai/core/result.py", {"python", "docs", "semgrep"}),
+        ("spec/schema/chat.json", {"python"}),
+        ("platform/package-lock.json", {"platform", "semgrep"}),
+        ("platform/spec/management.openapi.json", {"platform", "docs", "semgrep"}),
+        ("scripts/privacy_check.py", {"python", "semgrep"}),
+        ("scripts/check_platform.py", {"python", "platform", "semgrep"}),
+        (".pre-commit-config.yaml", {"python"}),
+        (".github/dependabot.yml", {"workflows", "semgrep"}),
     ],
 )
-def test_platform_inputs_include_shared_contracts(path: str) -> None:
-    assert affected("platform", frozenset({path}))
+def test_a_change_runs_only_the_suites_that_depend_on_it(path: str, suites: set[str]) -> None:
+    assert {suite for suite in PATHS if affected(suite, frozenset({path}))} == suites
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "Taskfile.yml",
+        "tasks/python.Taskfile.yml",
+        ".changeset/some-change.md",
+        "AGENTS.md",
+        ".agents/skills/add-edge/SKILL.md",
+        ".claude/settings.json",
+    ],
+)
+def test_task_definitions_change_files_and_instructions_run_no_suite(path: str) -> None:
+    assert not any(affected(suite, frozenset({path})) for suite in PATHS)
 
 
 def test_missing_history_and_forced_events_run_everything(tmp_path: Path) -> None:
     assert git_paths(tmp_path, "missing") is None
     for event in ["workflow_dispatch", "schedule"]:
         assert event_paths(tmp_path, event, {}) is None
-    assert (
-        event_paths(tmp_path, "pull_request", {"changes": {"base": {"ref": {"from": "old"}}}})
-        is None
-    )
     assert all(affected(suite, None) for suite in PATHS)
 
 
@@ -110,7 +125,7 @@ def test_unknown_suite_is_an_error() -> None:
         affected("typo", frozenset())
 
 
-def test_selector_error_runs_everything_but_configuration_errors_fail(
+def test_selector_error_runs_everything(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -122,10 +137,5 @@ def test_selector_error_runs_everything_but_configuration_errors_fail(
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
-    monkeypatch.setattr("sys.argv", ["ci_scope.py", "--suite", "platform"])
     assert main() == 0
-    assert output.read_text() == "run=true\n"
-    monkeypatch.setattr("sys.argv", ["ci_scope.py", "--suite", "typo"])
-    with pytest.raises(SystemExit) as error:
-        main()
-    assert error.value.code != 0
+    assert output.read_text() == "".join(f"{suite}=true\n" for suite in PATHS)

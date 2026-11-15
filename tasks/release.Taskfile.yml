@@ -36,6 +36,12 @@ tasks:
     cmds:
       - knope prerelease --prerelease-label rc --dry-run
 
+  alpha:
+    desc: Publish an alpha of every package with pending change files (dispatches prerelease.yml with kind=alpha)
+    cmds:
+      - gh workflow run prerelease.yml -f kind=alpha
+      - 'echo "dispatched; watch with: gh run list --workflow=prerelease.yml --limit 1"'
+
   rc:
     desc: Publish a release candidate of every package with pending change files (dispatches prerelease.yml with kind=rc)
     cmds:

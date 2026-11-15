@@ -1,7 +1,11 @@
-"""Restore stable required-check names without weakening validation.
+"""Require exactly the two aggregate checks on `main`, keeping every other protection.
 
-Default: check drift without mutation. --output writes the exact reviewable
-request body; applying it remains an explicit repository administration action.
+`ci` (code, from ci.yml) and `pr` (title, body and privacy, from pr-metadata.yml)
+are the only required checks: each one fails when a job it covers fails.
+
+Default: report drift without changing anything. `--output` writes the exact
+request body to review; applying it is an explicit repository administration
+action.
 """
 
 from __future__ import annotations
@@ -13,21 +17,11 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-# Undo the reusable-workflow prefixes while retaining every original requirement.
-RENAMED = {
-    "Code checks / python": "python",
-    "Code checks / python-next": "python-next",
-    "Code checks / platform": "platform",
-    "Documentation / docs": "docs",
-    "Code checks / workflows": "workflows",
-    "Code checks / semgrep": "semgrep",
-    "Code checks / dependency-review": "dependency-review",
-}
-REQUIRED = (*RENAMED.values(), "privacy", "pr-hygiene")
+REQUIRED = ("ci", "pr")
 
 
 def reconcile(current: dict[str, Any]) -> dict[str, Any]:
-    """Rename known checks without changing their bindings or unrelated protections."""
+    """Set the required checks to `REQUIRED` without touching unrelated protections."""
     result = {
         key: copy.deepcopy(current[key])
         for key in ("name", "target", "enforcement", "bypass_actors", "conditions", "rules")
@@ -37,11 +31,12 @@ def reconcile(current: dict[str, Any]) -> dict[str, Any]:
         if rule["type"] != "required_status_checks":
             continue
         parameters = rule["parameters"]
-        checks = parameters["required_status_checks"]
-        for check in checks:
-            check["context"] = RENAMED.get(check["context"], check["context"])
-        names = {check["context"] for check in checks}
-        checks.extend({"context": name} for name in REQUIRED if name not in names)
+        kept = [
+            check for check in parameters["required_status_checks"] if check["context"] in REQUIRED
+        ]
+        names = {check["context"] for check in kept}
+        kept.extend({"context": name} for name in REQUIRED if name not in names)
+        parameters["required_status_checks"] = kept
         parameters["strict_required_status_checks_policy"] = True
         return result
     raise ValueError("No required-status-checks rule found; refusing to invent a ruleset")
@@ -63,9 +58,7 @@ def main() -> int:
     if args.output:
         args.output.write_text(json.dumps(desired, indent=2) + "\n")
     print("Required checks: " + ", ".join(REQUIRED))
-    print(
-        "ruleset: drift (review the verified workflow rollout)" if changed else "ruleset: current"
-    )
+    print("ruleset: drift (apply the generated body)" if changed else "ruleset: current")
     return 1 if changed else 0
 
 

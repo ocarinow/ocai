@@ -1,31 +1,34 @@
 name: Docs
 
-# Builds the Zensical documentation site. The `docs` job is a required status
-# check on main (ADR 0002), so it runs on every code event and decides
-# inside the job whether the docs changed; when they did not, it reports
-# success in seconds. A push to main that touches the docs builds again and
-# deploys the result to GitHub Pages at https://ocarinow.github.io/ocai/ .
-# Deployment runs ONLY on such pushes and ONLY when Pages is enabled on the
-# repository (Settings → Pages → Source: GitHub Actions); until then the
-# deploy job reports "skipped" instead of failing. No caching on CI, per
+# Deploys the Zensical documentation site to GitHub Pages at
+# https://ocarinow.github.io/ocai/ when a push to main changes what the site is
+# built from. The build is checked on pull requests by the `docs` job of
+# ci.yml; this workflow only publishes. Deployment happens ONLY when Pages is
+# enabled on the repository (Settings → Pages → Source: GitHub Actions); until
+# then the deploy job reports "skipped" instead of failing. No caching, per
 # Zensical's publishing guide.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "41 4 * * *"
   push:
     branches: [main]
-  pull_request:
-    types: [opened, edited, synchronize, reopened]
+    paths:
+      - "docs/**"
+      - "zensical.toml"
+      - "scripts/docs_*.py"
+      - "python/**"
+      - "platform/spec/**"
+      - "platform/packages/management-client/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
 
-# One Pages deployment at a time (never cancel an in-flight deploy); one live
-# build per pull request (a new push cancels the superseded one).
+# One Pages deployment at a time; never cancel an in-flight deploy.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}-{1}', github.event.pull_request.number, (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base == null) && 'metadata' || 'code') || (github.event_name == 'schedule' && format('docs-full-{0}', github.run_id) || 'pages') }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   docs:
@@ -35,21 +38,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      changed: ${{ steps.changes.outputs.run }}
       pages_enabled: ${{ steps.pages.outputs.enabled }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Select affected checks
-        id: changes
-        run: python3 scripts/ci_scope.py --suite docs
 
       - name: Is GitHub Pages enabled on this repository?
         id: pages
-        if: steps.changes.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -62,32 +58,27 @@ jobs:
           fi
 
       - name: Install uv
-        if: steps.changes.outputs.run == 'true'
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Set up Python
-        if: steps.changes.outputs.run == 'true'
         run: uv python install 3.13
 
       - name: Sync docs group
-        if: steps.changes.outputs.run == 'true'
         run: uv sync --locked --group docs
 
       # Zero warnings: a missing nav page or a broken internal link fails the
       # build. Same command as `task docs:check`.
       - name: Build site
-        if: steps.changes.outputs.run == 'true'
         run: uv run python scripts/docs_check.py
 
       - name: Upload Pages artifact
-        if: steps.changes.outputs.run == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
   deploy:
     name: deploy
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.docs.outputs.pages_enabled == 'true'
+    if: needs.docs.outputs.pages_enabled == 'true'
     needs: docs
     runs-on: ubuntu-latest
     timeout-minutes: 10

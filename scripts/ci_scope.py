@@ -1,12 +1,13 @@
 """Conservative impact policy: which CI suites a change must run.
 
-Diffs use git, not an API's truncated file list. Renames are represented as a
-removal plus an addition. Unknown history or an unclassified path runs everything.
+The first job of `.github/workflows/ci.yml` runs this once and every suite job
+reads its flag. Diffs use git, not an API's truncated file list. Renames are
+represented as a removal plus an addition. Unknown history or an unclassified
+path runs everything.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import subprocess
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+# A change to any of these runs every suite.
 GLOBAL = (
     "pyproject.toml",
     "uv.lock",
@@ -22,7 +24,6 @@ GLOBAL = (
     ".gitignore",
     ".gitattributes",
     "scripts/ci_scope.py",
-    "scripts/tests/",
     ".github/workflows/",
 )
 PATHS: dict[str, tuple[str, ...]] = {
@@ -31,12 +32,13 @@ PATHS: dict[str, tuple[str, ...]] = {
         "spec/",
         "examples/",
         "scripts/",
-        "tasks/",
-        "Taskfile.yml",
         "knope.toml",
         "LICENSE",
+        ".pre-commit-config.yaml",
     ),
-    "platform": ("platform/", "python/", "spec/", "scripts/", "tasks/", "Taskfile.yml"),
+    # The gateway declares no dependency on the kernel packages and imports none
+    # of them. Add `python/` here on the day it does.
+    "platform": ("platform/", "scripts/check_platform.py"),
     "docs": (
         "docs/",
         "zensical.toml",
@@ -48,31 +50,28 @@ PATHS: dict[str, tuple[str, ...]] = {
         "platform/packages/management-client/",
     ),
     "workflows": (".github/",),
-    "semgrep": ("python/", "platform/", "scripts/", "tasks/", "examples/", ".github/"),
-    # Reviewing dependencies is cheap and remains unconditional on code PR events.
-    "dependency-review": ("",),
-    "typescript": ("typescript/", "spec/"),
-    "go": ("go/", "spec/"),
+    "semgrep": ("python/", "platform/", "scripts/", "examples/", ".github/"),
 }
-# Explicit non-code paths still receive privacy/hygiene and relevant docs checks.
+# Paths that are classified and run no suite beyond the ones above: instruction
+# files, agent configuration, task definitions, change files, editor settings.
 KNOWN = (
     *GLOBAL,
-    *(p for paths in PATHS.values() for p in paths if p),
+    *(p for paths in PATHS.values() for p in paths),
     "AGENTS.md",
     "CLAUDE.md",
     "CONTRIBUTING.md",
     "README.md",
     "SECURITY.md",
-    "LICENSE",
     "NOTICE",
     ".agents/",
     ".claude/",
     ".codex/",
-    ".gitignore",
-    ".pre-commit-config.yaml",
+    ".changeset/",
     ".editorconfig",
     ".vscode/",
     "ocai.code-workspace",
+    "Taskfile.yml",
+    "tasks/",
 )
 
 
@@ -121,10 +120,8 @@ def git_paths(
 
 
 def event_paths(root: Path, event_name: str, event: dict[str, Any]) -> frozenset[str] | None:
-    """Select against the PR's actual base/head; force full runs on retarget/dispatch."""
+    """Select against the PR's actual base and head; manual and nightly runs are full."""
     if event_name == "pull_request":
-        if event.get("changes", {}).get("base") is not None:
-            return None
         pr = event["pull_request"]
         return git_paths(root, str(pr["base"]["sha"]), str(pr["head"]["sha"]))
     if event_name == "push":
@@ -137,21 +134,19 @@ def event_paths(root: Path, event_name: str, event: dict[str, Any]) -> frozenset
 
 
 def main() -> int:
-    """Emit an explicit Actions output and a human-readable selection reason."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=tuple(PATHS), required=True)
-    args = parser.parse_args()
+    """Write one `<suite>=true|false` output per suite, with a readable reason."""
     try:
         event: dict[str, Any] = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
         changed = event_paths(ROOT, os.environ["GITHUB_EVENT_NAME"], event)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         print(f"Impact unavailable ({type(exc).__name__}); running every suite.")
         changed = None
-    run = affected(args.suite, changed)
     reason = "full validation" if changed is None else f"{len(changed)} changed paths"
-    print(f"{args.suite}: {'run' if run else 'unaffected'} ({reason})")
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-        output.write(f"run={str(run).lower()}\n")
+        for suite in PATHS:
+            run = affected(suite, changed)
+            print(f"{suite}: {'run' if run else 'unaffected'} ({reason})")
+            output.write(f"{suite}={str(run).lower()}\n")
     return 0
 
 

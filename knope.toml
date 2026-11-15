@@ -9,7 +9,7 @@
 #   task release:status               # knope release --dry-run: what the next stable release would be
 #   task release:preview:alpha        # knope prerelease --prerelease-label alpha --dry-run
 #   CI (one branch, ADR 0010): release-pr.yml keeps the Release PR up to date on every push to main;
-#   release.yml tags and publishes when the Release PR merges; prerelease.yml publishes alphas on merge and rc on demand.
+#   release.yml tags and publishes when the Release PR merges; prerelease.yml publishes an alpha or an rc on demand only (ADR 0022).
 
 [packages.ocai]
 versioned_files = ["python/packages/ocai-core/pyproject.toml"]
