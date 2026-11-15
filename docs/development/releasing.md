@@ -100,8 +100,7 @@ same visible behavior with nothing to reconcile (ADR 0010).
 - **GitHub environment `pypi`** on the repository (the workflows reference it;
   protection rules optional).
 - **`RELEASE_TOKEN` secret** (a token with `repo` scope) so the Release PR
-  created by CI triggers the required checks; `BOARD_TOKEN` is used until it
-  exists.
+  created by CI triggers the required checks.
 
 ## Tasks
 

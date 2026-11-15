@@ -98,14 +98,14 @@ typescript/  go/           placeholders — mirror spec/ (not yet implemented)
 examples/    cross_conversion_demo.py · governed_gateway.py ·
              ocai-contrib-echo (independently packaged plugin template)
 scripts/     check.py (THE gate) · check_platform.py · workspace_check.py ·
-             privacy_check.py · pr_check.py · release.py · board_sync.py ·
+             privacy_check.py · pr_check.py · release.py · plan_entries.py ·
              serve_platform.py — every one a gate or CI step, strictly typed
 Taskfile.yml + tasks/     domain-scoped verbs over the canonical commands;
                            tasks/README.md is the generated catalogue
 knope.toml + .changeset/  release mechanics and pending change files (ADR 0010);
                            ONLY change files may live in .changeset/
 ocai.code-workspace        multi-root VS Code workspace, one folder per environment
-.github/     workflows (ci, docs, board-sync, release-pr, prerelease, release),
+.github/     workflows (ci, docs, pr-metadata, release-pr, prerelease, release),
              PR template, dependabot.yml
 .agents/skills/            procedures (Agent Skills format), shared by all tools
 .agents/roles/             sub-agent role bodies, shared by all tools
@@ -154,11 +154,9 @@ catalogue every session should read is [`tasks/README.md`](tasks/README.md)**
 (generated from the Taskfiles by `task tasks:readme`; `task` prints the
 same list live). The ones to know: `task check` is the gate; `task
 privacy:text -- FILE` before posting anything; `task pr:draft -- "WU-NN:
-title" ISSUE` at a WU's first commit; `task board:decision -- "Decision:
-…" FILE` instead of asking the maintainer in chat; `task pr:review -- NN`
-to review. The Taskfiles call the canonical commands above and never add
-a check CI does not run; every task that publishes (`pr:*`, `board:*`)
-runs the privacy guard first. A new task needs a one-line `desc` and a
+title" ISSUE` at a WU's first commit; `task pr:review -- NN` to review. The Taskfiles call the canonical commands above and never add
+a check CI does not run; every task that publishes (`pr:*`) runs
+the privacy guard first. A new task needs a one-line `desc` and a
 regenerated catalogue (`task tasks:check` tells a reviewer when it is
 stale).
 
@@ -338,46 +336,22 @@ Several agents (and humans) work this repo concurrently. The protocol:
   scrubbed immediately (`gh pr edit --body-file`, comment edit) and reported
   to the maintainer.
 
-### The board
+### Tracking and maintainer decisions
 
-A GitHub Project (`ocai`, under the `ocarinow` organization) is a **view
-of the repo, never a second source of truth**, and it holds **draft cards
-only — no issues are created**:
+There is no project board. The plan files under `docs/plans/` are the only
+record of planned work, and pull requests are the only record of work in
+progress:
 
-- One card per open WU, titled `WU-NN: <title>` exactly as the plan row.
-  The WU's definition stays in `docs/plans/`, written to
+- A WU's definition stays in `docs/plans/`, written to
   `docs/plans/WU-TEMPLATE.md` (filled example: `WU-EXAMPLE.md`) and
-  reviewed in a PR; the card's body (Status, Context, Goal, Scope,
-  Non-goals, Acceptance, Done, Deps, Architecture, Integration with its
-  diagram, Design sketch, the optional Before / after, Alternatives,
-  Reproduce and Dependency impact, Freeze, Decision, Risks, Open, Evidence,
-  links) and fields (Program, Area, Priority, Tier, Owner, Kind, PR, Plan)
-  are **generated from the entry** by the sync. `scripts/board_sync.py
-  lint` (a gate step) fails an open entry missing a mandatory bullet or a
-  Design sketch. Nobody edits a card by hand; the plan file changes and the
-  sync rewrites the card.
-- Cards move by automation only. `scripts/board_sync.py sync` (CI on every
-  push to `main` touching the plan, nightly, and on demand; `task
-  board:sync` locally) creates missing cards from the plan table and sets
-  each card's status from the facts: no PR → Defined; a draft PR whose
-  title starts with the WU id → In progress; that PR ready → In review;
-  merged, or the plan row ✅ → Done. It fails the run when the plan and
-  the cards disagree. Agents never drag cards, with one exception: the
-  maintainer may park a card in Blocked on maintainer and the sync leaves
-  it there until the PR merges.
-- The PR title is the link: `WU-NN: <imperative title>`. A WU is In
-  progress only when its draft PR exists (`task pr:draft` at the first
-  commit); work with no PR is invisible and gets flagged.
-- Questions only the maintainer can answer become a decision card in
-  Blocked on maintainer (`task board:decision -- "Decision: …" FILE`,
-  through the `maintainer-handoff` skill), not a chat question. Kernel
-  gaps get a row in `docs/plans/gaps.md` in the PR that found them and a
-  gap card (`task board:gap`).
-- Owner and Tier come from the entry's bullets; `task board:set -- WU-NN
-  --owner Claude --tier "1 chat completeness and hosts"` overrides them
-  until the next sync reads a bullet that says otherwise.
-- The project is visible to whoever can see the repository: the privacy
-  rule applies to card titles and bodies.
+  reviewed in a PR. `scripts/plan_entries.py lint` (a gate step) fails an
+  open entry missing a mandatory bullet or a Design sketch.
+- The PR title is the link: `WU-NN: <imperative title>`. Work with no PR is
+  invisible: open the draft PR at the first commit (`task pr:draft`).
+- A question only the maintainer can answer goes in the pull request, which
+  may link a file in the repository when the decision needs room, and in
+  the session chat. Keep working on what does not depend on the answer.
+- Kernel gaps get a row in `docs/plans/gaps.md` in the PR that found them.
 
 ## Sequencing principle
 

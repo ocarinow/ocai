@@ -15,8 +15,7 @@ belongs in git where a diff is visible.
 | `wu-session` | repo | implementing one WU end to end |
 | `add-edge` | repo | adding or changing a conversion edge |
 | `record-wire-pair` | repo | a test needs provider wire traffic |
-| `review-pr` | repo | reviewing a pull request (the honesty-reviewer role, with the gate and the board checks) |
-| `maintainer-handoff` | repo | something only the maintainer can decide or do — file it, do not block |
+| `review-pr` | repo | reviewing a pull request (the honesty-reviewer role, with the gate and the plan-entry checks) |
 | `differential-review` | vendored (Trail of Bits, CC-BY-SA-4.0) | security-focused review of a diff: credentials, wire, hosting, plugin loading |
 | `sharp-edges` | vendored (Trail of Bits, CC-BY-SA-4.0) | reviewing an API or config surface for misuse-resistance |
 | `gh-fix-ci` | vendored (OpenAI, Apache-2.0) | a PR check fails in GitHub Actions |

@@ -178,7 +178,7 @@ def steps_for(no_tests: bool) -> list[Step]:
     steps.append(
         Step(
             "plan entries",
-            ("python", "scripts/board_sync.py", "lint"),
+            ("python", "scripts/plan_entries.py", "lint"),
             paths=PATHS["plans"],
             suite="plans",
         )

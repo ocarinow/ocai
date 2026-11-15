@@ -77,7 +77,7 @@ jobs:
       # uv sources, mypy, import-linter, and the core extras (rules 1, 16, 19).
       - name: Plan entries
         if: steps.go.outputs.run == 'true'
-        run: uv run python scripts/board_sync.py lint
+        run: uv run python scripts/plan_entries.py lint
 
       - name: Workspace consistency
         if: steps.go.outputs.run == 'true'

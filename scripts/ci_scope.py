@@ -54,7 +54,7 @@ PATHS: dict[str, tuple[str, ...]] = {
     "dependency-review": ("",),
     "wheels": ("python/", "scripts/wheel_check.py", "knope.toml", "LICENSE"),
     "echo": ("python/", "examples/", "spec/", "LICENSE"),
-    "plans": ("docs/plans/", "scripts/board_sync.py"),
+    "plans": ("docs/plans/", "scripts/plan_entries.py"),
     "changesets": ("python/", ".changeset/", "knope.toml", "scripts/release.py"),
     "typescript": ("typescript/", "spec/"),
     "go": ("go/", "spec/"),

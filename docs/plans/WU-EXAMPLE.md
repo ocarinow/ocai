@@ -1,6 +1,6 @@
 # Work unit entry — filled example
 
-A complete entry that passes `scripts/board_sync.py check`, written against
+A complete entry that passes `scripts/plan_entries.py lint`, written against
 [`WU-TEMPLATE.md`](WU-TEMPLATE.md). The subject is real (gap G-11, the
 response-identity decision card) but the numbers, names, and tests below are
 **illustrative**: copy the shape, not the content. Mandatory bullets appear

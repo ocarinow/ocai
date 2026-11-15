@@ -8,9 +8,9 @@ real service integration and browser coverage remain pre-merge checks when relev
 | Event | Work |
 |---|---|
 | Open, reopen, or push a PR | All suites affected by its complete diff; metadata checks |
-| Edit title/body | Affected code suites and metadata checks; title changes refresh the board |
-| Mark ready or draft | Metadata checks and board refresh |
-| Change base branch | Full code validation, metadata checks and board refresh |
+| Edit title/body | Affected code suites and metadata checks |
+| Mark ready or draft | Metadata checks |
+| Change base branch | Full code validation and metadata checks |
 | Push main | Affected validation and existing deployment/release workflows |
 | Nightly or manual full run | Full code suites, independent of paths |
 

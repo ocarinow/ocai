@@ -116,34 +116,11 @@ def test_required_code_jobs_fail_if_selector_fails() -> None:
             )
 
 
-def test_board_skips_body_edits_but_updates_title_and_base() -> None:
-    condition = value(workflow_job("board-sync.yml", "sync"), "if")
-    for field, expected in [("body", False), ("title", True), ("base", True)]:
-        context: dict[str, Any] = {
-            "github": {"event": {"action": "edited", "changes": {field: {"from": "old"}}}}
-        }
-        assert bool(expression(condition, context)) == expected
-
-
 def test_push_schedule_dispatch_preserve_code_checks() -> None:
     for workflow in ["ci.yml", "docs.yml"]:
         text = (ROOT / ".github/workflows" / workflow).read_text()
         for event in ["push", "schedule", "workflow_dispatch"]:
             assert f"  {event}:" in text
-
-
-def test_board_body_event_cannot_supersede_pending_sync() -> None:
-    text = (ROOT / ".github/workflows/board-sync.yml").read_text()
-    group = re.search(r"^  group: (.+)$", text, re.MULTILINE)
-    assert group
-    for field, suffix in [("body", "metadata"), ("title", "updates"), ("base", "updates")]:
-        context: dict[str, Any] = {
-            "github": {"event": {"action": "edited", "changes": {field: {"from": "old"}}}}
-        }
-        rendered = re.sub(
-            r"\$\{\{(.*?)\}\}", lambda m, ctx=context: str(expression(m[1], ctx)), group[1]
-        )
-        assert rendered == "board-sync-" + suffix
 
 
 def test_nightly_docs_does_not_supersede_pages_and_manual_deploy_remains() -> None:

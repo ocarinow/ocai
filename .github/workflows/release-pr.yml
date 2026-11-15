@@ -9,8 +9,7 @@ name: Release PR
 # changes and no PR is opened.
 #
 # The PR is created with RELEASE_TOKEN (a token with repo scope; the default
-# token's PRs do not trigger the required checks). BOARD_TOKEN serves until a
-# dedicated token exists.
+# token's PRs do not trigger the required checks).
 
 on:
   push:
@@ -36,7 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
       - uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
         with:
@@ -85,7 +84,7 @@ jobs:
       - name: Open or update the Release PR
         uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
         with:
-          token: ${{ secrets.RELEASE_TOKEN || secrets.BOARD_TOKEN || github.token }}
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
           branch: release
           base: main
           delete-branch: true

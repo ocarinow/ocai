@@ -6,10 +6,11 @@ Run by the `pr-hygiene` CI job on every pull request event and locally by
     uv run python scripts/pr_check.py --title T --body-file F [--draft] [--base B] [--author L]
     uv run python scripts/pr_check.py --pr 77   # title, body, draft, base, author, files via gh
 
-Rules (AGENTS.md "Working alongside other agents" and "The board"):
+Rules (AGENTS.md "Working alongside other agents" and "Tracking and maintainer
+decisions"):
 
-- the title starts with the WU id, `WU-NN: <imperative title>`, so the board
-  card follows it; housekeeping PRs that are not a WU use a `<Topic>: ` prefix;
+- the title starts with the WU id, `WU-NN: <imperative title>`, so the plan
+  row and the PR stay linked; housekeeping PRs that are not a WU use a `<Topic>: ` prefix;
 - the body carries every mandatory section of `.github/PULL_REQUEST_TEMPLATE.md`
   from the first commit (drafts included) — `task pr:body` generates it. The
   optional sections (Design, Before / after, Try it, Alternatives considered)
@@ -151,8 +152,8 @@ def gate_steps() -> list[dict[str, Any]]:
 
 
 def entry_sections(wu: str) -> dict[str, str]:
-    """The WU entry's bullets, from `scripts/board_sync.py entry WU-NN --json` (empty if none)."""
-    raw = _run([sys.executable, "scripts/board_sync.py", "entry", wu, "--json"])
+    """The WU entry's bullets, from `scripts/plan_entries.py entry WU-NN --json` (empty if none)."""
+    raw = _run([sys.executable, "scripts/plan_entries.py", "entry", wu, "--json"])
     if not raw:
         return {}
     data: Any = json.loads(raw)

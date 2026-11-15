@@ -50,7 +50,7 @@ tasks:
     cmds:
       - |
         wu="{{index (splitArgs .CLI_ARGS) 0}}"; parent="{{if gt (len (splitArgs .CLI_ARGS)) 1}}{{index (splitArgs .CLI_ARGS) 1}}{{end}}"
-        if [ -n "$parent" ]; then uv run python scripts/board_sync.py pr-body "$wu" --stacked-on "$parent"; else uv run python scripts/board_sync.py pr-body "$wu"; fi
+        if [ -n "$parent" ]; then uv run python scripts/plan_entries.py pr-body "$wu" --stacked-on "$parent"; else uv run python scripts/plan_entries.py pr-body "$wu"; fi
 
   draft:
     desc: "Push and open a DRAFT PR with a body generated from the WU entry (task pr:draft -- \"WU-NN: title\" [PARENT_BRANCH]); stacked when a parent branch is given"
@@ -63,11 +63,11 @@ tasks:
         body=$(mktemp)
         if [ -n "$parent" ]; then
           n=$(gh pr list --head "$parent" --json number -q '.[0].number')
-          uv run python scripts/board_sync.py pr-body "$wu" --stacked-on "$n" > "$body"
+          uv run python scripts/plan_entries.py pr-body "$wu" --stacked-on "$n" > "$body"
           uv run python scripts/pr_check.py --title "$title" --body-file "$body" --draft --base "$parent"
           gh pr create --draft --base "$parent" --title "$title" --body-file "$body"
         else
-          uv run python scripts/board_sync.py pr-body "$wu" > "$body"
+          uv run python scripts/plan_entries.py pr-body "$wu" > "$body"
           uv run python scripts/pr_check.py --title "$title" --body-file "$body" --draft
           gh pr create --draft --title "$title" --body-file "$body"
         fi
