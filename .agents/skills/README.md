@@ -16,10 +16,6 @@ belongs in git where a diff is visible.
 | `add-edge` | repo | adding or changing a conversion edge |
 | `record-wire-pair` | repo | a test needs provider wire traffic |
 | `review-pr` | repo | reviewing a pull request (the honesty-reviewer role, with every check run on it) |
-| `differential-review` | vendored (Trail of Bits, CC-BY-SA-4.0) | security-focused review of a diff: credentials, wire, hosting, plugin loading |
-| `sharp-edges` | vendored (Trail of Bits, CC-BY-SA-4.0) | reviewing an API or config surface for misuse-resistance |
-| `gh-fix-ci` | vendored (OpenAI, Apache-2.0) | a PR check fails in GitHub Actions |
-| `gh-address-comments` | vendored (OpenAI, Apache-2.0) | working through review comments on an open PR |
 
 Roles (sub-agent bodies) live in `../roles/`; the fidelity review is the
 `honesty-reviewer` role, not a skill.
@@ -28,3 +24,7 @@ Not vendored, on purpose: property-based testing (deferred until the IR shape
 settles after the freeze review), `insecure-defaults` (a Claude plugin with
 JS workflows, not an Agent Skill; its pattern lists may be mined later),
 `modern-python` (recommends a different type checker than ADR 0002).
+
+Removed after a trial, do not vendor again without a reason: `differential-review`,
+`sharp-edges`, `gh-fix-ci` and `gh-address-comments`. They were almost never
+used, and the agents already know `gh`.
