@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@internationalized/date": "^3.12.4",
-    "@lucide/vue": "^1.71.0",
+    "@lucide/vue": "^1.72.0",
     "@nuxt/kit": "^4.6.4",
     "@tailwindcss/vite": "^4.1.0",
     "@tanstack/vue-table": "^9.3.1",
